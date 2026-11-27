@@ -1,6 +1,6 @@
 use super::*;
 
-/// Caching lookup operations for `GlyphAtlas`.
+/// Caching lookup, bounded LRU eviction, and telemetry operations for `GlyphAtlas`.
 impl GlyphAtlas {
     /// Losslessly packs all fields of `GlyphKey` into the low 40 bits of a `u64`.
     ///
@@ -35,6 +35,164 @@ impl GlyphAtlas {
     fn hash_packed_key(packed: u64) -> usize {
         let mixed: u64 = packed.wrapping_mul(GLYPH_INDEX_HASH_MULT);
         (mixed ^ (mixed >> 32)) as usize
+    }
+
+    /// Estimates the resident memory footprint in bytes of one rasterized glyph entry.
+    ///
+    /// # Arguments
+    ///
+    /// - `&RasterizedGlyph` - Cached coverage bitmap entry.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Tracked byte size including coverage bytes and metadata overhead.
+    #[inline(always)]
+    #[must_use]
+    fn entry_bytes(glyph: &RasterizedGlyph) -> usize {
+        glyph
+            .get_coverage()
+            .len()
+            .saturating_add(GLYPH_ENTRY_OVERHEAD_BYTES)
+    }
+
+    /// Resolves the active resident memory budget in bytes (`GLYPH_ATLAS_DEFAULT_BUDGET_BYTES` when unset).
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Glyph atlas reference.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Effective byte budget threshold.
+    #[inline(always)]
+    #[must_use]
+    pub fn effective_budget_bytes(&self) -> usize {
+        let raw: usize = self.get_budget_bytes();
+        if raw == 0 {
+            GLYPH_ATLAS_DEFAULT_BUDGET_BYTES
+        } else {
+            raw
+        }
+    }
+
+    /// Configures a bounded resident memory budget in bytes and immediately evicts cold glyphs if currently over budget.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable glyph atlas reference.
+    /// - `usize` - Maximum resident byte budget (clamped to `>= 1024`).
+    pub fn set_memory_budget(&mut self, max_bytes: usize) {
+        let clamped: usize = max_bytes.max(GLYPH_ATLAS_MIN_BUDGET_BYTES);
+        self.set_budget_bytes(clamped);
+        self.evict_if_over_budget();
+    }
+
+    /// Returns the cumulative cache hit ratio in `[0.0, 1.0]` (`1.0` before any lookup).
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Glyph atlas reference.
+    ///
+    /// # Returns
+    ///
+    /// - `f32` - Cache hit rate fraction.
+    #[must_use]
+    pub fn hit_rate(&self) -> f32 {
+        let hits: u64 = self.get_cache_hits();
+        let total: u64 = hits.saturating_add(self.get_cache_misses());
+        if total == 0 {
+            1.0
+        } else {
+            (hits as f32) / (total as f32)
+        }
+    }
+
+    /// Evicts least-recently-used glyphs when `resident_bytes` exceeds the active budget and slots are unpinned.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable glyph atlas reference.
+    pub fn evict_if_over_budget(&mut self) {
+        let budget: usize = self.effective_budget_bytes();
+        let Self {
+            resident_bytes,
+            slots_pinned,
+            entries,
+            ..
+        } = self;
+        if *slots_pinned || *resident_bytes <= budget || entries.len() <= 1 {
+            return;
+        }
+        let target: usize = (budget.saturating_mul(3) / 4).max(GLYPH_ENTRY_OVERHEAD_BYTES);
+        self.evict_lru_to_target(target);
+    }
+
+    /// Compacts the glyph arena by evicting the coldest LRU entries until `resident_bytes <= target_bytes`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable glyph atlas reference.
+    /// - `usize` - Target post-eviction resident byte ceiling.
+    fn evict_lru_to_target(&mut self, target_bytes: usize) {
+        let Self {
+            glyph_index,
+            entries,
+            entry_last_used,
+            ascii_tables,
+            revision,
+            resident_bytes,
+            evictions,
+            ..
+        } = self;
+        let count: usize = entries.len();
+        if count == 0 || *resident_bytes <= target_bytes {
+            return;
+        }
+        let mut order: Vec<usize> = (0..count).collect();
+        order.sort_unstable_by_key(|idx: &usize| entry_last_used.get(*idx).copied().unwrap_or(0));
+        let mut keep: Vec<bool> = vec![true; count];
+        let mut remaining_bytes: usize = *resident_bytes;
+        let mut evicted_count: usize = 0;
+        for idx in order.into_iter() {
+            if remaining_bytes <= target_bytes {
+                break;
+            }
+            let bytes: usize = Self::entry_bytes(&entries[idx].1);
+            remaining_bytes = remaining_bytes.saturating_sub(bytes);
+            keep[idx] = false;
+            evicted_count += 1;
+        }
+        if evicted_count == 0 {
+            return;
+        }
+        let mut write_idx: usize = 0;
+        let mut next_resident: usize = 0;
+        for (read_idx, &kept) in keep.iter().enumerate() {
+            if kept {
+                if write_idx != read_idx {
+                    entries.swap(write_idx, read_idx);
+                    if read_idx < entry_last_used.len() && write_idx < entry_last_used.len() {
+                        entry_last_used.swap(write_idx, read_idx);
+                    }
+                }
+                next_resident =
+                    next_resident.saturating_add(Self::entry_bytes(&entries[write_idx].1));
+                write_idx += 1;
+            }
+        }
+        entries.truncate(write_idx);
+        entry_last_used.truncate(write_idx);
+        *resident_bytes = next_resident;
+        *evictions = evictions.saturating_add(evicted_count as u64);
+        glyph_index.fill(GLYPH_INDEX_EMPTY);
+        for (slot_idx, (key, _)) in entries.iter().enumerate() {
+            let packed_key: u64 = Self::pack_glyph_key(*key);
+            Self::insert_index(glyph_index, slot_idx + 1, packed_key, slot_idx as u32);
+        }
+        for table in ascii_tables.iter_mut() {
+            table.slots.fill(u32::MAX);
+        }
+        *revision = revision.wrapping_add(1);
     }
 
     /// Probes the open-addressed `glyph_index` slice for `packed_key`.
@@ -192,9 +350,20 @@ impl GlyphAtlas {
         key_meta: (u16, bool, bool, bool),
         provider: &dyn SystemFontProvider,
     ) -> u32 {
-        let Self { ascii_tables, .. } = self;
+        let Self {
+            ascii_tables,
+            entry_last_used,
+            lru_clock,
+            cache_hits,
+            ..
+        } = self;
         let cached: u32 = ascii_tables[table_idx].slots[byte as usize];
         if cached != u32::MAX {
+            *cache_hits = cache_hits.wrapping_add(1);
+            *lru_clock = lru_clock.wrapping_add(1);
+            if let Some(tick) = entry_last_used.get_mut(cached as usize) {
+                *tick = *lru_clock;
+            }
             return cached;
         }
         let (size_tenths, bold, monospace, italic): (u16, bool, bool, bool) = key_meta;
@@ -208,6 +377,90 @@ impl GlyphAtlas {
         let slot: u32 = self.get_or_rasterize_slot_with(key, provider);
         let Self { ascii_tables, .. } = self;
         ascii_tables[table_idx].slots[byte as usize] = slot;
+        slot
+    }
+
+    /// Inserts a newly rasterized glyph into the arena, enforcing the bounded memory budget when unpinned.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable glyph atlas reference.
+    /// - `GlyphKey` - Quantized glyph lookup key.
+    /// - `u64` - Pre-packed 40-bit glyph key.
+    /// - `u32` - Pre-packed style signature for ASCII table updates.
+    /// - `RasterizedGlyph` - Newly rasterized coverage bitmap.
+    /// - `bool` - Whether a missing ASCII style table should be created automatically.
+    ///
+    /// # Returns
+    ///
+    /// - `u32` - Newly assigned arena slot index.
+    fn insert_rasterized_glyph(
+        &mut self,
+        key: GlyphKey,
+        packed_key: u64,
+        style_sig: u32,
+        glyph: RasterizedGlyph,
+        create_ascii_table: bool,
+    ) -> u32 {
+        let entry_sz: usize = Self::entry_bytes(&glyph);
+        let budget: usize = self.effective_budget_bytes();
+        let needs_evict: bool = {
+            let Self {
+                resident_bytes,
+                slots_pinned,
+                entries,
+                ..
+            } = self;
+            !*slots_pinned
+                && !entries.is_empty()
+                && resident_bytes.saturating_add(entry_sz) > budget
+        };
+        if needs_evict {
+            let target: usize = budget
+                .saturating_mul(3)
+                .saturating_div(4)
+                .saturating_sub(entry_sz);
+            self.evict_lru_to_target(target);
+        }
+        let code: u32 = key.get_codepoint() as u32;
+        let Self {
+            glyph_index,
+            entries,
+            entry_last_used,
+            ascii_tables,
+            revision,
+            resident_bytes,
+            lru_clock,
+            cache_misses,
+            ..
+        } = self;
+        if entries.is_empty() {
+            entries.reserve(GLYPH_ENTRIES_INIT_CAP);
+            entry_last_used.reserve(GLYPH_ENTRIES_INIT_CAP);
+        }
+        *cache_misses = cache_misses.wrapping_add(1);
+        *lru_clock = lru_clock.wrapping_add(1);
+        let slot: u32 = entries.len() as u32;
+        entries.push((key, glyph));
+        entry_last_used.push(*lru_clock);
+        *resident_bytes = resident_bytes.saturating_add(entry_sz);
+        Self::insert_index(glyph_index, entries.len(), packed_key, slot);
+        if code < 128 {
+            let mut updated: bool = false;
+            for table in ascii_tables.iter_mut() {
+                if table.style_sig == style_sig {
+                    table.slots[code as usize] = slot;
+                    updated = true;
+                    break;
+                }
+            }
+            if create_ascii_table && !updated {
+                let mut slots: [u32; 128] = [u32::MAX; 128];
+                slots[code as usize] = slot;
+                ascii_tables.push(AsciiGlyphStyleTable { style_sig, slots });
+            }
+        }
+        *revision = revision.wrapping_add(1);
         slot
     }
 
@@ -230,59 +483,51 @@ impl GlyphAtlas {
             key.get_monospace(),
             key.get_italic(),
         );
-        let Self {
-            glyph_index,
-            entries,
-            ascii_tables,
-            revision,
-        } = self;
-        if code < 128 {
-            for table in ascii_tables.iter() {
-                if table.style_sig == style_sig {
-                    let cached: u32 = table.slots[code as usize];
-                    if cached != u32::MAX {
-                        return cached;
-                    }
-                    break;
-                }
-            }
-        }
         let packed_key: u64 = Self::pack_glyph_key(key);
-        if let Some(slot) = Self::lookup_index(glyph_index, packed_key) {
+        {
+            let Self {
+                glyph_index,
+                entry_last_used,
+                ascii_tables,
+                lru_clock,
+                cache_hits,
+                ..
+            } = self;
             if code < 128 {
-                for table in ascii_tables.iter_mut() {
+                for table in ascii_tables.iter() {
                     if table.style_sig == style_sig {
-                        table.slots[code as usize] = slot;
+                        let cached: u32 = table.slots[code as usize];
+                        if cached != u32::MAX {
+                            *cache_hits = cache_hits.wrapping_add(1);
+                            *lru_clock = lru_clock.wrapping_add(1);
+                            if let Some(tick) = entry_last_used.get_mut(cached as usize) {
+                                *tick = *lru_clock;
+                            }
+                            return cached;
+                        }
                         break;
                     }
                 }
             }
-            return slot;
+            if let Some(slot) = Self::lookup_index(glyph_index, packed_key) {
+                *cache_hits = cache_hits.wrapping_add(1);
+                *lru_clock = lru_clock.wrapping_add(1);
+                if let Some(tick) = entry_last_used.get_mut(slot as usize) {
+                    *tick = *lru_clock;
+                }
+                if code < 128 {
+                    for table in ascii_tables.iter_mut() {
+                        if table.style_sig == style_sig {
+                            table.slots[code as usize] = slot;
+                            break;
+                        }
+                    }
+                }
+                return slot;
+            }
         }
         let glyph: RasterizedGlyph = rasterize_glyph(key);
-        if entries.is_empty() {
-            entries.reserve(GLYPH_ENTRIES_INIT_CAP);
-        }
-        let slot: u32 = entries.len() as u32;
-        entries.push((key, glyph));
-        Self::insert_index(glyph_index, entries.len(), packed_key, slot);
-        if code < 128 {
-            let mut updated: bool = false;
-            for table in ascii_tables.iter_mut() {
-                if table.style_sig == style_sig {
-                    table.slots[code as usize] = slot;
-                    updated = true;
-                    break;
-                }
-            }
-            if !updated {
-                let mut slots: [u32; 128] = [u32::MAX; 128];
-                slots[code as usize] = slot;
-                ascii_tables.push(AsciiGlyphStyleTable { style_sig, slots });
-            }
-        }
-        *revision = revision.wrapping_add(1);
-        slot
+        self.insert_rasterized_glyph(key, packed_key, style_sig, glyph, true)
     }
 
     /// Returns the arena slot index for `key`, rasterizing through `provider` on a miss.
@@ -309,46 +554,45 @@ impl GlyphAtlas {
             key.get_monospace(),
             key.get_italic(),
         );
-        let Self {
-            glyph_index,
-            entries,
-            ascii_tables,
-            revision,
-        } = self;
-        if code < 128 && !ascii_tables.is_empty() {
-            for table in ascii_tables.iter() {
-                if table.style_sig == style_sig {
-                    let cached: u32 = table.slots[code as usize];
-                    if cached != u32::MAX {
-                        return cached;
+        let packed_key: u64 = Self::pack_glyph_key(key);
+        {
+            let Self {
+                glyph_index,
+                entry_last_used,
+                ascii_tables,
+                lru_clock,
+                cache_hits,
+                ..
+            } = self;
+            if code < 128 && !ascii_tables.is_empty() {
+                for table in ascii_tables.iter() {
+                    if table.style_sig == style_sig {
+                        let cached: u32 = table.slots[code as usize];
+                        if cached != u32::MAX {
+                            *cache_hits = cache_hits.wrapping_add(1);
+                            *lru_clock = lru_clock.wrapping_add(1);
+                            if let Some(tick) = entry_last_used.get_mut(cached as usize) {
+                                *tick = *lru_clock;
+                            }
+                            return cached;
+                        }
+                        break;
                     }
-                    break;
                 }
             }
-        }
-        let packed_key: u64 = Self::pack_glyph_key(key);
-        if let Some(slot) = Self::lookup_index(glyph_index, packed_key) {
-            return slot;
+            if let Some(slot) = Self::lookup_index(glyph_index, packed_key) {
+                *cache_hits = cache_hits.wrapping_add(1);
+                *lru_clock = lru_clock.wrapping_add(1);
+                if let Some(tick) = entry_last_used.get_mut(slot as usize) {
+                    *tick = *lru_clock;
+                }
+                return slot;
+            }
         }
         let glyph: RasterizedGlyph = provider
             .rasterize(key)
             .unwrap_or_else(|| rasterize_glyph(key));
-        if entries.is_empty() {
-            entries.reserve(GLYPH_ENTRIES_INIT_CAP);
-        }
-        let slot: u32 = entries.len() as u32;
-        entries.push((key, glyph));
-        Self::insert_index(glyph_index, entries.len(), packed_key, slot);
-        if code < 128 && !ascii_tables.is_empty() {
-            for table in ascii_tables.iter_mut() {
-                if table.style_sig == style_sig {
-                    table.slots[code as usize] = slot;
-                    break;
-                }
-            }
-        }
-        *revision = revision.wrapping_add(1);
-        slot
+        self.insert_rasterized_glyph(key, packed_key, style_sig, glyph, false)
     }
 
     /// Returns a read-only reference to the `RasterizedGlyph` at flat arena index `slot`.
@@ -564,12 +808,17 @@ impl GlyphAtlas {
         let Self {
             glyph_index,
             entries,
+            entry_last_used,
             ascii_tables,
             revision,
+            resident_bytes,
+            ..
         } = self;
         glyph_index.fill(GLYPH_INDEX_EMPTY);
         entries.clear();
+        entry_last_used.clear();
         ascii_tables.clear();
+        *resident_bytes = 0;
         *revision = revision.wrapping_add(1);
     }
 }

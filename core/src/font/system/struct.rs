@@ -68,6 +68,54 @@ pub(crate) struct CtSize {
     pub(crate) height: f64,
 }
 
+/// Cached Apple CoreText `CTFontRef` handle paired with pre-queried vertical metrics.
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+#[derive(Clone, Copy)]
+pub(crate) struct CoreTextFontCacheEntry {
+    /// Packed `(size_tenths | bold<<16 | monospace<<17 | italic<<18)` style signature.
+    pub(crate) style_sig: u32,
+    /// Retained CoreText `CTFontRef` handle released on eviction or thread exit.
+    pub(crate) font: *mut c_void,
+    /// Pre-queried clamped typographic ascent in points.
+    pub(crate) ascent: f64,
+    /// Pre-queried clamped typographic descent in points.
+    pub(crate) descent: f64,
+}
+
+/// Thread-local cache of Apple CoreText `CTFontRef` handles and singleton grayscale `CGColorSpaceRef`.
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+pub(crate) struct CoreTextFontCache {
+    /// Singleton device-gray `CGColorSpaceRef` reused across all glyph rasterizations on this thread.
+    pub(crate) gray_space: *mut c_void,
+    /// Bounded MRU-ordered table of cached base `CTFontRef` handles (`<= CORETEXT_FONT_CACHE_MAX`).
+    pub(crate) fonts: Vec<CoreTextFontCacheEntry>,
+}
+
+/// Cached Windows Win32 `HFONT` handle paired with pre-queried font metrics.
+#[cfg(target_os = "windows")]
+#[derive(Clone, Copy)]
+pub(crate) struct Win32FontCacheEntry {
+    /// Packed `(size_px | bold<<16 | italic<<17 | face_kind<<18)` style signature.
+    pub(crate) style_sig: u32,
+    /// Retained Win32 `HFONT` handle deleted on eviction or thread exit.
+    pub(crate) hfont: *mut c_void,
+    /// Pre-queried clamped typographic ascent in pixels.
+    pub(crate) ascent: i32,
+    /// Pre-queried clamped typographic descent in pixels.
+    pub(crate) descent: i32,
+}
+
+/// Thread-local cache of Windows Win32 memory `HDC`, `HFONT` handles, and outline scratch buffer.
+#[cfg(target_os = "windows")]
+pub(crate) struct Win32FontCache {
+    /// Persistent compatible memory device context reused across glyph misses.
+    pub(crate) hdc: *mut c_void,
+    /// Bounded table of cached `HFONT` handles (`<= WIN32_FONT_CACHE_MAX`).
+    pub(crate) fonts: Vec<Win32FontCacheEntry>,
+    /// Reusable `GetGlyphOutlineW` byte scratch buffer eliminating per-glyph allocations.
+    pub(crate) raw_buf: Vec<u8>,
+}
+
 #[cfg(target_os = "windows")]
 #[repr(C)]
 #[derive(Clone, Copy, Default)]

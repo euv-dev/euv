@@ -313,13 +313,31 @@ pub(crate) struct TextLayoutSlot {
     pub(crate) entry_idx: u32,
 }
 
-/// Zero-clone, SipHash-free open-addressed cache of wrapped `TextLayoutResult` entries referenced by arena index.
+/// Zero-clone, SipHash-free open-addressed cache of wrapped `TextLayoutResult` entries with bounded LRU eviction and telemetry.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct TextLayoutCache {
     /// Power-of-two linear-probing slot table (`entry_idx == u32::MAX` denotes an empty slot).
     pub(crate) slots: Vec<TextLayoutSlot>,
     /// Contiguous arena owning cached `TextLayoutResult` entries read lock-free across band workers.
     pub(crate) entries: Vec<TextLayoutResult>,
+    /// Lookup keys `(key_hash, width_key)` aligned 1:1 with `entries` for slot table reconstruction after LRU eviction.
+    pub(crate) entry_keys: Vec<(u64, u32)>,
+    /// Monotonic access ticks aligned 1:1 with `entries` for bounded LRU eviction.
+    pub(crate) entry_last_used: Vec<u64>,
+    /// Tracked resident byte footprint per entry aligned 1:1 with `entries`.
+    pub(crate) entry_bytes: Vec<usize>,
+    /// Current total resident memory in bytes across all cached layouts.
+    pub(crate) resident_bytes: usize,
+    /// Optional custom memory budget in bytes (`0` selects `TEXT_LAYOUT_CACHE_BUDGET_BYTES`).
+    pub(crate) budget_bytes: usize,
+    /// Monotonic access clock incremented on every cache lookup.
+    pub(crate) lru_clock: u64,
+    /// Cumulative count of text layout cache hits.
+    pub(crate) cache_hits: u64,
+    /// Cumulative count of text layout cache misses.
+    pub(crate) cache_misses: u64,
+    /// Cumulative count of evicted cold text layouts.
+    pub(crate) evictions: u64,
 }
 
 /// High-performance CPU tile and analytical-SDF software rasterizer with zero GPU dependencies.

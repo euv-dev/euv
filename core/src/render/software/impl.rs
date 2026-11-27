@@ -385,7 +385,7 @@ impl Drop for BandWorkerPool {
     }
 }
 
-/// Zero-clone SipHash-free open-addressed lookup operations for `TextLayoutCache`.
+/// Zero-clone SipHash-free open-addressed lookup, bounded LRU eviction, and telemetry operations for `TextLayoutCache`.
 impl TextLayoutCache {
     /// Creates a pre-allocated cache with power-of-two slot capacity.
     ///
@@ -399,13 +399,44 @@ impl TextLayoutCache {
     #[must_use]
     pub(crate) fn with_capacity(slot_cap: usize) -> Self {
         let cap: usize = slot_cap.max(16).next_power_of_two();
+        let entry_cap: usize = cap / 2;
         Self {
             slots: vec![EMPTY_TEXT_LAYOUT_SLOT; cap],
-            entries: Vec::with_capacity(cap / 2),
+            entries: Vec::with_capacity(entry_cap),
+            entry_keys: Vec::with_capacity(entry_cap),
+            entry_last_used: Vec::with_capacity(entry_cap),
+            entry_bytes: Vec::with_capacity(entry_cap),
+            resident_bytes: 0,
+            budget_bytes: TEXT_LAYOUT_CACHE_BUDGET_BYTES,
+            lru_clock: 0,
+            cache_hits: 0,
+            cache_misses: 0,
+            evictions: 0,
         }
     }
 
-    /// Returns the number of cached `TextLayoutResult` entries currently stored in the arena.
+    /// Estimates the resident heap footprint in bytes of one cached `TextLayoutResult`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&TextLayoutResult` - Cached text layout entry.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Approximate resident memory footprint in bytes.
+    #[inline]
+    #[must_use]
+    fn estimate_entry_bytes(layout: &TextLayoutResult) -> usize {
+        let mut bytes: usize = TEXT_LAYOUT_ENTRY_OVERHEAD_BYTES;
+        for line in layout.get_lines().iter() {
+            bytes = bytes
+                .saturating_add(TEXT_LINE_OVERHEAD_BYTES)
+                .saturating_add(line.get_text().len());
+        }
+        bytes
+    }
+
+    /// Returns cumulative telemetry `(hits, misses, evictions, resident_bytes)` for this text layout cache.
     ///
     /// # Arguments
     ///
@@ -413,11 +444,17 @@ impl TextLayoutCache {
     ///
     /// # Returns
     ///
-    /// - `usize` - Number of cached layouts.
+    /// - `(u64, u64, u64, usize)` - Tuple `(cache_hits, cache_misses, evictions, resident_bytes)`.
     #[must_use]
-    pub(crate) fn len(&self) -> usize {
-        let Self { entries, .. } = self;
-        entries.len()
+    pub(crate) fn stats(&self) -> (u64, u64, u64, usize) {
+        let Self {
+            cache_hits,
+            cache_misses,
+            evictions,
+            resident_bytes,
+            ..
+        } = self;
+        (*cache_hits, *cache_misses, *evictions, *resident_bytes)
     }
 
     /// Returns the cached `TextLayoutResult` stored at arena index `idx`, if valid.
@@ -436,18 +473,90 @@ impl TextLayoutCache {
         entries.get(idx as usize)
     }
 
-    /// Clears all cached entries and resets the slot table while retaining bounded capacity.
+    /// Evicts cold least-recently-used entries at frame boundaries when count or resident memory exceeds budget.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable cache reference.
-    pub(crate) fn clear(&mut self) {
-        let Self { slots, entries } = self;
-        entries.clear();
+    pub(crate) fn evict_lru_if_needed(&mut self) {
+        let Self {
+            slots,
+            entries,
+            entry_keys,
+            entry_last_used,
+            entry_bytes,
+            resident_bytes,
+            budget_bytes,
+            evictions,
+            ..
+        } = self;
+        let effective_budget: usize = if *budget_bytes == 0 {
+            TEXT_LAYOUT_CACHE_BUDGET_BYTES
+        } else {
+            *budget_bytes
+        };
+        let count: usize = entries.len();
+        if count <= TEXT_LAYOUT_CACHE_LIMIT && *resident_bytes <= effective_budget {
+            return;
+        }
+        let target_count: usize = (TEXT_LAYOUT_CACHE_LIMIT * 3) / 4;
+        let target_bytes: usize = (effective_budget * 3) / 4;
+        let mut order: Vec<usize> = (0..count).collect();
+        order.sort_unstable_by_key(|idx: &usize| entry_last_used.get(*idx).copied().unwrap_or(0));
+        let mut keep: Vec<bool> = vec![true; count];
+        let mut remaining_count: usize = count;
+        let mut remaining_bytes: usize = *resident_bytes;
+        let mut evicted_count: usize = 0;
+        for idx in order.into_iter() {
+            if remaining_count <= target_count && remaining_bytes <= target_bytes {
+                break;
+            }
+            keep[idx] = false;
+            remaining_count = remaining_count.saturating_sub(1);
+            remaining_bytes = remaining_bytes.saturating_sub(entry_bytes[idx]);
+            evicted_count += 1;
+        }
+        if evicted_count == 0 {
+            return;
+        }
+        let mut write_idx: usize = 0;
+        let mut next_resident: usize = 0;
+        for (read_idx, &kept) in keep.iter().enumerate() {
+            if kept {
+                if write_idx != read_idx {
+                    entries.swap(write_idx, read_idx);
+                    entry_keys.swap(write_idx, read_idx);
+                    entry_last_used.swap(write_idx, read_idx);
+                    entry_bytes.swap(write_idx, read_idx);
+                }
+                next_resident = next_resident.saturating_add(entry_bytes[write_idx]);
+                write_idx += 1;
+            }
+        }
+        entries.truncate(write_idx);
+        entry_keys.truncate(write_idx);
+        entry_last_used.truncate(write_idx);
+        entry_bytes.truncate(write_idx);
+        *resident_bytes = next_resident;
+        *evictions = evictions.saturating_add(evicted_count as u64);
         if slots.len() > TEXT_LAYOUT_CACHE_SLOTS {
             slots.resize(TEXT_LAYOUT_CACHE_SLOTS, EMPTY_TEXT_LAYOUT_SLOT);
         }
         slots.fill(EMPTY_TEXT_LAYOUT_SLOT);
+        if !slots.is_empty() {
+            let mask: usize = slots.len() - 1;
+            for (slot_entry_idx, &(key_hash, width_key)) in entry_keys.iter().enumerate() {
+                let mut idx: usize = Self::slot_start(key_hash, width_key, mask);
+                while slots[idx].entry_idx != u32::MAX {
+                    idx = (idx + 1) & mask;
+                }
+                slots[idx] = TextLayoutSlot {
+                    key_hash,
+                    width_key,
+                    entry_idx: slot_entry_idx as u32,
+                };
+            }
+        }
     }
 
     /// Computes the initial power-of-two probe index for `(key_hash, width_key)`.
@@ -510,7 +619,13 @@ impl TextLayoutCache {
     {
         let mut empty_slot: Option<usize> = None;
         {
-            let Self { slots, .. } = self;
+            let Self {
+                slots,
+                entry_last_used,
+                lru_clock,
+                cache_hits,
+                ..
+            } = self;
             if !slots.is_empty() {
                 let mask: usize = slots.len() - 1;
                 let mut idx: usize = Self::slot_start(key_hash, width_key, mask);
@@ -521,6 +636,11 @@ impl TextLayoutCache {
                         break;
                     }
                     if slot.key_hash == key_hash && slot.width_key == width_key {
+                        *cache_hits = cache_hits.wrapping_add(1);
+                        *lru_clock = lru_clock.wrapping_add(1);
+                        if let Some(tick) = entry_last_used.get_mut(slot.entry_idx as usize) {
+                            *tick = *lru_clock;
+                        }
                         return slot.entry_idx;
                     }
                     idx = (idx + 1) & mask;
@@ -528,8 +648,9 @@ impl TextLayoutCache {
             }
         }
         let measured: TextLayoutResult = compute();
+        let entry_sz: usize = Self::estimate_entry_bytes(&measured);
         let needs_rehash: bool = {
-            let Self { slots, entries } = self;
+            let Self { slots, entries, .. } = self;
             slots.is_empty() || (entries.len() + 1).saturating_mul(2) > slots.len()
         };
         if needs_rehash {
@@ -544,9 +665,25 @@ impl TextLayoutCache {
             self.rehash(next_cap);
             empty_slot = None;
         }
-        let Self { slots, entries } = self;
+        let Self {
+            slots,
+            entries,
+            entry_keys,
+            entry_last_used,
+            entry_bytes,
+            resident_bytes,
+            lru_clock,
+            cache_misses,
+            ..
+        } = self;
+        *cache_misses = cache_misses.wrapping_add(1);
+        *lru_clock = lru_clock.wrapping_add(1);
         let entry_idx: u32 = entries.len() as u32;
         entries.push(measured);
+        entry_keys.push((key_hash, width_key));
+        entry_last_used.push(*lru_clock);
+        entry_bytes.push(entry_sz);
+        *resident_bytes = resident_bytes.saturating_add(entry_sz);
         let target_idx: usize = match empty_slot {
             Some(idx) => idx,
             None => {
@@ -1398,9 +1535,9 @@ impl SoftwareRenderer {
         clip_scopes.push((root_y0, root_y1, None));
         let mut empty_clip_depth: usize = 0;
         let mut has_first_cmd: bool = false;
-        if text_layout_cache.len() > TEXT_LAYOUT_CACHE_LIMIT {
-            text_layout_cache.clear();
-        }
+        glyph_atlas.evict_if_over_budget();
+        glyph_atlas.set_slots_pinned(true);
+        text_layout_cache.evict_lru_if_needed();
         if corner_mask_cache.len() > CORNER_MASK_CACHE_LIMIT {
             corner_mask_cache.clear();
         }
@@ -1961,6 +2098,21 @@ impl SoftwareRenderer {
                 }
             }
         }
+        glyph_atlas.set_slots_pinned(false);
+    }
+
+    /// Returns cumulative `TextLayoutCache` telemetry `(hits, misses, evictions, resident_bytes)`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Software renderer reference.
+    ///
+    /// # Returns
+    ///
+    /// - `(u64, u64, u64, usize)` - Tuple `(cache_hits, cache_misses, evictions, resident_bytes)`.
+    #[must_use]
+    pub fn text_layout_cache_stats(&self) -> (u64, u64, u64, usize) {
+        self.get_text_layout_cache().stats()
     }
 
     /// Resolves and positions every visible glyph of a `TextRun` once on the main thread using direct ASCII slot tables.

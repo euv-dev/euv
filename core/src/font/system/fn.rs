@@ -478,7 +478,120 @@ unsafe extern "C" {
     fn CGContextRelease(ctx: *mut c_void);
 }
 
-/// Rasterizes a Unicode or ASCII glyph using Apple CoreText + CoreGraphics (`SF Pro` / `PingFang SC`).
+/// Releases cached CoreText `CTFontRef` handles and the thread-local grayscale `CGColorSpaceRef`.
+///
+/// # Arguments
+///
+/// - `*mut c_void` - Cached grayscale `CGColorSpaceRef` (may be null).
+/// - `&mut Vec<CoreTextFontCacheEntry>` - Cached CoreText font entries to drain and release.
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+pub(crate) fn release_coretext_cache(
+    gray_space: *mut c_void,
+    fonts: &mut Vec<CoreTextFontCacheEntry>,
+) {
+    // SAFETY: Every cached handle was created by CoreText/CoreGraphics and retained exclusively by this thread-local cache.
+    unsafe {
+        for entry in fonts.drain(..) {
+            if !entry.font.is_null() {
+                CFRelease(entry.font);
+            }
+        }
+        if !gray_space.is_null() {
+            CGColorSpaceRelease(gray_space);
+        }
+    }
+}
+
+/// Resolves or creates a cached Apple CoreText base font handle and singleton grayscale color space for `key`.
+///
+/// # Arguments
+///
+/// - `GlyphKey` - Quantized glyph style descriptor.
+///
+/// # Returns
+///
+/// - `Option<(*mut c_void, f64, f64, *mut c_void)>` - Tuple `(base_font, base_ascent, base_descent, gray_space)`.
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+fn lookup_or_create_coretext_base(key: GlyphKey) -> Option<(*mut c_void, f64, f64, *mut c_void)> {
+    let style_sig: u32 = GlyphAtlas::pack_style_sig(
+        key.get_size_tenths(),
+        key.get_bold(),
+        key.get_monospace(),
+        key.get_italic(),
+    );
+    CORETEXT_FONT_CACHE.with(|cell: &RefCell<CoreTextFontCache>| {
+        let mut cache: RefMut<'_, CoreTextFontCache> = cell.borrow_mut();
+        // SAFETY: CoreGraphics/CoreText handles live inside this thread-local cache and are released on eviction or `Drop`.
+        unsafe {
+            if cache.gray_space.is_null() {
+                cache.gray_space = CGColorSpaceCreateDeviceGray();
+                if cache.gray_space.is_null() {
+                    return None;
+                }
+            }
+            let gray_space: *mut c_void = cache.gray_space;
+            for entry in cache.fonts.iter() {
+                if entry.style_sig == style_sig {
+                    return Some((entry.font, entry.ascent, entry.descent, gray_space));
+                }
+            }
+            let size_px: f64 = ((key.get_size_tenths() as f64) * 0.1).max(6.0);
+            let ui_font_kind: u32 = if key.get_monospace() {
+                CT_FONT_UI_FIXED_PITCH
+            } else if key.get_bold() {
+                CT_FONT_UI_EMPHASIZED_SYSTEM
+            } else {
+                CT_FONT_UI_SYSTEM
+            };
+            let raw_base: *mut c_void =
+                CTFontCreateUIFontForLanguage(ui_font_kind, size_px, null());
+            if raw_base.is_null() {
+                return None;
+            }
+            let mut desired_traits: u32 = 0;
+            if key.get_monospace() && key.get_bold() {
+                desired_traits |= CT_FONT_TRAIT_BOLD;
+            }
+            if key.get_italic() {
+                desired_traits |= CT_FONT_TRAIT_ITALIC;
+            }
+            let base_font: *mut c_void = if desired_traits != 0 {
+                let styled: *mut c_void = CTFontCreateCopyWithSymbolicTraits(
+                    raw_base,
+                    0.0,
+                    null(),
+                    desired_traits,
+                    desired_traits,
+                );
+                if styled.is_null() {
+                    raw_base
+                } else {
+                    CFRelease(raw_base);
+                    styled
+                }
+            } else {
+                raw_base
+            };
+            let base_ascent: f64 = CTFontGetAscent(base_font).max(size_px * 0.80);
+            let base_descent: f64 = CTFontGetDescent(base_font).max(size_px * 0.24);
+            if cache.fonts.len() >= CORETEXT_FONT_CACHE_MAX {
+                let evicted: CoreTextFontCacheEntry = cache.fonts.remove(0);
+                if !evicted.font.is_null() {
+                    CFRelease(evicted.font);
+                }
+            }
+            cache.fonts.push(CoreTextFontCacheEntry {
+                style_sig,
+                font: base_font,
+                ascent: base_ascent,
+                descent: base_descent,
+            });
+            Some((base_font, base_ascent, base_descent, gray_space))
+        }
+    })
+}
+
+/// Rasterizes a Unicode or ASCII glyph using cached Apple CoreText + CoreGraphics (`SF Pro` / `PingFang SC`).
 ///
 /// # Arguments
 ///
@@ -489,50 +602,23 @@ unsafe extern "C" {
 /// - `Option<RasterizedGlyph>` - Anti-aliased coverage bitmap or `None` on FFI failure.
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 fn rasterize_coretext_glyph(key: GlyphKey) -> Option<RasterizedGlyph> {
-    let size_px: f64 = ((key.get_size_tenths() as f64) * 0.1).max(6.0);
     let mut utf16_buf: [u16; 2] = [0; 2];
     let encoded: &[u16] = key.get_codepoint().encode_utf16(&mut utf16_buf);
     let count: isize = encoded.len() as isize;
-    let ui_font_kind: u32 = if key.get_monospace() {
-        CT_FONT_UI_FIXED_PITCH
-    } else if key.get_bold() {
-        CT_FONT_UI_EMPHASIZED_SYSTEM
-    } else {
-        CT_FONT_UI_SYSTEM
-    };
+    let (base_font, base_ascent, base_descent, gray_space): (*mut c_void, f64, f64, *mut c_void) =
+        lookup_or_create_coretext_base(key)?;
+    // SAFETY: `base_font` and `gray_space` are valid thread-local cached handles; any cascaded fallback font is released locally.
     unsafe {
-        let raw_base: *mut c_void = CTFontCreateUIFontForLanguage(ui_font_kind, size_px, null());
-        if raw_base.is_null() {
-            return None;
-        }
-        let mut desired_traits: u32 = 0;
-        if key.get_monospace() && key.get_bold() {
-            desired_traits |= CT_FONT_TRAIT_BOLD;
-        }
-        if key.get_italic() {
-            desired_traits |= CT_FONT_TRAIT_ITALIC;
-        }
-        let base_font: *mut c_void = if desired_traits != 0 {
-            let styled: *mut c_void = CTFontCreateCopyWithSymbolicTraits(
-                raw_base,
-                0.0,
-                null(),
-                desired_traits,
-                desired_traits,
-            );
-            if styled.is_null() {
-                raw_base
-            } else {
-                CFRelease(raw_base);
-                styled
-            }
+        let mut glyphs: [u16; 2] = [0; 2];
+        let found_primary: bool =
+            CTFontGetGlyphsForCharacters(base_font, encoded.as_ptr(), glyphs.as_mut_ptr(), count);
+        let (active_font, owned_active): (*mut c_void, bool) = if found_primary && glyphs[0] != 0 {
+            (base_font, false)
         } else {
-            raw_base
-        };
-        let base_ascent: f64 = CTFontGetAscent(base_font).max(size_px * 0.80);
-        let base_descent: f64 = CTFontGetDescent(base_font).max(size_px * 0.24);
-        let cf_str: *mut c_void = CFStringCreateWithCharacters(null(), encoded.as_ptr(), count);
-        let active_font: *mut c_void = if !cf_str.is_null() {
+            let cf_str: *mut c_void = CFStringCreateWithCharacters(null(), encoded.as_ptr(), count);
+            if cf_str.is_null() {
+                return None;
+            }
             let range: CtRange = CtRange {
                 location: 0,
                 length: count,
@@ -540,21 +626,20 @@ fn rasterize_coretext_glyph(key: GlyphKey) -> Option<RasterizedGlyph> {
             let cascaded: *mut c_void = CTFontCreateForString(base_font, cf_str, range);
             CFRelease(cf_str);
             if cascaded.is_null() {
-                base_font
-            } else {
-                CFRelease(base_font);
-                cascaded
+                return None;
             }
-        } else {
-            base_font
+            let found_fallback: bool = CTFontGetGlyphsForCharacters(
+                cascaded,
+                encoded.as_ptr(),
+                glyphs.as_mut_ptr(),
+                count,
+            );
+            if !found_fallback || glyphs[0] == 0 {
+                CFRelease(cascaded);
+                return None;
+            }
+            (cascaded, true)
         };
-        let mut glyphs: [u16; 2] = [0; 2];
-        let found: bool =
-            CTFontGetGlyphsForCharacters(active_font, encoded.as_ptr(), glyphs.as_mut_ptr(), count);
-        if !found || glyphs[0] == 0 {
-            CFRelease(active_font);
-            return None;
-        }
         let mut adv_size: CtSize = CtSize {
             width: 0.0,
             height: 0.0,
@@ -570,23 +655,19 @@ fn rasterize_coretext_glyph(key: GlyphKey) -> Option<RasterizedGlyph> {
         let out_w: u32 = (adv_f64.ceil() + 3.0).max(4.0) as u32;
         let out_h: u32 = (base_ascent + base_descent).ceil().max(8.0) as u32 + 2;
         let mut coverage: Vec<u8> = vec![0; (out_w as usize) * (out_h as usize)];
-        let cs: *mut c_void = CGColorSpaceCreateDeviceGray();
-        if cs.is_null() {
-            CFRelease(active_font);
-            return None;
-        }
         let cg_ctx: *mut c_void = CGBitmapContextCreate(
             coverage.as_mut_ptr().cast::<c_void>(),
             out_w as usize,
             out_h as usize,
             8,
             out_w as usize,
-            cs,
+            gray_space,
             0,
         );
-        CGColorSpaceRelease(cs);
         if cg_ctx.is_null() {
-            CFRelease(active_font);
+            if owned_active {
+                CFRelease(active_font);
+            }
             return None;
         }
         CGContextSetAllowsAntialiasing(cg_ctx, true);
@@ -600,7 +681,9 @@ fn rasterize_coretext_glyph(key: GlyphKey) -> Option<RasterizedGlyph> {
         };
         CTFontDrawGlyphs(active_font, glyphs.as_ptr(), &pos, 1, cg_ctx);
         CGContextRelease(cg_ctx);
-        CFRelease(active_font);
+        if owned_active {
+            CFRelease(active_font);
+        }
         Some(RasterizedGlyph::new(out_w, out_h, advance, coverage))
     }
 }
@@ -724,32 +807,62 @@ unsafe extern "system" {
     ) -> u32;
 }
 
-/// Rasterizes a glyph using a single Win32 GDI font face into a baseline-aligned uniform line box.
+/// Releases cached Windows Win32 `HFONT` handles and the thread-local compatible memory `HDC`.
 ///
 /// # Arguments
 ///
-/// - `*mut c_void` - Memory device context handle.
+/// - `*mut c_void` - Cached memory `HDC` handle (may be null).
+/// - `&mut Vec<Win32FontCacheEntry>` - Cached `HFONT` entries to drain and delete.
+#[cfg(target_os = "windows")]
+pub(crate) fn release_win32_cache(hdc: *mut c_void, fonts: &mut Vec<Win32FontCacheEntry>) {
+    // SAFETY: Every cached handle was created by Win32 GDI and owned exclusively by this thread-local cache.
+    unsafe {
+        for entry in fonts.drain(..) {
+            if !entry.hfont.is_null() {
+                let _: i32 = DeleteObject(entry.hfont);
+            }
+        }
+        if !hdc.is_null() {
+            let _: i32 = DeleteDC(hdc);
+        }
+    }
+}
+
+/// Resolves or creates a cached Win32 `HFONT` and metrics inside `cache` for `(key, face_kind)`.
+///
+/// # Arguments
+///
+/// - `&mut Win32FontCache` - Thread-local Win32 GDI cache.
 /// - `GlyphKey` - Quantized glyph descriptor.
+/// - `u32` - Face slot discriminant (`0` = UI sans, `1` = mono, `2` = CJK).
 /// - `*const u16` - Null-terminated UTF-16 font family name.
-/// - `&WinMat2` - Identity transformation matrix.
 ///
 /// # Returns
 ///
-/// - `Option<RasterizedGlyph>` - Baseline-aligned anti-aliased glyph bitmap.
+/// - `Option<(*mut c_void, i32, i32)>` - Tuple `(hfont, ascent, descent)`.
 #[cfg(target_os = "windows")]
-fn rasterize_win32_face(
-    hdc: *mut c_void,
+fn lookup_or_create_win32_font(
+    cache: &mut Win32FontCache,
     key: GlyphKey,
+    face_kind: u32,
     face_utf16: *const u16,
-    identity: &WinMat2,
-) -> Option<RasterizedGlyph> {
+) -> Option<(*mut c_void, i32, i32)> {
     let size_px: i32 = ((key.get_size_tenths() as f32) * 0.1).round().max(8.0) as i32;
+    let style_sig: u32 = ((size_px as u32) & 0xFFFF)
+        | (u32::from(key.get_bold()) << 16)
+        | (u32::from(key.get_italic()) << 17)
+        | (face_kind << 18);
+    for entry in cache.fonts.iter() {
+        if entry.style_sig == style_sig {
+            return Some((entry.hfont, entry.ascent, entry.descent));
+        }
+    }
     let weight: i32 = if key.get_bold() {
         WIN_FW_BOLD
     } else {
         WIN_FW_NORMAL
     };
-    // SAFETY: Caller supplies a valid compatible memory DC and null-terminated UTF-16 face name.
+    // SAFETY: `cache.hdc` is a valid compatible memory DC and `face_utf16` is a static null-terminated UTF-16 string.
     unsafe {
         let hfont: *mut c_void = CreateFontW(
             -size_px,
@@ -770,12 +883,56 @@ fn rasterize_win32_face(
         if hfont.is_null() {
             return None;
         }
-        let prev_obj: *mut c_void = SelectObject(hdc, hfont);
+        let prev_obj: *mut c_void = SelectObject(cache.hdc, hfont);
         let mut tm: WinTextMetricW = WinTextMetricW::default();
-        let _: i32 = GetTextMetricsW(hdc, &mut tm);
+        let _: i32 = GetTextMetricsW(cache.hdc, &mut tm);
+        let _: *mut c_void = SelectObject(cache.hdc, prev_obj);
         let ascent: i32 = tm.tm_ascent.max(((size_px as f32) * 0.80).ceil() as i32);
         let descent: i32 = tm.tm_descent.max(((size_px as f32) * 0.24).ceil() as i32);
-        let out_h: u32 = ((ascent + descent).max(8) as u32) + 2;
+        if cache.fonts.len() >= WIN32_FONT_CACHE_MAX {
+            let evicted: Win32FontCacheEntry = cache.fonts.remove(0);
+            if !evicted.hfont.is_null() {
+                let _: i32 = DeleteObject(evicted.hfont);
+            }
+        }
+        cache.fonts.push(Win32FontCacheEntry {
+            style_sig,
+            hfont,
+            ascent,
+            descent,
+        });
+        Some((hfont, ascent, descent))
+    }
+}
+
+/// Rasterizes a glyph using a cached Win32 GDI font face into a baseline-aligned uniform line box.
+///
+/// # Arguments
+///
+/// - `&mut Win32FontCache` - Thread-local Win32 GDI handle and scratch buffer cache.
+/// - `GlyphKey` - Quantized glyph descriptor.
+/// - `u32` - Face slot discriminant (`0` = UI sans, `1` = mono, `2` = CJK).
+/// - `*const u16` - Null-terminated UTF-16 font family name.
+/// - `&WinMat2` - Identity transformation matrix.
+///
+/// # Returns
+///
+/// - `Option<RasterizedGlyph>` - Baseline-aligned anti-aliased glyph bitmap.
+#[cfg(target_os = "windows")]
+fn rasterize_win32_face(
+    cache: &mut Win32FontCache,
+    key: GlyphKey,
+    face_kind: u32,
+    face_utf16: *const u16,
+    identity: &WinMat2,
+) -> Option<RasterizedGlyph> {
+    let (hfont, ascent, descent): (*mut c_void, i32, i32) =
+        lookup_or_create_win32_font(cache, key, face_kind, face_utf16)?;
+    let hdc: *mut c_void = cache.hdc;
+    let out_h: u32 = ((ascent + descent).max(8) as u32) + 2;
+    // SAFETY: `hdc` and `hfont` are valid handles cached on this thread.
+    unsafe {
+        let prev_obj: *mut c_void = SelectObject(hdc, hfont);
         let mut metrics: WinGlyphMetrics = WinGlyphMetrics::default();
         let needed: u32 = GetGlyphOutlineW(
             hdc,
@@ -788,7 +945,6 @@ fn rasterize_win32_face(
         );
         if needed == u32::MAX {
             let _: *mut c_void = SelectObject(hdc, prev_obj);
-            let _: i32 = DeleteObject(hfont);
             return None;
         }
         let adv_i32: i32 = (metrics.cell_inc_x as i32).max(2);
@@ -800,7 +956,6 @@ fn rasterize_win32_face(
         let advance: u32 = adv_i32 as u32;
         if needed == 0 || bw <= 0 || bh <= 0 {
             let _: *mut c_void = SelectObject(hdc, prev_obj);
-            let _: i32 = DeleteObject(hfont);
             return Some(RasterizedGlyph::new(
                 out_w,
                 out_h,
@@ -808,18 +963,18 @@ fn rasterize_win32_face(
                 vec![0; (out_w as usize) * (out_h as usize)],
             ));
         }
-        let mut raw_buf: Vec<u8> = vec![0; needed as usize];
+        cache.raw_buf.clear();
+        cache.raw_buf.resize(needed as usize, 0);
         let written: u32 = GetGlyphOutlineW(
             hdc,
             key.get_codepoint() as u32,
             WIN_GGO_GRAY8_BITMAP,
             &mut metrics,
             needed,
-            raw_buf.as_mut_ptr().cast::<c_void>(),
+            cache.raw_buf.as_mut_ptr().cast::<c_void>(),
             identity,
         );
         let _: *mut c_void = SelectObject(hdc, prev_obj);
-        let _: i32 = DeleteObject(hfont);
         if written == u32::MAX {
             return None;
         }
@@ -837,8 +992,8 @@ fn rasterize_win32_face(
                     continue;
                 }
                 let src_idx: usize = py * stride + px;
-                if src_idx < raw_buf.len() {
-                    let level: u16 = (raw_buf[src_idx] as u16).min(64);
+                if src_idx < cache.raw_buf.len() {
+                    let level: u16 = (cache.raw_buf[src_idx] as u16).min(64);
                     coverage[row_off + (tx as usize)] = ((level * 255) / 64) as u8;
                 }
             }
@@ -847,7 +1002,7 @@ fn rasterize_win32_face(
     }
 }
 
-/// Rasterizes a glyph using Windows Win32 GDI `GetGlyphOutlineW` (`GGO_GRAY8_BITMAP`) with uniform baseline alignment and CJK fallback.
+/// Rasterizes a glyph using cached Windows Win32 GDI `GetGlyphOutlineW` (`GGO_GRAY8_BITMAP`) with uniform baseline alignment and CJK fallback.
 ///
 /// # Arguments
 ///
@@ -864,27 +1019,33 @@ fn rasterize_win32_gdi_glyph(key: GlyphKey) -> Option<RasterizedGlyph> {
         em21: WinFixed { fract: 0, value: 0 },
         em22: WinFixed { fract: 0, value: 1 },
     };
-    // SAFETY: Creates and releases a temporary compatible memory DC per call.
-    unsafe {
-        let hdc: *mut c_void = CreateCompatibleDC(null_mut());
-        if hdc.is_null() {
-            return None;
+    WIN32_FONT_CACHE.with(|cell: &RefCell<Win32FontCache>| {
+        let mut cache: RefMut<'_, Win32FontCache> = cell.borrow_mut();
+        // SAFETY: Persistent memory DC is created lazily once per thread and deleted on `Drop`.
+        unsafe {
+            if cache.hdc.is_null() {
+                cache.hdc = CreateCompatibleDC(null_mut());
+                if cache.hdc.is_null() {
+                    return None;
+                }
+            }
         }
-        let primary_ptr: *const u16 = if is_wide_unicode(key.get_codepoint()) {
-            WIN_FONT_CJK_UTF16.as_ptr()
+        let (primary_kind, primary_ptr): (u32, *const u16) = if is_wide_unicode(key.get_codepoint())
+        {
+            (2, WIN_FONT_CJK_UTF16.as_ptr())
         } else if key.get_monospace() {
-            WIN_FONT_MONO_UTF16.as_ptr()
+            (1, WIN_FONT_MONO_UTF16.as_ptr())
         } else {
-            WIN_FONT_NAME_UTF16.as_ptr()
+            (0, WIN_FONT_NAME_UTF16.as_ptr())
         };
         let mut result: Option<RasterizedGlyph> =
-            rasterize_win32_face(hdc, key, primary_ptr, &identity);
-        if result.is_none() && !is_wide_unicode(key.get_codepoint()) {
-            result = rasterize_win32_face(hdc, key, WIN_FONT_CJK_UTF16.as_ptr(), &identity);
+            rasterize_win32_face(&mut cache, key, primary_kind, primary_ptr, &identity);
+        if result.is_none() && primary_kind != 2 {
+            result =
+                rasterize_win32_face(&mut cache, key, 2, WIN_FONT_CJK_UTF16.as_ptr(), &identity);
         }
-        let _: i32 = DeleteDC(hdc);
         result
-    }
+    })
 }
 
 #[cfg(any(target_os = "linux", target_os = "android"))]

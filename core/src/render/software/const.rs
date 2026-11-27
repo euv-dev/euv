@@ -16,6 +16,15 @@ pub(crate) const GAUSSIAN_ERFC_LUT: [f32; 513] = build_gaussian_erfc_lut();
 /// Maximum cached `TextLayoutResult` entries retained by `SoftwareRenderer` between frames.
 pub(crate) const TEXT_LAYOUT_CACHE_LIMIT: usize = 512;
 
+/// Default resident memory budget for `TextLayoutCache` (2 MiB) before LRU eviction trims cold entries.
+pub(crate) const TEXT_LAYOUT_CACHE_BUDGET_BYTES: usize = 2 * 1024 * 1024;
+
+/// Fixed per-entry metadata overhead counted toward `TextLayoutCache::resident_bytes`.
+pub(crate) const TEXT_LAYOUT_ENTRY_OVERHEAD_BYTES: usize = 64;
+
+/// Fixed per-line `TextLine` struct overhead counted toward `TextLayoutCache::resident_bytes`.
+pub(crate) const TEXT_LINE_OVERHEAD_BYTES: usize = 32;
+
 /// Initial power-of-two slot table size for `TextLayoutCache` (load factor `<= 0.5` at `TEXT_LAYOUT_CACHE_LIMIT`).
 pub(crate) const TEXT_LAYOUT_CACHE_SLOTS: usize = 1024;
 

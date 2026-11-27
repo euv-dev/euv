@@ -21,3 +21,12 @@ pub(crate) const ATLAS_MIN_DIM: u32 = 16;
 
 /// Maximum glyph count whose shelf placements stay on the stack during `pack_rgba_atlas`.
 pub(crate) const ATLAS_STACK_PLACEMENTS: usize = 32;
+
+/// Default resident memory budget for `GlyphAtlas` (8 MiB) before LRU eviction activates.
+pub(crate) const GLYPH_ATLAS_DEFAULT_BUDGET_BYTES: usize = 8 * 1024 * 1024;
+
+/// Minimum configurable resident memory budget for `GlyphAtlas` (1 KiB).
+pub(crate) const GLYPH_ATLAS_MIN_BUDGET_BYTES: usize = 1024;
+
+/// Fixed per-entry metadata overhead (struct fields, index slot, and LRU tick) counted toward `GlyphAtlas::resident_bytes`.
+pub(crate) const GLYPH_ENTRY_OVERHEAD_BYTES: usize = 64;
