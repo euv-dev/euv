@@ -3022,14 +3022,27 @@ impl SoftwareRenderer {
         let span_len: usize = (x1 - x0) as usize;
         let rows: usize = (y1 - y0) as usize;
         let sa: u8 = color.get_a();
-        if sa < 255 && span_len.saturating_mul(rows) >= 512 {
-            let luts: ([u8; 256], [u8; 256], [u8; 256], [u8; 256]) = build_linear_blend_luts(color);
-            for y in y0..y1 {
-                band.fill_span_linear_luts(x0, x1, y, &luts);
-            }
-        } else {
-            for y in y0..y1 {
-                band.fill_span_linear(x0, x1, y, color);
+        if sa == 255 {
+            band.fill_rect_opaque_preclipped(
+                x0,
+                x1,
+                y0,
+                y1,
+                [color.get_r(), color.get_g(), color.get_b(), 255],
+            );
+        } else if let Some((rows_buf, row_stride)) = band.rows_slice_mut(y0, y1) {
+            let bx0: usize = (x0 as usize) * 4;
+            let bx1: usize = (x1 as usize) * 4;
+            if span_len.saturating_mul(rows) >= 512 {
+                let luts: ([u8; 256], [u8; 256], [u8; 256], [u8; 256]) =
+                    build_linear_blend_luts(color);
+                for row in rows_buf.chunks_exact_mut(row_stride) {
+                    fill_span_linear_luts_slice(&mut row[bx0..bx1], &luts);
+                }
+            } else {
+                for row in rows_buf.chunks_exact_mut(row_stride) {
+                    fill_span_linear_slice(&mut row[bx0..bx1], color);
+                }
             }
         }
         span_len * rows
@@ -3365,43 +3378,55 @@ impl SoftwareRenderer {
                 let edge_shaded: usize = left_shaded + right_shaded;
                 let has_edges: bool = left_len > 0 || right_len > 0;
                 let fill_visible: bool = color.get_a() > 0;
+                let fill_opaque: bool = color.get_a() == 255;
+                let fill_rgba: [u8; 4] = [color.get_r(), color.get_g(), color.get_b(), 255];
                 let interior_span: usize = (ix1 - ix0) as usize;
-                for y in iy0..iy1 {
-                    if fill_visible {
-                        if let Some(ref luts) = interior_luts {
-                            band.fill_span_linear_luts(ix0, ix1, y, luts);
-                        } else {
-                            band.fill_span_linear(ix0, ix1, y, color);
+                let ix0_b: usize = (ix0 as usize) * 4;
+                let ix1_b: usize = (ix1 as usize) * 4;
+                if let Some((rows_buf, row_stride)) = band.rows_slice_mut(iy0, iy1) {
+                    for row in rows_buf.chunks_exact_mut(row_stride) {
+                        if fill_visible {
+                            if fill_opaque {
+                                fill_rgba_span_32(&mut row[ix0_b..ix1_b], fill_rgba);
+                            } else if let Some(ref luts) = interior_luts {
+                                fill_span_linear_luts_slice(&mut row[ix0_b..ix1_b], luts);
+                            } else {
+                                fill_span_linear_slice(&mut row[ix0_b..ix1_b], color);
+                            }
+                            shaded += interior_span;
                         }
-                        shaded += interior_span;
-                    }
-                    if has_edges {
-                        if let Some(row) = band.row_slice_mut(y) {
+                        if has_edges {
                             if left_len > 0 {
                                 apply_edge_strip_row(row, left_slice);
                             }
                             if right_len > 0 {
                                 apply_edge_strip_row(row, right_slice);
                             }
+                            shaded += edge_shaded;
                         }
-                        shaded += edge_shaded;
                     }
                 }
             } else {
                 let fill_visible: bool = color.get_a() > 0;
+                let fill_opaque: bool = color.get_a() == 255;
+                let fill_rgba: [u8; 4] = [color.get_r(), color.get_g(), color.get_b(), 255];
                 let interior_span: usize = (ix1 - ix0) as usize;
-                for y in iy0..iy1 {
-                    let py: f32 = (y as f32) + 0.5 - cy;
-                    let box_geom: (f32, f32, f32, f32) = (cx, py, half_w, half_h);
-                    if fill_visible {
-                        if let Some(ref luts) = interior_luts {
-                            band.fill_span_linear_luts(ix0, ix1, y, luts);
-                        } else {
-                            band.fill_span_linear(ix0, ix1, y, color);
+                let ix0_b: usize = (ix0 as usize) * 4;
+                let ix1_b: usize = (ix1 as usize) * 4;
+                if let Some((rows_buf, row_stride)) = band.rows_slice_mut(iy0, iy1) {
+                    for (y, row) in (iy0..iy1).zip(rows_buf.chunks_exact_mut(row_stride)) {
+                        let py: f32 = (y as f32) + 0.5 - cy;
+                        let box_geom: (f32, f32, f32, f32) = (cx, py, half_w, half_h);
+                        if fill_visible {
+                            if fill_opaque {
+                                fill_rgba_span_32(&mut row[ix0_b..ix1_b], fill_rgba);
+                            } else if let Some(ref luts) = interior_luts {
+                                fill_span_linear_luts_slice(&mut row[ix0_b..ix1_b], luts);
+                            } else {
+                                fill_span_linear_slice(&mut row[ix0_b..ix1_b], color);
+                            }
+                            shaded += interior_span;
                         }
-                        shaded += interior_span;
-                    }
-                    if let Some(row) = band.row_slice_mut(y) {
                         for x in x0..ix0 {
                             shaded += Self::shade_rounded_pixel_row(
                                 row,
@@ -5042,7 +5067,7 @@ impl SoftwareRenderer {
         let clip_y0: i32 = (clip.get_y().ceil().max(0.0) as i32).clamp(band_y0, band_y1);
         let clip_x1: i32 = (clip.right().floor().max(0.0) as i32).min(fb_w);
         let clip_y1: i32 = (clip.bottom().floor().max(0.0) as i32).clamp(band_y0, band_y1);
-        if clip_x0 >= clip_x1 || clip_y0 >= clip_y1 {
+        if color.get_a() == 0 || clip_x0 >= clip_x1 || clip_y0 >= clip_y1 {
             return 0;
         }
         let mut shaded: usize = 0;
@@ -5063,16 +5088,21 @@ impl SoftwareRenderer {
             let px_start: i32 = (clip_x0 - gx0).max(0);
             let px_end: i32 = (clip_x1 - gx0).min(gw);
             if py_start < py_end && px_start < px_end {
-                let cov_bytes: &[u8] = glyph.get_coverage().as_slice();
-                let gw_usize: usize = gw as usize;
-                let dx: u32 = (gx0 + px_start) as u32;
-                let start_u: usize = px_start as usize;
-                let end_u: usize = px_end as usize;
-                for py in py_start..py_end {
-                    let dy: u32 = (gy0 + py) as u32;
-                    let row_off: usize = (py as usize) * gw_usize;
-                    let row_slice: &[u8] = &cov_bytes[row_off + start_u..row_off + end_u];
-                    shaded += band.blend_glyph_row(dx, dy, row_slice, color);
+                let dy0: u32 = (gy0 + py_start) as u32;
+                let dy1: u32 = (gy0 + py_end) as u32;
+                if let Some((rows_buf, row_stride)) = band.rows_slice_mut(dy0, dy1) {
+                    let cov_bytes: &[u8] = glyph.get_coverage().as_slice();
+                    let gw_usize: usize = gw as usize;
+                    let bx0: usize = ((gx0 + px_start) as usize) * 4;
+                    let bx1: usize = ((gx0 + px_end) as usize) * 4;
+                    let start_u: usize = px_start as usize;
+                    let end_u: usize = px_end as usize;
+                    let mut cov_off: usize = (py_start as usize) * gw_usize;
+                    for row in rows_buf.chunks_exact_mut(row_stride) {
+                        let row_slice: &[u8] = &cov_bytes[cov_off + start_u..cov_off + end_u];
+                        shaded += blend_glyph_row_span(&mut row[bx0..bx1], row_slice, color);
+                        cov_off += gw_usize;
+                    }
                 }
             }
         }

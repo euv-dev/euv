@@ -267,3 +267,93 @@ pub(crate) fn blend_glyph_row_span(dst_span: &mut [u8], coverage: &[u8], color: 
     }
     shaded
 }
+
+/// Fills an RGBA8 byte span with solid `rgba` using `slice::fill` for uniform-byte colors and 32-byte wide stores otherwise.
+///
+/// # Arguments
+///
+/// - `&mut [u8]` - Target RGBA8 byte slice whose length is a multiple of 4.
+/// - `[u8; 4]` - Solid RGBA8 pixel bytes to broadcast across `span`.
+#[inline(always)]
+pub(crate) fn fill_rgba_span_32(span: &mut [u8], rgba: [u8; 4]) {
+    if rgba[0] == rgba[1] && rgba[0] == rgba[2] && rgba[0] == rgba[3] {
+        span.fill(rgba[0]);
+        return;
+    }
+    let wide32: [u8; 32] = [
+        rgba[0], rgba[1], rgba[2], rgba[3], rgba[0], rgba[1], rgba[2], rgba[3], rgba[0], rgba[1],
+        rgba[2], rgba[3], rgba[0], rgba[1], rgba[2], rgba[3], rgba[0], rgba[1], rgba[2], rgba[3],
+        rgba[0], rgba[1], rgba[2], rgba[3], rgba[0], rgba[1], rgba[2], rgba[3], rgba[0], rgba[1],
+        rgba[2], rgba[3],
+    ];
+    let (blocks, tail): (&mut [[u8; 32]], &mut [u8]) = span.as_chunks_mut::<32>();
+    for chunk in blocks.iter_mut() {
+        *chunk = wide32;
+    }
+    for px in tail.as_chunks_mut::<4>().0.iter_mut() {
+        *px = rgba;
+    }
+}
+
+/// Composites a pre-clipped RGBA8 byte span using precomputed bit-exact 256-entry linear-light channel lookup tables.
+///
+/// # Arguments
+///
+/// - `&mut [u8]` - Pre-clipped destination RGBA8 byte slice.
+/// - `&([u8; 256], [u8; 256], [u8; 256], [u8; 256])` - Precomputed per-channel lookup tables `(lut_r, lut_g, lut_b, lut_a)`.
+#[inline(always)]
+pub(crate) fn fill_span_linear_luts_slice(
+    span: &mut [u8],
+    luts: &([u8; 256], [u8; 256], [u8; 256], [u8; 256]),
+) {
+    let (lut_r, lut_g, lut_b, lut_a): &([u8; 256], [u8; 256], [u8; 256], [u8; 256]) = luts;
+    for px in span.as_chunks_mut::<4>().0.iter_mut() {
+        px[0] = lut_r[px[0] as usize];
+        px[1] = lut_g[px[1] as usize];
+        px[2] = lut_b[px[2] as usize];
+        px[3] = lut_a[px[3] as usize];
+    }
+}
+
+/// Fills or composites a pre-clipped RGBA8 byte span with `color` in gamma-correct linear light.
+///
+/// # Arguments
+///
+/// - `&mut [u8]` - Pre-clipped destination RGBA8 byte slice.
+/// - `Color` - Foreground RGBA color.
+#[inline(always)]
+pub(crate) fn fill_span_linear_slice(span: &mut [u8], color: Color) {
+    let sa: u8 = color.get_a();
+    if sa == 0 {
+        return;
+    }
+    if sa == 255 {
+        fill_rgba_span_32(span, [color.get_r(), color.get_g(), color.get_b(), 255]);
+        return;
+    }
+    if span.len() >= 128 * 4 {
+        let luts: ([u8; 256], [u8; 256], [u8; 256], [u8; 256]) = build_linear_blend_luts(color);
+        fill_span_linear_luts_slice(span, &luts);
+        return;
+    }
+    let a: f32 = (sa as f32) * (1.0 / 255.0);
+    let inv_a: f32 = 1.0 - a;
+    let sr_a: f32 = SRGB_TO_LIN_LUT[color.get_r() as usize] * a;
+    let sg_a: f32 = SRGB_TO_LIN_LUT[color.get_g() as usize] * a;
+    let sb_a: f32 = SRGB_TO_LIN_LUT[color.get_b() as usize] * a;
+    let sa_u32: u32 = sa as u32;
+    let inv_a_u32: u32 = 255 - sa_u32;
+    for px in span.as_chunks_mut::<4>().0.iter_mut() {
+        let dr: f32 = SRGB_TO_LIN_LUT[px[0] as usize];
+        let dg: f32 = SRGB_TO_LIN_LUT[px[1] as usize];
+        let db: f32 = SRGB_TO_LIN_LUT[px[2] as usize];
+        let ir: usize = ((sr_a + dr * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+        let ig: usize = ((sg_a + dg * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+        let ib: usize = ((sb_a + db * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+        let va: u32 = (px[3] as u32) * inv_a_u32 + 128;
+        px[0] = ((LIN_TO_SRGB_Q4_LUT[ir] + 8) >> 4).min(255) as u8;
+        px[1] = ((LIN_TO_SRGB_Q4_LUT[ig] + 8) >> 4).min(255) as u8;
+        px[2] = ((LIN_TO_SRGB_Q4_LUT[ib] + 8) >> 4).min(255) as u8;
+        px[3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+    }
+}

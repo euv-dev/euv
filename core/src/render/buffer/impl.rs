@@ -48,24 +48,14 @@ impl Framebuffer {
         true
     }
 
-    /// Fills the entire framebuffer with solid `color` using 64-bit wide stores.
+    /// Fills the entire framebuffer with solid `color` using 32-byte wide auto-vectorized stores.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable framebuffer.
     /// - `Color` - Clear color.
     pub fn clear(&mut self, color: Color) {
-        let rgba: [u8; 4] = color.to_rgba_bytes();
-        let pair: [u8; 8] = [
-            rgba[0], rgba[1], rgba[2], rgba[3], rgba[0], rgba[1], rgba[2], rgba[3],
-        ];
-        let (wide, tail): (&mut [[u8; 8]], &mut [u8]) = self.get_mut_pixels().as_chunks_mut::<8>();
-        for chunk in wide.iter_mut() {
-            *chunk = pair;
-        }
-        for chunk in tail.as_chunks_mut::<4>().0.iter_mut() {
-            *chunk = rgba;
-        }
+        fill_rgba_span_32(self.get_mut_pixels().as_mut_slice(), color.to_rgba_bytes());
     }
 
     /// Fills or composites a contiguous horizontal pixel span `[x0, x1)` on row `y`.
@@ -92,17 +82,7 @@ impl Framebuffer {
             return;
         };
         if sa == 255 {
-            let rgba: [u8; 4] = [color.get_r(), color.get_g(), color.get_b(), 255];
-            let pair: [u8; 8] = [
-                rgba[0], rgba[1], rgba[2], rgba[3], rgba[0], rgba[1], rgba[2], rgba[3],
-            ];
-            let (wide, tail): (&mut [[u8; 8]], &mut [u8]) = span.as_chunks_mut::<8>();
-            for chunk in wide.iter_mut() {
-                *chunk = pair;
-            }
-            for chunk in tail.as_chunks_mut::<4>().0.iter_mut() {
-                *chunk = rgba;
-            }
+            fill_rgba_span_32(span, [color.get_r(), color.get_g(), color.get_b(), 255]);
             return;
         }
         let sr: u32 = color.get_r() as u32;
@@ -606,7 +586,85 @@ impl<'a> PixelBand<'a> {
         Some((&mut head[start_a..start_a + stride], &mut tail[..stride]))
     }
 
-    /// Fills the entire band with solid `color` using 64-bit wide stores.
+    /// Returns a contiguous mutable byte slice for global physical rows `[y0, y1)` along with the row byte stride.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable pixel band.
+    /// - `u32` - Inclusive starting global physical Y row.
+    /// - `u32` - Exclusive ending global physical Y row.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<(&mut [u8], usize)>` - Contiguous byte slice covering rows `[y0, y1)` and byte stride `width * 4`.
+    #[inline(always)]
+    pub(crate) fn rows_slice_mut(&mut self, y0: u32, y1: u32) -> Option<(&mut [u8], usize)> {
+        let Self {
+            width,
+            y_offset,
+            height,
+            pixels,
+        } = self;
+        let y_end: u32 = *y_offset + *height;
+        if y0 >= y1 || y0 < *y_offset || y1 > y_end {
+            return None;
+        }
+        let stride: usize = (*width as usize) * 4;
+        let start: usize = ((y0 - *y_offset) as usize) * stride;
+        let end: usize = ((y1 - *y_offset) as usize) * stride;
+        pixels.get_mut(start..end).map(|s: &mut [u8]| (s, stride))
+    }
+
+    /// Fills a pre-clipped opaque rectangle `[x0, x1) x [y0, y1)` using 32-byte wide stores with zero per-row bounds checks.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable pixel band.
+    /// - `u32` - Pre-clipped inclusive start X coordinate.
+    /// - `u32` - Pre-clipped exclusive end X coordinate.
+    /// - `u32` - Pre-clipped inclusive start global Y coordinate.
+    /// - `u32` - Pre-clipped exclusive end global Y coordinate.
+    /// - `[u8; 4]` - Solid opaque RGBA8 pixel bytes.
+    #[inline(always)]
+    pub(crate) fn fill_rect_opaque_preclipped(
+        &mut self,
+        x0: u32,
+        x1: u32,
+        y0: u32,
+        y1: u32,
+        rgba: [u8; 4],
+    ) {
+        let Self {
+            width,
+            y_offset,
+            height,
+            pixels,
+        } = self;
+        let fb_w: u32 = *width;
+        let y_end: u32 = *y_offset + *height;
+        let valid_x: bool = x0 < x1 && x1 <= fb_w;
+        let valid_y: bool = y0 < y1 && y0 >= *y_offset && y1 <= y_end;
+        if !valid_x || !valid_y {
+            return;
+        }
+        let stride: usize = (fb_w as usize) * 4;
+        let start: usize = ((y0 - *y_offset) as usize) * stride;
+        let end: usize = ((y1 - *y_offset) as usize) * stride;
+        let Some(rows_buf) = pixels.get_mut(start..end) else {
+            return;
+        };
+        if x0 == 0 && x1 == fb_w {
+            fill_rgba_span_32(rows_buf, rgba);
+            return;
+        }
+        let bx0: usize = (x0 as usize) * 4;
+        let bx1: usize = (x1 as usize) * 4;
+        for row in rows_buf.chunks_exact_mut(stride) {
+            fill_rgba_span_32(&mut row[bx0..bx1], rgba);
+        }
+    }
+
+    /// Fills the entire band with solid `color` using 32-byte wide auto-vectorized stores.
     ///
     /// # Arguments
     ///
@@ -614,17 +672,7 @@ impl<'a> PixelBand<'a> {
     /// - `Color` - Clear color.
     pub fn clear(&mut self, color: Color) {
         let Self { pixels, .. } = self;
-        let rgba: [u8; 4] = color.to_rgba_bytes();
-        let pair: [u8; 8] = [
-            rgba[0], rgba[1], rgba[2], rgba[3], rgba[0], rgba[1], rgba[2], rgba[3],
-        ];
-        let (wide, tail): (&mut [[u8; 8]], &mut [u8]) = pixels.as_chunks_mut::<8>();
-        for chunk in wide.iter_mut() {
-            *chunk = pair;
-        }
-        for chunk in tail.as_chunks_mut::<4>().0.iter_mut() {
-            *chunk = rgba;
-        }
+        fill_rgba_span_32(pixels, color.to_rgba_bytes());
     }
 
     /// Fills or Porter-Duff blends horizontal span `[x0, x1)` on global row `y`.
@@ -655,17 +703,7 @@ impl<'a> PixelBand<'a> {
             return;
         };
         if sa == 255 {
-            let rgba: [u8; 4] = [color.get_r(), color.get_g(), color.get_b(), 255];
-            let pair: [u8; 8] = [
-                rgba[0], rgba[1], rgba[2], rgba[3], rgba[0], rgba[1], rgba[2], rgba[3],
-            ];
-            let (wide, tail): (&mut [[u8; 8]], &mut [u8]) = span.as_chunks_mut::<8>();
-            for chunk in wide.iter_mut() {
-                *chunk = pair;
-            }
-            for chunk in tail.as_chunks_mut::<4>().0.iter_mut() {
-                *chunk = rgba;
-            }
+            fill_rgba_span_32(span, [color.get_r(), color.get_g(), color.get_b(), 255]);
             return;
         }
         let sr: u32 = color.get_r() as u32;
@@ -720,37 +758,7 @@ impl<'a> PixelBand<'a> {
         let Some(span) = pixels.get_mut(start_byte..end_byte) else {
             return;
         };
-        if end_x - x0 >= 128 {
-            let (lut_r, lut_g, lut_b, lut_a): ([u8; 256], [u8; 256], [u8; 256], [u8; 256]) =
-                build_linear_blend_luts(color);
-            for px in span.as_chunks_mut::<4>().0.iter_mut() {
-                px[0] = lut_r[px[0] as usize];
-                px[1] = lut_g[px[1] as usize];
-                px[2] = lut_b[px[2] as usize];
-                px[3] = lut_a[px[3] as usize];
-            }
-            return;
-        }
-        let a: f32 = (sa as f32) * (1.0 / 255.0);
-        let inv_a: f32 = 1.0 - a;
-        let sr_a: f32 = SRGB_TO_LIN_LUT[color.get_r() as usize] * a;
-        let sg_a: f32 = SRGB_TO_LIN_LUT[color.get_g() as usize] * a;
-        let sb_a: f32 = SRGB_TO_LIN_LUT[color.get_b() as usize] * a;
-        let sa_u32: u32 = sa as u32;
-        let inv_a_u32: u32 = 255 - sa_u32;
-        for px in span.as_chunks_mut::<4>().0.iter_mut() {
-            let dr: f32 = SRGB_TO_LIN_LUT[px[0] as usize];
-            let dg: f32 = SRGB_TO_LIN_LUT[px[1] as usize];
-            let db: f32 = SRGB_TO_LIN_LUT[px[2] as usize];
-            let ir: usize = ((sr_a + dr * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
-            let ig: usize = ((sg_a + dg * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
-            let ib: usize = ((sb_a + db * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
-            let va: u32 = (px[3] as u32) * inv_a_u32 + 128;
-            px[0] = ((LIN_TO_SRGB_Q4_LUT[ir] + 8) >> 4).min(255) as u8;
-            px[1] = ((LIN_TO_SRGB_Q4_LUT[ig] + 8) >> 4).min(255) as u8;
-            px[2] = ((LIN_TO_SRGB_Q4_LUT[ib] + 8) >> 4).min(255) as u8;
-            px[3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
-        }
+        fill_span_linear_slice(span, color);
     }
 
     /// Composites horizontal span `[x0, x1)` on global row `y` using precomputed bit-exact 256-entry linear-light channel LUTs.
@@ -785,13 +793,7 @@ impl<'a> PixelBand<'a> {
         let Some(span) = pixels.get_mut(start_byte..end_byte) else {
             return;
         };
-        let (lut_r, lut_g, lut_b, lut_a): &([u8; 256], [u8; 256], [u8; 256], [u8; 256]) = luts;
-        for px in span.as_chunks_mut::<4>().0.iter_mut() {
-            px[0] = lut_r[px[0] as usize];
-            px[1] = lut_g[px[1] as usize];
-            px[2] = lut_b[px[2] as usize];
-            px[3] = lut_a[px[3] as usize];
-        }
+        fill_span_linear_luts_slice(span, luts);
     }
 
     /// Composites a constant-opacity horizontal shadow span `[x0, x1)` on global row `y` with L1 LUT linear light and IGN dithering.
