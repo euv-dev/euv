@@ -84,3 +84,16 @@ pub(crate) enum FlushStep {
     /// Multiple live pending effects drained into the reusable buffer with a sortedness flag.
     Batch(Vec<(u32, EffectId)>, bool),
 }
+
+/// Zero-allocation copyable subscriber dispatch target for inline dirty propagation.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum DirtyTarget {
+    /// Zero downstream subscribers; dirty propagation exits immediately.
+    Empty,
+    /// Single downstream subscriber handled inline without touching `dirty_queue`.
+    One(SubscriberId),
+    /// Two downstream subscribers handled inline without touching `dirty_queue`.
+    Two(SubscriberId, SubscriberId),
+    /// Three or more subscribers stored in heap `Vec`, drained through reusable `dirty_queue`.
+    Many,
+}

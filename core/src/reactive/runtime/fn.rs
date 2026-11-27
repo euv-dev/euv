@@ -202,29 +202,29 @@ where
                     .as_ref()
                     .and_then(|boxed: &Box<dyn Any>| boxed.downcast_ref::<T>())
                     .cloned();
-                let (alive, should_propagate): (bool, bool) =
+                let (alive, target): (bool, DirtyTarget) =
                     if let Some(entry) = rt.get_mut_memos().get_mut(idx) {
                         if entry.get_generation() != slot.get_generation() {
-                            (false, false)
+                            (false, DirtyTarget::Empty)
                         } else {
                             entry.set_value(value_slot);
                             entry.set_state(NodeState::Clean);
                             if changed {
                                 let next_ver: u64 = entry.get_version().wrapping_add(1);
                                 entry.set_version(next_ver);
-                                (true, !entry.get_subscribers().is_empty())
+                                (true, entry.get_subscribers().dirty_target())
                             } else {
-                                (true, false)
+                                (true, DirtyTarget::Empty)
                             }
                         }
                     } else {
-                        (false, false)
+                        (false, DirtyTarget::Empty)
                     };
                 if !alive {
                     return None;
                 }
-                if should_propagate {
-                    rt.mark_memo_subscribers_dirty(idx);
+                if !matches!(target, DirtyTarget::Empty) {
+                    rt.propagate_memo_dirty(idx, target);
                 }
                 rt.track_dependency(DependencyId::Memo(id));
                 out_val
@@ -368,7 +368,7 @@ pub(crate) fn evaluate_memo(id: MemoId) -> bool {
     with_runtime(
         |rt: &mut ReactiveRuntime| {
             rt.finish_tracking();
-            let should_propagate: bool = if let Some(entry) = rt.get_mut_memos().get_mut(idx) {
+            let target: DirtyTarget = if let Some(entry) = rt.get_mut_memos().get_mut(idx) {
                 if entry.get_generation() != slot.get_generation() {
                     return;
                 }
@@ -377,15 +377,15 @@ pub(crate) fn evaluate_memo(id: MemoId) -> bool {
                 if changed {
                     let next_ver: u64 = entry.get_version().wrapping_add(1);
                     entry.set_version(next_ver);
-                    !entry.get_subscribers().is_empty()
+                    entry.get_subscribers().dirty_target()
                 } else {
-                    false
+                    DirtyTarget::Empty
                 }
             } else {
-                false
+                DirtyTarget::Empty
             };
-            if should_propagate {
-                rt.mark_memo_subscribers_dirty(idx);
+            if !matches!(target, DirtyTarget::Empty) {
+                rt.propagate_memo_dirty(idx, target);
             }
         },
         (),

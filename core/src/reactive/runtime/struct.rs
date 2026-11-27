@@ -223,11 +223,11 @@ pub struct ReactiveRuntime {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) pending_effects: Vec<EffectId>,
-    /// Reusable scratch queue for zero-allocation dirty propagation.
+    /// Reusable scratch queue storing `(subscriber, target_state)` for zero-allocation dirty propagation.
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) dirty_queue: Vec<(SubscriberId, bool)>,
+    pub(crate) dirty_queue: Vec<(SubscriberId, NodeState)>,
     /// Reusable cursor-sliced scratch stack for zero-allocation `NodeState::Check` verification of >4 memo deps.
     #[get(pub(crate))]
     #[get_mut(pub(crate))]

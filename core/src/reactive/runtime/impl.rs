@@ -435,6 +435,35 @@ impl TrackingGuard {
     }
 }
 
+/// Dirty-propagation target extraction for subscriber small-lists.
+impl SmallSubList<SubscriberId> {
+    /// Extracts a zero-allocation copyable dispatch target for dirty propagation.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Subscriber list reference.
+    ///
+    /// # Returns
+    ///
+    /// - `DirtyTarget` - Inline target for 0..=2 subscribers or `Many` heap fallback.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn dirty_target(&self) -> DirtyTarget {
+        match self {
+            Self::Empty => DirtyTarget::Empty,
+            Self::One(sub) => DirtyTarget::One(*sub),
+            Self::Two(first, second) => DirtyTarget::Two(*first, *second),
+            Self::Many(vec) => {
+                if vec.is_empty() {
+                    DirtyTarget::Empty
+                } else {
+                    DirtyTarget::Many
+                }
+            }
+        }
+    }
+}
+
 /// Unwind cleanup popping any leaked observer frame if a reactive computation panics.
 impl Drop for TrackingGuard {
     /// Pops the leaked frame from `observer_stack` when unwinding while still armed.
@@ -826,13 +855,13 @@ impl ReactiveRuntime {
         }
         let next_ver: u64 = entry.get_version().wrapping_add(1);
         entry.set_version(next_ver);
-        let has_subs: bool = !entry.get_subscribers().is_empty();
+        let target: DirtyTarget = entry.get_subscribers().dirty_target();
         let next_clock: u64 = self.get_clock().wrapping_add(1);
         self.set_clock(next_clock);
-        if !has_subs {
+        if matches!(target, DirtyTarget::Empty) {
             return (true, false);
         }
-        self.mark_signal_subscribers_dirty(idx);
+        self.propagate_signal_dirty(idx, target);
         let should_flush: bool = self.get_batch_depth() == 0
             && !self.get_flushing()
             && !self.get_pending_effects().is_empty();
@@ -893,13 +922,13 @@ impl ReactiveRuntime {
         entry.set_value(Some(boxed));
         let next_ver: u64 = entry.get_version().wrapping_add(1);
         entry.set_version(next_ver);
-        let has_subs: bool = !entry.get_subscribers().is_empty();
+        let target: DirtyTarget = entry.get_subscribers().dirty_target();
         let next_clock: u64 = self.get_clock().wrapping_add(1);
         self.set_clock(next_clock);
-        if !has_subs {
+        if matches!(target, DirtyTarget::Empty) {
             return (true, false);
         }
-        self.mark_signal_subscribers_dirty(idx);
+        self.propagate_signal_dirty(idx, target);
         let should_flush: bool = self.get_batch_depth() == 0
             && !self.get_flushing()
             && !self.get_pending_effects().is_empty();
@@ -942,13 +971,14 @@ impl ReactiveRuntime {
         }
         let next_ver: u64 = entry.get_version().wrapping_add(1);
         entry.set_version(next_ver);
-        let has_subs: bool = !entry.get_subscribers().is_empty();
+        let target: DirtyTarget = entry.get_subscribers().dirty_target();
         let next_clock: u64 = self.get_clock().wrapping_add(1);
         self.set_clock(next_clock);
-        if has_subs {
-            self.mark_signal_subscribers_dirty(idx);
+        if matches!(target, DirtyTarget::Empty) {
+            return false;
         }
-        has_subs
+        self.propagate_signal_dirty(idx, target);
+        true
     }
 
     /// Atomically updates an optional deselected and newly selected `Selector` signal pair in one runtime borrow.
@@ -1021,13 +1051,13 @@ impl ReactiveRuntime {
         *current = value;
         let next_ver: u64 = entry.get_version().wrapping_add(1);
         entry.set_version(next_ver);
-        let has_subs: bool = !entry.get_subscribers().is_empty();
+        let target: DirtyTarget = entry.get_subscribers().dirty_target();
         let next_clock: u64 = self.get_clock().wrapping_add(1);
         self.set_clock(next_clock);
-        if !has_subs {
+        if matches!(target, DirtyTarget::Empty) {
             return (true, false);
         }
-        self.mark_signal_subscribers_dirty(idx);
+        self.propagate_signal_dirty(idx, target);
         let should_flush: bool = self.get_batch_depth() == 0
             && !self.get_flushing()
             && !self.get_pending_effects().is_empty();
@@ -1481,6 +1511,166 @@ impl ReactiveRuntime {
         }
     }
 
+    /// Propagates dirty flags downstream from a signal using inline fast paths for 1..=2 subscribers.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable reference to the reactive runtime.
+    /// - `usize` - Signal arena slot index (used only for `DirtyTarget::Many`).
+    /// - `DirtyTarget` - Pre-extracted subscriber dispatch target.
+    #[inline]
+    pub(crate) fn propagate_signal_dirty(&mut self, signal_idx: usize, target: DirtyTarget) {
+        match target {
+            DirtyTarget::Empty => {}
+            DirtyTarget::One(sub) => {
+                self.mark_single_subscriber_dirty(sub, false);
+            }
+            DirtyTarget::Two(first, second) => {
+                self.mark_single_subscriber_dirty(first, false);
+                self.mark_single_subscriber_dirty(second, false);
+            }
+            DirtyTarget::Many => {
+                self.mark_signal_subscribers_dirty(signal_idx);
+            }
+        }
+    }
+
+    /// Propagates dirty flags downstream from a recomputed memo using inline fast paths for 1..=2 subscribers.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable reference to the reactive runtime.
+    /// - `usize` - Memo arena slot index (used only for `DirtyTarget::Many`).
+    /// - `DirtyTarget` - Pre-extracted subscriber dispatch target.
+    #[inline]
+    pub(crate) fn propagate_memo_dirty(&mut self, memo_idx: usize, target: DirtyTarget) {
+        match target {
+            DirtyTarget::Empty => {}
+            DirtyTarget::One(sub) => {
+                self.mark_single_subscriber_dirty(sub, true);
+            }
+            DirtyTarget::Two(first, second) => {
+                self.mark_single_subscriber_dirty(first, true);
+                self.mark_single_subscriber_dirty(second, true);
+            }
+            DirtyTarget::Many => {
+                self.mark_memo_subscribers_dirty(memo_idx);
+            }
+        }
+    }
+
+    /// Schedules a single dirty effect without touching `dirty_queue`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable reference to the reactive runtime.
+    /// - `EffectId` - Effect identifier to schedule or flag while frozen.
+    /// - `bool` - `true` when propagating from a pulled memo recomputation.
+    #[inline(always)]
+    fn schedule_dirty_effect(&mut self, effect_id: EffectId, from_memo: bool) {
+        let Self {
+            effects,
+            observer_stack,
+            pending_effects,
+            ..
+        } = self;
+        if from_memo
+            && !observer_stack.is_empty()
+            && observer_stack
+                .iter()
+                .any(|frame: &Option<(SubscriberId, usize)>| {
+                    matches!(frame, Some((SubscriberId::Effect(active), _)) if *active == effect_id)
+                })
+        {
+            return;
+        }
+        let slot: SlotId = effect_id.slot();
+        if let Some(entry) = effects.get_mut(slot.as_usize())
+            && entry.get_generation() == slot.get_generation()
+            && entry.get_alive()
+        {
+            if entry.get_frozen_depth() > 0 {
+                entry.set_pending_while_frozen(true);
+            } else if !entry.get_scheduled() {
+                entry.set_scheduled(true);
+                pending_effects.push(effect_id);
+            }
+        }
+    }
+
+    /// Marks a single direct subscriber dirty and walks linear 1-subscriber memo chains in registers before spilling to `dirty_queue`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable reference to the reactive runtime.
+    /// - `SubscriberId` - Direct downstream subscriber.
+    /// - `bool` - `true` when propagating from a pulled memo recomputation.
+    #[inline]
+    fn mark_single_subscriber_dirty(&mut self, first_sub: SubscriberId, from_memo: bool) {
+        let mut cur_sub: SubscriberId = first_sub;
+        let mut target_state: NodeState = NodeState::Dirty;
+        loop {
+            match cur_sub {
+                SubscriberId::Effect(effect_id) => {
+                    self.schedule_dirty_effect(effect_id, from_memo);
+                    return;
+                }
+                SubscriberId::Memo(memo_id) => {
+                    let slot: SlotId = memo_id.slot();
+                    let idx: usize = slot.as_usize();
+                    let next_target: DirtyTarget = {
+                        let Some(entry) = self.get_mut_memos().get_mut(idx) else {
+                            return;
+                        };
+                        let stale: bool = entry.get_generation() != slot.get_generation();
+                        if stale || entry.compute.is_none() {
+                            return;
+                        }
+                        let cur_state: NodeState = entry.get_state();
+                        let check_covered: bool =
+                            cur_state == NodeState::Check && target_state == NodeState::Check;
+                        if cur_state == NodeState::Dirty || check_covered {
+                            return;
+                        }
+                        entry.set_state(target_state);
+                        entry.get_subscribers().dirty_target()
+                    };
+                    match next_target {
+                        DirtyTarget::Empty => return,
+                        DirtyTarget::One(next_sub) => {
+                            cur_sub = next_sub;
+                            target_state = NodeState::Check;
+                        }
+                        DirtyTarget::Two(first, second) => {
+                            let dq: &mut Vec<(SubscriberId, NodeState)> =
+                                self.get_mut_dirty_queue();
+                            dq.clear();
+                            dq.push((first, NodeState::Check));
+                            dq.push((second, NodeState::Check));
+                            self.drain_dirty_queue(from_memo);
+                            return;
+                        }
+                        DirtyTarget::Many => {
+                            let Self {
+                                memos, dirty_queue, ..
+                            } = self;
+                            dirty_queue.clear();
+                            if let Some(entry) = memos.get(idx)
+                                && let SmallSubList::Many(vec) = entry.get_subscribers()
+                            {
+                                for child_sub in vec.iter().copied() {
+                                    dirty_queue.push((child_sub, NodeState::Check));
+                                }
+                            }
+                            self.drain_dirty_queue(from_memo);
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// Propagates dirty flags downstream from signal slot `signal_idx` using the reusable scratch queue.
     ///
     /// # Arguments
@@ -1498,7 +1688,7 @@ impl ReactiveRuntime {
             entry
                 .get_subscribers()
                 .for_each(|subscriber: SubscriberId| {
-                    dirty_queue.push((subscriber, true));
+                    dirty_queue.push((subscriber, NodeState::Dirty));
                 });
         }
         self.drain_dirty_queue(false);
@@ -1519,7 +1709,7 @@ impl ReactiveRuntime {
             entry
                 .get_subscribers()
                 .for_each(|subscriber: SubscriberId| {
-                    dirty_queue.push((subscriber, true));
+                    dirty_queue.push((subscriber, NodeState::Dirty));
                 });
         }
         self.drain_dirty_queue(true);
@@ -1541,31 +1731,37 @@ impl ReactiveRuntime {
             ..
         } = self;
         let check_running: bool = from_memo && !observer_stack.is_empty();
-        while let Some((sub, is_direct)) = dirty_queue.pop() {
+        while let Some((sub, target_state)) = dirty_queue.pop() {
             match sub {
                 SubscriberId::Memo(memo_id) => {
                     let slot: SlotId = memo_id.slot();
                     if let Some(entry) = memos.get_mut(slot.as_usize()) {
-                        if entry.get_generation() != slot.get_generation()
-                            || entry.compute.is_none()
-                        {
+                        let stale: bool = entry.get_generation() != slot.get_generation();
+                        if stale || entry.compute.is_none() {
                             continue;
                         }
-                        let target_state: NodeState = if is_direct {
-                            NodeState::Dirty
-                        } else {
-                            NodeState::Check
-                        };
-                        if entry.get_state() == NodeState::Dirty
-                            || (entry.get_state() == NodeState::Check
-                                && target_state == NodeState::Check)
-                        {
+                        let cur_state: NodeState = entry.get_state();
+                        let check_covered: bool =
+                            cur_state == NodeState::Check && target_state == NodeState::Check;
+                        if cur_state == NodeState::Dirty || check_covered {
                             continue;
                         }
                         entry.set_state(target_state);
-                        entry.get_subscribers().for_each(|child_sub: SubscriberId| {
-                            dirty_queue.push((child_sub, false));
-                        });
+                        match entry.get_subscribers() {
+                            SmallSubList::Empty => {}
+                            SmallSubList::One(child_sub) => {
+                                dirty_queue.push((*child_sub, NodeState::Check));
+                            }
+                            SmallSubList::Two(first, second) => {
+                                dirty_queue.push((*first, NodeState::Check));
+                                dirty_queue.push((*second, NodeState::Check));
+                            }
+                            SmallSubList::Many(vec) => {
+                                for child_sub in vec.iter().copied() {
+                                    dirty_queue.push((child_sub, NodeState::Check));
+                                }
+                            }
+                        }
                     }
                 }
                 SubscriberId::Effect(effect_id) => {
