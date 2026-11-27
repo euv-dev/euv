@@ -110,6 +110,10 @@ pub struct WasmParsedFunction {
     pub(crate) extra_locals: usize,
     /// Raw WebAssembly bytecode instructions ending with `0x0B`.
     pub(crate) body: Vec<u8>,
+    /// Precomputed flag set to `true` when `body` contains zero memory instructions and zero function calls.
+    #[new(skip)]
+    #[get(type(copy))]
+    pub(crate) pure_no_memory: bool,
 }
 
 /// Validated in-memory representation of a decoded `.wasm` binary module.
@@ -327,4 +331,13 @@ pub(crate) struct WasmExecContext<'a> {
     pub(crate) max_fuel: u64,
     /// Current recursion call depth.
     pub(crate) depth: usize,
+    /// Exclusive high-water linear memory byte index written during execution for surgical re-zeroing.
+    pub(crate) dirty_end: usize,
+}
+
+/// Reusable thread-local linear memory backing store kept zeroed at rest between WASM invocations.
+#[derive(Debug, Default)]
+pub(crate) struct WasmMemoryPool {
+    /// Contiguous zeroed linear memory bytes reused across `execute_wasm_export` calls.
+    pub(crate) buffer: Vec<u8>,
 }
