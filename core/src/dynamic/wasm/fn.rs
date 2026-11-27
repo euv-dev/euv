@@ -10,11 +10,25 @@ use super::*;
 ///
 /// - `u64` - Deterministic non-zero digest.
 #[must_use]
+#[inline]
 pub fn compute_wasm_checksum(bytes: &[u8]) -> u64 {
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for byte in bytes.iter() {
-        hash ^= *byte as u64;
-        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+    const FNV_PRIME: u64 = 0x0100_0000_01b3;
+    let mut hash: u64 = FNV_OFFSET;
+    let mut slice: &[u8] = bytes;
+    while let Some((chunk, rest)) = slice.split_first_chunk::<8>() {
+        hash = (hash ^ (chunk[0] as u64)).wrapping_mul(FNV_PRIME);
+        hash = (hash ^ (chunk[1] as u64)).wrapping_mul(FNV_PRIME);
+        hash = (hash ^ (chunk[2] as u64)).wrapping_mul(FNV_PRIME);
+        hash = (hash ^ (chunk[3] as u64)).wrapping_mul(FNV_PRIME);
+        hash = (hash ^ (chunk[4] as u64)).wrapping_mul(FNV_PRIME);
+        hash = (hash ^ (chunk[5] as u64)).wrapping_mul(FNV_PRIME);
+        hash = (hash ^ (chunk[6] as u64)).wrapping_mul(FNV_PRIME);
+        hash = (hash ^ (chunk[7] as u64)).wrapping_mul(FNV_PRIME);
+        slice = rest;
+    }
+    for byte in slice.iter().copied() {
+        hash = (hash ^ (byte as u64)).wrapping_mul(FNV_PRIME);
     }
     hash.max(1)
 }
@@ -32,18 +46,35 @@ pub fn compute_wasm_checksum(bytes: &[u8]) -> u64 {
 /// - `String` - Formatted signature tag (`"euv-sig-v1:<hex>"`).
 #[must_use]
 pub fn compute_wasm_signature(bytes: &[u8], version: u64, signing_key: &str) -> String {
+    const FNV_PRIME: u64 = 0x0100_0000_01b3;
+    const SIG_MIX: u64 = 0x517c_c1b7_2722_0a95;
     let mut h1: u64 = 0xcbf2_9ce4_8422_2325 ^ version.wrapping_mul(0x9E37_79B9_7F4A_7C15);
     let mut h2: u64 = 0x8422_2325_cbf2_9ce4 ^ (bytes.len() as u64);
-    for byte in signing_key.as_bytes().iter() {
-        h1 ^= *byte as u64;
-        h1 = h1.wrapping_mul(0x0100_0000_01b3);
-        h2 = h2.rotate_left(7) ^ (*byte as u64);
+    for byte in signing_key.as_bytes().iter().copied() {
+        let b: u64 = byte as u64;
+        h1 = (h1 ^ b).wrapping_mul(FNV_PRIME);
+        h2 = h2.rotate_left(7) ^ b;
     }
-    for byte in bytes.iter() {
-        h1 ^= *byte as u64;
-        h1 = h1.wrapping_mul(0x0100_0000_01b3);
-        h2 ^= (*byte as u64).wrapping_mul(0x517c_c1b7_2722_0a95);
-        h2 = h2.rotate_left(13);
+    let mut slice: &[u8] = bytes;
+    while let Some((chunk, rest)) = slice.split_first_chunk::<4>() {
+        let b0: u64 = chunk[0] as u64;
+        h1 = (h1 ^ b0).wrapping_mul(FNV_PRIME);
+        h2 = (h2 ^ b0.wrapping_mul(SIG_MIX)).rotate_left(13);
+        let b1: u64 = chunk[1] as u64;
+        h1 = (h1 ^ b1).wrapping_mul(FNV_PRIME);
+        h2 = (h2 ^ b1.wrapping_mul(SIG_MIX)).rotate_left(13);
+        let b2: u64 = chunk[2] as u64;
+        h1 = (h1 ^ b2).wrapping_mul(FNV_PRIME);
+        h2 = (h2 ^ b2.wrapping_mul(SIG_MIX)).rotate_left(13);
+        let b3: u64 = chunk[3] as u64;
+        h1 = (h1 ^ b3).wrapping_mul(FNV_PRIME);
+        h2 = (h2 ^ b3.wrapping_mul(SIG_MIX)).rotate_left(13);
+        slice = rest;
+    }
+    for byte in slice.iter().copied() {
+        let b: u64 = byte as u64;
+        h1 = (h1 ^ b).wrapping_mul(FNV_PRIME);
+        h2 = (h2 ^ b.wrapping_mul(SIG_MIX)).rotate_left(13);
     }
     format!("{WASM_SIGNATURE_PREFIX}{h1:016x}{h2:016x}")
 }

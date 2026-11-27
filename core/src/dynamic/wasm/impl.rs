@@ -722,39 +722,40 @@ impl WasmFetcher for RegistryWasmFetcher {
             return HttpWasmFetcher::default().fetch(request, attempt, on_progress);
         }
         let Self { records, .. } = self;
-        let rec: RegistryWasmRecord = records
-            .try_borrow()
-            .ok()
-            .and_then(|g: Ref<'_, HashMap<String, RegistryWasmRecord>>| {
-                g.get(request.get_url()).cloned()
-            })
-            .ok_or_else(|| WasmDynamicError::HttpStatus {
-                status: 404,
-                url: request.get_url().clone(),
-            })?;
-        match rec.get_fault() {
-            WasmFaultKind::NetworkOffline => {
-                return Err(WasmDynamicError::NetworkOffline(request.get_url().clone()));
-            }
-            WasmFaultKind::TimeoutOnceThenSucceed if attempt == 0 => {
-                return Err(WasmDynamicError::Timeout {
+        let rec_opt: Result<(Vec<u8>, String, WasmFaultKind), WasmDynamicError> = {
+            let guard: Ref<'_, HashMap<String, RegistryWasmRecord>> = records
+                .try_borrow()
+                .map_err(|_| WasmDynamicError::HttpStatus {
+                    status: 404,
                     url: request.get_url().clone(),
-                    timeout_ms: WASM_DEFAULT_TIMEOUT_MS,
-                });
+                })?;
+            let rec: &RegistryWasmRecord =
+                guard
+                    .get(request.get_url())
+                    .ok_or_else(|| WasmDynamicError::HttpStatus {
+                        status: 404,
+                        url: request.get_url().clone(),
+                    })?;
+            match rec.get_fault() {
+                WasmFaultKind::NetworkOffline => {
+                    return Err(WasmDynamicError::NetworkOffline(request.get_url().clone()));
+                }
+                WasmFaultKind::TimeoutOnceThenSucceed if attempt == 0 => {
+                    return Err(WasmDynamicError::Timeout {
+                        url: request.get_url().clone(),
+                        timeout_ms: WASM_DEFAULT_TIMEOUT_MS,
+                    });
+                }
+                WasmFaultKind::Http500 => {
+                    return Err(WasmDynamicError::HttpStatus {
+                        status: 500,
+                        url: request.get_url().clone(),
+                    });
+                }
+                fault => Ok((rec.get_bytes().clone(), rec.get_etag().clone(), fault)),
             }
-            WasmFaultKind::Http500 => {
-                return Err(WasmDynamicError::HttpStatus {
-                    status: 500,
-                    url: request.get_url().clone(),
-                });
-            }
-            _ => {}
-        }
-        let RegistryWasmRecord {
-            mut bytes,
-            etag,
-            fault,
-        } = rec;
+        };
+        let (mut bytes, etag, fault): (Vec<u8>, String, WasmFaultKind) = rec_opt?;
         if fault == WasmFaultKind::TamperedChecksum && !bytes.is_empty() {
             let last_idx: usize = bytes.len() - 1;
             bytes[last_idx] ^= 0xFF;
@@ -1071,17 +1072,21 @@ impl WasmDynamicManager {
         }
         let scope: WasmDynamicScope = request.get_scope().clone();
         let scope_key: String = scope.key();
-        let state_sig: Signal<WasmLoadState> = self.state_signal(&scope);
-        let (req_id, config, fetcher, active_ver): (
+        let (req_id, config, fetcher, active_ver, state_sig): (
             u64,
             WasmSandboxConfig,
             Rc<dyn WasmFetcher>,
             u64,
+            Signal<WasmLoadState>,
         ) = {
             let Self { inner } = self;
             let mut guard: RefMut<'_, WasmDynamicManagerState> = inner
                 .try_borrow_mut()
                 .map_err(|_| WasmDynamicError::ExecutionTrap("manager re-entrancy".to_string()))?;
+            let sig: Signal<WasmLoadState> = *guard
+                .state_signals
+                .entry(scope_key.clone())
+                .or_insert_with(|| Signal::new_detached(WasmLoadState::Idle));
             guard.next_request_id = guard.next_request_id.saturating_add(1);
             let id: u64 = guard.next_request_id;
             let _: Option<u64> = guard.active_request_ids.insert(scope_key.clone(), id);
@@ -1103,7 +1108,7 @@ impl WasmDynamicManager {
                 .update(|t: &mut WasmDynamicTelemetry| {
                     t.downloads_started = t.downloads_started.saturating_add(1);
                 });
-            (id, guard.config, guard.fetcher.clone(), cur_v)
+            (id, guard.config, guard.fetcher.clone(), cur_v, sig)
         };
         if !request.get_allow_downgrade() && active_ver > 0 && request.get_version() <= active_ver {
             let err: WasmDynamicError = WasmDynamicError::VersionRegression {
@@ -1113,10 +1118,12 @@ impl WasmDynamicManager {
             self.record_failure(&scope, &err);
             return Err(err);
         }
-        let _: bool = state_sig.set(WasmLoadState::Downloading {
-            received_bytes: 0,
-            total_bytes: 0,
-        });
+        if state_sig.has_subscribers() {
+            let _: bool = state_sig.set(WasmLoadState::Downloading {
+                received_bytes: 0,
+                total_bytes: 0,
+            });
+        }
         let (fetched, cached_parsed_opt): (WasmFetchedShare, Option<Rc<WasmParsedModule>>) =
             match self.fetch_with_retry(&request, config, &fetcher, state_sig) {
                 Ok(res) => res,
@@ -1133,7 +1140,9 @@ impl WasmDynamicManager {
             };
             return Err(err);
         }
-        let _: bool = state_sig.set(WasmLoadState::Verifying);
+        if state_sig.has_subscribers() {
+            let _: bool = state_sig.set(WasmLoadState::Verifying);
+        }
         let raw_bytes: &[u8] = fetched.bytes.as_slice();
         if raw_bytes.len() > config.get_max_binary_bytes() {
             let err: WasmDynamicError = WasmDynamicError::BinaryTooLarge {
@@ -1166,7 +1175,9 @@ impl WasmDynamicManager {
                 return Err(err);
             }
         }
-        let _: bool = state_sig.set(WasmLoadState::Compiling);
+        if state_sig.has_subscribers() {
+            let _: bool = state_sig.set(WasmLoadState::Compiling);
+        }
         let cached_module: Option<Rc<WasmParsedModule>> = cached_parsed_opt.or_else(|| {
             self.lookup_cached_parsed_module(
                 request.resolved_cache_key(),
@@ -1205,7 +1216,9 @@ impl WasmDynamicManager {
                 }
             }
         }
-        let _: bool = state_sig.set(WasmLoadState::Executing);
+        if state_sig.has_subscribers() {
+            let _: bool = state_sig.set(WasmLoadState::Executing);
+        }
         let exec_out: WasmExecutionOutput =
             match execute_wasm_export(parsed.as_ref(), WASM_EXPORT_RENDER, &[0], &config) {
                 Ok(out) => out,
@@ -1288,19 +1301,23 @@ impl WasmDynamicManager {
             &[next_state],
             &config,
         )?;
+        let WasmExecutionOutput {
+            emitted_spec,
+            emitted_bundle,
+            ..
+        } = render_out;
         match scope {
             WasmDynamicScope::Partial { slot_id } => {
-                if let Some(spec) = render_out.emitted_spec() {
+                if let Some(spec) = emitted_spec {
                     let mut upd: DynamicComponentUpdate =
-                        DynamicComponentUpdate::new(slot_id.clone(), snap_version, spec.clone());
+                        DynamicComponentUpdate::new(slot_id.clone(), snap_version, spec);
                     upd.set_allow_downgrade(true);
                     upd.sign();
                     let _: Result<u64, DynamicUpdateError> = hub.apply_component(upd);
                 }
             }
             WasmDynamicScope::Global => {
-                if let Some(bundle) = render_out.emitted_bundle() {
-                    let mut patched: DynamicUpdateBundle = bundle.clone();
+                if let Some(mut patched) = emitted_bundle {
                     for comp in patched.get_mut_components().iter_mut() {
                         comp.set_allow_downgrade(true);
                         comp.sign();
@@ -1578,10 +1595,12 @@ impl WasmDynamicManager {
                 }
             }
             match fetcher.fetch(request, attempt, &mut |received: u64, total: u64| {
-                let _: bool = state_sig.set(WasmLoadState::Downloading {
-                    received_bytes: received,
-                    total_bytes: total,
-                });
+                if state_sig.has_subscribers() {
+                    let _: bool = state_sig.set(WasmLoadState::Downloading {
+                        received_bytes: received,
+                        total_bytes: total,
+                    });
+                }
             }) {
                 Ok(payload) => {
                     let WasmFetchedPayload {
@@ -1672,8 +1691,13 @@ impl WasmDynamicManager {
             from_cache,
         } = fetched;
         let ver: u64 = request.get_version();
-        let fuel_used: u64 = exec_out.get_fuel_used();
-        let logs: Vec<String> = exec_out.get_logs().clone();
+        let WasmExecutionOutput {
+            fuel_used,
+            emitted_spec,
+            emitted_bundle,
+            logs,
+            ..
+        } = exec_out;
         let hub: DynamicUpdateHub = {
             let Self { inner } = self;
             inner
@@ -1684,12 +1708,11 @@ impl WasmDynamicManager {
         let (spec_opt, bundle_opt): (Option<DynamicNodeSpec>, Option<DynamicUpdateBundle>) =
             match request.get_scope() {
                 WasmDynamicScope::Partial { slot_id } => {
-                    let spec: DynamicNodeSpec =
-                        exec_out.emitted_spec().cloned().ok_or_else(|| {
-                            WasmDynamicError::InvalidUiPayload(
-                                "partial wasm did not call env::euv_emit_ui".to_string(),
-                            )
-                        })?;
+                    let spec: DynamicNodeSpec = emitted_spec.ok_or_else(|| {
+                        WasmDynamicError::InvalidUiPayload(
+                            "partial wasm did not call env::euv_emit_ui".to_string(),
+                        )
+                    })?;
                     let mut upd: DynamicComponentUpdate =
                         DynamicComponentUpdate::new(slot_id.clone(), ver, spec.clone());
                     upd.set_allow_downgrade(request.get_allow_downgrade());
@@ -1700,12 +1723,11 @@ impl WasmDynamicManager {
                     (Some(spec), None)
                 }
                 WasmDynamicScope::Global => {
-                    let bundle: DynamicUpdateBundle =
-                        exec_out.emitted_bundle().cloned().ok_or_else(|| {
-                            WasmDynamicError::InvalidUiPayload(
-                                "global wasm did not call env::euv_emit_bundle".to_string(),
-                            )
-                        })?;
+                    let bundle: DynamicUpdateBundle = emitted_bundle.ok_or_else(|| {
+                        WasmDynamicError::InvalidUiPayload(
+                            "global wasm did not call env::euv_emit_bundle".to_string(),
+                        )
+                    })?;
                     let mut patched: DynamicUpdateBundle = bundle.clone();
                     if request.get_allow_downgrade() {
                         for comp in patched.get_mut_components().iter_mut() {
@@ -1774,7 +1796,7 @@ impl WasmDynamicManager {
                     let _: bool = guard.global_version_signal.set_if_changed(ver);
                 }
             }
-            let _: bool = guard.last_logs.set(logs);
+            let _: bool = guard.last_logs.set_if_changed(logs);
             let _: bool = guard
                 .telemetry_signal
                 .update(|t: &mut WasmDynamicTelemetry| {
