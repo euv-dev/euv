@@ -61,31 +61,43 @@ impl EuvBadge {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
+        let ctx: Context = current_context();
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
         let (bg, fg): (Color, Color) = self.get_tone().colors(p);
         let Self { label, .. } = self;
-        view! {
-            row {
-                height: Length::Px(24.0)
-                justify: JustifyContent::Center
-                align: AlignItems::Center
-                padding: Edges::symmetric(0.0, 10.0)
-                overflow: Overflow::Hidden
-                background: bg
-                border: (1.0, p.get_border().with_alpha(72))
-                radius: g.get_radius_sm()
-                text {
-                    font_size: 11.0
-                    font_weight: FontWeight::SemiBold
-                    color: fg
-                    text_align: TextAlign::Center
-                    text_overflow: TextOverflow::Ellipsis
-                    { label.as_str() }
-                }
-            }
-        }
+        let mut row_st: Style = Style::default();
+        row_st
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Row)
+            .set_height(Length::Px(24.0))
+            .set_justify_content(JustifyContent::Center)
+            .set_align_items(AlignItems::Center)
+            .set_padding(Edges::symmetric(0.0, 10.0))
+            .set_overflow(Overflow::Hidden);
+        row_st
+            .get_mut_paint()
+            .set_background(Some(bg))
+            .set_border(Border::new(1.0, p.get_border().with_alpha(72)))
+            .set_radius(CornerRadius::all(g.get_radius_sm().max(0.0)));
+        let mut txt_st: Style = Style::default();
+        txt_st
+            .get_mut_text()
+            .set_font_size(11.0)
+            .set_weight(FontWeight::SemiBold)
+            .set_color(fg)
+            .set_align(TextAlign::Center)
+            .set_overflow(TextOverflow::Ellipsis);
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                let root: NodeId = tree.create_view(row_st);
+                let txt_id: NodeId = tree.create_text(label.clone(), txt_st);
+                tree.append_child(root, txt_id);
+                root
+            },
+            NodeId::default(),
+        )
     }
 }
 
@@ -122,6 +134,7 @@ impl EuvAlert {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
+        let ctx: Context = current_context();
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
@@ -134,31 +147,43 @@ impl EuvAlert {
         let Self {
             title, description, ..
         } = self;
-        view! {
-            column {
-                width: Length::Percent(100.0)
-                padding: Edges::all(SPACE_MD)
-                gap: SPACE_XS
-                background: p.get_muted()
-                border: (g.get_border_width(), border_col)
-                radius: g.get_radius_md()
-                overflow: Overflow::Hidden
-                selectable: is_selectable
-                text {
-                    width: Length::Percent(100.0)
-                    font_size: 14.0
-                    font_weight: FontWeight::SemiBold
-                    color: p.get_foreground()
-                    { title.as_str() }
-                }
-                text {
-                    width: Length::Percent(100.0)
-                    font_size: 13.0
-                    color: p.get_muted_foreground()
-                    { description.as_str() }
-                }
-            }
-        }
+        let mut col_st: Style = Style::default().selectable(is_selectable);
+        col_st
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Column)
+            .set_width(Length::Percent(100.0))
+            .set_padding(Edges::all(SPACE_MD))
+            .set_row_gap(SPACE_XS)
+            .set_column_gap(SPACE_XS)
+            .set_overflow(Overflow::Hidden);
+        col_st
+            .get_mut_paint()
+            .set_background(Some(p.get_muted()))
+            .set_border(Border::new(g.get_border_width().max(0.0), border_col))
+            .set_radius(CornerRadius::all(g.get_radius_md().max(0.0)));
+        let mut title_st: Style = Style::default();
+        title_st.get_mut_layout().set_width(Length::Percent(100.0));
+        title_st
+            .get_mut_text()
+            .set_font_size(14.0)
+            .set_weight(FontWeight::SemiBold)
+            .set_color(p.get_foreground());
+        let mut desc_st: Style = Style::default();
+        desc_st.get_mut_layout().set_width(Length::Percent(100.0));
+        desc_st
+            .get_mut_text()
+            .set_font_size(13.0)
+            .set_color(p.get_muted_foreground());
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                let root: NodeId = tree.create_view(col_st);
+                let title_id: NodeId = tree.create_text(title.clone(), title_st);
+                let desc_id: NodeId = tree.create_text(description.clone(), desc_st);
+                tree.append_children(root, &[title_id, desc_id]);
+                root
+            },
+            NodeId::default(),
+        )
     }
 }
 
@@ -195,6 +220,7 @@ impl EuvProgress {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
+        let ctx: Context = current_context();
         let p: ThemePalette = self.get_tokens().get_palette();
         let h: f32 = if self.get_height() > 0.0 {
             self.get_height().max(4.0)
@@ -202,21 +228,36 @@ impl EuvProgress {
             8.0
         };
         let pct: f32 = self.get_value().clamp(0.0, 1.0) * 100.0;
-        view! {
-            row {
-                width: Length::Percent(100.0)
-                height: Length::Px(h)
-                background: p.get_secondary()
-                radius: h * 0.5
-                overflow: Overflow::Hidden
-                view {
-                    width: Length::Percent(pct)
-                    height: Length::Percent(100.0)
-                    background: p.get_primary()
-                    radius: h * 0.5
-                }
-            }
-        }
+        let radius: CornerRadius = CornerRadius::all((h * 0.5).max(0.0));
+        let mut track_st: Style = Style::default();
+        track_st
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Row)
+            .set_width(Length::Percent(100.0))
+            .set_height(Length::Px(h))
+            .set_overflow(Overflow::Hidden);
+        track_st
+            .get_mut_paint()
+            .set_background(Some(p.get_secondary()))
+            .set_radius(radius);
+        let mut fill_st: Style = Style::default();
+        fill_st
+            .get_mut_layout()
+            .set_width(Length::Percent(pct))
+            .set_height(Length::Percent(100.0));
+        fill_st
+            .get_mut_paint()
+            .set_background(Some(p.get_primary()))
+            .set_radius(radius);
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                let track: NodeId = tree.create_view(track_st);
+                let fill: NodeId = tree.create_view(fill_st);
+                tree.append_child(track, fill);
+                track
+            },
+            NodeId::default(),
+        )
     }
 }
 

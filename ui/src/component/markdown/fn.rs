@@ -354,6 +354,214 @@ pub fn tokenize_code_line(line: &str, language: &str) -> Vec<CodeSpan> {
     tokenize_code_line_with_lang(line, CodeLang::from_name(language))
 }
 
+/// Formats a positive decimal integer into a compact `String` via a stack buffer without `core::fmt` dispatch.
+///
+/// # Arguments
+///
+/// - `usize` - Unsigned integer to format.
+///
+/// # Returns
+///
+/// - `String` - Base-10 decimal string.
+#[inline(always)]
+fn format_usize_fast(mut n: usize) -> String {
+    let mut buf: [u8; 20] = [0u8; 20];
+    let mut pos: usize = buf.len();
+    loop {
+        pos -= 1;
+        buf[pos] = b'0' + ((n % 10) as u8);
+        n /= 10;
+        if n == 0 {
+            break;
+        }
+    }
+    let len: usize = buf.len() - pos;
+    let mut out: String = String::with_capacity(len);
+    for &b in &buf[pos..] {
+        out.push(b as char);
+    }
+    out
+}
+
+/// Measures the natural horizontal width, line count, and mounts all syntax-highlighted line rows directly into an already-borrowed `SceneTree`.
+///
+/// # Arguments
+///
+/// - `&mut SceneTree` - Mutable scene tree.
+/// - `&str` - Raw source code string.
+/// - `CodeLang` - Pre-resolved syntax highlighting language.
+/// - `CodeThemePalette` - Resolved Eva Light/Dark Bold palette.
+/// - `&[usize]` - 1-based highlighted line numbers.
+/// - `(bool, f32, bool)` - Rendering options `(show_nums, code_font_size, is_selectable)`.
+///
+/// # Returns
+///
+/// - `(f32, usize, Vec<NodeId>)` - Required natural content width in logical pixels, total line count, and mounted line row handles.
+pub(crate) fn build_code_line_nodes_in_tree(
+    tree: &mut SceneTree,
+    code: &str,
+    code_lang: CodeLang,
+    eva: CodeThemePalette,
+    highlight_lines: &[usize],
+    opts: (bool, f32, bool),
+) -> (f32, usize, Vec<NodeId>) {
+    let (show_nums, code_font_size, is_selectable): (bool, f32, bool) = opts;
+    let mono_cell_w: f32 = code_font_size * MONOSPACE_ADVANCE_RATIO;
+    let gutter_w: f32 = if show_nums { CODE_GUTTER_WIDTH } else { 0.0 };
+    let has_highlights: bool = !highlight_lines.is_empty();
+    let mut base_span_style: Style = Style::default().selectable(is_selectable);
+    base_span_style.get_mut_layout().set_flex_shrink(0.0);
+    base_span_style
+        .get_mut_text()
+        .set_font_size(code_font_size)
+        .set_family(FontFamily::Monospace)
+        .set_overflow(TextOverflow::Clip);
+    let mut base_row_style: Style = Style::default();
+    base_row_style
+        .get_mut_layout()
+        .set_flex_direction(FlexDirection::Row)
+        .set_min_width(Length::Percent(100.0))
+        .set_min_height(Length::Px((code_font_size * 1.62).max(20.0)))
+        .set_padding(Edges::symmetric(1.0, SPACE_SM))
+        .set_align_items(AlignItems::Center);
+    base_row_style
+        .get_mut_paint()
+        .set_background(Some(COLOR_TRANSPARENT));
+    let mut gutter_row_style: Style = Style::default().selectable(false);
+    gutter_row_style
+        .get_mut_layout()
+        .set_flex_direction(FlexDirection::Row)
+        .set_width(Length::Px(CODE_GUTTER_WIDTH))
+        .set_flex_shrink(0.0)
+        .set_padding(Edges::new(0.0, SPACE_SM, 0.0, 0.0))
+        .set_justify_content(JustifyContent::End)
+        .set_align_items(AlignItems::Center);
+    let mut base_gutter_text_style: Style = Style::default().selectable(false);
+    base_gutter_text_style
+        .get_mut_text()
+        .set_font_size((code_font_size - 1.0).max(10.5))
+        .set_family(FontFamily::Monospace)
+        .set_color(eva.get_line_number())
+        .set_overflow(TextOverflow::Clip);
+    let mut base_code_row_style: Style = Style::default().selectable(is_selectable);
+    base_code_row_style
+        .get_mut_layout()
+        .set_flex_direction(FlexDirection::Row)
+        .set_flex_shrink(0.0)
+        .set_align_items(AlignItems::Center);
+    let plain_fg: Color = eva.get_foreground();
+    let line_hl_bg: Color = eva.get_line_highlight();
+    let est_lines: usize = (code.len() / 32).clamp(1, 256);
+    let mut max_cols: usize = 0;
+    let mut line_nodes: Vec<NodeId> = Vec::with_capacity(est_lines);
+    let mut span_nodes: Vec<NodeId> = Vec::with_capacity(16);
+    let mut line_no: usize = 0;
+    for line_text in code.lines().chain(code.is_empty().then_some("")) {
+        line_no += 1;
+        let is_hl: bool = has_highlights && highlight_lines.contains(&line_no);
+        let expanded_opt: Option<String> = if line_text.as_bytes().contains(&b'\t') {
+            Some(line_text.replace('\t', "  "))
+        } else {
+            None
+        };
+        let expanded_line: &str = expanded_opt.as_deref().unwrap_or(line_text);
+        let line_cols: usize = if expanded_line.is_ascii() {
+            expanded_line.len()
+        } else {
+            expanded_line
+                .chars()
+                .map(|c: char| if c.is_ascii() { 1 } else { 2 })
+                .sum()
+        };
+        if line_cols > max_cols {
+            max_cols = line_cols;
+        }
+        let leading_spaces: usize = expanded_line
+            .bytes()
+            .take_while(|b: &u8| *b == CODE_BYTE_SPACE)
+            .count();
+        let trimmed_line: &str = &expanded_line[leading_spaces..];
+        let indent_px: f32 = (leading_spaces as f32) * mono_cell_w;
+        span_nodes.clear();
+        if trimmed_line.is_empty() {
+            let mut sp_style: Style = base_span_style;
+            sp_style.get_mut_text().set_color(plain_fg);
+            span_nodes.push(tree.create_node(NodeKind::Text(" ".to_string()), sp_style));
+        } else {
+            let mut pending: Option<(usize, usize, Color, FontWeight, bool)> = None;
+            scan_code_line_ranges(
+                trimmed_line,
+                code_lang,
+                |start: usize, end: usize, kind: CodeTokenKind| {
+                    let (fg, weight): (Color, FontWeight) = eva.token_style(kind);
+                    let is_italic: bool = kind == CodeTokenKind::Comment;
+                    if let Some((p_start, p_end, p_fg, p_weight, p_italic)) = pending {
+                        if p_fg == fg
+                            && p_weight == weight
+                            && p_italic == is_italic
+                            && p_end == start
+                        {
+                            pending = Some((p_start, end, p_fg, p_weight, p_italic));
+                            return;
+                        }
+                        let mut sp_style: Style = base_span_style;
+                        sp_style
+                            .get_mut_text()
+                            .set_weight(p_weight)
+                            .set_italic(p_italic)
+                            .set_color(p_fg);
+                        span_nodes.push(tree.create_node(
+                            NodeKind::Text(trimmed_line[p_start..p_end].to_string()),
+                            sp_style,
+                        ));
+                    }
+                    pending = Some((start, end, fg, weight, is_italic));
+                },
+            );
+            if let Some((p_start, p_end, p_fg, p_weight, p_italic)) = pending {
+                let mut sp_style: Style = base_span_style;
+                sp_style
+                    .get_mut_text()
+                    .set_weight(p_weight)
+                    .set_italic(p_italic)
+                    .set_color(p_fg);
+                span_nodes.push(tree.create_node(
+                    NodeKind::Text(trimmed_line[p_start..p_end].to_string()),
+                    sp_style,
+                ));
+            }
+        }
+        let mut row_style: Style = base_row_style;
+        if is_hl {
+            row_style.get_mut_paint().set_background(Some(line_hl_bg));
+        }
+        let line_row: NodeId = tree.create_node(NodeKind::View, row_style);
+        let mut code_row_style: Style = base_code_row_style;
+        code_row_style
+            .get_mut_layout()
+            .set_padding(Edges::new(0.0, SPACE_MD, 0.0, indent_px));
+        let code_row: NodeId = tree.create_node(NodeKind::View, code_row_style);
+        tree.append_children(code_row, &span_nodes);
+        if show_nums {
+            let gutter_row: NodeId = tree.create_node(NodeKind::View, gutter_row_style);
+            let mut num_style: Style = base_gutter_text_style;
+            if is_hl {
+                num_style.get_mut_text().set_color(plain_fg);
+            }
+            let gutter_text: NodeId =
+                tree.create_node(NodeKind::Text(format_usize_fast(line_no)), num_style);
+            tree.append_child(gutter_row, gutter_text);
+            tree.append_children(line_row, &[gutter_row, code_row]);
+        } else {
+            tree.append_child(line_row, code_row);
+        }
+        line_nodes.push(line_row);
+    }
+    let line_count: usize = line_nodes.len();
+    let natural_w: f32 = gutter_w + (max_cols as f32) * mono_cell_w + SPACE_MD * 2.0 + 24.0;
+    (natural_w, line_count, line_nodes)
+}
+
 /// Measures the natural horizontal width, line count, and mounts all syntax-highlighted line rows for `EuvCodeBlock` inside a single `SceneTree` write borrow.
 ///
 /// # Arguments
@@ -379,157 +587,19 @@ pub(crate) fn build_code_line_nodes(
     is_selectable: bool,
 ) -> (f32, usize, Vec<NodeId>) {
     let ctx: Context = current_context();
-    let mono_cell_w: f32 = code_font_size * MONOSPACE_ADVANCE_RATIO;
-    let gutter_w: f32 = if show_nums { CODE_GUTTER_WIDTH } else { 0.0 };
-    let has_highlights: bool = !highlight_lines.is_empty();
-    let base_span_style: Style = Style::default()
-        .flex_shrink(0.0)
-        .font_size(code_font_size)
-        .font_family(FontFamily::Monospace)
-        .selectable(is_selectable)
-        .text_overflow(TextOverflow::Clip);
-    let base_row_style: Style = Style::default()
-        .row()
-        .min_width(Length::Percent(100.0))
-        .min_height(Length::Px((code_font_size * 1.62).max(20.0)))
-        .padding(Edges::symmetric(1.0, SPACE_SM))
-        .align(AlignItems::Center)
-        .background(COLOR_TRANSPARENT);
-    let gutter_row_style: Style = Style::default()
-        .row()
-        .width(Length::Px(CODE_GUTTER_WIDTH))
-        .flex_shrink(0.0)
-        .padding(Edges::new(0.0, SPACE_SM, 0.0, 0.0))
-        .justify(JustifyContent::End)
-        .align(AlignItems::Center)
-        .selectable(false);
-    let base_gutter_text_style: Style = Style::default()
-        .font_size((code_font_size - 1.0).max(10.5))
-        .font_family(FontFamily::Monospace)
-        .color(eva.get_line_number())
-        .selectable(false)
-        .text_overflow(TextOverflow::Clip);
-    let base_code_row_style: Style = Style::default()
-        .row()
-        .flex_shrink(0.0)
-        .align(AlignItems::Center)
-        .selectable(is_selectable);
-    let plain_fg: Color = eva.get_foreground();
-    let line_hl_bg: Color = eva.get_line_highlight();
-    let est_lines: usize = (code.len() / 32).clamp(1, 256);
-    let (max_cols, line_nodes): (usize, Vec<NodeId>) = ctx.get_scene().with_write(
+    ctx.get_scene().with_write(
         |tree: &mut SceneTree| {
-            let mut max_cols: usize = 0;
-            let mut line_nodes: Vec<NodeId> = Vec::with_capacity(est_lines);
-            let mut span_nodes: Vec<NodeId> = Vec::with_capacity(16);
-            let mut line_no: usize = 0;
-            for line_text in code.lines().chain(code.is_empty().then_some("")) {
-                line_no += 1;
-                let is_hl: bool = has_highlights && highlight_lines.contains(&line_no);
-                let expanded_opt: Option<String> = if line_text.as_bytes().contains(&b'\t') {
-                    Some(line_text.replace('\t', "  "))
-                } else {
-                    None
-                };
-                let expanded_line: &str = expanded_opt.as_deref().unwrap_or(line_text);
-                let line_cols: usize = if expanded_line.is_ascii() {
-                    expanded_line.len()
-                } else {
-                    expanded_line
-                        .chars()
-                        .map(|c: char| if c.is_ascii() { 1 } else { 2 })
-                        .sum()
-                };
-                if line_cols > max_cols {
-                    max_cols = line_cols;
-                }
-                let leading_spaces: usize = expanded_line
-                    .bytes()
-                    .take_while(|b: &u8| *b == CODE_BYTE_SPACE)
-                    .count();
-                let trimmed_line: &str = &expanded_line[leading_spaces..];
-                let indent_px: f32 = (leading_spaces as f32) * mono_cell_w;
-                span_nodes.clear();
-                if trimmed_line.is_empty() {
-                    let mut sp_style: Style = base_span_style;
-                    sp_style.get_mut_text().set_color(plain_fg);
-                    span_nodes.push(tree.create_node(NodeKind::Text(" ".to_string()), sp_style));
-                } else {
-                    let mut pending: Option<(usize, usize, Color, FontWeight, bool)> = None;
-                    scan_code_line_ranges(
-                        trimmed_line,
-                        code_lang,
-                        |start: usize, end: usize, kind: CodeTokenKind| {
-                            let (fg, weight): (Color, FontWeight) = eva.token_style(kind);
-                            let is_italic: bool = kind == CodeTokenKind::Comment;
-                            if let Some((p_start, p_end, p_fg, p_weight, p_italic)) = pending {
-                                if p_fg == fg
-                                    && p_weight == weight
-                                    && p_italic == is_italic
-                                    && p_end == start
-                                {
-                                    pending = Some((p_start, end, p_fg, p_weight, p_italic));
-                                    return;
-                                }
-                                let mut sp_style: Style = base_span_style;
-                                sp_style
-                                    .get_mut_text()
-                                    .set_weight(p_weight)
-                                    .set_italic(p_italic)
-                                    .set_color(p_fg);
-                                span_nodes.push(tree.create_node(
-                                    NodeKind::Text(trimmed_line[p_start..p_end].to_string()),
-                                    sp_style,
-                                ));
-                            }
-                            pending = Some((start, end, fg, weight, is_italic));
-                        },
-                    );
-                    if let Some((p_start, p_end, p_fg, p_weight, p_italic)) = pending {
-                        let mut sp_style: Style = base_span_style;
-                        sp_style
-                            .get_mut_text()
-                            .set_weight(p_weight)
-                            .set_italic(p_italic)
-                            .set_color(p_fg);
-                        span_nodes.push(tree.create_node(
-                            NodeKind::Text(trimmed_line[p_start..p_end].to_string()),
-                            sp_style,
-                        ));
-                    }
-                }
-                let mut row_style: Style = base_row_style;
-                if is_hl {
-                    row_style.get_mut_paint().set_background(Some(line_hl_bg));
-                }
-                let line_row: NodeId = tree.create_node(NodeKind::View, row_style);
-                if show_nums {
-                    let gutter_row: NodeId = tree.create_node(NodeKind::View, gutter_row_style);
-                    let mut num_style: Style = base_gutter_text_style;
-                    if is_hl {
-                        num_style.get_mut_text().set_color(plain_fg);
-                    }
-                    let gutter_text: NodeId =
-                        tree.create_node(NodeKind::Text(line_no.to_string()), num_style);
-                    tree.append_child(gutter_row, gutter_text);
-                    tree.append_child(line_row, gutter_row);
-                }
-                let mut code_row_style: Style = base_code_row_style;
-                code_row_style
-                    .get_mut_layout()
-                    .set_padding(Edges::new(0.0, SPACE_MD, 0.0, indent_px));
-                let code_row: NodeId = tree.create_node(NodeKind::View, code_row_style);
-                tree.append_children(code_row, &span_nodes);
-                tree.append_child(line_row, code_row);
-                line_nodes.push(line_row);
-            }
-            (max_cols, line_nodes)
+            build_code_line_nodes_in_tree(
+                tree,
+                code,
+                code_lang,
+                eva,
+                highlight_lines,
+                (show_nums, code_font_size, is_selectable),
+            )
         },
-        (0, Vec::new()),
-    );
-    let line_count: usize = line_nodes.len();
-    let natural_w: f32 = gutter_w + (max_cols as f32) * mono_cell_w + SPACE_MD * 2.0 + 24.0;
-    (natural_w, line_count, line_nodes)
+        (0.0, 0, Vec::new()),
+    )
 }
 
 /// Draws the crisp four-corner vector expand icon used on `EuvCodeBlock` Fullscreen buttons.
@@ -1594,7 +1664,7 @@ pub fn parse_markdown_blocks(source: &str) -> Vec<EuvMarkdownBlock> {
         if refs.is_empty() { None } else { Some(&refs) };
     let total: usize = body_lines.len();
     let mut idx: usize = 0;
-    let mut blocks: Vec<EuvMarkdownBlock> = Vec::new();
+    let mut blocks: Vec<EuvMarkdownBlock> = Vec::with_capacity((total / 4).clamp(4, 32));
     while idx < total {
         let raw: &str = body_lines[idx];
         let trimmed: &str = raw.trim();

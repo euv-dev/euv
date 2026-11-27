@@ -8,3 +8,5 @@ pub type EuvRouteResolvePolicy = (
     Option<EuvRouteBuilder>,
     Option<PageRetention>,
 );
+/// Collected subtree lifecycle observer handles dispatched outside scene write borrows.
+pub(crate) type LifecycleObserverList = Vec<(NodeId, Rc<dyn Lifecycle>)>;

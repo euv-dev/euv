@@ -36,6 +36,7 @@ impl EuvSidebarNav {
         let ctx: Context = current_context();
         let base_tokens: ThemeTokens = self.get_tokens();
         let init_tok: ThemeTokens = live_tokens_untracked(base_tokens);
+        let init_p: ThemePalette = init_tok.get_palette();
         let init_g: ThemeGeometry = init_tok.get_geometry();
         let active_route: Signal<String> = self.get_active_route();
         let Self { items, .. } = self;
@@ -43,159 +44,234 @@ impl EuvSidebarNav {
             .iter()
             .map(|item: &EuvNavItem| item.get_path().clone())
             .collect();
-        let paths_for_sel: RoutePathList = Rc::clone(&route_paths);
-        let mut children: Vec<NodeId> = Vec::with_capacity(items.len() * 2);
-        let mut last_section: &str = "";
-        let mut bound_items: Vec<(usize, NodeId, NodeId)> = Vec::with_capacity(items.len());
-        for (idx, item) in items.iter().enumerate() {
-            let sec: &str = item.get_section().as_str();
-            if !sec.is_empty() && sec != last_section {
-                last_section = sec;
-                let top_pad: f32 = if idx == 0 { 2.0 } else { 12.0 };
-                let sec_text_style = move || -> Style {
-                    let live_p: ThemePalette = use_live_tokens(base_tokens).get_palette();
-                    let mut st: Style = Style::default();
-                    st.get_mut_text()
-                        .set_font_size(11.0)
-                        .set_weight(FontWeight::SemiBold)
-                        .set_color(live_p.get_muted_foreground());
-                    st
-                };
-                children.push(view! {
-                    row {
-                        width: Length::Percent(100.0)
-                        padding: Edges::new(top_pad, SPACE_SM, 4.0, SPACE_SM)
-                        text {
-                            bind_style: sec_text_style
-                            { sec }
-                        }
-                    }
-                });
-            }
-            let click_path: String = item.get_path().clone();
-            let on_item_click = move |_: &UiEvent| {
-                let _: bool = active_route.set_if_changed(click_path.clone());
-            };
-            let lbl_style = move || -> Style {
-                let live_p: ThemePalette = use_live_tokens(base_tokens).get_palette();
-                let mut st: Style = Style::default();
-                st.get_mut_text()
-                    .set_font_size(13.5)
-                    .set_weight(FontWeight::SemiBold)
-                    .set_color(live_p.get_foreground())
-                    .set_overflow(TextOverflow::Clip);
-                st
-            };
-            let mut ind_node: NodeId = NodeId::default();
-            let row_node: NodeId = view! {
-                row {
-                    width: Length::Percent(100.0)
-                    height: Length::Px(init_g.get_control_sm().max(34.0))
-                    align: AlignItems::Center
-                    gap: SPACE_SM
-                    padding: Edges::symmetric(0.0, SPACE_SM)
-                    radius: init_g.get_radius_md()
-                    background: COLOR_TRANSPARENT
-                    cursor: CursorIcon::Pointer
-                    on_click: on_item_click
-                    view {
-                        node_ref: ind_node
-                        width: Length::Px(3.5)
-                        height: Length::Px(18.0)
-                        radius: 99.0
-                        background: COLOR_TRANSPARENT
-                    }
-                    text {
-                        bind_style: lbl_style
-                        { item.get_label().as_str() }
-                    }
-                }
-            };
-            bound_items.push((idx, row_node, ind_node));
-            children.push(row_node);
-        }
-        let root: NodeId = view! {
-            column {
-                width: Length::Percent(100.0)
-                gap: 2.0
-                ..children
-            }
+        let init_idx: Option<usize> = {
+            let cur: String = active_route.get_untracked();
+            route_paths
+                .iter()
+                .position(|p: &String| p.as_str() == cur.as_str())
         };
+        let row_h: f32 = init_g.get_control_sm().max(34.0);
+        let row_rad: CornerRadius = CornerRadius::all(init_g.get_radius_md().max(0.0));
+        let mut root_st: Style = Style::default();
+        root_st
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Column)
+            .set_width(Length::Percent(100.0))
+            .set_row_gap(2.0)
+            .set_column_gap(2.0);
+        let mut base_sec_txt_st: Style = Style::default();
+        base_sec_txt_st
+            .get_mut_text()
+            .set_font_size(11.0)
+            .set_weight(FontWeight::SemiBold)
+            .set_color(init_p.get_muted_foreground());
+        let mut base_row_st: Style = Style::default();
+        base_row_st
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Row)
+            .set_width(Length::Percent(100.0))
+            .set_height(Length::Px(row_h))
+            .set_align_items(AlignItems::Center)
+            .set_row_gap(SPACE_SM)
+            .set_column_gap(SPACE_SM)
+            .set_padding(Edges::symmetric(0.0, SPACE_SM));
+        base_row_st
+            .get_mut_paint()
+            .set_radius(row_rad)
+            .set_cursor(CursorIcon::Pointer);
+        let mut base_ind_st: Style = Style::default();
+        base_ind_st
+            .get_mut_layout()
+            .set_width(Length::Px(3.5))
+            .set_height(Length::Px(18.0));
+        base_ind_st
+            .get_mut_paint()
+            .set_radius(CornerRadius::all(99.0));
+        let mut base_lbl_st: Style = Style::default();
+        base_lbl_st
+            .get_mut_text()
+            .set_font_size(13.5)
+            .set_weight(FontWeight::SemiBold)
+            .set_color(init_p.get_foreground())
+            .set_overflow(TextOverflow::Clip);
         let scene: SceneHandle = ctx.get_scene().clone();
-        let (nav_scope, _): (Scope, ()) = Scope::run(|_: Scope| {
-            let active_sel: Rc<Selector<Option<usize>>> =
-                Rc::new(Selector::new(move || -> Option<usize> {
-                    let cur: String = active_route.get();
-                    paths_for_sel
-                        .iter()
-                        .position(|p: &String| p.as_str() == cur.as_str())
-                }));
-            let sel_cleanup: Rc<Selector<Option<usize>>> = Rc::clone(&active_sel);
-            on_cleanup(move || {
-                sel_cleanup.dispose();
-            });
-            for (idx, row_node, ind_node) in bound_items.into_iter() {
-                let sel_item: Rc<Selector<Option<usize>>> = Rc::clone(&active_sel);
-                let scene_item: SceneHandle = scene.clone();
-                let mut prev_tok: ThemeTokens = init_tok;
-                let mut prev_active: bool = false;
-                let mut has_synced: bool = false;
-                let _: Effect = Effect::new(move || {
-                    let is_active: bool = sel_item.is_selected(Some(idx));
-                    let live_tok: ThemeTokens = use_live_tokens(base_tokens);
-                    let theme_changed: bool = has_synced && live_tok != prev_tok;
-                    if has_synced && !theme_changed && is_active == prev_active {
-                        return;
+        let (root, section_lbl_nodes, bound_items): (
+            NodeId,
+            Vec<NodeId>,
+            Vec<(NodeId, NodeId, NodeId)>,
+        ) = scene.with_write(
+            |tree: &mut SceneTree| {
+                let root_id: NodeId = tree.create_view(root_st);
+                let mut children: Vec<NodeId> = Vec::with_capacity(items.len() * 2);
+                let mut sec_lbls: Vec<NodeId> = Vec::new();
+                let mut bound: Vec<(NodeId, NodeId, NodeId)> = Vec::with_capacity(items.len());
+                let mut last_section: &str = "";
+                let active_row_bg: Color = init_p.get_primary().with_alpha(24);
+                let active_ind_bg: Color = init_p.get_primary();
+                for (idx, item) in items.iter().enumerate() {
+                    let sec: &str = item.get_section().as_str();
+                    if !sec.is_empty() && sec != last_section {
+                        last_section = sec;
+                        let top_pad: f32 = if idx == 0 { 2.0 } else { 12.0 };
+                        let mut sec_row_st: Style = Style::default();
+                        sec_row_st
+                            .get_mut_layout()
+                            .set_flex_direction(FlexDirection::Row)
+                            .set_width(Length::Percent(100.0))
+                            .set_padding(Edges::new(top_pad, SPACE_SM, 4.0, SPACE_SM));
+                        let sec_row: NodeId = tree.create_view(sec_row_st);
+                        let sec_txt: NodeId = tree.create_text(sec.to_string(), base_sec_txt_st);
+                        tree.append_child(sec_row, sec_txt);
+                        sec_lbls.push(sec_txt);
+                        children.push(sec_row);
                     }
-                    prev_tok = live_tok;
-                    prev_active = is_active;
-                    has_synced = true;
-                    let live_p: ThemePalette = live_tok.get_palette();
-                    let live_g: ThemeGeometry = live_tok.get_geometry();
-                    let row_bg: Color = if is_active {
-                        live_p.get_primary().with_alpha(24)
+                    let is_active: bool = init_idx == Some(idx);
+                    let mut row_st: Style = base_row_st;
+                    row_st.get_mut_paint().set_background(Some(if is_active {
+                        active_row_bg
                     } else {
                         COLOR_TRANSPARENT
-                    };
-                    let ind_bg: Color = if is_active {
-                        live_p.get_primary()
+                    }));
+                    let row_node: NodeId = tree.create_view(row_st);
+                    let click_path: String = item.get_path().clone();
+                    let click_handler: UiEventHandler =
+                        Rc::new(RefCell::new(move |_: &UiEvent| {
+                            let _: bool = active_route.set_if_changed(click_path.clone());
+                        }));
+                    if let Some(node) = tree.get_node_mut(row_node) {
+                        node.get_mut_handlers().set_on_click(Some(click_handler));
+                        node.get_mut_interaction().set_focusable(true);
+                    }
+                    let mut ind_st: Style = base_ind_st;
+                    ind_st.get_mut_paint().set_background(Some(if is_active {
+                        active_ind_bg
                     } else {
                         COLOR_TRANSPARENT
-                    };
-                    scene_item.with_write(
-                        |tree: &mut SceneTree| {
-                            if let Some(node) = tree.get_node_mut(row_node) {
-                                let mut st: Style = node.get_style();
-                                if theme_changed {
-                                    st.get_mut_layout()
-                                        .set_height(Length::Px(live_g.get_control_sm().max(34.0)));
-                                    st.get_mut_paint().set_radius(CornerRadius::all(
-                                        live_g.get_radius_md().max(0.0),
+                    }));
+                    let ind_node: NodeId = tree.create_view(ind_st);
+                    let lbl_node: NodeId = tree.create_text(item.get_label().clone(), base_lbl_st);
+                    tree.append_children(row_node, &[ind_node, lbl_node]);
+                    bound.push((row_node, ind_node, lbl_node));
+                    children.push(row_node);
+                }
+                if !children.is_empty() {
+                    tree.append_children(root_id, &children);
+                }
+                (root_id, sec_lbls, bound)
+            },
+            (NodeId::default(), Vec::new(), Vec::new()),
+        );
+        let scene_eff: SceneHandle = scene.clone();
+        let (nav_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            let mut prev_tok: ThemeTokens = init_tok;
+            let mut prev_idx: Option<usize> = init_idx;
+            Effect::new(move || {
+                let next_idx: Option<usize> = active_route
+                    .with(|cur: &String| {
+                        route_paths
+                            .iter()
+                            .position(|p: &String| p.as_str() == cur.as_str())
+                    })
+                    .flatten();
+                let live_tok: ThemeTokens = use_live_tokens(base_tokens);
+                let theme_changed: bool = live_tok != prev_tok;
+                if !theme_changed && next_idx == prev_idx {
+                    return;
+                }
+                let old_idx: Option<usize> = prev_idx;
+                prev_tok = live_tok;
+                prev_idx = next_idx;
+                let live_p: ThemePalette = live_tok.get_palette();
+                let live_g: ThemeGeometry = live_tok.get_geometry();
+                let active_row_bg: Color = live_p.get_primary().with_alpha(24);
+                let active_ind_bg: Color = live_p.get_primary();
+                scene_eff.with_write(
+                    |tree: &mut SceneTree| {
+                        if theme_changed {
+                            let dirty_layout: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            let row_dirty: u16 = dirty_layout | DIRTY_PAINT;
+                            let next_h: Length = Length::Px(live_g.get_control_sm().max(34.0));
+                            let next_rad: CornerRadius =
+                                CornerRadius::all(live_g.get_radius_md().max(0.0));
+                            let fg: Color = live_p.get_foreground();
+                            let muted_fg: Color = live_p.get_muted_foreground();
+                            for &sec_id in section_lbl_nodes.iter() {
+                                if let Some(node) = tree.get_node_mut(sec_id) {
+                                    node.get_mut_style().get_mut_text().set_color(muted_fg);
+                                    tree.mark_dirty(sec_id, DIRTY_PAINT);
+                                }
+                            }
+                            for (idx, &(row_node, ind_node, lbl_node)) in
+                                bound_items.iter().enumerate()
+                            {
+                                let is_active: bool = next_idx == Some(idx);
+                                if let Some(node) = tree.get_node_mut(row_node) {
+                                    let st: &mut Style = node.get_mut_style();
+                                    st.get_mut_layout().set_height(next_h);
+                                    st.get_mut_paint().set_radius(next_rad).set_background(Some(
+                                        if is_active {
+                                            active_row_bg
+                                        } else {
+                                            COLOR_TRANSPARENT
+                                        },
                                     ));
                                 }
-                                st.get_mut_paint().set_background(Some(row_bg));
-                                node.set_style(st);
+                                if let Some(node) = tree.get_node_mut(ind_node) {
+                                    node.get_mut_style().get_mut_paint().set_background(Some(
+                                        if is_active {
+                                            active_ind_bg
+                                        } else {
+                                            COLOR_TRANSPARENT
+                                        },
+                                    ));
+                                }
+                                if let Some(node) = tree.get_node_mut(lbl_node) {
+                                    node.get_mut_style().get_mut_text().set_color(fg);
+                                }
+                                tree.mark_dirty(row_node, row_dirty);
+                                tree.mark_dirty(ind_node, DIRTY_PAINT);
+                                tree.mark_dirty(lbl_node, DIRTY_PAINT);
                             }
-                            if let Some(node) = tree.get_node_mut(ind_node) {
-                                let mut st: Style = node.get_style();
-                                st.get_mut_paint().set_background(Some(ind_bg));
-                                node.set_style(st);
+                        } else {
+                            if let Some(old_i) = old_idx
+                                && let Some(&(row_node, ind_node, _)) = bound_items.get(old_i)
+                            {
+                                if let Some(node) = tree.get_node_mut(row_node) {
+                                    node.get_mut_style()
+                                        .get_mut_paint()
+                                        .set_background(Some(COLOR_TRANSPARENT));
+                                }
+                                if let Some(node) = tree.get_node_mut(ind_node) {
+                                    node.get_mut_style()
+                                        .get_mut_paint()
+                                        .set_background(Some(COLOR_TRANSPARENT));
+                                }
+                                tree.mark_dirty(row_node, DIRTY_PAINT);
+                                tree.mark_dirty(ind_node, DIRTY_PAINT);
                             }
-                            let dirty_layout: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
-                            let row_dirty: u16 = if theme_changed {
-                                dirty_layout | DIRTY_PAINT
-                            } else {
-                                DIRTY_PAINT
-                            };
-                            tree.mark_dirty(row_node, row_dirty);
-                            tree.mark_dirty(ind_node, DIRTY_PAINT);
-                        },
-                        (),
-                    );
-                });
-            }
+                            if let Some(new_i) = next_idx
+                                && let Some(&(row_node, ind_node, _)) = bound_items.get(new_i)
+                            {
+                                if let Some(node) = tree.get_node_mut(row_node) {
+                                    node.get_mut_style()
+                                        .get_mut_paint()
+                                        .set_background(Some(active_row_bg));
+                                }
+                                if let Some(node) = tree.get_node_mut(ind_node) {
+                                    node.get_mut_style()
+                                        .get_mut_paint()
+                                        .set_background(Some(active_ind_bg));
+                                }
+                                tree.mark_dirty(row_node, DIRTY_PAINT);
+                                tree.mark_dirty(ind_node, DIRTY_PAINT);
+                            }
+                        }
+                    },
+                    (),
+                );
+            })
         });
-        ctx.get_scene().with_write(
+        scene.with_write(
             |tree: &mut SceneTree| {
                 tree.attach_scope(root, nav_scope);
             },
@@ -222,142 +298,172 @@ impl EuvTabs {
         let ctx: Context = current_context();
         let base_tokens: ThemeTokens = self.get_tokens();
         let init_tok: ThemeTokens = live_tokens_untracked(base_tokens);
+        let init_p: ThemePalette = init_tok.get_palette();
         let init_g: ThemeGeometry = init_tok.get_geometry();
         let active: Signal<usize> = self.get_active();
+        let init_active: usize = active.get_untracked();
         let Self { labels, .. } = self;
-        let bar_style = move || -> Style {
-            let live_tok: ThemeTokens = use_live_tokens(base_tokens);
-            let live_p: ThemePalette = live_tok.get_palette();
-            let live_g: ThemeGeometry = live_tok.get_geometry();
-            let mut st: Style = Style::default();
-            st.get_mut_layout()
-                .set_flex_direction(FlexDirection::Row)
-                .set_flex_wrap(FlexWrap::Wrap)
-                .set_width(Length::Percent(100.0))
-                .set_row_gap(SPACE_XS)
-                .set_column_gap(SPACE_XS)
-                .set_padding(Edges::all(SPACE_XS));
-            st.get_mut_paint()
-                .set_background(Some(live_p.get_muted()))
-                .set_radius(CornerRadius::all(live_g.get_radius_md().max(0.0)));
-            st
-        };
-        let mut tab_nodes: Vec<NodeId> = Vec::with_capacity(labels.len());
-        for (idx, label) in labels.iter().enumerate() {
-            let on_tab_click = move |_: &UiEvent| {
-                let _: bool = active.set_if_changed(idx);
-            };
-            let lbl_style = move || -> Style {
-                let live_p: ThemePalette = use_live_tokens(base_tokens).get_palette();
-                let mut st: Style = Style::default();
-                st.get_mut_text()
-                    .set_font_size(13.0)
-                    .set_weight(FontWeight::Medium)
-                    .set_color(live_p.get_foreground())
-                    .set_align(TextAlign::Center)
-                    .set_overflow(TextOverflow::Ellipsis);
-                st
-            };
-            let tab_node: NodeId = view! {
-                row {
-                    height: Length::Px(init_g.get_control_sm())
-                    justify: JustifyContent::Center
-                    align: AlignItems::Center
-                    padding: Edges::symmetric(0.0, SPACE_MD)
-                    overflow: Overflow::Hidden
-                    radius: init_g.get_radius_sm()
-                    background: COLOR_TRANSPARENT
-                    cursor: CursorIcon::Pointer
-                    on_click: on_tab_click
-                    text {
-                        bind_style: lbl_style
-                        { label.as_str() }
-                    }
-                }
-            };
-            tab_nodes.push(tab_node);
-        }
-        let bar_node: NodeId = view! {
-            row {
-                bind_style: bar_style
-            }
-        };
-        if !tab_nodes.is_empty() {
-            let mut ctx_append: Context = ctx.clone();
-            ctx_append.append_many(bar_node, &tab_nodes);
-        }
+        let mut bar_st: Style = Style::default();
+        bar_st
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Row)
+            .set_flex_wrap(FlexWrap::Wrap)
+            .set_width(Length::Percent(100.0))
+            .set_row_gap(SPACE_XS)
+            .set_column_gap(SPACE_XS)
+            .set_padding(Edges::all(SPACE_XS));
+        bar_st
+            .get_mut_paint()
+            .set_background(Some(init_p.get_muted()))
+            .set_radius(CornerRadius::all(init_g.get_radius_md().max(0.0)));
+        let mut base_tab_st: Style = Style::default();
+        base_tab_st
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Row)
+            .set_height(Length::Px(init_g.get_control_sm()))
+            .set_justify_content(JustifyContent::Center)
+            .set_align_items(AlignItems::Center)
+            .set_padding(Edges::symmetric(0.0, SPACE_MD))
+            .set_overflow(Overflow::Hidden);
+        base_tab_st
+            .get_mut_paint()
+            .set_radius(CornerRadius::all(init_g.get_radius_sm().max(0.0)))
+            .set_cursor(CursorIcon::Pointer);
+        let mut base_lbl_st: Style = Style::default();
+        base_lbl_st
+            .get_mut_text()
+            .set_font_size(13.0)
+            .set_weight(FontWeight::Medium)
+            .set_color(init_p.get_foreground())
+            .set_align(TextAlign::Center)
+            .set_overflow(TextOverflow::Ellipsis);
         let scene: SceneHandle = ctx.get_scene().clone();
-        let (tabs_scope, _): (Scope, ()) = Scope::run(|_: Scope| {
-            let active_sel: Rc<Selector<usize>> = Rc::new(Selector::new(move || active.get()));
-            let sel_cleanup: Rc<Selector<usize>> = Rc::clone(&active_sel);
-            on_cleanup(move || {
-                sel_cleanup.dispose();
-            });
-            for (idx, tab_node) in tab_nodes.into_iter().enumerate() {
-                let sel_tab: Rc<Selector<usize>> = Rc::clone(&active_sel);
-                let scene_tab: SceneHandle = scene.clone();
-                let mut prev_tok: ThemeTokens = init_tok;
-                let mut prev_sel: bool = false;
-                let mut has_synced: bool = false;
-                let _: Effect = Effect::new(move || {
-                    let selected: bool = sel_tab.is_selected(idx);
-                    let live_tok: ThemeTokens = use_live_tokens(base_tokens);
-                    let theme_changed: bool = has_synced && live_tok != prev_tok;
-                    if has_synced && !theme_changed && selected == prev_sel {
-                        return;
+        let (bar_node, bound_tabs): (NodeId, Vec<(NodeId, NodeId)>) = scene.with_write(
+            |tree: &mut SceneTree| {
+                let bar_id: NodeId = tree.create_view(bar_st);
+                let mut tab_ids: Vec<NodeId> = Vec::with_capacity(labels.len());
+                let mut bound: Vec<(NodeId, NodeId)> = Vec::with_capacity(labels.len());
+                let bw: f32 = init_g.get_border_width().max(0.0);
+                let border_col: Color = init_p.get_border();
+                let shadow_xs: Shadow = init_g.get_shadow_xs();
+                let card_bg: Color = init_p.get_card();
+                for (idx, label) in labels.iter().enumerate() {
+                    let selected: bool = idx == init_active;
+                    let mut tab_st: Style = base_tab_st;
+                    tab_st
+                        .get_mut_paint()
+                        .set_background(Some(if selected { card_bg } else { COLOR_TRANSPARENT }))
+                        .set_border(Border::new(if selected { bw } else { 0.0 }, border_col))
+                        .set_shadow(if selected { Some(shadow_xs) } else { None });
+                    let tab_id: NodeId = tree.create_view(tab_st);
+                    let click_handler: UiEventHandler =
+                        Rc::new(RefCell::new(move |_: &UiEvent| {
+                            let _: bool = active.set_if_changed(idx);
+                        }));
+                    if let Some(node) = tree.get_node_mut(tab_id) {
+                        node.get_mut_handlers().set_on_click(Some(click_handler));
+                        node.get_mut_interaction().set_focusable(true);
                     }
-                    prev_tok = live_tok;
-                    prev_sel = selected;
-                    has_synced = true;
-                    let live_p: ThemePalette = live_tok.get_palette();
-                    let live_g: ThemeGeometry = live_tok.get_geometry();
-                    scene_tab.with_write(
-                        |tree: &mut SceneTree| {
-                            if let Some(node) = tree.get_node_mut(tab_node) {
-                                let mut st: Style = node.get_style();
-                                if theme_changed {
-                                    st.get_mut_layout()
-                                        .set_height(Length::Px(live_g.get_control_sm()));
-                                    st.get_mut_paint().set_radius(CornerRadius::all(
-                                        live_g.get_radius_sm().max(0.0),
-                                    ));
-                                }
-                                let paint: &mut PaintStyle = st.get_mut_paint();
-                                paint
-                                    .set_background(Some(if selected {
-                                        live_p.get_card()
-                                    } else {
-                                        COLOR_TRANSPARENT
-                                    }))
-                                    .set_border(Border::new(
-                                        if selected {
-                                            live_g.get_border_width().max(0.0)
-                                        } else {
-                                            0.0
-                                        },
-                                        live_p.get_border(),
-                                    ))
-                                    .set_shadow(if selected {
-                                        Some(live_g.get_shadow_xs())
-                                    } else {
-                                        None
-                                    });
-                                node.set_style(st);
-                            }
+                    let lbl_id: NodeId = tree.create_text(label.clone(), base_lbl_st);
+                    tree.append_child(tab_id, lbl_id);
+                    bound.push((tab_id, lbl_id));
+                    tab_ids.push(tab_id);
+                }
+                if !tab_ids.is_empty() {
+                    tree.append_children(bar_id, &tab_ids);
+                }
+                (bar_id, bound)
+            },
+            (NodeId::default(), Vec::new()),
+        );
+        let scene_eff: SceneHandle = scene.clone();
+        let (tabs_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            let mut prev_tok: ThemeTokens = init_tok;
+            let mut prev_idx: usize = init_active;
+            Effect::new(move || {
+                let next_idx: usize = active.get();
+                let live_tok: ThemeTokens = use_live_tokens(base_tokens);
+                let theme_changed: bool = live_tok != prev_tok;
+                if !theme_changed && next_idx == prev_idx {
+                    return;
+                }
+                let old_idx: usize = prev_idx;
+                prev_tok = live_tok;
+                prev_idx = next_idx;
+                let live_p: ThemePalette = live_tok.get_palette();
+                let live_g: ThemeGeometry = live_tok.get_geometry();
+                let card_bg: Color = live_p.get_card();
+                let border_col: Color = live_p.get_border();
+                let bw: f32 = live_g.get_border_width().max(0.0);
+                let shadow_xs: Shadow = live_g.get_shadow_xs();
+                scene_eff.with_write(
+                    |tree: &mut SceneTree| {
+                        if theme_changed {
                             let dirty_layout: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
-                            let dirty: u16 = if theme_changed {
-                                dirty_layout | DIRTY_PAINT
-                            } else {
-                                DIRTY_PAINT
-                            };
-                            tree.mark_dirty(tab_node, dirty);
-                        },
-                        (),
-                    );
-                });
-            }
+                            let dirty_all: u16 = dirty_layout | DIRTY_PAINT;
+                            if let Some(node) = tree.get_node_mut(bar_node) {
+                                node.get_mut_style()
+                                    .get_mut_paint()
+                                    .set_background(Some(live_p.get_muted()))
+                                    .set_radius(CornerRadius::all(live_g.get_radius_md().max(0.0)));
+                                tree.mark_dirty(bar_node, DIRTY_PAINT);
+                            }
+                            let tab_h: Length = Length::Px(live_g.get_control_sm());
+                            let tab_rad: CornerRadius =
+                                CornerRadius::all(live_g.get_radius_sm().max(0.0));
+                            let fg: Color = live_p.get_foreground();
+                            for (idx, &(tab_id, lbl_id)) in bound_tabs.iter().enumerate() {
+                                let selected: bool = idx == next_idx;
+                                if let Some(node) = tree.get_node_mut(tab_id) {
+                                    let st: &mut Style = node.get_mut_style();
+                                    st.get_mut_layout().set_height(tab_h);
+                                    st.get_mut_paint()
+                                        .set_radius(tab_rad)
+                                        .set_background(Some(if selected {
+                                            card_bg
+                                        } else {
+                                            COLOR_TRANSPARENT
+                                        }))
+                                        .set_border(Border::new(
+                                            if selected { bw } else { 0.0 },
+                                            border_col,
+                                        ))
+                                        .set_shadow(if selected { Some(shadow_xs) } else { None });
+                                }
+                                if let Some(node) = tree.get_node_mut(lbl_id) {
+                                    node.get_mut_style().get_mut_text().set_color(fg);
+                                }
+                                tree.mark_dirty(tab_id, dirty_all);
+                                tree.mark_dirty(lbl_id, DIRTY_PAINT);
+                            }
+                        } else {
+                            if let Some(&(old_tab, _)) = bound_tabs.get(old_idx) {
+                                if let Some(node) = tree.get_node_mut(old_tab) {
+                                    node.get_mut_style()
+                                        .get_mut_paint()
+                                        .set_background(Some(COLOR_TRANSPARENT))
+                                        .set_border(Border::new(0.0, border_col))
+                                        .set_shadow(None);
+                                }
+                                tree.mark_dirty(old_tab, DIRTY_PAINT);
+                            }
+                            if let Some(&(new_tab, _)) = bound_tabs.get(next_idx) {
+                                if let Some(node) = tree.get_node_mut(new_tab) {
+                                    node.get_mut_style()
+                                        .get_mut_paint()
+                                        .set_background(Some(card_bg))
+                                        .set_border(Border::new(bw, border_col))
+                                        .set_shadow(Some(shadow_xs));
+                                }
+                                tree.mark_dirty(new_tab, DIRTY_PAINT);
+                            }
+                        }
+                    },
+                    (),
+                );
+            })
         });
-        ctx.get_scene().with_write(
+        scene.with_write(
             |tree: &mut SceneTree| {
                 tree.attach_scope(bar_node, tabs_scope);
             },
@@ -519,57 +625,91 @@ impl EuvBottomNav {
         };
         let scene_tabs: SceneHandle = ctx.get_scene().clone();
         let paths_for_pill: RoutePathList = Rc::clone(&route_paths);
-        let (tabs_scope, _): (Scope, ()) = Scope::run(|_: Scope| {
-            let pill_sel: Rc<Selector<Option<usize>>> =
-                Rc::new(Selector::new(move || -> Option<usize> {
-                    let cur: String = active_route.get();
-                    let cur_idx: Option<usize> = paths_for_pill
-                        .iter()
-                        .position(|path: &String| path.as_str() == cur.as_str());
-                    let dx: f32 = drag_sig.get();
-                    if dx.abs() <= 0.5 {
-                        return cur_idx;
-                    }
+        let (tabs_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            let mut prev_under: Option<usize> = initial_idx;
+            let mut prev_p: ThemePalette = init_p;
+            Effect::new(move || {
+                let cur_idx: Option<usize> = active_route
+                    .with(|cur: &String| {
+                        paths_for_pill
+                            .iter()
+                            .position(|path: &String| path.as_str() == cur.as_str())
+                    })
+                    .flatten();
+                let dx: f32 = drag_sig.get();
+                let next_under: Option<usize> = if dx.abs() <= 0.5 {
+                    cur_idx
+                } else {
                     let vp_w: f32 = vp_sig.get().get_width();
                     (0..item_count).find(|i: &usize| {
                         bottom_nav_tab_under_pill(*i, cur_idx, item_count, dx, vp_w)
                     })
-                }));
-            let sel_cleanup: Rc<Selector<Option<usize>>> = Rc::clone(&pill_sel);
-            on_cleanup(move || {
-                sel_cleanup.dispose();
-            });
-            for (tab_idx, icon_canvas, label_node, under_cell) in bound_tabs.into_iter() {
-                let sel_tab: Rc<Selector<Option<usize>>> = Rc::clone(&pill_sel);
-                let scene_tab: SceneHandle = scene_tabs.clone();
-                let _: Effect = Effect::new(move || {
-                    let under: bool = sel_tab.is_selected(Some(tab_idx));
-                    let live_p: ThemePalette = use_live_tokens(base_tokens).get_palette();
-                    under_cell.set(under);
-                    let fg: Color = if under {
-                        live_p.get_primary_foreground()
-                    } else {
-                        live_p.get_muted_foreground()
-                    };
-                    let weight: FontWeight = if under {
-                        FontWeight::Bold
-                    } else {
-                        FontWeight::Medium
-                    };
-                    scene_tab.with_write(
-                        |tree: &mut SceneTree| {
-                            if let Some(node) = tree.get_node_mut(label_node) {
-                                let mut st: Style = node.get_style();
-                                st.get_mut_text().set_weight(weight).set_color(fg);
-                                node.set_style(st);
+                };
+                let live_p: ThemePalette = use_live_tokens(base_tokens).get_palette();
+                let palette_changed: bool = live_p != prev_p;
+                if !palette_changed && next_under == prev_under {
+                    return;
+                }
+                let old_under: Option<usize> = prev_under;
+                prev_under = next_under;
+                prev_p = live_p;
+                let active_fg: Color = live_p.get_primary_foreground();
+                let muted_fg: Color = live_p.get_muted_foreground();
+                scene_tabs.with_write(
+                    |tree: &mut SceneTree| {
+                        if palette_changed {
+                            for &(tab_idx, icon_canvas, label_node, ref under_cell) in
+                                bound_tabs.iter()
+                            {
+                                let under: bool = next_under == Some(tab_idx);
+                                under_cell.set(under);
+                                if let Some(node) = tree.get_node_mut(label_node) {
+                                    node.get_mut_style()
+                                        .get_mut_text()
+                                        .set_weight(if under {
+                                            FontWeight::Bold
+                                        } else {
+                                            FontWeight::Medium
+                                        })
+                                        .set_color(if under { active_fg } else { muted_fg });
+                                }
+                                tree.mark_dirty(label_node, DIRTY_LAYOUT | DIRTY_PAINT);
+                                tree.mark_dirty(icon_canvas, DIRTY_PAINT);
                             }
-                            tree.mark_dirty(label_node, DIRTY_LAYOUT | DIRTY_PAINT);
-                            tree.mark_dirty(icon_canvas, DIRTY_PAINT);
-                        },
-                        (),
-                    );
-                });
-            }
+                        } else {
+                            if let Some(old_i) = old_under
+                                && let Some(&(_, icon_canvas, label_node, ref under_cell)) =
+                                    bound_tabs.get(old_i)
+                            {
+                                under_cell.set(false);
+                                if let Some(node) = tree.get_node_mut(label_node) {
+                                    node.get_mut_style()
+                                        .get_mut_text()
+                                        .set_weight(FontWeight::Medium)
+                                        .set_color(muted_fg);
+                                }
+                                tree.mark_dirty(label_node, DIRTY_LAYOUT | DIRTY_PAINT);
+                                tree.mark_dirty(icon_canvas, DIRTY_PAINT);
+                            }
+                            if let Some(new_i) = next_under
+                                && let Some(&(_, icon_canvas, label_node, ref under_cell)) =
+                                    bound_tabs.get(new_i)
+                            {
+                                under_cell.set(true);
+                                if let Some(node) = tree.get_node_mut(label_node) {
+                                    node.get_mut_style()
+                                        .get_mut_text()
+                                        .set_weight(FontWeight::Bold)
+                                        .set_color(active_fg);
+                                }
+                                tree.mark_dirty(label_node, DIRTY_LAYOUT | DIRTY_PAINT);
+                                tree.mark_dirty(icon_canvas, DIRTY_PAINT);
+                            }
+                        }
+                    },
+                    (),
+                );
+            })
         });
         let last_idx: Rc<Cell<Option<usize>>> = Rc::new(Cell::new(initial_idx));
         let last_drag_tx: Rc<Cell<f32>> = Rc::new(Cell::new(0.0));
@@ -579,11 +719,14 @@ impl EuvBottomNav {
         let last_drag_route: Rc<Cell<f32>> = Rc::clone(&last_drag_tx);
         let (route_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
             Effect::new(move || {
-                let current_path: String = active_route.get();
+                let next_idx: Option<usize> = active_route
+                    .with(|current_path: &String| {
+                        route_paths_anim
+                            .iter()
+                            .position(|path: &String| path.as_str() == current_path.as_str())
+                    })
+                    .flatten();
                 let vp_w: f32 = ctx_anim.get_viewport_size().get().get_width();
-                let next_idx: Option<usize> = route_paths_anim
-                    .iter()
-                    .position(|path: &String| path.as_str() == current_path.as_str());
                 let prev_idx: Option<usize> = last_idx_route.replace(next_idx);
                 let prev_drag: f32 = last_drag_route.replace(0.0);
                 let dirty_layout: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
@@ -608,7 +751,7 @@ impl EuvBottomNav {
                             let cur_visual_tx: f32 = tree
                                 .get_node(indicator_node)
                                 .map(|n: &SceneNode| {
-                                    n.get_style().get_paint().get_transform().get_translate_x()
+                                    n.style_ref().get_paint().get_transform().get_translate_x()
                                 })
                                 .unwrap_or(prev_drag);
                             let from_x: f32 = if let Some(old_i) = prev_idx
@@ -620,7 +763,7 @@ impl EuvBottomNav {
                                 cur_visual_tx
                             };
                             if let Some(node) = tree.get_node_mut(indicator_node) {
-                                let mut st: Style = node.get_style();
+                                let st: &mut Style = node.get_mut_style();
                                 st.get_mut_layout()
                                     .set_display(Display::Flex)
                                     .set_top(Some(top_px))
@@ -633,7 +776,6 @@ impl EuvBottomNav {
                                         from_x, 0.0, 1.0, 1.0, 0.0,
                                     ));
                                 }
-                                node.set_style(st);
                             }
                             tree.mark_dirty(indicator_node, dirty_layout | DIRTY_PAINT);
                             if let Some(old_i) = prev_idx
@@ -667,10 +809,9 @@ impl EuvBottomNav {
                             }
                         } else {
                             if let Some(node) = tree.get_node_mut(indicator_node) {
-                                let mut st: Style = node.get_style();
+                                let st: &mut Style = node.get_mut_style();
                                 st.get_mut_layout().set_display(Display::None);
                                 st.get_mut_paint().set_transform(Transform2D::default());
-                                node.set_style(st);
                             }
                             tree.mark_dirty(indicator_node, dirty_layout | DIRTY_PAINT);
                         }
@@ -712,10 +853,9 @@ impl EuvBottomNav {
                             let tx: f32 = frac * slot_w;
                             last_drag_live.set(tx);
                             if let Some(node) = tree.get_node_mut(indicator_node) {
-                                let mut st: Style = node.get_style();
-                                st.get_mut_paint()
+                                node.get_mut_style()
+                                    .get_mut_paint()
                                     .set_transform(Transform2D::new(tx, 0.0, 1.0, 1.0, 0.0));
-                                node.set_style(st);
                             }
                             tree.mark_dirty(indicator_node, DIRTY_PAINT);
                         },

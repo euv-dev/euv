@@ -683,21 +683,28 @@ impl EuvDataTable {
             let mut prev_children: Vec<NodeId> = Vec::with_capacity(row_count + 1);
             let mut q_heap: Vec<u8> = Vec::new();
             Effect::new(move || {
-                let q_raw: String = filter.get();
                 let asc: bool = sort_asc.get();
                 let mut q_stack: [u8; 128] = [0u8; 128];
-                let needle: &[u8] = if q_raw.len() <= q_stack.len() {
-                    for (slot, byte) in q_stack.iter_mut().zip(q_raw.bytes()) {
-                        *slot = byte.to_ascii_lowercase();
-                    }
-                    &q_stack[..q_raw.len()]
-                } else {
-                    q_heap.clear();
-                    q_heap.reserve(q_raw.len());
-                    for byte in q_raw.bytes() {
-                        q_heap.push(byte.to_ascii_lowercase());
-                    }
-                    q_heap.as_slice()
+                let stack_len: Option<usize> = filter
+                    .with(|q_raw: &String| -> Option<usize> {
+                        if q_raw.len() <= q_stack.len() {
+                            for (slot, byte) in q_stack.iter_mut().zip(q_raw.bytes()) {
+                                *slot = byte.to_ascii_lowercase();
+                            }
+                            Some(q_raw.len())
+                        } else {
+                            q_heap.clear();
+                            q_heap.reserve(q_raw.len());
+                            for byte in q_raw.bytes() {
+                                q_heap.push(byte.to_ascii_lowercase());
+                            }
+                            None
+                        }
+                    })
+                    .unwrap_or(Some(0));
+                let needle: &[u8] = match stack_len {
+                    Some(n) => &q_stack[..n],
+                    None => q_heap.as_slice(),
                 };
                 let order: &[usize] = if asc {
                     sorted_asc.as_slice()
@@ -731,18 +738,35 @@ impl EuvDataTable {
                             return;
                         }
                         prev_children.clear();
-                        if let Some(parent_node) = tree.get_node_mut(table_box) {
-                            prev_children.extend_from_slice(parent_node.get_children().as_slice());
-                            parent_node.get_mut_children().clear();
+                        let keep_header: bool = if let Some(parent_node) =
+                            tree.get_node_mut(table_box)
+                        {
+                            let keep: bool =
+                                parent_node.get_children().first() == Some(&header_row);
+                            if keep {
+                                prev_children
+                                    .extend_from_slice(&parent_node.get_children().as_slice()[1..]);
+                                parent_node.get_mut_children().truncate(1);
+                            } else {
+                                prev_children
+                                    .extend_from_slice(parent_node.get_children().as_slice());
+                                parent_node.get_mut_children().clear();
+                            }
+                            keep
                         } else {
                             return;
-                        }
+                        };
                         for old_child in prev_children.iter().copied() {
                             if let Some(child_node) = tree.get_node_mut(old_child) {
                                 child_node.set_parent(None);
                             }
                         }
-                        for child in next_children.iter().copied() {
+                        let attach_slice: &[NodeId] = if keep_header {
+                            &next_children[1..]
+                        } else {
+                            next_children.as_slice()
+                        };
+                        for child in attach_slice.iter().copied() {
                             if let Some(child_node) = tree.get_node_mut(child) {
                                 child_node.set_parent(Some(table_box));
                             }
@@ -750,7 +774,7 @@ impl EuvDataTable {
                         if let Some(parent_node) = tree.get_node_mut(table_box) {
                             parent_node
                                 .get_mut_children()
-                                .extend_from_slice(next_children.as_slice());
+                                .extend_from_slice(attach_slice);
                         }
                         let dirty_lay: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
                         let dirty_child: u16 = DIRTY_CHILDREN | DIRTY_PAINT;

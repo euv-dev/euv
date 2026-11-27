@@ -278,6 +278,7 @@ impl EuvButton {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
+        let ctx: Context = current_context();
         let style: Style = self.resolved_style();
         let text_color: Color = style.get_text().get_color();
         let font_sz: f32 = style.get_text().get_font_size();
@@ -286,36 +287,39 @@ impl EuvButton {
         let Self {
             label, on_click, ..
         } = self;
-        let btn_node: NodeId = view! {
-            view {
-                style: style
-                role: A11yRole::Button
-                a11y_label: label.clone()
-                a11y_disabled: disabled
-                text {
-                    max_width: Length::Percent(100.0)
-                    color: text_color
-                    font_size: font_sz
-                    font_weight: font_wt
-                    text_align: TextAlign::Center
-                    text_overflow: TextOverflow::Ellipsis
-                    { label.as_str() }
-                }
-            }
+        let mut a11y: A11yProps = A11yProps::new(A11yRole::Button, label.clone());
+        a11y.set_disabled(disabled);
+        let handler_opt: Option<UiEventHandler> = if !disabled {
+            on_click.as_ref().map(Rc::clone)
+        } else {
+            None
         };
-        if !disabled && let Some(handler) = on_click.as_ref() {
-            let ctx: Context = current_context();
-            let handler_rc: UiEventHandler = Rc::clone(handler);
-            ctx.get_scene().with_write(
-                |tree: &mut SceneTree| {
-                    if let Some(node) = tree.get_node_mut(btn_node) {
+        let mut txt_st: Style = Style::default();
+        txt_st
+            .get_mut_layout()
+            .set_max_width(Length::Percent(100.0));
+        txt_st
+            .get_mut_text()
+            .set_color(text_color)
+            .set_font_size(font_sz)
+            .set_weight(font_wt)
+            .set_align(TextAlign::Center)
+            .set_overflow(TextOverflow::Ellipsis);
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                let btn_node: NodeId = tree.create_view(style);
+                if let Some(node) = tree.get_node_mut(btn_node) {
+                    node.set_a11y(Some(a11y));
+                    if let Some(handler_rc) = handler_opt {
                         node.get_mut_handlers().set_on_click(Some(handler_rc));
                         node.get_mut_interaction().set_focusable(true);
                     }
-                },
-                (),
-            );
-        }
-        btn_node
+                }
+                let txt_node: NodeId = tree.create_text(label.clone(), txt_st);
+                tree.append_child(btn_node, txt_node);
+                btn_node
+            },
+            NodeId::default(),
+        )
     }
 }

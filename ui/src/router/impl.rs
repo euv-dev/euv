@@ -903,6 +903,8 @@ impl EuvRouterOutlet {
         let last_back_seq: Rc<Cell<u64>> = Rc::new(Cell::new(sys_back_sig.get_untracked()));
         let armed_exit_at_ms: Rc<Cell<Option<u64>>> = Rc::new(Cell::new(None));
         let armed_exit_route: Rc<Cell<Option<u64>>> = Rc::clone(&armed_exit_at_ms);
+        let toast_visible: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+        let toast_visible_route: Rc<Cell<bool>> = Rc::clone(&toast_visible);
         let (hub_opt, default_ret): (Option<DynamicUpdateHub>, PageRetention) = router
             .get_inner()
             .try_borrow()
@@ -978,9 +980,7 @@ impl EuvRouterOutlet {
                         |tree: &mut SceneTree| {
                             for wid in wrappers.into_iter() {
                                 if let Some(node) = tree.get_node_mut(wid) {
-                                    let mut st: Style = node.get_style();
-                                    st.get_mut_layout().set_padding(pad);
-                                    node.set_style(st);
+                                    node.get_mut_style().get_mut_layout().set_padding(pad);
                                     let dirty: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
                                     tree.mark_dirty(wid, dirty | DIRTY_PAINT);
                                 }
@@ -1014,16 +1014,15 @@ impl EuvRouterOutlet {
                                 if let Some(aw) = active_w
                                     && let Some(n) = tree.get_node_mut(aw)
                                 {
-                                    let mut st: Style = n.get_style();
-                                    st.get_mut_paint().set_transform(Transform2D::default());
-                                    n.set_style(st);
+                                    n.get_mut_style()
+                                        .get_mut_paint()
+                                        .set_transform(Transform2D::default());
                                     tree.mark_dirty(aw, DIRTY_PAINT);
                                 }
                                 if let Some(pn) = tree.get_node_mut(prev_drag.target_wrapper) {
-                                    let mut st: Style = pn.get_style();
+                                    let st: &mut Style = pn.get_mut_style();
                                     st.get_mut_layout().set_display(Display::None);
                                     st.get_mut_paint().set_transform(Transform2D::default());
-                                    pn.set_style(st);
                                     tree.mark_dirty(prev_drag.target_wrapper, DIRTY_PAINT);
                                 }
                             },
@@ -1082,10 +1081,9 @@ impl EuvRouterOutlet {
                             |tree: &mut SceneTree| {
                                 tree.cancel_subtree_transitions(old_tw);
                                 if let Some(n) = tree.get_node_mut(old_tw) {
-                                    let mut st: Style = n.get_style();
+                                    let st: &mut Style = n.get_mut_style();
                                     st.get_mut_layout().set_display(Display::None);
                                     st.get_mut_paint().set_transform(Transform2D::default());
-                                    n.set_style(st);
                                     tree.mark_dirty(old_tw, DIRTY_LAYOUT | DIRTY_PAINT);
                                 }
                             },
@@ -1159,15 +1157,16 @@ impl EuvRouterOutlet {
                             tree.cancel_subtree_transitions(active_wrapper);
                             tree.cancel_subtree_transitions(adj_wrapper);
                             if let Some(an) = tree.get_node_mut(active_wrapper) {
-                                let mut st: Style = an.get_style();
-                                st.get_mut_paint().set_opacity(1.0).set_transform(
-                                    Transform2D::new(clamped_dx, 0.0, 1.0, 1.0, 0.0),
-                                );
-                                an.set_style(st);
+                                an.get_mut_style()
+                                    .get_mut_paint()
+                                    .set_opacity(1.0)
+                                    .set_transform(Transform2D::new(
+                                        clamped_dx, 0.0, 1.0, 1.0, 0.0,
+                                    ));
                                 tree.mark_dirty(active_wrapper, DIRTY_PAINT);
                             }
                             if let Some(pn) = tree.get_node_mut(adj_wrapper) {
-                                let mut st: Style = pn.get_style();
+                                let st: &mut Style = pn.get_mut_style();
                                 let was_hidden: bool =
                                     st.get_layout().get_display() == Display::None;
                                 st.get_mut_layout()
@@ -1182,7 +1181,6 @@ impl EuvRouterOutlet {
                                     .set_pointer_events(PointerEvents::None)
                                     .set_opacity(1.0)
                                     .set_transform(Transform2D::new(adj_tx, 0.0, 1.0, 1.0, 0.0));
-                                pn.set_style(st);
                                 let layout_dirty: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
                                 let mask: u16 = if was_hidden {
                                     layout_dirty | DIRTY_PAINT
@@ -1254,13 +1252,15 @@ impl EuvRouterOutlet {
                     let consumed: bool = router_back.handle_system_back();
                     if consumed {
                         armed_exit_at_ms.set(None);
-                        if let Some(tid) = exit_toast_opt {
+                        if toast_visible.replace(false)
+                            && let Some(tid) = exit_toast_opt
+                        {
                             scene_back.with_write(
                                 |tree: &mut SceneTree| {
                                     if let Some(n) = tree.get_node_mut(tid) {
-                                        let mut st: Style = n.get_style();
-                                        st.get_mut_layout().set_display(Display::None);
-                                        n.set_style(st);
+                                        n.get_mut_style()
+                                            .get_mut_layout()
+                                            .set_display(Display::None);
                                     }
                                     tree.cancel_subtree_transitions(tid);
                                     tree.mark_dirty(tid, DIRTY_LAYOUT | DIRTY_PAINT);
@@ -1278,13 +1278,15 @@ impl EuvRouterOutlet {
                             .unwrap_or(false);
                         if second_press {
                             armed_exit_at_ms.set(None);
-                            if let Some(tid) = exit_toast_opt {
+                            if toast_visible.replace(false)
+                                && let Some(tid) = exit_toast_opt
+                            {
                                 scene_back.with_write(
                                     |tree: &mut SceneTree| {
                                         if let Some(n) = tree.get_node_mut(tid) {
-                                            let mut st: Style = n.get_style();
-                                            st.get_mut_layout().set_display(Display::None);
-                                            n.set_style(st);
+                                            n.get_mut_style()
+                                                .get_mut_layout()
+                                                .set_display(Display::None);
                                         }
                                         tree.cancel_subtree_transitions(tid);
                                         tree.mark_dirty(tid, DIRTY_LAYOUT | DIRTY_PAINT);
@@ -1298,13 +1300,13 @@ impl EuvRouterOutlet {
                             let handled_by_os: bool =
                                 dispatch_native_action(NATIVE_ACTION_TOAST, &exit_prompt_text, "");
                             if !handled_by_os && let Some(tid) = exit_toast_opt {
+                                toast_visible.set(true);
                                 scene_back.with_write(
                                     |tree: &mut SceneTree| {
                                         if let Some(n) = tree.get_node_mut(tid) {
-                                            let mut st: Style = n.get_style();
+                                            let st: &mut Style = n.get_mut_style();
                                             st.get_mut_layout().set_display(Display::Flex);
                                             st.get_mut_paint().set_opacity(1.0);
-                                            n.set_style(st);
                                         }
                                         tree.mark_dirty(tid, DIRTY_LAYOUT | DIRTY_PAINT);
                                         tree.start_transition(
@@ -1338,11 +1340,18 @@ impl EuvRouterOutlet {
                         h.page_revision_signal(&active_path).get()
                     })
                     .unwrap_or(0);
-                let prev_path_opt: Option<String> = active_key_cell
+                let (route_changed, prev_path_opt): (bool, Option<String>) = active_key_cell
                     .try_borrow()
                     .ok()
-                    .and_then(|g: Ref<'_, Option<String>>| g.clone());
-                let route_changed: bool = prev_path_opt.as_deref() != Some(active_path.as_str());
+                    .map(|g: Ref<'_, Option<String>>| {
+                        let changed: bool = g.as_deref() != Some(active_path.as_str());
+                        if changed {
+                            (true, g.clone())
+                        } else {
+                            (false, None)
+                        }
+                    })
+                    .unwrap_or((true, None));
                 let active_drag_opt: Option<EuvDragPreviewState> = drag_preview_route
                     .try_borrow_mut()
                     .ok()
@@ -1355,15 +1364,17 @@ impl EuvRouterOutlet {
                     });
                 if route_changed {
                     armed_exit_route.set(None);
-                    if let Some(tid) = exit_toast_opt {
+                    if toast_visible_route.replace(false)
+                        && let Some(tid) = exit_toast_opt
+                    {
                         scene.with_write(
                             |tree: &mut SceneTree| {
                                 if let Some(n) = tree.get_node_mut(tid)
-                                    && n.get_style().get_layout().get_display() != Display::None
+                                    && n.style_ref().get_layout().get_display() != Display::None
                                 {
-                                    let mut st: Style = n.get_style();
-                                    st.get_mut_layout().set_display(Display::None);
-                                    n.set_style(st);
+                                    n.get_mut_style()
+                                        .get_mut_layout()
+                                        .set_display(Display::None);
                                     tree.cancel_subtree_transitions(tid);
                                     tree.mark_dirty(tid, DIRTY_LAYOUT | DIRTY_PAINT);
                                 }
@@ -1408,6 +1419,246 @@ impl EuvRouterOutlet {
                 } else {
                     0.0
                 };
+                let (leave_entry, cached_hit): (Option<EuvCachedPage>, Option<EuvCachedPage>) =
+                    cache
+                        .try_borrow_mut()
+                        .ok()
+                        .map(|mut map: RefMut<'_, HashMap<String, EuvCachedPage>>| {
+                            let leave: Option<EuvCachedPage> = if route_changed
+                                && let Some(prev_path) = prev_path_opt.as_deref()
+                            {
+                                let ret: PageRetention = map
+                                    .get(prev_path)
+                                    .map(|e: &EuvCachedPage| e.retention)
+                                    .unwrap_or(default_ret);
+                                if ret == PageRetention::Destroy {
+                                    map.remove(prev_path)
+                                } else if let Some(entry) = map.get_mut(prev_path) {
+                                    entry.phase = if ret == PageRetention::Freeze {
+                                        LifecyclePhase::Frozen
+                                    } else {
+                                        LifecyclePhase::Mounted
+                                    };
+                                    Some(entry.clone())
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            };
+                            let hit: Option<EuvCachedPage> = map.get(&active_path).cloned();
+                            (leave, hit)
+                        })
+                        .unwrap_or((None, None));
+                let reusable: bool = cached_hit
+                    .as_ref()
+                    .map(|e: &EuvCachedPage| e.dynamic_rev == cur_dyn_rev)
+                    .unwrap_or(false);
+                let fast_fused_swap: bool = route_changed
+                    && reusable
+                    && cached_hit.is_some()
+                    && matches!(
+                        leave_entry.as_ref().map(|e: &EuvCachedPage| e.retention),
+                        Some(PageRetention::Freeze | PageRetention::Alive)
+                    );
+                if fast_fused_swap
+                    && let (Some(prev_entry), Some(hit)) =
+                        (leave_entry.as_ref(), cached_hit.as_ref())
+                {
+                    let prev_tok_opt: Option<ThemeTokens> = if hit.has_applied_tokens {
+                        Some(hit.applied_tokens)
+                    } else {
+                        None
+                    };
+                    let theme_changed: bool = prev_tok_opt != cur_tokens;
+                    mount_env.ctx.emit_subtree_disappear(prev_entry.wrapper);
+                    if prev_entry.retention == PageRetention::Freeze {
+                        prev_entry.scope.freeze();
+                    }
+                    let (prev_obs, page_obs): (LifecycleObserverList, LifecycleObserverList) =
+                        scene.with_write(
+                            |tree: &mut SceneTree| {
+                                let cur_slide_w: f32 = if slide_dir.abs() > 0.01 {
+                                    tree.node_screen_bounds(host)
+                                        .map(|rect: Rect| rect.get_width())
+                                        .filter(|w: &f32| *w > 40.0)
+                                        .unwrap_or_else(|| {
+                                            vp_sig.get_untracked().get_width().max(320.0)
+                                        })
+                                } else {
+                                    0.0
+                                };
+                                let (slide_w, start_exit_tx, start_enter_tx, slide_dur): (
+                                    f32,
+                                    f32,
+                                    f32,
+                                    f32,
+                                ) = if slide_dir.abs() > 0.01 {
+                                    if let Some(drag) = active_drag_opt.as_ref()
+                                        && drag.target_path == active_path
+                                        && (drag.direction - slide_dir).abs() < 0.01
+                                    {
+                                        let w_used: f32 = drag.width.max(cur_slide_w);
+                                        let rem: f32 = (1.0
+                                            - (drag.offset_x.abs() / w_used.max(1.0)))
+                                        .clamp(0.15, 1.0);
+                                        let dur: f32 = (ROUTE_COUPLED_SLIDE_SECS * rem)
+                                            .clamp(0.10, ROUTE_COUPLED_SLIDE_SECS);
+                                        (
+                                            cur_slide_w,
+                                            drag.offset_x,
+                                            drag.offset_x + slide_dir * w_used,
+                                            dur,
+                                        )
+                                    } else {
+                                        if let Some(stray) = active_drag_opt.as_ref()
+                                            && stray.target_path != active_path
+                                        {
+                                            let sw: NodeId = stray.target_wrapper;
+                                            tree.cancel_subtree_transitions(sw);
+                                            if let Some(n) = tree.get_node_mut(sw) {
+                                                let st: &mut Style = n.get_mut_style();
+                                                st.get_mut_layout().set_display(Display::None);
+                                                st.get_mut_paint()
+                                                    .set_transform(Transform2D::default());
+                                                tree.mark_dirty(sw, DIRTY_LAYOUT | DIRTY_PAINT);
+                                            }
+                                        }
+                                        (
+                                            cur_slide_w,
+                                            0.0,
+                                            slide_dir * cur_slide_w,
+                                            ROUTE_COUPLED_SLIDE_SECS,
+                                        )
+                                    }
+                                } else {
+                                    (0.0, 0.0, 0.0, ROUTE_COUPLED_SLIDE_SECS)
+                                };
+                                let coupled_exit: NodeTransition = NodeTransition::slide_fade(
+                                    prev_entry.wrapper,
+                                    Point::new(start_exit_tx, 0.0),
+                                    Point::new(-slide_dir * slide_w, 0.0),
+                                    1.0,
+                                    1.0,
+                                    slide_dur,
+                                    true,
+                                )
+                                .with_easing(Easing::EaseOutCubic);
+                                let leaving_obs: Vec<(NodeId, Rc<dyn Lifecycle>)> = if prev_entry
+                                    .retention
+                                    == PageRetention::Freeze
+                                {
+                                    let obs: Vec<(NodeId, Rc<dyn Lifecycle>)> =
+                                        tree.collect_subtree_lifecycles(prev_entry.wrapper);
+                                    tree.cancel_subtree_transitions(prev_entry.wrapper);
+                                    if let Some(n) = tree.get_node_mut(prev_entry.wrapper) {
+                                        let st: &mut Style = n.get_mut_style();
+                                        st.get_mut_layout()
+                                            .set_position(Position::Absolute)
+                                            .set_top(Some(0.0))
+                                            .set_right(Some(0.0))
+                                            .set_bottom(None)
+                                            .set_left(Some(0.0))
+                                            .set_z_index(0);
+                                        st.get_mut_paint().set_pointer_events(PointerEvents::None);
+                                    }
+                                    tree.start_transition(coupled_exit.with_hide_on_complete(true));
+                                    tree.mark_dirty(prev_entry.wrapper, DIRTY_LAYOUT | DIRTY_PAINT);
+                                    obs
+                                } else {
+                                    tree.cancel_subtree_transitions(prev_entry.wrapper);
+                                    if let Some(n) = tree.get_node_mut(prev_entry.wrapper) {
+                                        let st: &mut Style = n.get_mut_style();
+                                        st.get_mut_layout()
+                                            .set_position(Position::Absolute)
+                                            .set_top(Some(0.0))
+                                            .set_right(Some(0.0))
+                                            .set_bottom(Some(0.0))
+                                            .set_left(Some(0.0))
+                                            .set_z_index(0);
+                                        st.get_mut_paint()
+                                            .set_pointer_events(PointerEvents::None)
+                                            .set_opacity(1.0);
+                                    }
+                                    tree.start_transition(coupled_exit);
+                                    tree.mark_dirty(prev_entry.wrapper, DIRTY_LAYOUT | DIRTY_PAINT);
+                                    Vec::new()
+                                };
+                                tree.cancel_subtree_transitions(hit.wrapper);
+                                if let Some(n) = tree.get_node_mut(hit.wrapper) {
+                                    let st: &mut Style = n.get_mut_style();
+                                    st.get_mut_layout()
+                                        .set_display(Display::Flex)
+                                        .set_position(Position::Relative)
+                                        .set_top(None)
+                                        .set_right(None)
+                                        .set_bottom(None)
+                                        .set_left(None)
+                                        .set_z_index(1);
+                                    st.get_mut_paint()
+                                        .set_pointer_events(PointerEvents::Auto)
+                                        .set_opacity(1.0)
+                                        .set_transform(Transform2D::default());
+                                }
+                                let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                                tree.mark_dirty(hit.wrapper, dirty_l | DIRTY_PAINT);
+                                if theme_changed
+                                    && let (Some(old_t), Some(new_t)) = (prev_tok_opt, cur_tokens)
+                                {
+                                    remap_subtree_theme_in_place(tree, hit.wrapper, old_t, new_t);
+                                }
+                                let tr: NodeTransition = if slide_dir.abs() > 0.01 {
+                                    NodeTransition::slide_fade(
+                                        hit.wrapper,
+                                        Point::new(start_enter_tx, 0.0),
+                                        Point::new(0.0, 0.0),
+                                        1.0,
+                                        1.0,
+                                        slide_dur,
+                                        false,
+                                    )
+                                    .with_easing(Easing::EaseOutCubic)
+                                } else {
+                                    NodeTransition::route_enter(hit.wrapper)
+                                };
+                                tree.start_transition(tr);
+                                let entering_obs: Vec<(NodeId, Rc<dyn Lifecycle>)> =
+                                    tree.collect_subtree_lifecycles(hit.page_node);
+                                (leaving_obs, entering_obs)
+                            },
+                            (Vec::new(), Vec::new()),
+                        );
+                    if !prev_obs.is_empty() {
+                        dispatch_lifecycle_freeze(&prev_obs);
+                    }
+                    if hit.phase == LifecyclePhase::Frozen {
+                        if !page_obs.is_empty() {
+                            dispatch_lifecycle_resume(&page_obs);
+                        }
+                        hit.scope.resume();
+                    }
+                    if let Ok(mut map) = cache.try_borrow_mut()
+                        && let Some(entry) = map.get_mut(&active_path)
+                    {
+                        if let Some(new_t) = cur_tokens {
+                            entry.applied_tokens = new_t;
+                            entry.has_applied_tokens = true;
+                        }
+                        entry.phase = LifecyclePhase::Active;
+                        entry.activations = entry.activations.saturating_add(1);
+                    }
+                    if !page_obs.is_empty() {
+                        dispatch_lifecycle_activate(&page_obs);
+                    }
+                    mount_env.ctx.emit_subtree_appear(hit.wrapper);
+                    if let Ok(mut active_slot) = active_key_cell.try_borrow_mut() {
+                        *active_slot = Some(active_path);
+                    }
+                    if let Ok(map) = cache.try_borrow() {
+                        router.publish_lifecycle_telemetry(&map);
+                    }
+                    return;
+                }
                 let (slide_w, start_exit_tx, start_enter_tx, slide_dur): (f32, f32, f32, f32) =
                     if route_changed && slide_dir.abs() > 0.01 {
                         let cur_slide_w: f32 = Self::resolve_slide_width(&scene, host, vp_sig);
@@ -1435,11 +1686,10 @@ impl EuvRouterOutlet {
                                     |tree: &mut SceneTree| {
                                         tree.cancel_subtree_transitions(sw);
                                         if let Some(n) = tree.get_node_mut(sw) {
-                                            let mut st: Style = n.get_style();
+                                            let st: &mut Style = n.get_mut_style();
                                             st.get_mut_layout().set_display(Display::None);
                                             st.get_mut_paint()
                                                 .set_transform(Transform2D::default());
-                                            n.set_style(st);
                                             tree.mark_dirty(sw, DIRTY_LAYOUT | DIRTY_PAINT);
                                         }
                                     },
@@ -1456,85 +1706,52 @@ impl EuvRouterOutlet {
                     } else {
                         (0.0, 0.0, 0.0, ROUTE_COUPLED_SLIDE_SECS)
                     };
-                if route_changed && let Some(prev_path) = prev_path_opt {
-                    let leave_entry: Option<EuvCachedPage> = cache.try_borrow_mut().ok().and_then(
-                        |mut map: RefMut<'_, HashMap<String, EuvCachedPage>>| {
-                            let ret: PageRetention = map
-                                .get(&prev_path)
-                                .map(|e: &EuvCachedPage| e.retention)
-                                .unwrap_or(default_ret);
-                            if ret == PageRetention::Destroy {
-                                map.remove(&prev_path)
-                            } else if let Some(entry) = map.get_mut(&prev_path) {
-                                entry.phase = if ret == PageRetention::Freeze {
-                                    LifecyclePhase::Frozen
-                                } else {
-                                    LifecyclePhase::Mounted
-                                };
-                                Some(entry.clone())
-                            } else {
-                                None
-                            }
-                        },
-                    );
-                    if let Some(prev_entry) = leave_entry {
-                        mount_env.ctx.emit_subtree_disappear(prev_entry.wrapper);
-                        let coupled_exit: NodeTransition = NodeTransition::slide_fade(
-                            prev_entry.wrapper,
-                            Point::new(start_exit_tx, 0.0),
-                            Point::new(-slide_dir * slide_w, 0.0),
-                            1.0,
-                            1.0,
-                            slide_dur,
-                            true,
-                        )
-                        .with_easing(Easing::EaseOutCubic);
-                        match prev_entry.retention {
-                            PageRetention::Destroy => {
-                                scene.remove_and_dispose_child(host, prev_entry.wrapper);
-                                prev_entry.scope.dispose();
-                            }
-                            PageRetention::Freeze => {
-                                prev_entry.scope.freeze();
-                                scene.freeze_subtree_animated(prev_entry.wrapper, coupled_exit);
-                            }
-                            PageRetention::Alive => {
-                                scene.with_write(
-                                    |tree: &mut SceneTree| {
-                                        tree.cancel_subtree_transitions(prev_entry.wrapper);
-                                        if let Some(n) = tree.get_node_mut(prev_entry.wrapper) {
-                                            let mut st: Style = n.get_style();
-                                            st.get_mut_layout()
-                                                .set_position(Position::Absolute)
-                                                .set_top(Some(0.0))
-                                                .set_right(Some(0.0))
-                                                .set_bottom(Some(0.0))
-                                                .set_left(Some(0.0))
-                                                .set_z_index(0);
-                                            st.get_mut_paint()
-                                                .set_pointer_events(PointerEvents::None)
-                                                .set_opacity(1.0);
-                                            n.set_style(st);
-                                        }
-                                        tree.start_transition(coupled_exit);
-                                        tree.mark_dirty(
-                                            prev_entry.wrapper,
-                                            DIRTY_LAYOUT | DIRTY_PAINT,
-                                        );
-                                    },
-                                    (),
-                                );
-                            }
+                if let Some(prev_entry) = leave_entry {
+                    mount_env.ctx.emit_subtree_disappear(prev_entry.wrapper);
+                    let coupled_exit: NodeTransition = NodeTransition::slide_fade(
+                        prev_entry.wrapper,
+                        Point::new(start_exit_tx, 0.0),
+                        Point::new(-slide_dir * slide_w, 0.0),
+                        1.0,
+                        1.0,
+                        slide_dur,
+                        true,
+                    )
+                    .with_easing(Easing::EaseOutCubic);
+                    match prev_entry.retention {
+                        PageRetention::Destroy => {
+                            scene.remove_and_dispose_child(host, prev_entry.wrapper);
+                            prev_entry.scope.dispose();
+                        }
+                        PageRetention::Freeze => {
+                            prev_entry.scope.freeze();
+                            scene.freeze_subtree_animated(prev_entry.wrapper, coupled_exit);
+                        }
+                        PageRetention::Alive => {
+                            scene.with_write(
+                                |tree: &mut SceneTree| {
+                                    tree.cancel_subtree_transitions(prev_entry.wrapper);
+                                    if let Some(n) = tree.get_node_mut(prev_entry.wrapper) {
+                                        let st: &mut Style = n.get_mut_style();
+                                        st.get_mut_layout()
+                                            .set_position(Position::Absolute)
+                                            .set_top(Some(0.0))
+                                            .set_right(Some(0.0))
+                                            .set_bottom(Some(0.0))
+                                            .set_left(Some(0.0))
+                                            .set_z_index(0);
+                                        st.get_mut_paint()
+                                            .set_pointer_events(PointerEvents::None)
+                                            .set_opacity(1.0);
+                                    }
+                                    tree.start_transition(coupled_exit);
+                                    tree.mark_dirty(prev_entry.wrapper, DIRTY_LAYOUT | DIRTY_PAINT);
+                                },
+                                (),
+                            );
                         }
                     }
                 }
-                let cached_hit: Option<EuvCachedPage> = cache.try_borrow().ok().and_then(
-                    |map: Ref<'_, HashMap<String, EuvCachedPage>>| map.get(&active_path).cloned(),
-                );
-                let reusable: bool = cached_hit
-                    .as_ref()
-                    .map(|e: &EuvCachedPage| e.dynamic_rev == cur_dyn_rev)
-                    .unwrap_or(false);
                 if reusable && let Some(hit) = cached_hit {
                     let prev_tok_opt: Option<ThemeTokens> = if hit.has_applied_tokens {
                         Some(hit.applied_tokens)
@@ -1547,7 +1764,7 @@ impl EuvRouterOutlet {
                             if route_changed {
                                 tree.cancel_subtree_transitions(hit.wrapper);
                                 if let Some(n) = tree.get_node_mut(hit.wrapper) {
-                                    let mut st: Style = n.get_style();
+                                    let st: &mut Style = n.get_mut_style();
                                     st.get_mut_layout()
                                         .set_display(Display::Flex)
                                         .set_position(Position::Relative)
@@ -1560,7 +1777,6 @@ impl EuvRouterOutlet {
                                         .set_pointer_events(PointerEvents::Auto)
                                         .set_opacity(1.0)
                                         .set_transform(Transform2D::default());
-                                    n.set_style(st);
                                 }
                                 let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
                                 tree.mark_dirty(hit.wrapper, dirty_l | DIRTY_PAINT);
