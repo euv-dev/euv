@@ -413,6 +413,9 @@ impl SoftwareRenderer {
             base_cache_hash: 0,
             prev_base_hash: 0,
             base_cache_pixels: Vec::new(),
+            prepped_scratch: Vec::with_capacity(64),
+            text_layouts_scratch: Vec::with_capacity(32),
+            rounded_clips_scratch: Vec::with_capacity(16),
         }
     }
 
@@ -467,11 +470,7 @@ impl SoftwareRenderer {
                 && self.get_base_cache_height() == phys_h
                 && self.get_base_cache_pixels().len() == fb_len;
             if cache_hit {
-                let (prepped, text_layouts, rounded_clips): (
-                    Vec<PreppedCommand>,
-                    Vec<TextLayoutResult>,
-                    Vec<RoundedClipMask>,
-                ) = self.prepare_frame_range(
+                self.prepare_frame_range(
                     display_list,
                     split,
                     commands.len(),
@@ -479,35 +478,13 @@ impl SoftwareRenderer {
                     scale,
                     phys_h,
                 );
-                let pixels_shaded: usize = self.execute_prepared_bands(
-                    commands,
-                    (
-                        prepped.as_slice(),
-                        text_layouts.as_slice(),
-                        rounded_clips.as_slice(),
-                    ),
-                    root_clip,
-                    (phys_w, phys_h, scale),
-                    true,
-                );
+                let pixels_shaded: usize =
+                    self.execute_prepared_bands(commands, root_clip, (phys_w, phys_h, scale), true);
                 return (tiles_updated, pixels_shaded.max(1));
             }
-            let (base_prepped, base_layouts, base_rounded): (
-                Vec<PreppedCommand>,
-                Vec<TextLayoutResult>,
-                Vec<RoundedClipMask>,
-            ) = self.prepare_frame_range(display_list, 0, split, root_clip, scale, phys_h);
-            let base_shaded: usize = self.execute_prepared_bands(
-                commands,
-                (
-                    base_prepped.as_slice(),
-                    base_layouts.as_slice(),
-                    base_rounded.as_slice(),
-                ),
-                root_clip,
-                (phys_w, phys_h, scale),
-                false,
-            );
+            self.prepare_frame_range(display_list, 0, split, root_clip, scale, phys_h);
+            let base_shaded: usize =
+                self.execute_prepared_bands(commands, root_clip, (phys_w, phys_h, scale), false);
             let base_stable: bool = base_hash != 0 && self.get_prev_base_hash() == base_hash;
             self.set_prev_base_hash(base_hash);
             if base_stable {
@@ -528,11 +505,7 @@ impl SoftwareRenderer {
                 *base_cache_height = phys_h;
                 *base_cache_hash = base_hash;
             }
-            let (portal_prepped, portal_layouts, portal_rounded): (
-                Vec<PreppedCommand>,
-                Vec<TextLayoutResult>,
-                Vec<RoundedClipMask>,
-            ) = self.prepare_frame_range(
+            self.prepare_frame_range(
                 display_list,
                 split,
                 commands.len(),
@@ -540,49 +513,26 @@ impl SoftwareRenderer {
                 scale,
                 phys_h,
             );
-            let portal_shaded: usize = self.execute_prepared_bands(
-                commands,
-                (
-                    portal_prepped.as_slice(),
-                    portal_layouts.as_slice(),
-                    portal_rounded.as_slice(),
-                ),
-                root_clip,
-                (phys_w, phys_h, scale),
-                false,
-            );
+            let portal_shaded: usize =
+                self.execute_prepared_bands(commands, root_clip, (phys_w, phys_h, scale), false);
             return (tiles_updated, base_shaded.saturating_add(portal_shaded));
         }
         if !has_portals {
             self.set_base_cache_hash(0);
             self.set_prev_base_hash(0);
         }
-        let (prepped, text_layouts, rounded_clips): (
-            Vec<PreppedCommand>,
-            Vec<TextLayoutResult>,
-            Vec<RoundedClipMask>,
-        ) = self.prepare_frame_range(display_list, 0, commands.len(), root_clip, scale, phys_h);
-        let pixels_shaded: usize = self.execute_prepared_bands(
-            commands,
-            (
-                prepped.as_slice(),
-                text_layouts.as_slice(),
-                rounded_clips.as_slice(),
-            ),
-            root_clip,
-            (phys_w, phys_h, scale),
-            false,
-        );
+        self.prepare_frame_range(display_list, 0, commands.len(), root_clip, scale, phys_h);
+        let pixels_shaded: usize =
+            self.execute_prepared_bands(commands, root_clip, (phys_w, phys_h, scale), false);
         (tiles_updated, pixels_shaded)
     }
 
-    /// Executes prepped commands across horizontal bands with optional parallel restore from `base_cache_pixels`.
+    /// Executes prepared scratch buffers across horizontal bands with optional parallel restore from `base_cache_pixels`.
     ///
     /// # Arguments
     ///
-    /// - `&Self` - Mutable software renderer.
+    /// - `&Self` - Mutable software renderer holding populated scratch buffers.
     /// - `&[DrawCommand]` - Full frame draw command slice.
-    /// - `(&[PreppedCommand], &[TextLayoutResult], &[RoundedClipMask])` - Pre-clipped commands, text layouts, and rounded clip masks.
     /// - `Rect` - Root physical damage clip rectangle.
     /// - `(u32, u32, f32)` - Tuple `(phys_w, phys_h, scale)`.
     /// - `bool` - Whether to restore `base_cache_pixels` into each strip before rasterizing.
@@ -593,18 +543,11 @@ impl SoftwareRenderer {
     fn execute_prepared_bands(
         &mut self,
         commands: &[DrawCommand],
-        prepared: (&[PreppedCommand], &[TextLayoutResult], &[RoundedClipMask]),
         root_clip: Rect,
         dims: (u32, u32, f32),
         restore_base_cache: bool,
     ) -> usize {
-        let (prepped_slice, layouts_slice, rounded_clips_slice): (
-            &[PreppedCommand],
-            &[TextLayoutResult],
-            &[RoundedClipMask],
-        ) = prepared;
         let (phys_w, phys_h, scale): (u32, u32, f32) = dims;
-        let aa: AntialiasingMode = self.get_antialiasing();
         let clip_y0: u32 = (root_clip.get_y().floor().max(0.0) as u32).min(phys_h);
         let clip_y1: u32 = (root_clip.bottom().ceil().max(0.0) as u32).min(phys_h);
         let clip_w: u32 = (root_clip.get_width().ceil().max(0.0) as u32).min(phys_w);
@@ -613,8 +556,16 @@ impl SoftwareRenderer {
             framebuffer,
             glyph_atlas,
             base_cache_pixels,
+            prepped_scratch,
+            text_layouts_scratch,
+            rounded_clips_scratch,
+            antialiasing,
             ..
         } = self;
+        let aa: AntialiasingMode = *antialiasing;
+        let prepped_slice: &[PreppedCommand] = prepped_scratch.as_slice();
+        let layouts_slice: &[TextLayoutResult] = text_layouts_scratch.as_slice();
+        let rounded_clips_slice: &[RoundedClipMask] = rounded_clips_scratch.as_slice();
         let atlas_ref: &GlyphAtlas = glyph_atlas;
         let base_restore: Option<&[u8]> = if restore_base_cache {
             Some(base_cache_pixels.as_slice())
@@ -686,7 +637,7 @@ impl SoftwareRenderer {
         }
     }
 
-    /// Runs a lightweight main-thread pre-pass over `commands[start_idx..end_idx]` to resolve clips, opaque shadow cutouts, cached text layouts, and warm `GlyphAtlas`.
+    /// Runs a lightweight main-thread pre-pass over `commands[start_idx..end_idx]` into reusable scratch buffers to resolve clips, opaque shadow cutouts, cached text layouts, and warm `GlyphAtlas`.
     ///
     /// # Arguments
     ///
@@ -697,10 +648,6 @@ impl SoftwareRenderer {
     /// - `Rect` - Root physical damage clip rectangle.
     /// - `f32` - Active DPI scale factor.
     /// - `u32` - Framebuffer physical height.
-    ///
-    /// # Returns
-    ///
-    /// - `PreparedFrameData` - Band-ready commands, text layouts, and rounded clip masks.
     fn prepare_frame_range(
         &mut self,
         display_list: &DisplayList,
@@ -709,13 +656,10 @@ impl SoftwareRenderer {
         root_clip: Rect,
         scale: f32,
         phys_h: u32,
-    ) -> PreparedFrameData {
+    ) {
         let commands: &[DrawCommand] = display_list.get_commands().as_slice();
         let clamped_end: usize = end_idx.min(commands.len());
         let clamped_start: usize = start_idx.min(clamped_end);
-        let mut prepped: Vec<PreppedCommand> = Vec::with_capacity(clamped_end - clamped_start);
-        let mut text_layouts: Vec<TextLayoutResult> = Vec::new();
-        let mut rounded_clips: Vec<RoundedClipMask> = Vec::new();
         let Self {
             glyph_atlas,
             font_provider,
@@ -723,8 +667,15 @@ impl SoftwareRenderer {
             text_layout_cache,
             clip_stack,
             rounded_clip_stack,
+            prepped_scratch: prepped,
+            text_layouts_scratch: text_layouts,
+            rounded_clips_scratch: rounded_clips,
             ..
         } = self;
+        prepped.clear();
+        prepped.reserve(clamped_end - clamped_start);
+        text_layouts.clear();
+        rounded_clips.clear();
         clip_stack.clear();
         clip_stack.push(root_clip);
         rounded_clip_stack.clear();
@@ -771,7 +722,7 @@ impl SoftwareRenderer {
                     if y0 < y1 {
                         let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
                             rounded_clip_stack.as_slice(),
-                            &mut rounded_clips,
+                            rounded_clips,
                             active_clip,
                         );
                         prepped.push(PreppedCommand {
@@ -798,7 +749,7 @@ impl SoftwareRenderer {
                         if y0 < y1 {
                             let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
                                 rounded_clip_stack.as_slice(),
-                                &mut rounded_clips,
+                                rounded_clips,
                                 vis,
                             );
                             prepped.push(PreppedCommand {
@@ -846,7 +797,7 @@ impl SoftwareRenderer {
                             );
                             let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
                                 rounded_clip_stack.as_slice(),
-                                &mut rounded_clips,
+                                rounded_clips,
                                 vis,
                             );
                             prepped.push(PreppedCommand {
@@ -912,7 +863,7 @@ impl SoftwareRenderer {
                     text_layouts.push(layout);
                     let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
                         rounded_clip_stack.as_slice(),
-                        &mut rounded_clips,
+                        rounded_clips,
                         vis,
                     );
                     prepped.push(PreppedCommand {
@@ -968,7 +919,7 @@ impl SoftwareRenderer {
                     text_layouts.push(layout);
                     let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
                         rounded_clip_stack.as_slice(),
-                        &mut rounded_clips,
+                        rounded_clips,
                         vis,
                     );
                     prepped.push(PreppedCommand {
@@ -999,7 +950,7 @@ impl SoftwareRenderer {
                         if y0 < y1 {
                             let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
                                 rounded_clip_stack.as_slice(),
-                                &mut rounded_clips,
+                                rounded_clips,
                                 vis,
                             );
                             prepped.push(PreppedCommand {
@@ -1030,7 +981,7 @@ impl SoftwareRenderer {
                         if y0 < y1 {
                             let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
                                 rounded_clip_stack.as_slice(),
-                                &mut rounded_clips,
+                                rounded_clips,
                                 vis,
                             );
                             prepped.push(PreppedCommand {
@@ -1060,7 +1011,7 @@ impl SoftwareRenderer {
                         if y0 < y1 {
                             let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
                                 rounded_clip_stack.as_slice(),
-                                &mut rounded_clips,
+                                rounded_clips,
                                 vis,
                             );
                             prepped.push(PreppedCommand {
@@ -1079,7 +1030,6 @@ impl SoftwareRenderer {
                 }
             }
         }
-        (prepped, text_layouts, rounded_clips)
     }
 
     /// Collects active rounded clip masks intersecting `vis` into `out` and returns their `(start, len)` span.

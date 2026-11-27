@@ -207,4 +207,19 @@ pub struct SoftwareRenderer {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) base_cache_pixels: Vec<u8>,
+    /// Reusable pre-processed draw command buffer cleared at frame start to avoid per-frame allocations.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) prepped_scratch: Vec<PreppedCommand>,
+    /// Reusable pre-measured text layout buffer cleared at frame start to avoid per-frame allocations.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) text_layouts_scratch: Vec<TextLayoutResult>,
+    /// Reusable active rounded-clip mask buffer cleared at frame start to avoid per-frame allocations.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) rounded_clips_scratch: Vec<RoundedClipMask>,
 }
