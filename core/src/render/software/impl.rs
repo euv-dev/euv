@@ -4619,43 +4619,82 @@ impl SoftwareRenderer {
         shaded
     }
 
-    /// Blits a single bilinear-interpolated RGBA8 image scanline into `dst_row` using fixed-point 8.8 weights.
+    /// Blits a full-coverage bilinear RGBA8 horizontal sub-span using precomputed 8.8 vertical and horizontal LUT entries.
     ///
     /// # Arguments
     ///
-    /// - `(usize, usize, f32, f32, f32)` - Row geometry `(y, x0, rect_y, inv_dst_h, src_h_f)`.
-    /// - `(usize, usize)` - Source image dimensions `(src_w, max_sy)`.
-    /// - `&[(usize, usize, u32)]` - Precomputed horizontal sample LUT `(sx0, sx1, wx_256)`.
+    /// - `(usize, usize, u32, u32)` - Vertical row parameters `(row0_px, row1_px, wy_256, iwy_256)`.
+    /// - `usize` - Starting destination X pixel coordinate within `dst_row`.
+    /// - `&[(usize, usize, u32)]` - Horizontal sample LUT slice `(sx0, sx1, wx_256)` for this span.
     /// - `&[u8]` - Source RGBA8 pixel slice.
     /// - `&mut [u8]` - Destination framebuffer row slice.
-    fn blit_bilinear_row(
-        geom: (usize, usize, f32, f32, f32),
-        src_dims: (usize, usize),
+    #[inline(always)]
+    fn blit_bilinear_span_precomputed(
+        y_params: (usize, usize, u32, u32),
+        dst_x0: usize,
         x_lut: &[(usize, usize, u32)],
         src_bytes: &[u8],
         dst_row: &mut [u8],
     ) {
-        let (y, x0, rect_y, inv_dst_h, src_h_f): (usize, usize, f32, f32, f32) = geom;
-        let (src_w_usize, max_sy): (usize, usize) = src_dims;
-        let v: f32 = (((y as f32) + 0.5 - rect_y) * inv_dst_h).clamp(0.0, 1.0);
-        let fy: f32 = (v * src_h_f - 0.5).clamp(0.0, max_sy as f32);
-        let sy0: usize = (fy.floor() as usize).min(max_sy);
-        let sy1: usize = (sy0 + 1).min(max_sy);
-        let wy: u32 = ((fy - (sy0 as f32)) * 256.0).round().clamp(0.0, 256.0) as u32;
-        let iwy: u32 = 256 - wy;
-        let row0: usize = sy0 * src_w_usize;
-        let row1: usize = sy1 * src_w_usize;
+        let (row0, row1, wy, iwy): (usize, usize, u32, u32) = y_params;
+        let span_bytes_start: usize = dst_x0 * 4;
+        let span_bytes_end: usize = (dst_x0 + x_lut.len()) * 4;
+        if span_bytes_end > dst_row.len() {
+            return;
+        }
+        let dst_chunks: &mut [[u8; 4]] = dst_row[span_bytes_start..span_bytes_end]
+            .as_chunks_mut::<4>()
+            .0;
         let src_len: usize = src_bytes.len();
-        for (lx, &(sx0, sx1, wx)) in x_lut.iter().enumerate() {
+        if wy == 0 {
+            for (dp, &(sx0, sx1, wx)) in dst_chunks.iter_mut().zip(x_lut.iter()) {
+                let i0: usize = (row0 + sx0) * 4;
+                let i1: usize = (row0 + sx1) * 4;
+                if i1 + 4 > src_len {
+                    continue;
+                }
+                let iwx: u32 = 256 - wx;
+                let a0: u32 = src_bytes[i0 + 3] as u32;
+                let a1: u32 = src_bytes[i1 + 3] as u32;
+                if (a0 & a1) == 255 {
+                    dp[0] = (((src_bytes[i0] as u32) * iwx + (src_bytes[i1] as u32) * wx + 128)
+                        >> 8) as u8;
+                    dp[1] =
+                        (((src_bytes[i0 + 1] as u32) * iwx + (src_bytes[i1 + 1] as u32) * wx + 128)
+                            >> 8) as u8;
+                    dp[2] =
+                        (((src_bytes[i0 + 2] as u32) * iwx + (src_bytes[i1 + 2] as u32) * wx + 128)
+                            >> 8) as u8;
+                    dp[3] = 255;
+                    continue;
+                }
+                let a_val: u32 = (a0 * iwx + a1 * wx + 128) >> 8;
+                if a_val == 0 {
+                    continue;
+                }
+                let r: u32 =
+                    ((src_bytes[i0] as u32) * iwx + (src_bytes[i1] as u32) * wx + 128) >> 8;
+                let g: u32 =
+                    ((src_bytes[i0 + 1] as u32) * iwx + (src_bytes[i1 + 1] as u32) * wx + 128) >> 8;
+                let b: u32 =
+                    ((src_bytes[i0 + 2] as u32) * iwx + (src_bytes[i1 + 2] as u32) * wx + 128) >> 8;
+                let inv_a: u32 = 255 - a_val;
+                let vr: u32 = r * a_val + (dp[0] as u32) * inv_a + 128;
+                let vg: u32 = g * a_val + (dp[1] as u32) * inv_a + 128;
+                let vb: u32 = b * a_val + (dp[2] as u32) * inv_a + 128;
+                dp[0] = ((vr + (vr >> 8)) >> 8) as u8;
+                dp[1] = ((vg + (vg >> 8)) >> 8) as u8;
+                dp[2] = ((vb + (vb >> 8)) >> 8) as u8;
+                dp[3] = 255;
+            }
+            return;
+        }
+        for (dp, &(sx0, sx1, wx)) in dst_chunks.iter_mut().zip(x_lut.iter()) {
             let i00: usize = (row0 + sx0) * 4;
             let i10: usize = (row0 + sx1) * 4;
             let i01: usize = (row1 + sx0) * 4;
             let i11: usize = (row1 + sx1) * 4;
             if i11 + 4 > src_len {
-                continue;
-            }
-            let didx: usize = (x0 + lx) * 4;
-            if didx + 4 > dst_row.len() {
                 continue;
             }
             let iwx: u32 = 256 - wx;
@@ -4668,25 +4707,25 @@ impl SoftwareRenderer {
             let a01: u32 = src_bytes[i01 + 3] as u32;
             let a11: u32 = src_bytes[i11 + 3] as u32;
             if (a00 & a10 & a01 & a11) == 255 {
-                dst_row[didx] = (((src_bytes[i00] as u32) * w00
+                dp[0] = (((src_bytes[i00] as u32) * w00
                     + (src_bytes[i10] as u32) * w10
                     + (src_bytes[i01] as u32) * w01
                     + (src_bytes[i11] as u32) * w11
                     + 32768)
                     >> 16) as u8;
-                dst_row[didx + 1] = (((src_bytes[i00 + 1] as u32) * w00
+                dp[1] = (((src_bytes[i00 + 1] as u32) * w00
                     + (src_bytes[i10 + 1] as u32) * w10
                     + (src_bytes[i01 + 1] as u32) * w01
                     + (src_bytes[i11 + 1] as u32) * w11
                     + 32768)
                     >> 16) as u8;
-                dst_row[didx + 2] = (((src_bytes[i00 + 2] as u32) * w00
+                dp[2] = (((src_bytes[i00 + 2] as u32) * w00
                     + (src_bytes[i10 + 2] as u32) * w10
                     + (src_bytes[i01 + 2] as u32) * w01
                     + (src_bytes[i11 + 2] as u32) * w11
                     + 32768)
                     >> 16) as u8;
-                dst_row[didx + 3] = 255;
+                dp[3] = 255;
                 continue;
             }
             let a_val: u32 = (a00 * w00 + a10 * w10 + a01 * w01 + a11 * w11 + 32768) >> 16;
@@ -4712,16 +4751,267 @@ impl SoftwareRenderer {
                 + 32768)
                 >> 16;
             let inv_a: u32 = 255 - a_val;
-            dst_row[didx] = ((r * a_val + (dst_row[didx] as u32) * inv_a + 127) / 255) as u8;
-            dst_row[didx + 1] =
-                ((g * a_val + (dst_row[didx + 1] as u32) * inv_a + 127) / 255) as u8;
-            dst_row[didx + 2] =
-                ((b * a_val + (dst_row[didx + 2] as u32) * inv_a + 127) / 255) as u8;
-            dst_row[didx + 3] = 255;
+            let vr: u32 = r * a_val + (dp[0] as u32) * inv_a + 128;
+            let vg: u32 = g * a_val + (dp[1] as u32) * inv_a + 128;
+            let vb: u32 = b * a_val + (dp[2] as u32) * inv_a + 128;
+            dp[0] = ((vr + (vr >> 8)) >> 8) as u8;
+            dp[1] = ((vg + (vg >> 8)) >> 8) as u8;
+            dp[2] = ((vb + (vb >> 8)) >> 8) as u8;
+            dp[3] = 255;
         }
     }
 
-    /// Blits a decoded `ImageBuffer` into `band` with bilinear filtering and per-quadrant SDF rounded clip.
+    /// Executes bilinear image rasterization using reusable horizontal LUT buffer `x_lut`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut PixelBand<'_>` - Target pixel band.
+    /// - `Rect` - Physical destination bounds.
+    /// - `(u32, u32, &[u8])` - Source dimensions and RGBA8 slice `(src_w, src_h, src_bytes)`.
+    /// - `(u32, u32, u32, u32)` - Clipped visible pixel bounds `(x0, y0, x1, y1)`.
+    /// - `CornerRadius` - Physical corner radii.
+    /// - `AntialiasingMode` - Active AA policy.
+    /// - `&mut Vec<(usize, usize, u32)>` - Reusable horizontal sample LUT buffer.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Shaded pixel count.
+    fn raster_image_bilinear_with_lut(
+        band: &mut PixelBand<'_>,
+        rect: Rect,
+        src_info: (u32, u32, &[u8]),
+        bounds: (u32, u32, u32, u32),
+        radius: CornerRadius,
+        aa: AntialiasingMode,
+        x_lut: &mut Vec<(usize, usize, u32)>,
+    ) -> usize {
+        let (src_w, src_h, src_bytes): (u32, u32, &[u8]) = src_info;
+        let (x0, y0, x1, y1): (u32, u32, u32, u32) = bounds;
+        let rect_x: f32 = rect.get_x();
+        let rect_y: f32 = rect.get_y();
+        let half_w: f32 = rect.get_width() * 0.5;
+        let half_h: f32 = rect.get_height() * 0.5;
+        let cx: f32 = rect_x + half_w;
+        let cy: f32 = rect_y + half_h;
+        let inv_dst_w: f32 = 1.0 / rect.get_width().max(1.0);
+        let inv_dst_h: f32 = 1.0 / rect.get_height().max(1.0);
+        let src_w_f: f32 = src_w as f32;
+        let src_h_f: f32 = src_h as f32;
+        let src_w_usize: usize = src_w as usize;
+        let max_sx: usize = src_w_usize.saturating_sub(1);
+        let max_sy: usize = (src_h as usize).saturating_sub(1);
+        let has_radius: bool = radius.max_radius() > 0.0;
+        x_lut.clear();
+        for x in x0..x1 {
+            let u: f32 = (((x as f32) + 0.5 - rect_x) * inv_dst_w).clamp(0.0, 1.0);
+            let fx: f32 = (u * src_w_f - 0.5).clamp(0.0, max_sx as f32);
+            let sx0: usize = (fx.floor() as usize).min(max_sx);
+            let sx1: usize = (sx0 + 1).min(max_sx);
+            let wx: u32 = ((fx - (sx0 as f32)) * 256.0).round().clamp(0.0, 256.0) as u32;
+            x_lut.push((sx0, sx1, wx));
+        }
+        let x_lut_ref: &[(usize, usize, u32)] = x_lut.as_slice();
+        if !has_radius {
+            let x0_u: usize = x0 as usize;
+            for y in y0..y1 {
+                let Some(dst_row) = band.row_slice_mut(y) else {
+                    continue;
+                };
+                let v: f32 = (((y as f32) + 0.5 - rect_y) * inv_dst_h).clamp(0.0, 1.0);
+                let fy: f32 = (v * src_h_f - 0.5).clamp(0.0, max_sy as f32);
+                let sy0: usize = (fy.floor() as usize).min(max_sy);
+                let sy1: usize = (sy0 + 1).min(max_sy);
+                let wy: u32 = ((fy - (sy0 as f32)) * 256.0).round().clamp(0.0, 256.0) as u32;
+                let y_params: (usize, usize, u32, u32) =
+                    (sy0 * src_w_usize, sy1 * src_w_usize, wy, 256 - wy);
+                Self::blit_bilinear_span_precomputed(y_params, x0_u, x_lut_ref, src_bytes, dst_row);
+            }
+            return ((x1 - x0) as usize) * ((y1 - y0) as usize);
+        }
+        let r_max: f32 = radius.max_radius().min(half_w).min(half_h).max(0.0);
+        let ix0: u32 = ((rect_x + 1.0).ceil().max(0.0) as u32).clamp(x0, x1);
+        let ix1: u32 = ((rect.right() - 1.0).floor().max(0.0) as u32).clamp(ix0, x1);
+        let iy0: u32 = ((rect_y + r_max + 1.0).ceil().max(0.0) as u32).clamp(y0, y1);
+        let iy1: u32 = ((rect.bottom() - r_max - 1.0).floor().max(0.0) as u32).clamp(iy0, y1);
+        let cx0: u32 = ((rect_x + r_max + 1.0).ceil().max(0.0) as u32).clamp(x0, x1);
+        let cx1: u32 = ((rect.right() - r_max - 1.0).floor().max(0.0) as u32).clamp(cx0, x1);
+        let mut shaded: usize = 0;
+        for y in y0..iy0 {
+            let Some(dst_row) = band.row_slice_mut(y) else {
+                continue;
+            };
+            let v: f32 = (((y as f32) + 0.5 - rect_y) * inv_dst_h).clamp(0.0, 1.0);
+            let fy: f32 = (v * src_h_f - 0.5).clamp(0.0, max_sy as f32);
+            let sy0: usize = (fy.floor() as usize).min(max_sy);
+            let sy1: usize = (sy0 + 1).min(max_sy);
+            let wy: u32 = ((fy - (sy0 as f32)) * 256.0).round().clamp(0.0, 256.0) as u32;
+            let y_params: (usize, usize, u32, u32) =
+                (sy0 * src_w_usize, sy1 * src_w_usize, wy, 256 - wy);
+            let py: f32 = (y as f32) + 0.5 - cy;
+            let dist_y: f32 = py.abs() - half_h;
+            let mid_cov: f32 = sdf_coverage(dist_y, aa);
+            if cx0 < cx1 && mid_cov > 0.0 {
+                let lut_s: usize = (cx0 - x0) as usize;
+                let lut_e: usize = (cx1 - x0) as usize;
+                if mid_cov >= 0.9995 {
+                    Self::blit_bilinear_span_precomputed(
+                        y_params,
+                        cx0 as usize,
+                        &x_lut_ref[lut_s..lut_e],
+                        src_bytes,
+                        dst_row,
+                    );
+                } else {
+                    for x in cx0..cx1 {
+                        let rgba: [u8; 4] = sample_bilinear_fixed(
+                            src_bytes,
+                            y_params,
+                            x_lut_ref[(x - x0) as usize],
+                        );
+                        let off: usize = (x as usize) * 4;
+                        blend_rgba_pixel_with_cov(&mut dst_row[off..off + 4], rgba, mid_cov);
+                    }
+                }
+                shaded += (cx1 - cx0) as usize;
+            }
+            for x in x0..cx0 {
+                let px: f32 = (x as f32) + 0.5 - cx;
+                let cr: f32 = quadrant_corner_radius(radius, px, py);
+                let cov: f32 = sdf_coverage(rounded_box_sdf(px, py, half_w, half_h, cr), aa);
+                if cov > 0.0 {
+                    let rgba: [u8; 4] =
+                        sample_bilinear_fixed(src_bytes, y_params, x_lut_ref[(x - x0) as usize]);
+                    let off: usize = (x as usize) * 4;
+                    blend_rgba_pixel_with_cov(&mut dst_row[off..off + 4], rgba, cov);
+                    shaded += 1;
+                }
+            }
+            for x in cx1..x1 {
+                let px: f32 = (x as f32) + 0.5 - cx;
+                let cr: f32 = quadrant_corner_radius(radius, px, py);
+                let cov: f32 = sdf_coverage(rounded_box_sdf(px, py, half_w, half_h, cr), aa);
+                if cov > 0.0 {
+                    let rgba: [u8; 4] =
+                        sample_bilinear_fixed(src_bytes, y_params, x_lut_ref[(x - x0) as usize]);
+                    let off: usize = (x as usize) * 4;
+                    blend_rgba_pixel_with_cov(&mut dst_row[off..off + 4], rgba, cov);
+                    shaded += 1;
+                }
+            }
+        }
+        for y in iy0..iy1 {
+            let Some(dst_row) = band.row_slice_mut(y) else {
+                continue;
+            };
+            let v: f32 = (((y as f32) + 0.5 - rect_y) * inv_dst_h).clamp(0.0, 1.0);
+            let fy: f32 = (v * src_h_f - 0.5).clamp(0.0, max_sy as f32);
+            let sy0: usize = (fy.floor() as usize).min(max_sy);
+            let sy1: usize = (sy0 + 1).min(max_sy);
+            let wy: u32 = ((fy - (sy0 as f32)) * 256.0).round().clamp(0.0, 256.0) as u32;
+            let y_params: (usize, usize, u32, u32) =
+                (sy0 * src_w_usize, sy1 * src_w_usize, wy, 256 - wy);
+            if ix0 < ix1 {
+                let lut_s: usize = (ix0 - x0) as usize;
+                let lut_e: usize = (ix1 - x0) as usize;
+                Self::blit_bilinear_span_precomputed(
+                    y_params,
+                    ix0 as usize,
+                    &x_lut_ref[lut_s..lut_e],
+                    src_bytes,
+                    dst_row,
+                );
+                shaded += (ix1 - ix0) as usize;
+            }
+            for x in x0..ix0 {
+                let dist: f32 = ((x as f32) + 0.5 - cx).abs() - half_w;
+                let cov: f32 = sdf_coverage(dist, aa);
+                if cov > 0.0 {
+                    let rgba: [u8; 4] =
+                        sample_bilinear_fixed(src_bytes, y_params, x_lut_ref[(x - x0) as usize]);
+                    let off: usize = (x as usize) * 4;
+                    blend_rgba_pixel_with_cov(&mut dst_row[off..off + 4], rgba, cov);
+                    shaded += 1;
+                }
+            }
+            for x in ix1..x1 {
+                let dist: f32 = ((x as f32) + 0.5 - cx).abs() - half_w;
+                let cov: f32 = sdf_coverage(dist, aa);
+                if cov > 0.0 {
+                    let rgba: [u8; 4] =
+                        sample_bilinear_fixed(src_bytes, y_params, x_lut_ref[(x - x0) as usize]);
+                    let off: usize = (x as usize) * 4;
+                    blend_rgba_pixel_with_cov(&mut dst_row[off..off + 4], rgba, cov);
+                    shaded += 1;
+                }
+            }
+        }
+        for y in iy1..y1 {
+            let Some(dst_row) = band.row_slice_mut(y) else {
+                continue;
+            };
+            let v: f32 = (((y as f32) + 0.5 - rect_y) * inv_dst_h).clamp(0.0, 1.0);
+            let fy: f32 = (v * src_h_f - 0.5).clamp(0.0, max_sy as f32);
+            let sy0: usize = (fy.floor() as usize).min(max_sy);
+            let sy1: usize = (sy0 + 1).min(max_sy);
+            let wy: u32 = ((fy - (sy0 as f32)) * 256.0).round().clamp(0.0, 256.0) as u32;
+            let y_params: (usize, usize, u32, u32) =
+                (sy0 * src_w_usize, sy1 * src_w_usize, wy, 256 - wy);
+            let py: f32 = (y as f32) + 0.5 - cy;
+            let dist_y: f32 = py.abs() - half_h;
+            let mid_cov: f32 = sdf_coverage(dist_y, aa);
+            if cx0 < cx1 && mid_cov > 0.0 {
+                let lut_s: usize = (cx0 - x0) as usize;
+                let lut_e: usize = (cx1 - x0) as usize;
+                if mid_cov >= 0.9995 {
+                    Self::blit_bilinear_span_precomputed(
+                        y_params,
+                        cx0 as usize,
+                        &x_lut_ref[lut_s..lut_e],
+                        src_bytes,
+                        dst_row,
+                    );
+                } else {
+                    for x in cx0..cx1 {
+                        let rgba: [u8; 4] = sample_bilinear_fixed(
+                            src_bytes,
+                            y_params,
+                            x_lut_ref[(x - x0) as usize],
+                        );
+                        let off: usize = (x as usize) * 4;
+                        blend_rgba_pixel_with_cov(&mut dst_row[off..off + 4], rgba, mid_cov);
+                    }
+                }
+                shaded += (cx1 - cx0) as usize;
+            }
+            for x in x0..cx0 {
+                let px: f32 = (x as f32) + 0.5 - cx;
+                let cr: f32 = quadrant_corner_radius(radius, px, py);
+                let cov: f32 = sdf_coverage(rounded_box_sdf(px, py, half_w, half_h, cr), aa);
+                if cov > 0.0 {
+                    let rgba: [u8; 4] =
+                        sample_bilinear_fixed(src_bytes, y_params, x_lut_ref[(x - x0) as usize]);
+                    let off: usize = (x as usize) * 4;
+                    blend_rgba_pixel_with_cov(&mut dst_row[off..off + 4], rgba, cov);
+                    shaded += 1;
+                }
+            }
+            for x in cx1..x1 {
+                let px: f32 = (x as f32) + 0.5 - cx;
+                let cr: f32 = quadrant_corner_radius(radius, px, py);
+                let cov: f32 = sdf_coverage(rounded_box_sdf(px, py, half_w, half_h, cr), aa);
+                if cov > 0.0 {
+                    let rgba: [u8; 4] =
+                        sample_bilinear_fixed(src_bytes, y_params, x_lut_ref[(x - x0) as usize]);
+                    let off: usize = (x as usize) * 4;
+                    blend_rgba_pixel_with_cov(&mut dst_row[off..off + 4], rgba, cov);
+                    shaded += 1;
+                }
+            }
+        }
+        shaded
+    }
+
+    /// Blits a decoded `ImageBuffer` into `band` with 1:1 scanline fast paths, reusable `x_lut` bilinear filtering, and corner-only SDF clipping.
     ///
     /// # Arguments
     ///
@@ -4749,10 +5039,6 @@ impl SoftwareRenderer {
         let Some(vis) = rect.intersect(clip) else {
             return 0;
         };
-        let half_w: f32 = rect.get_width() * 0.5;
-        let half_h: f32 = rect.get_height() * 0.5;
-        let cx: f32 = rect.get_x() + half_w;
-        let cy: f32 = rect.get_y() + half_h;
         let fb_w: u32 = band.width();
         let band_y0: u32 = band.y_offset();
         let band_y1: u32 = band.y_end();
@@ -4760,6 +5046,13 @@ impl SoftwareRenderer {
         let y0: u32 = (vis.get_y().floor().max(0.0) as u32).clamp(band_y0, band_y1);
         let x1: u32 = (vis.right().ceil().max(0.0) as u32).min(fb_w);
         let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).clamp(band_y0, band_y1);
+        if x0 >= x1 || y0 >= y1 {
+            return 0;
+        }
+        let half_w: f32 = rect.get_width() * 0.5;
+        let half_h: f32 = rect.get_height() * 0.5;
+        let cx: f32 = rect.get_x() + half_w;
+        let cy: f32 = rect.get_y() + half_h;
         let src_w: u32 = buffer.get_width();
         let src_h: u32 = buffer.get_height();
         let src_bytes: &[u8] = buffer.get_pixels().as_slice();
@@ -4772,125 +5065,184 @@ impl SoftwareRenderer {
         let max_sx: usize = (src_w as usize).saturating_sub(1);
         let max_sy: usize = (src_h as usize).saturating_sub(1);
         let src_w_usize: usize = src_w as usize;
-        if !has_radius && use_bilinear && x0 < x1 && y0 < y1 {
+        let is_exact_1to1: bool = !use_bilinear
+            && (rect.get_width() - (src_w as f32)).abs() <= 0.01
+            && (rect.get_height() - (src_h as f32)).abs() <= 0.01
+            && (rect.get_x() - rect.get_x().round()).abs() <= 0.01
+            && (rect.get_y() - rect.get_y().round()).abs() <= 0.01;
+        let rx0_i: i32 = rect.get_x().round() as i32;
+        let ry0_i: i32 = rect.get_y().round() as i32;
+        if is_exact_1to1
+            && !has_radius
+            && (x0 as i32) >= rx0_i
+            && (x1 as i32) <= rx0_i + (src_w as i32)
+            && (y0 as i32) >= ry0_i
+            && (y1 as i32) <= ry0_i + (src_h as i32)
+        {
             let span_w: usize = (x1 - x0) as usize;
-            let mut x_lut: Vec<(usize, usize, u32)> = Vec::with_capacity(span_w);
-            for x in x0..x1 {
-                let u: f32 = (((x as f32) + 0.5 - rect.get_x()) * inv_dst_w).clamp(0.0, 1.0);
-                let fx: f32 = (u * (src_w as f32) - 0.5).clamp(0.0, max_sx as f32);
-                let sx0: usize = (fx.floor() as usize).min(max_sx);
-                let sx1: usize = (sx0 + 1).min(max_sx);
-                let wx: u32 = ((fx - (sx0 as f32)) * 256.0).round().clamp(0.0, 256.0) as u32;
-                x_lut.push((sx0, sx1, wx));
-            }
-            let x_lut_ref: &[(usize, usize, u32)] = x_lut.as_slice();
-            let rect_y: f32 = rect.get_y();
-            let src_h_f: f32 = src_h as f32;
-            let x0_usize: usize = x0 as usize;
+            let src_x_off: usize = ((x0 as i32) - rx0_i) as usize;
+            let dst_byte0: usize = (x0 as usize) * 4;
+            let dst_byte1: usize = (x1 as usize) * 4;
             for y in y0..y1 {
-                if let Some(row_buf) = band.row_slice_mut(y) {
-                    Self::blit_bilinear_row(
-                        (y as usize, x0_usize, rect_y, inv_dst_h, src_h_f),
-                        (src_w_usize, max_sy),
-                        x_lut_ref,
-                        src_bytes,
-                        row_buf,
+                let Some(dst_row) = band.row_slice_mut(y) else {
+                    continue;
+                };
+                let sy: usize = ((y as i32) - ry0_i) as usize;
+                let src_byte0: usize = (sy * src_w_usize + src_x_off) * 4;
+                let src_byte1: usize = src_byte0 + span_w * 4;
+                if src_byte1 <= src_bytes.len() && dst_byte1 <= dst_row.len() {
+                    blit_1to1_rgba_span(
+                        &src_bytes[src_byte0..src_byte1],
+                        &mut dst_row[dst_byte0..dst_byte1],
                     );
                 }
             }
             return span_w * ((y1 - y0) as usize);
         }
+        if use_bilinear {
+            let mut shaded: usize = 0;
+            let ran_tls: bool = BAND_IMAGE_X_LUT
+                .try_with(|cell: &RefCell<Vec<(usize, usize, u32)>>| {
+                    if let Ok(mut guard) = cell.try_borrow_mut() {
+                        shaded = Self::raster_image_bilinear_with_lut(
+                            band,
+                            rect,
+                            (src_w, src_h, src_bytes),
+                            (x0, y0, x1, y1),
+                            radius,
+                            aa,
+                            &mut guard,
+                        );
+                    }
+                })
+                .is_ok();
+            if !ran_tls {
+                let mut fallback_lut: Vec<(usize, usize, u32)> =
+                    Vec::with_capacity((x1 - x0) as usize);
+                shaded = Self::raster_image_bilinear_with_lut(
+                    band,
+                    rect,
+                    (src_w, src_h, src_bytes),
+                    (x0, y0, x1, y1),
+                    radius,
+                    aa,
+                    &mut fallback_lut,
+                );
+            }
+            return shaded;
+        }
         let mut shaded: usize = 0;
+        let r_max: f32 = if has_radius {
+            radius.max_radius().min(half_w).min(half_h).max(0.0)
+        } else {
+            0.0
+        };
+        let ix0: u32 = ((rect.get_x() + 1.0).ceil().max(0.0) as u32).clamp(x0, x1);
+        let ix1: u32 = ((rect.right() - 1.0).floor().max(0.0) as u32).clamp(ix0, x1);
+        let iy0: u32 = ((rect.get_y() + r_max + 1.0).ceil().max(0.0) as u32).clamp(y0, y1);
+        let iy1: u32 = ((rect.bottom() - r_max - 1.0).floor().max(0.0) as u32).clamp(iy0, y1);
+        let can_1to1_interior: bool = is_exact_1to1
+            && (ix0 as i32) >= rx0_i
+            && (ix1 as i32) <= rx0_i + (src_w as i32)
+            && (iy0 as i32) >= ry0_i
+            && (iy1 as i32) <= ry0_i + (src_h as i32);
         for y in y0..y1 {
+            let Some(dst_row) = band.row_slice_mut(y) else {
+                continue;
+            };
             let v: f32 = (((y as f32) + 0.5 - rect.get_y()) * inv_dst_h).clamp(0.0, 1.0);
             let py: f32 = (y as f32) + 0.5 - cy;
-            if use_bilinear {
-                let fy: f32 = (v * (src_h as f32) - 0.5).clamp(0.0, max_sy as f32);
-                let sy0: usize = (fy.floor() as usize).min(max_sy);
-                let sy1: usize = (sy0 + 1).min(max_sy);
-                let wy: f32 = fy - (sy0 as f32);
-                let iwy: f32 = 1.0 - wy;
-                let row0: usize = sy0 * src_w_usize;
-                let row1: usize = sy1 * src_w_usize;
-                for x in x0..x1 {
-                    let cov: f32 = if has_radius {
-                        let px: f32 = (x as f32) + 0.5 - cx;
-                        let cr: f32 = quadrant_corner_radius(radius, px, py);
-                        sdf_coverage(rounded_box_sdf(px, py, half_w, half_h, cr), aa)
-                    } else {
-                        1.0
-                    };
-                    if cov <= 0.0 {
-                        continue;
-                    }
-                    let u: f32 = (((x as f32) + 0.5 - rect.get_x()) * inv_dst_w).clamp(0.0, 1.0);
-                    let fx: f32 = (u * (src_w as f32) - 0.5).clamp(0.0, max_sx as f32);
-                    let sx0: usize = (fx.floor() as usize).min(max_sx);
-                    let sx1: usize = (sx0 + 1).min(max_sx);
-                    let wx: f32 = fx - (sx0 as f32);
-                    let iwx: f32 = 1.0 - wx;
-                    let i00: usize = (row0 + sx0) * 4;
-                    let i10: usize = (row0 + sx1) * 4;
-                    let i01: usize = (row1 + sx0) * 4;
-                    let i11: usize = (row1 + sx1) * 4;
-                    if i11 + 4 <= src_bytes.len() {
-                        let w00: f32 = iwx * iwy;
-                        let w10: f32 = wx * iwy;
-                        let w01: f32 = iwx * wy;
-                        let w11: f32 = wx * wy;
-                        let r: u8 = ((src_bytes[i00] as f32) * w00
-                            + (src_bytes[i10] as f32) * w10
-                            + (src_bytes[i01] as f32) * w01
-                            + (src_bytes[i11] as f32) * w11)
-                            .round() as u8;
-                        let g: u8 = ((src_bytes[i00 + 1] as f32) * w00
-                            + (src_bytes[i10 + 1] as f32) * w10
-                            + (src_bytes[i01 + 1] as f32) * w01
-                            + (src_bytes[i11 + 1] as f32) * w11)
-                            .round() as u8;
-                        let b: u8 = ((src_bytes[i00 + 2] as f32) * w00
-                            + (src_bytes[i10 + 2] as f32) * w10
-                            + (src_bytes[i01 + 2] as f32) * w01
-                            + (src_bytes[i11 + 2] as f32) * w11)
-                            .round() as u8;
-                        let a: u8 = ((src_bytes[i00 + 3] as f32) * w00
-                            + (src_bytes[i10 + 3] as f32) * w10
-                            + (src_bytes[i01 + 3] as f32) * w01
-                            + (src_bytes[i11 + 3] as f32) * w11)
-                            .round() as u8;
-                        let sample: Color = Color::new(r, g, b, a).multiply_alpha(cov);
-                        band.blend_pixel(x, y, sample);
-                        shaded += 1;
+            let sy: usize = ((v * (src_h as f32)).floor() as usize).min(max_sy);
+            let row: usize = sy * src_w_usize;
+            if has_radius && can_1to1_interior && y >= iy0 && y < iy1 && ix0 < ix1 {
+                let src_off: usize = (row + (((ix0 as i32) - rx0_i) as usize)) * 4;
+                let span_bytes: usize = ((ix1 - ix0) as usize) * 4;
+                let dst_off: usize = (ix0 as usize) * 4;
+                if src_off + span_bytes <= src_bytes.len() && dst_off + span_bytes <= dst_row.len()
+                {
+                    blit_1to1_rgba_span(
+                        &src_bytes[src_off..src_off + span_bytes],
+                        &mut dst_row[dst_off..dst_off + span_bytes],
+                    );
+                }
+                shaded += (ix1 - ix0) as usize;
+                for x in x0..ix0 {
+                    let dist: f32 = ((x as f32) + 0.5 - cx).abs() - half_w;
+                    let cov: f32 = sdf_coverage(dist, aa);
+                    if cov > 0.0 {
+                        let u: f32 =
+                            (((x as f32) + 0.5 - rect.get_x()) * inv_dst_w).clamp(0.0, 1.0);
+                        let sx: usize = ((u * (src_w as f32)).floor() as usize).min(max_sx);
+                        let idx: usize = (row + sx) * 4;
+                        if idx + 4 <= src_bytes.len() {
+                            let off: usize = (x as usize) * 4;
+                            blend_rgba_pixel_with_cov(
+                                &mut dst_row[off..off + 4],
+                                [
+                                    src_bytes[idx],
+                                    src_bytes[idx + 1],
+                                    src_bytes[idx + 2],
+                                    src_bytes[idx + 3],
+                                ],
+                                cov,
+                            );
+                            shaded += 1;
+                        }
                     }
                 }
-            } else {
-                let sy: usize = ((v * (src_h as f32)).floor() as usize).min(max_sy);
-                let row: usize = sy * src_w_usize;
-                for x in x0..x1 {
-                    let cov: f32 = if has_radius {
-                        let px: f32 = (x as f32) + 0.5 - cx;
-                        let cr: f32 = quadrant_corner_radius(radius, px, py);
-                        sdf_coverage(rounded_box_sdf(px, py, half_w, half_h, cr), aa)
-                    } else {
-                        1.0
-                    };
-                    if cov <= 0.0 {
-                        continue;
+                for x in ix1..x1 {
+                    let dist: f32 = ((x as f32) + 0.5 - cx).abs() - half_w;
+                    let cov: f32 = sdf_coverage(dist, aa);
+                    if cov > 0.0 {
+                        let u: f32 =
+                            (((x as f32) + 0.5 - rect.get_x()) * inv_dst_w).clamp(0.0, 1.0);
+                        let sx: usize = ((u * (src_w as f32)).floor() as usize).min(max_sx);
+                        let idx: usize = (row + sx) * 4;
+                        if idx + 4 <= src_bytes.len() {
+                            let off: usize = (x as usize) * 4;
+                            blend_rgba_pixel_with_cov(
+                                &mut dst_row[off..off + 4],
+                                [
+                                    src_bytes[idx],
+                                    src_bytes[idx + 1],
+                                    src_bytes[idx + 2],
+                                    src_bytes[idx + 3],
+                                ],
+                                cov,
+                            );
+                            shaded += 1;
+                        }
                     }
-                    let u: f32 = (((x as f32) + 0.5 - rect.get_x()) * inv_dst_w).clamp(0.0, 1.0);
-                    let sx: usize = ((u * (src_w as f32)).floor() as usize).min(max_sx);
-                    let idx: usize = (row + sx) * 4;
-                    if idx + 4 <= src_bytes.len() {
-                        let sample: Color = Color::new(
+                }
+                continue;
+            }
+            for x in x0..x1 {
+                let cov: f32 = if has_radius {
+                    let px: f32 = (x as f32) + 0.5 - cx;
+                    let cr: f32 = quadrant_corner_radius(radius, px, py);
+                    sdf_coverage(rounded_box_sdf(px, py, half_w, half_h, cr), aa)
+                } else {
+                    1.0
+                };
+                if cov <= 0.0 {
+                    continue;
+                }
+                let u: f32 = (((x as f32) + 0.5 - rect.get_x()) * inv_dst_w).clamp(0.0, 1.0);
+                let sx: usize = ((u * (src_w as f32)).floor() as usize).min(max_sx);
+                let idx: usize = (row + sx) * 4;
+                if idx + 4 <= src_bytes.len() {
+                    let off: usize = (x as usize) * 4;
+                    blend_rgba_pixel_with_cov(
+                        &mut dst_row[off..off + 4],
+                        [
                             src_bytes[idx],
                             src_bytes[idx + 1],
                             src_bytes[idx + 2],
                             src_bytes[idx + 3],
-                        )
-                        .multiply_alpha(cov);
-                        band.blend_pixel(x, y, sample);
-                        shaded += 1;
-                    }
+                        ],
+                        cov,
+                    );
+                    shaded += 1;
                 }
             }
         }

@@ -944,6 +944,171 @@ pub(crate) fn rounded_clip_coverage_cached(
     rounded_clip_coverage(x, y, mask, aa)
 }
 
+/// Blits a contiguous 1:1 RGBA8 source scanline onto `dst_span`, using `copy_from_slice` when all pixels are opaque.
+///
+/// # Arguments
+///
+/// - `&[u8]` - Contiguous RGBA8 source pixel slice.
+/// - `&mut [u8]` - Contiguous RGBA8 destination pixel slice of equal length.
+#[inline(always)]
+pub(crate) fn blit_1to1_rgba_span(src_span: &[u8], dst_span: &mut [u8]) {
+    let len: usize = src_span.len().min(dst_span.len());
+    let src_s: &[u8] = &src_span[..len];
+    let dst_s: &mut [u8] = &mut dst_span[..len];
+    let src_chunks: &[[u8; 4]] = src_s.as_chunks::<4>().0;
+    if src_chunks.iter().all(|px: &[u8; 4]| px[3] == 255) {
+        dst_s.copy_from_slice(src_s);
+        return;
+    }
+    let dst_chunks: &mut [[u8; 4]] = dst_s.as_chunks_mut::<4>().0;
+    for (sp, dp) in src_chunks.iter().zip(dst_chunks.iter_mut()) {
+        let sa: u32 = sp[3] as u32;
+        if sa == 0 {
+            continue;
+        }
+        if sa == 255 {
+            *dp = *sp;
+            continue;
+        }
+        let inv_sa: u32 = 255 - sa;
+        let da: u32 = dp[3] as u32;
+        if da == 255 {
+            dp[0] = (((sp[0] as u32) * sa + (dp[0] as u32) * inv_sa) / 255).min(255) as u8;
+            dp[1] = (((sp[1] as u32) * sa + (dp[1] as u32) * inv_sa) / 255).min(255) as u8;
+            dp[2] = (((sp[2] as u32) * sa + (dp[2] as u32) * inv_sa) / 255).min(255) as u8;
+            dp[3] = 255;
+        } else {
+            let out_a: u32 = sa + ((da * inv_sa + 127) / 255);
+            dp[0] = ((((sp[0] as u32) * sa) + (((dp[0] as u32) * da * inv_sa + 127) / 255)) / out_a)
+                .min(255) as u8;
+            dp[1] = ((((sp[1] as u32) * sa) + (((dp[1] as u32) * da * inv_sa + 127) / 255)) / out_a)
+                .min(255) as u8;
+            dp[2] = ((((sp[2] as u32) * sa) + (((dp[2] as u32) * da * inv_sa + 127) / 255)) / out_a)
+                .min(255) as u8;
+            dp[3] = out_a.min(255) as u8;
+        }
+    }
+}
+
+/// Blends a single RGBA8 source pixel with anti-aliased coverage `cov` directly into destination 4-byte slice `dp`.
+///
+/// # Arguments
+///
+/// - `&mut [u8]` - Destination 4-byte pixel slice.
+/// - `[u8; 4]` - Source RGBA8 pixel bytes.
+/// - `f32` - Shape coverage multiplier in `(0.0, 1.0]`.
+#[inline(always)]
+pub(crate) fn blend_rgba_pixel_with_cov(dp: &mut [u8], src_rgba: [u8; 4], cov: f32) {
+    let sa: u32 = if cov >= 0.9995 {
+        src_rgba[3] as u32
+    } else {
+        (((src_rgba[3] as f32) * cov).round().clamp(0.0, 255.0)) as u32
+    };
+    if sa == 0 {
+        return;
+    }
+    if sa == 255 {
+        dp[0] = src_rgba[0];
+        dp[1] = src_rgba[1];
+        dp[2] = src_rgba[2];
+        dp[3] = 255;
+        return;
+    }
+    let inv_sa: u32 = 255 - sa;
+    let da: u32 = dp[3] as u32;
+    if da == 255 {
+        dp[0] = (((src_rgba[0] as u32) * sa + (dp[0] as u32) * inv_sa) / 255).min(255) as u8;
+        dp[1] = (((src_rgba[1] as u32) * sa + (dp[1] as u32) * inv_sa) / 255).min(255) as u8;
+        dp[2] = (((src_rgba[2] as u32) * sa + (dp[2] as u32) * inv_sa) / 255).min(255) as u8;
+        dp[3] = 255;
+    } else {
+        let out_a: u32 = sa + ((da * inv_sa + 127) / 255);
+        dp[0] = ((((src_rgba[0] as u32) * sa) + (((dp[0] as u32) * da * inv_sa + 127) / 255))
+            / out_a)
+            .min(255) as u8;
+        dp[1] = ((((src_rgba[1] as u32) * sa) + (((dp[1] as u32) * da * inv_sa + 127) / 255))
+            / out_a)
+            .min(255) as u8;
+        dp[2] = ((((src_rgba[2] as u32) * sa) + (((dp[2] as u32) * da * inv_sa + 127) / 255))
+            / out_a)
+            .min(255) as u8;
+        dp[3] = out_a.min(255) as u8;
+    }
+}
+
+/// Samples a single RGBA8 pixel using precomputed 8.8 fixed-point bilinear row offsets and horizontal LUT entry.
+///
+/// # Arguments
+///
+/// - `&[u8]` - Source RGBA8 pixel buffer.
+/// - `(usize, usize, u32, u32)` - Vertical row parameters `(row0_px, row1_px, wy_256, iwy_256)`.
+/// - `(usize, usize, u32)` - Horizontal LUT sample `(sx0, sx1, wx_256)`.
+///
+/// # Returns
+///
+/// - `[u8; 4]` - Bilinearly filtered RGBA8 pixel.
+#[inline(always)]
+#[must_use]
+pub(crate) fn sample_bilinear_fixed(
+    src_bytes: &[u8],
+    y_params: (usize, usize, u32, u32),
+    x_entry: (usize, usize, u32),
+) -> [u8; 4] {
+    let (row0, row1, wy, iwy): (usize, usize, u32, u32) = y_params;
+    let (sx0, sx1, wx): (usize, usize, u32) = x_entry;
+    let iwx: u32 = 256 - wx;
+    if wy == 0 {
+        let i0: usize = (row0 + sx0) * 4;
+        let i1: usize = (row0 + sx1) * 4;
+        if i1 + 4 > src_bytes.len() {
+            return [0, 0, 0, 0];
+        }
+        return [
+            (((src_bytes[i0] as u32) * iwx + (src_bytes[i1] as u32) * wx + 128) >> 8) as u8,
+            (((src_bytes[i0 + 1] as u32) * iwx + (src_bytes[i1 + 1] as u32) * wx + 128) >> 8) as u8,
+            (((src_bytes[i0 + 2] as u32) * iwx + (src_bytes[i1 + 2] as u32) * wx + 128) >> 8) as u8,
+            (((src_bytes[i0 + 3] as u32) * iwx + (src_bytes[i1 + 3] as u32) * wx + 128) >> 8) as u8,
+        ];
+    }
+    let i00: usize = (row0 + sx0) * 4;
+    let i10: usize = (row0 + sx1) * 4;
+    let i01: usize = (row1 + sx0) * 4;
+    let i11: usize = (row1 + sx1) * 4;
+    if i11 + 4 > src_bytes.len() {
+        return [0, 0, 0, 0];
+    }
+    let w00: u32 = iwx * iwy;
+    let w10: u32 = wx * iwy;
+    let w01: u32 = iwx * wy;
+    let w11: u32 = wx * wy;
+    [
+        (((src_bytes[i00] as u32) * w00
+            + (src_bytes[i10] as u32) * w10
+            + (src_bytes[i01] as u32) * w01
+            + (src_bytes[i11] as u32) * w11
+            + 32768)
+            >> 16) as u8,
+        (((src_bytes[i00 + 1] as u32) * w00
+            + (src_bytes[i10 + 1] as u32) * w10
+            + (src_bytes[i01 + 1] as u32) * w01
+            + (src_bytes[i11 + 1] as u32) * w11
+            + 32768)
+            >> 16) as u8,
+        (((src_bytes[i00 + 2] as u32) * w00
+            + (src_bytes[i10 + 2] as u32) * w10
+            + (src_bytes[i01 + 2] as u32) * w01
+            + (src_bytes[i11 + 2] as u32) * w11
+            + 32768)
+            >> 16) as u8,
+        (((src_bytes[i00 + 3] as u32) * w00
+            + (src_bytes[i10 + 3] as u32) * w10
+            + (src_bytes[i01 + 3] as u32) * w01
+            + (src_bytes[i11 + 3] as u32) * w11
+            + 32768)
+            >> 16) as u8,
+    ]
+}
+
 /// Blends a single gradient pixel sample with coverage `cov` and bit-exact IGN dithering into scanline `row`.
 ///
 /// # Arguments

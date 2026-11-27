@@ -11,4 +11,7 @@ thread_local! {
     /// Per-thread reusable 1D horizontal shadow strip scratch buffers eliminating per-shadow allocations.
     pub(crate) static BAND_SHADOW_SCRATCH: RefCell<BandShadowScratch> =
         RefCell::new(BandShadowScratch::default());
+    /// Per-thread reusable fixed-point horizontal bilinear sampling LUT for `raster_image` and `raster_sprite_region`.
+    pub(crate) static BAND_IMAGE_X_LUT: RefCell<Vec<(usize, usize, u32)>> =
+        const { RefCell::new(Vec::new()) };
 }
