@@ -545,7 +545,9 @@ pub fn euv_web_boot() {
     let win_resize: Window = win.clone();
     let canvas_resize: HtmlCanvasElement = canvas.clone();
     let on_resize: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
-        if web_sync_exact_viewport(&win_resize, &canvas_resize) {
+        let viewport_changed: bool = web_sync_exact_viewport(&win_resize, &canvas_resize);
+        let safe_changed: bool = web_sync_safe_area();
+        if viewport_changed || safe_changed {
             web_mark_needs_frame();
         }
     }) as Box<dyn FnMut(Event)>);
@@ -822,6 +824,9 @@ fn web_attach_system_event_listeners(win: &Window, doc: &Document) {
             let visible: bool = kb_delta >= WEB_KEYBOARD_MIN_DELTA_PX;
             let height: f32 = if visible { kb_delta } else { 0.0 };
             web_dispatch_system_event(SystemEvent::KeyboardVisibilityChanged { visible, height });
+            if web_sync_safe_area() {
+                web_mark_needs_frame();
+            }
         })
             as Box<dyn FnMut(Event)>);
         drop(vv_target.add_event_listener_with_callback(
@@ -1212,41 +1217,13 @@ fn web_attach_ime_proxy(doc: &Document) {
 #[cfg(target_arch = "wasm32")]
 fn web_native_action_bridge(kind: &str, arg1: &str, _arg2: &str) -> bool {
     if kind == NATIVE_ACTION_FULLSCREEN {
-        let Some(win) = window() else {
-            return false;
-        };
-        let Some(doc) = win.document() else {
-            return false;
-        };
         if arg1 == WEB_FS_ACTION_ON {
-            if let Some(root_el) = doc.document_element()
-                && let Ok(func_val) = Reflect::get(
-                    root_el.as_ref(),
-                    &JsValue::from_str(WEB_METHOD_REQUEST_FULLSCREEN),
-                )
-                && let Ok(func) = func_val.dyn_into::<Function>()
-            {
-                let _: Result<JsValue, JsValue> = func.call0(root_el.as_ref());
-                return true;
-            }
-            return false;
+            web_set_fullscreen(true);
+            return true;
         }
         if arg1 == WEB_FS_ACTION_OFF {
-            let active_fs: bool = Reflect::get(
-                doc.as_ref(),
-                &JsValue::from_str(WEB_PROP_FULLSCREEN_ELEMENT),
-            )
-            .map(|v: JsValue| !v.is_null() && !v.is_undefined())
-            .unwrap_or(false);
-            if active_fs
-                && let Ok(func_val) =
-                    Reflect::get(doc.as_ref(), &JsValue::from_str(WEB_METHOD_EXIT_FULLSCREEN))
-                && let Ok(func) = func_val.dyn_into::<Function>()
-            {
-                let _: Result<JsValue, JsValue> = func.call0(doc.as_ref());
-                return true;
-            }
-            return false;
+            web_set_fullscreen(false);
+            return true;
         }
         return false;
     }
@@ -1369,6 +1346,36 @@ fn web_sync_exact_viewport(win: &Window, canvas: &HtmlCanvasElement) -> bool {
             canvas.set_height(phys_h);
         }
         app.set_exact_physical_viewport(phys_w, phys_h, dpr);
+        true
+    })
+}
+
+/// Re-queries browser CSS `env(safe-area-inset-*)` values and dispatches `WindowEvent::SafeAreaChanged` when changed.
+///
+/// # Returns
+///
+/// - `bool` - `true` when effective safe-area insets changed and require a relayout frame.
+#[cfg(target_arch = "wasm32")]
+fn web_sync_safe_area() -> bool {
+    let measured: SafeAreaInsets = web_query_safe_area_insets();
+    WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
+        let Ok(mut borrow) = slot.try_borrow_mut() else {
+            return false;
+        };
+        let Some((app, _)) = borrow.as_mut() else {
+            return false;
+        };
+        let effective: SafeAreaInsets = if app.is_immersive_fullscreen() {
+            SafeAreaInsets::default()
+        } else {
+            measured
+        };
+        let current: SafeAreaInsets = app.get_context().get_safe_area().get_untracked();
+        if current == effective {
+            return false;
+        }
+        let wid: WindowId = app.get_window_state().get_id();
+        app.dispatch_window_event(WindowEvent::SafeAreaChanged(wid, effective));
         true
     })
 }

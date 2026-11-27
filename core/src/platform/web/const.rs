@@ -78,3 +78,9 @@ pub(crate) const WEB_CURSOR_EW_RESIZE: &str = "ew-resize";
 
 /// CSS cursor keyword for vertical resize.
 pub(crate) const WEB_CURSOR_NS_RESIZE: &str = "ns-resize";
+
+/// DOM Element method name entering browser fullscreen.
+pub(crate) const WEB_METHOD_REQUEST_FULLSCREEN: &str = "requestFullscreen";
+
+/// DOM Document method name exiting browser fullscreen.
+pub(crate) const WEB_METHOD_EXIT_FULLSCREEN: &str = "exitFullscreen";

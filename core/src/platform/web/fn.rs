@@ -142,6 +142,28 @@ pub fn web_query_safe_area_insets() -> SafeAreaInsets {
     SafeAreaInsets::new(top, right, bottom, left)
 }
 
+/// Invokes a zero-argument DOM method that may return a JS `Promise`, swallowing rejections so browser consoles stay clean.
+///
+/// # Arguments
+///
+/// - `&JsValue` - Target DOM receiver (`Element` or `Document`).
+/// - `&str` - Method property name to invoke.
+fn web_invoke_promise_method(target: &JsValue, method: &str) {
+    let Ok(func_val) = Reflect::get(target, &JsValue::from_str(method)) else {
+        return;
+    };
+    let Ok(func) = func_val.dyn_into::<Function>() else {
+        return;
+    };
+    if let Ok(ret) = func.call0(target)
+        && let Ok(promise) = ret.dyn_into::<Promise>()
+    {
+        WEB_PROMISE_NOOP_REJECT.with(|cb: &Closure<dyn FnMut(JsValue)>| {
+            let _: Promise = promise.catch(cb);
+        });
+    }
+}
+
 /// Requests or exits browser Fullscreen API cleanly on `document.documentElement`.
 ///
 /// # Arguments
@@ -155,10 +177,10 @@ pub fn web_set_fullscreen(enabled: bool) {
         if doc.fullscreen_element().is_none()
             && let Some(root) = doc.document_element()
         {
-            drop(root.request_fullscreen());
+            web_invoke_promise_method(root.as_ref(), WEB_METHOD_REQUEST_FULLSCREEN);
         }
     } else if doc.fullscreen_element().is_some() {
-        doc.exit_fullscreen();
+        web_invoke_promise_method(doc.as_ref(), WEB_METHOD_EXIT_FULLSCREEN);
     }
 }
 

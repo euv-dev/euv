@@ -160,15 +160,6 @@ pub(crate) const WEB_FS_ACTION_ON: &str = "on";
 /// Native action subcommand requesting browser fullscreen exit.
 #[cfg(target_arch = "wasm32")]
 pub(crate) const WEB_FS_ACTION_OFF: &str = "off";
-/// DOM Element method name entering browser fullscreen.
-#[cfg(target_arch = "wasm32")]
-pub(crate) const WEB_METHOD_REQUEST_FULLSCREEN: &str = "requestFullscreen";
-/// DOM Document method name exiting browser fullscreen.
-#[cfg(target_arch = "wasm32")]
-pub(crate) const WEB_METHOD_EXIT_FULLSCREEN: &str = "exitFullscreen";
-/// DOM Document property reporting the active fullscreen element.
-#[cfg(target_arch = "wasm32")]
-pub(crate) const WEB_PROP_FULLSCREEN_ELEMENT: &str = "fullscreenElement";
 /// DOM event name for page visibility changes.
 #[cfg(target_arch = "wasm32")]
 pub(crate) const WEB_EVENT_VISIBILITY_CHANGE: &str = "visibilitychange";

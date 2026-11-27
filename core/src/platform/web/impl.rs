@@ -54,7 +54,8 @@ impl WebPlatform {
         let measured: SafeAreaInsets = web_query_safe_area_insets();
         if measured != self.get_last_safe_area() {
             self.set_last_safe_area(measured);
-            let mut ids: Vec<WindowId> = Vec::with_capacity(self.get_windows().len());
+            let mut updates: Vec<(WindowId, SafeAreaInsets)> =
+                Vec::with_capacity(self.get_windows().len());
             for (&wid, rec) in self.get_mut_windows().iter_mut() {
                 let effective: SafeAreaInsets =
                     if rec.get_state().get_fullscreen() == FullscreenMode::Windowed {
@@ -63,11 +64,11 @@ impl WebPlatform {
                         SafeAreaInsets::default()
                     };
                 rec.get_mut_state().set_safe_area(effective);
-                ids.push(wid);
+                updates.push((wid, effective));
             }
-            for wid in ids.into_iter() {
+            for (wid, effective) in updates.into_iter() {
                 self.get_mut_pending_events()
-                    .push(WindowEvent::SafeAreaChanged(wid, measured));
+                    .push(WindowEvent::SafeAreaChanged(wid, effective));
             }
         }
     }
