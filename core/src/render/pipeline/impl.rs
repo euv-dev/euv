@@ -148,6 +148,7 @@ impl Renderer {
                 font_provider,
             ),
             paint_pass: PaintPass,
+            paint_fragment_cache: PaintFragmentCache::default(),
             display_list,
             frame_index: 0,
             compute_pixel_hash,
@@ -275,6 +276,7 @@ impl Renderer {
             hardware,
             hybrid,
             paint_pass,
+            paint_fragment_cache,
             display_list,
             frame_index,
             compute_pixel_hash,
@@ -304,7 +306,16 @@ impl Renderer {
             return Ok(stats);
         }
         let _: &PaintPass = paint_pass;
-        PaintPass::build(tree, viewport, scale, clear_color, display_list);
+        let layout_changed: bool = layout_stats.get_nodes_computed() > 0;
+        PaintPass::build_retained(
+            tree,
+            viewport,
+            scale,
+            clear_color,
+            layout_changed,
+            display_list,
+            paint_fragment_cache,
+        );
         let cmd_count: usize = display_list.len();
         let (batches, pixels, hash): (usize, usize, u64) = match mode {
             RenderMode::Software => {
@@ -409,6 +420,20 @@ impl Renderer {
         stats.set_pixels_shaded(0);
         self.set_last_stats(stats);
         stats
+    }
+
+    /// Returns cumulative cross-frame `PaintFragmentCache` telemetry `(whole_list_hits, fragment_hits, fragment_misses, fragment_evictions)`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Renderer reference.
+    ///
+    /// # Returns
+    ///
+    /// - `(u64, u64, u64, u64)` - Tuple of whole-list hits, fragment hits, misses, and evictions.
+    #[must_use]
+    pub fn paint_fragment_cache_stats(&self) -> (u64, u64, u64, u64) {
+        self.get_paint_fragment_cache().stats()
     }
 
     /// Returns a reference to the latest CPU-accessible `Framebuffer` for software/hybrid/readback presentation.

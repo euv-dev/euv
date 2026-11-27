@@ -1025,6 +1025,8 @@ impl SoftwareRenderer {
             prepped_bounds: None,
             prepped_fg_bounds: None,
             clip_scope_scratch: Vec::with_capacity(8),
+            serial_dispatches: 0,
+            parallel_dispatches: 0,
         }
     }
 
@@ -1374,6 +1376,8 @@ impl SoftwareRenderer {
             rounded_clips_scratch,
             corner_mask_cache,
             antialiasing,
+            serial_dispatches,
+            parallel_dispatches,
             ..
         } = self;
         let aa: AntialiasingMode = *antialiasing;
@@ -1401,7 +1405,13 @@ impl SoftwareRenderer {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let pixel_area: usize = (clip_w as usize).saturating_mul(clip_h as usize);
-            if pixel_area >= SMALL_DAMAGE_SINGLE_THREAD_PIXELS && clip_h >= BAND_DISPATCH_MIN_HEIGHT
+            let many_cmds: bool =
+                prepped_slice.len() >= BAND_DISPATCH_MIN_CMDS || restore_base_cache;
+            let large_area: bool = pixel_area >= BAND_DISPATCH_MIN_PIXELS.saturating_mul(2);
+            let enough_work: bool = many_cmds || large_area;
+            if pixel_area >= SMALL_DAMAGE_SINGLE_THREAD_PIXELS
+                && clip_h >= BAND_DISPATCH_MIN_HEIGHT
+                && enough_work
             {
                 let effective_area: usize =
                     pixel_area.saturating_add(rounded_clips_slice.len().saturating_mul(16_384));
@@ -1413,6 +1423,7 @@ impl SoftwareRenderer {
                         .min((clip_h / 24) as usize)
                         .max(1);
                     if strip_count > 1 && desired_threads > 1 {
+                        *parallel_dispatches = parallel_dispatches.wrapping_add(1);
                         return pool.execute(
                             framebuffer,
                             (
@@ -1435,6 +1446,9 @@ impl SoftwareRenderer {
                 }
             }
         }
+        #[cfg(target_arch = "wasm32")]
+        let _: &mut u64 = parallel_dispatches;
+        *serial_dispatches = serial_dispatches.wrapping_add(1);
         let row_stride: usize = (phys_w as usize) * 4;
         let start_byte: usize = (clip_y0 as usize) * row_stride;
         let end_byte: usize = (clip_y1 as usize) * row_stride;

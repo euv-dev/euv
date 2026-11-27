@@ -43,6 +43,11 @@ pub struct Renderer {
     #[get_mut(skip)]
     #[set(skip)]
     pub(crate) paint_pass: PaintPass,
+    /// Cross-frame retained `DisplayList` and subtree `DrawCommand` fragment cache.
+    #[get(pub(crate))]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) paint_fragment_cache: PaintFragmentCache,
     /// Reusable frame display list.
     pub(crate) display_list: DisplayList,
     /// Monotonic frame counter.

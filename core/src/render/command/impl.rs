@@ -427,8 +427,474 @@ impl DisplayList {
     }
 }
 
+/// Telemetry and invalidation helpers for `PaintFragmentCache`.
+impl PaintFragmentCache {
+    /// Clears cached whole-list signature and all retained subtree fragments.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable fragment cache reference.
+    pub fn clear(&mut self) {
+        let Self {
+            has_last_scene,
+            last_has_canvas,
+            slots,
+            ..
+        } = self;
+        *has_last_scene = false;
+        *last_has_canvas = false;
+        for slot in slots.iter_mut() {
+            *slot = None;
+        }
+    }
+
+    /// Returns cumulative retention telemetry `(whole_list_hits, fragment_hits, fragment_misses, fragment_evictions)`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Fragment cache reference.
+    ///
+    /// # Returns
+    ///
+    /// - `(u64, u64, u64, u64)` - Tuple of whole-list hits, fragment hits, misses, and evictions.
+    #[must_use]
+    pub fn stats(&self) -> (u64, u64, u64, u64) {
+        (
+            self.get_whole_list_hits(),
+            self.get_fragment_hits(),
+            self.get_fragment_misses(),
+            self.get_fragment_evictions(),
+        )
+    }
+
+    /// Ensures the bounded direct-mapped slot table is allocated with `PAINT_FRAGMENT_CACHE_SLOTS` entries.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable fragment cache reference.
+    #[inline]
+    fn ensure_slots(&mut self) {
+        let Self { slots, .. } = self;
+        if slots.len() != PAINT_FRAGMENT_CACHE_SLOTS {
+            slots.resize_with(PAINT_FRAGMENT_CACHE_SLOTS, || None);
+        }
+    }
+}
+
 /// Scene-to-display-list compilation pass.
 impl PaintPass {
+    /// Computes a deterministic 64-bit signature of the active text selection state.
+    ///
+    /// # Arguments
+    ///
+    /// - `&SceneTree` - Retained scene tree.
+    ///
+    /// # Returns
+    ///
+    /// - `u64` - Selection digest (`0` when no text selection is active).
+    #[inline]
+    #[must_use]
+    fn text_selection_sig(tree: &SceneTree) -> u64 {
+        let Some(sel) = tree.text_selection() else {
+            return 0;
+        };
+        if sel.is_empty() {
+            return 0;
+        }
+        let (start, end): (usize, usize) = sel.ordered_range();
+        let nid: NodeId = sel.get_node_id();
+        let mut h: u64 = ((nid.get_index() as u64) << 32) | (nid.get_generation() as u64);
+        h = (h ^ (start as u64)).wrapping_mul(PAINT_FRAGMENT_FX_MULT);
+        h = (h ^ (end as u64)).wrapping_mul(PAINT_FRAGMENT_FX_MULT);
+        if h == 0 { 1 } else { h }
+    }
+
+    /// Folds one `u64` word into a running FxHash accumulator.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut u64` - Running hash accumulator.
+    /// - `u64` - Word to fold.
+    #[inline(always)]
+    fn fx_fold(hash: &mut u64, word: u64) {
+        *hash = (*hash ^ word).wrapping_mul(PAINT_FRAGMENT_FX_MULT);
+    }
+
+    /// Folds a `Rect`'s exact IEEE-754 bit pattern into `hash`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut u64` - Running hash accumulator.
+    /// - `Rect` - Rectangle to hash.
+    #[inline(always)]
+    fn fx_fold_rect(hash: &mut u64, rect: Rect) {
+        let lo: u64 = ((rect.get_x().to_bits() as u64) << 32) | (rect.get_y().to_bits() as u64);
+        let hi: u64 =
+            ((rect.get_width().to_bits() as u64) << 32) | (rect.get_height().to_bits() as u64);
+        Self::fx_fold(hash, lo);
+        Self::fx_fold(hash, hi);
+    }
+
+    /// Folds a `PaintStyle`'s visual fields into `hash`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut u64` - Running hash accumulator.
+    /// - `&PaintStyle` - Paint style reference.
+    #[inline]
+    fn fx_fold_paint(hash: &mut u64, paint: &PaintStyle) {
+        let bg_bits: u64 = paint
+            .background_color()
+            .map(|c: Color| u32::from_le_bytes(c.to_rgba_bytes()) as u64 | (1_u64 << 32))
+            .unwrap_or(0);
+        Self::fx_fold(hash, bg_bits);
+        if let Some(grad) = paint.background_gradient() {
+            let g0: u64 = u32::from_le_bytes(grad.get_start_color().to_rgba_bytes()) as u64;
+            let g1: u64 = u32::from_le_bytes(grad.get_end_color().to_rgba_bytes()) as u64;
+            Self::fx_fold(hash, (g0 << 32) | g1);
+            Self::fx_fold(hash, grad.get_angle_deg().to_bits() as u64 | (1_u64 << 33));
+        }
+        let border: Border = paint.get_border();
+        let b_word: u64 = ((border.get_width().to_bits() as u64) << 32)
+            | (u32::from_le_bytes(border.get_color().to_rgba_bytes()) as u64);
+        Self::fx_fold(hash, b_word);
+        let r: CornerRadius = paint.get_radius();
+        let r0: u64 =
+            ((r.get_top_left().to_bits() as u64) << 32) | (r.get_top_right().to_bits() as u64);
+        let r1: u64 = ((r.get_bottom_right().to_bits() as u64) << 32)
+            | (r.get_bottom_left().to_bits() as u64);
+        Self::fx_fold(hash, r0);
+        Self::fx_fold(hash, r1);
+        Self::fx_fold(hash, paint.get_opacity().to_bits() as u64);
+        if let Some(sh) = paint.box_shadow() {
+            let s0: u64 =
+                ((sh.get_offset_x().to_bits() as u64) << 32) | (sh.get_offset_y().to_bits() as u64);
+            let s1: u64 = ((sh.get_blur_radius().to_bits() as u64) << 32)
+                | (sh.get_spread_radius().to_bits() as u64);
+            Self::fx_fold(hash, s0);
+            Self::fx_fold(hash, s1);
+            Self::fx_fold(
+                hash,
+                u32::from_le_bytes(sh.get_color().to_rgba_bytes()) as u64 | (1_u64 << 34),
+            );
+        }
+    }
+
+    /// Folds a `TextStyle` and UTF-8 string bytes into `hash`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut u64` - Running hash accumulator.
+    /// - `&TextStyle` - Typography style reference.
+    /// - `&str` - Text content slice.
+    #[inline]
+    fn fx_fold_text(hash: &mut u64, text_style: &TextStyle, text: &str) {
+        let m0: u64 = ((text_style.get_font_size().to_bits() as u64) << 32)
+            | (text_style.get_line_height().to_bits() as u64);
+        let m1: u64 = ((text_style.get_letter_spacing().to_bits() as u64) << 32)
+            | (u32::from_le_bytes(text_style.get_color().to_rgba_bytes()) as u64);
+        let flags: u64 = (text_style.get_family() as u64)
+            | ((text_style.get_weight() as u64) << 8)
+            | ((text_style.get_align() as u64) << 16)
+            | ((text_style.get_overflow() as u64) << 24)
+            | (u64::from(text_style.get_italic()) << 32);
+        Self::fx_fold(hash, m0);
+        Self::fx_fold(hash, m1);
+        Self::fx_fold(hash, flags);
+        let bytes: &[u8] = text.as_bytes();
+        Self::fx_fold(hash, bytes.len() as u64);
+        let (chunks, rem): (&[[u8; 8]], &[u8]) = bytes.as_chunks::<8>();
+        for chunk in chunks.iter() {
+            Self::fx_fold(hash, u64::from_ne_bytes(*chunk));
+        }
+        if !rem.is_empty() {
+            let mut tail: u64 = 0;
+            for (idx, &b) in rem.iter().enumerate() {
+                tail |= (b as u64) << (idx * 8);
+            }
+            Self::fx_fold(hash, tail);
+        }
+    }
+
+    /// Computes `(geom_hash, style_text_hash)` for an eligible shallow clipped container, or `None` if uncacheable.
+    ///
+    /// # Arguments
+    ///
+    /// - `&SceneTree` - Retained scene tree.
+    /// - `NodeId` - Candidate container node handle.
+    /// - `&SceneNode` - Candidate container node reference.
+    /// - `Option<NodeId>` - Active innermost hover target.
+    /// - `Option<NodeId>` - Active text selection node ID, if non-empty.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<(u64, u64)>` - Tuple `(geom_hash, style_text_hash)` when the subtree is pure and cache-eligible.
+    #[inline]
+    #[must_use]
+    fn fingerprint_shallow_container(
+        tree: &SceneTree,
+        node_id: NodeId,
+        node: &SceneNode,
+        active_hover_target: Option<NodeId>,
+        selection_node: Option<NodeId>,
+    ) -> Option<(u64, u64)> {
+        let children: &[NodeId] = node.get_children().as_slice();
+        if children.is_empty() || children.len() > PAINT_FRAGMENT_MAX_CHILDREN {
+            return None;
+        }
+        let style: &Style = node.style_ref();
+        let transform: Transform2D = style.paint.get_transform();
+        let scroll: Point = node.layout_box.get_scroll_offset();
+        let mut geom_h: u64 = children.len() as u64;
+        Self::fx_fold_rect(&mut geom_h, node.layout_box.get_bounds());
+        Self::fx_fold(
+            &mut geom_h,
+            ((transform.get_translate_x().to_bits() as u64) << 32)
+                | (transform.get_translate_y().to_bits() as u64),
+        );
+        Self::fx_fold(
+            &mut geom_h,
+            ((transform.get_scale_x().to_bits() as u64) << 32)
+                | (transform.get_scale_y().to_bits() as u64),
+        );
+        Self::fx_fold(
+            &mut geom_h,
+            ((scroll.get_x().to_bits() as u64) << 32) | (scroll.get_y().to_bits() as u64),
+        );
+        let mut style_h: u64 =
+            ((node_id.get_index() as u64) << 32) | (node_id.get_generation() as u64);
+        Self::fx_fold_paint(&mut style_h, &style.paint);
+        for &cid in children.iter() {
+            if active_hover_target == Some(cid) || selection_node == Some(cid) {
+                return None;
+            }
+            let child: &SceneNode = tree.get_node(cid)?;
+            if !child.get_children().is_empty() {
+                return None;
+            }
+            let c_inter: InteractionState = child.get_interaction();
+            let c_active: bool = c_inter.get_hovered() || c_inter.get_pressed();
+            if c_active || c_inter.get_focused() {
+                return None;
+            }
+            let c_style: &Style = child.style_ref();
+            if c_style.layout.get_position() == Position::Fixed {
+                return None;
+            }
+            let c_tag: u64 = match child.get_kind() {
+                NodeKind::View | NodeKind::Fragment => 1,
+                NodeKind::Text(text) => {
+                    Self::fx_fold_text(&mut style_h, &c_style.text, text.as_str());
+                    Self::fx_fold_rect(&mut geom_h, child.layout_box.get_content_bounds());
+                    2
+                }
+                NodeKind::Image(buf) => {
+                    Self::fx_fold(
+                        &mut style_h,
+                        ((buf.get_width() as u64) << 32) | (buf.get_height() as u64),
+                    );
+                    Self::fx_fold(&mut style_h, buf.get_pixels().as_ptr() as usize as u64);
+                    3
+                }
+                NodeKind::Portal | NodeKind::Canvas | NodeKind::Input(_) | NodeKind::ScrollView => {
+                    return None;
+                }
+            };
+            let c_id_bits: u64 = ((cid.get_index() as u64) << 32) | (cid.get_generation() as u64);
+            Self::fx_fold(&mut geom_h, c_id_bits);
+            Self::fx_fold_rect(&mut geom_h, child.layout_box.get_bounds());
+            let ct: Transform2D = c_style.paint.get_transform();
+            Self::fx_fold(
+                &mut geom_h,
+                ((ct.get_translate_x().to_bits() as u64) << 32)
+                    | (ct.get_translate_y().to_bits() as u64),
+            );
+            Self::fx_fold(
+                &mut geom_h,
+                ((ct.get_scale_x().to_bits() as u64) << 32) | (ct.get_scale_y().to_bits() as u64),
+            );
+            let c_lay_bits: u64 = (c_tag << 40)
+                | ((c_style.layout.get_display() as u64) << 32)
+                | ((c_style.layout.get_overflow() as u64) << 24)
+                | ((c_style.layout.get_z_index() as u32) as u64);
+            Self::fx_fold(&mut style_h, c_lay_bits);
+            Self::fx_fold_paint(&mut style_h, &c_style.paint);
+        }
+        Some((geom_h, style_h))
+    }
+
+    /// Shifts one `DrawCommand`'s logical coordinates by `(dx, dy)` for dyadic-scale scroll fragment reuse.
+    ///
+    /// # Arguments
+    ///
+    /// - `&DrawCommand` - Cached draw command.
+    /// - `f32` - Logical X translation delta.
+    /// - `f32` - Logical Y translation delta.
+    ///
+    /// # Returns
+    ///
+    /// - `DrawCommand` - Translated command copy.
+    #[inline]
+    #[must_use]
+    fn translate_command(cmd: &DrawCommand, dx: f32, dy: f32) -> DrawCommand {
+        match cmd {
+            DrawCommand::Clear(c) => DrawCommand::Clear(*c),
+            DrawCommand::FillRoundedRect {
+                rect,
+                color,
+                radius,
+                border,
+            } => DrawCommand::FillRoundedRect {
+                rect: Rect::new(
+                    rect.get_x() + dx,
+                    rect.get_y() + dy,
+                    rect.get_width(),
+                    rect.get_height(),
+                ),
+                color: *color,
+                radius: *radius,
+                border: *border,
+            },
+            DrawCommand::LinearGradientRect {
+                rect,
+                gradient,
+                radius,
+            } => DrawCommand::LinearGradientRect {
+                rect: Rect::new(
+                    rect.get_x() + dx,
+                    rect.get_y() + dy,
+                    rect.get_width(),
+                    rect.get_height(),
+                ),
+                gradient: *gradient,
+                radius: *radius,
+            },
+            DrawCommand::BoxShadow {
+                rect,
+                radius,
+                shadow,
+            } => DrawCommand::BoxShadow {
+                rect: Rect::new(
+                    rect.get_x() + dx,
+                    rect.get_y() + dy,
+                    rect.get_width(),
+                    rect.get_height(),
+                ),
+                radius: *radius,
+                shadow: *shadow,
+            },
+            DrawCommand::TextRun { rect, text, style } => DrawCommand::TextRun {
+                rect: Rect::new(
+                    rect.get_x() + dx,
+                    rect.get_y() + dy,
+                    rect.get_width(),
+                    rect.get_height(),
+                ),
+                text: text.clone(),
+                style: *style,
+            },
+            DrawCommand::TextCaret {
+                text_rect,
+                content_rect,
+                text,
+                style,
+                caret_height,
+                color,
+                multiline,
+            } => DrawCommand::TextCaret {
+                text_rect: Rect::new(
+                    text_rect.get_x() + dx,
+                    text_rect.get_y() + dy,
+                    text_rect.get_width(),
+                    text_rect.get_height(),
+                ),
+                content_rect: Rect::new(
+                    content_rect.get_x() + dx,
+                    content_rect.get_y() + dy,
+                    content_rect.get_width(),
+                    content_rect.get_height(),
+                ),
+                text: text.clone(),
+                style: *style,
+                caret_height: *caret_height,
+                color: *color,
+                multiline: *multiline,
+            },
+            DrawCommand::Image {
+                rect,
+                buffer,
+                radius,
+            } => DrawCommand::Image {
+                rect: Rect::new(
+                    rect.get_x() + dx,
+                    rect.get_y() + dy,
+                    rect.get_width(),
+                    rect.get_height(),
+                ),
+                buffer: buffer.clone(),
+                radius: *radius,
+            },
+            DrawCommand::Line {
+                from,
+                to,
+                color,
+                width,
+            } => DrawCommand::Line {
+                from: Point::new(from.get_x() + dx, from.get_y() + dy),
+                to: Point::new(to.get_x() + dx, to.get_y() + dy),
+                color: *color,
+                width: *width,
+            },
+            DrawCommand::Circle {
+                center,
+                radius,
+                color,
+            } => DrawCommand::Circle {
+                center: Point::new(center.get_x() + dx, center.get_y() + dy),
+                radius: *radius,
+                color: *color,
+            },
+            DrawCommand::Triangle { p0, p1, p2, color } => DrawCommand::Triangle {
+                p0: Point::new(p0.get_x() + dx, p0.get_y() + dy),
+                p1: Point::new(p1.get_x() + dx, p1.get_y() + dy),
+                p2: Point::new(p2.get_x() + dx, p2.get_y() + dy),
+                color: *color,
+            },
+            DrawCommand::SpriteRegion {
+                rect,
+                buffer,
+                src_rect,
+                tint,
+            } => DrawCommand::SpriteRegion {
+                rect: Rect::new(
+                    rect.get_x() + dx,
+                    rect.get_y() + dy,
+                    rect.get_width(),
+                    rect.get_height(),
+                ),
+                buffer: buffer.clone(),
+                src_rect: *src_rect,
+                tint: *tint,
+            },
+            DrawCommand::PushClip(rect) => DrawCommand::PushClip(Rect::new(
+                rect.get_x() + dx,
+                rect.get_y() + dy,
+                rect.get_width(),
+                rect.get_height(),
+            )),
+            DrawCommand::PushRoundedClip { rect, radius } => DrawCommand::PushRoundedClip {
+                rect: Rect::new(
+                    rect.get_x() + dx,
+                    rect.get_y() + dy,
+                    rect.get_width(),
+                    rect.get_height(),
+                ),
+                radius: *radius,
+            },
+            DrawCommand::PopClip => DrawCommand::PopClip,
+        }
+    }
+
     /// Compiles `tree` into `display_list`, culling offscreen nodes and honoring z-index stacking.
     ///
     /// # Arguments
@@ -445,6 +911,116 @@ impl PaintPass {
         clear_color: Color,
         display_list: &mut DisplayList,
     ) {
+        let mut saw_canvas: bool = false;
+        Self::build_inner(
+            tree,
+            viewport,
+            scale_factor,
+            clear_color,
+            display_list,
+            None,
+            &mut saw_canvas,
+        );
+    }
+
+    /// Packs an optional `NodeId` into a single `u64` (`u64::MAX` when `None`).
+    ///
+    /// # Arguments
+    ///
+    /// - `Option<NodeId>` - Optional node handle.
+    ///
+    /// # Returns
+    ///
+    /// - `u64` - Packed `(index << 32) | generation` or `u64::MAX`.
+    #[inline(always)]
+    #[must_use]
+    fn pack_opt_node_id(node: Option<NodeId>) -> u64 {
+        match node {
+            Some(id) => ((id.get_index() as u64) << 32) | (id.get_generation() as u64),
+            None => u64::MAX,
+        }
+    }
+
+    /// Compiles `tree` into `display_list` with cross-frame whole-list retention and subtree `DrawCommand` fragment caching.
+    ///
+    /// # Arguments
+    ///
+    /// - `&SceneTree` - Laid-out scene tree.
+    /// - `Size` - Logical viewport size.
+    /// - `f32` - DPI scale factor.
+    /// - `Color` - Surface clear background color.
+    /// - `bool` - Whether layout recomputed any node geometry on this frame.
+    /// - `&mut DisplayList` - Output reusable display list.
+    /// - `&mut PaintFragmentCache` - Persistent cross-frame fragment cache.
+    pub fn build_retained(
+        tree: &SceneTree,
+        viewport: Size,
+        scale_factor: f32,
+        clear_color: Color,
+        layout_changed: bool,
+        display_list: &mut DisplayList,
+        cache: &mut PaintFragmentCache,
+    ) {
+        let clamped_scale: f32 = scale_factor.max(0.5);
+        let focus: FocusManager = tree.get_focus();
+        let sig: PaintSceneSignature = PaintSceneSignature {
+            tree_ptr: (tree as *const SceneTree) as usize,
+            tree_revision: tree.get_revision(),
+            viewport_w_bits: viewport.get_width().to_bits(),
+            viewport_h_bits: viewport.get_height().to_bits(),
+            scale_bits: clamped_scale.to_bits(),
+            clear_rgba: u32::from_le_bytes(clear_color.to_rgba_bytes()),
+            focused_packed: Self::pack_opt_node_id(focus.focused_node()),
+            hovered_packed: Self::pack_opt_node_id(focus.hovered_node()),
+            pressed_packed: Self::pack_opt_node_id(focus.pressed_node()),
+            caret_visible: tree.get_caret_visible(),
+            text_sel_sig: Self::text_selection_sig(tree),
+        };
+        if !layout_changed
+            && !cache.last_has_canvas
+            && !display_list.is_empty()
+            && cache.has_last_scene
+            && cache.last_scene_sig == sig
+        {
+            cache.whole_list_hits = cache.whole_list_hits.wrapping_add(1);
+            return;
+        }
+        cache.ensure_slots();
+        let mut saw_canvas: bool = false;
+        Self::build_inner(
+            tree,
+            viewport,
+            clamped_scale,
+            clear_color,
+            display_list,
+            Some(cache),
+            &mut saw_canvas,
+        );
+        cache.last_has_canvas = saw_canvas;
+        cache.has_last_scene = true;
+        cache.last_scene_sig = sig;
+    }
+
+    /// Shared internal scene-to-display-list builder supporting optional retained fragment caching.
+    ///
+    /// # Arguments
+    ///
+    /// - `&SceneTree` - Laid-out scene tree.
+    /// - `Size` - Logical viewport size.
+    /// - `f32` - DPI scale factor.
+    /// - `Color` - Surface clear background color.
+    /// - `&mut DisplayList` - Output reusable display list.
+    /// - `Option<&mut PaintFragmentCache>` - Optional cross-frame fragment cache.
+    /// - `&mut bool` - Output flag set when any `NodeKind::Canvas` is visited.
+    fn build_inner(
+        tree: &SceneTree,
+        viewport: Size,
+        scale_factor: f32,
+        clear_color: Color,
+        display_list: &mut DisplayList,
+        mut fragments: Option<&mut PaintFragmentCache>,
+        saw_canvas: &mut bool,
+    ) {
         display_list.reset(viewport, scale_factor);
         display_list.push(DrawCommand::Clear(clear_color));
         let viewport_rect: Rect = Rect::new(0.0, 0.0, viewport.get_width(), viewport.get_height());
@@ -453,39 +1029,47 @@ impl PaintPass {
         let mut z_sort: Vec<(i32, usize, NodeId)> = take(&mut display_list.z_sort_scratch);
         portals.clear();
         z_sort.clear();
-        let mut scratch: PaintScratch<'_> = PaintScratch {
-            portals: Some(&mut portals),
-            z_sort: &mut z_sort,
-        };
-        Self::emit_node(
-            tree,
-            tree.get_root(),
-            (Point::new(0.0, 0.0), 1.0),
-            viewport_rect,
-            active_hover_target,
-            &mut scratch,
-            display_list,
-        );
+        {
+            let mut scratch: PaintScratch<'_> = PaintScratch {
+                portals: Some(&mut portals),
+                z_sort: &mut z_sort,
+                fragments: fragments.as_deref_mut(),
+                saw_canvas,
+            };
+            Self::emit_node(
+                tree,
+                tree.get_root(),
+                (Point::new(0.0, 0.0), 1.0),
+                viewport_rect,
+                active_hover_target,
+                &mut scratch,
+                display_list,
+            );
+        }
         display_list.set_portal_split_index(display_list.len());
         if portals.len() > 1 {
             portals.sort_by(|a: &(i32, usize, NodeId), b: &(i32, usize, NodeId)| {
                 a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1))
             });
         }
-        let mut portal_scratch: PaintScratch<'_> = PaintScratch {
-            portals: None,
-            z_sort: &mut z_sort,
-        };
-        for &(_, _, portal_id) in portals.iter() {
-            Self::emit_node(
-                tree,
-                portal_id,
-                (Point::new(0.0, 0.0), 1.0),
-                viewport_rect,
-                active_hover_target,
-                &mut portal_scratch,
-                display_list,
-            );
+        {
+            let mut portal_scratch: PaintScratch<'_> = PaintScratch {
+                portals: None,
+                z_sort: &mut z_sort,
+                fragments,
+                saw_canvas,
+            };
+            for &(_, _, portal_id) in portals.iter() {
+                Self::emit_node(
+                    tree,
+                    portal_id,
+                    (Point::new(0.0, 0.0), 1.0),
+                    viewport_rect,
+                    active_hover_target,
+                    &mut portal_scratch,
+                    display_list,
+                );
+            }
         }
         portals.clear();
         z_sort.clear();
@@ -692,6 +1276,72 @@ impl PaintPass {
         let self_visible: bool = bounds.get_width() > 0.0
             && bounds.get_height() > 0.0
             && self_vis_rect.intersect(cull_rect).is_some();
+        let mut frag_capture: Option<(usize, usize, u64, u64)> = None;
+        if self_visible
+            && scratch.fragments.is_some()
+            && scratch.portals.is_some()
+            && matches!(node.get_kind(), NodeKind::View)
+            && layout.get_overflow() == Overflow::Hidden
+            && !hovered
+            && !pressed
+            && !interaction.get_focused()
+            && active_hover_target != Some(node_id)
+        {
+            let vis_x_in: bool = self_vis_rect.get_x() >= cull_rect.get_x()
+                && self_vis_rect.right() <= cull_rect.right();
+            let vis_y_in: bool = self_vis_rect.get_y() >= cull_rect.get_y()
+                && self_vis_rect.bottom() <= cull_rect.bottom();
+            if vis_x_in && vis_y_in {
+                let sel_node: Option<NodeId> = tree
+                    .text_selection()
+                    .filter(|s: &SelectionState| !s.is_empty())
+                    .map(|s: SelectionState| s.get_node_id());
+                if let Some((geom_hash, style_text_hash)) = Self::fingerprint_shallow_container(
+                    tree,
+                    node_id,
+                    node,
+                    active_hover_target,
+                    sel_node,
+                ) {
+                    let slot_idx: usize =
+                        (node_id.get_index() as usize) & (PAINT_FRAGMENT_CACHE_SLOTS - 1);
+                    let scale_bits: u32 = scale.to_bits();
+                    let opacity_bits: u32 = parent_opacity.to_bits();
+                    let dyadic_12: bool = scale == 1.0 || scale == 2.0;
+                    let dyadic_scale: bool = dyadic_12 || scale == 4.0;
+                    if let Some(cache) = scratch.fragments.as_deref_mut()
+                        && let Some(cached) = cache.slots.get(slot_idx).and_then(Option::as_ref)
+                        && cached.node_id == node_id
+                        && cached.scale_bits == scale_bits
+                        && cached.opacity_bits == opacity_bits
+                        && cached.geom_hash == geom_hash
+                        && cached.style_text_hash == style_text_hash
+                    {
+                        if cached.offset_phys == offset_phys {
+                            display_list
+                                .get_mut_commands()
+                                .extend_from_slice(cached.commands.as_slice());
+                            cache.fragment_hits = cache.fragment_hits.wrapping_add(1);
+                            return;
+                        }
+                        if dyadic_scale {
+                            let dx: f32 =
+                                (offset_phys.get_x() - cached.offset_phys.get_x()) * inv_scale;
+                            let dy: f32 =
+                                (offset_phys.get_y() - cached.offset_phys.get_y()) * inv_scale;
+                            let dst: &mut Vec<DrawCommand> = display_list.get_mut_commands();
+                            dst.reserve(cached.commands.len());
+                            for cmd in cached.commands.iter() {
+                                dst.push(Self::translate_command(cmd, dx, dy));
+                            }
+                            cache.fragment_hits = cache.fragment_hits.wrapping_add(1);
+                            return;
+                        }
+                    }
+                    frag_capture = Some((display_list.len(), slot_idx, geom_hash, style_text_hash));
+                }
+            }
+        }
         if self_visible {
             if let Some(mut shadow) = paint.box_shadow() {
                 shadow.set_color(shadow.get_color().multiply_alpha(opacity));
@@ -876,6 +1526,7 @@ impl PaintPass {
                     });
                 }
                 NodeKind::Canvas => {
+                    *scratch.saw_canvas = true;
                     if let Some(callback) = node.canvas_callback()
                         && let Ok(mut func) = callback.try_borrow_mut()
                     {
@@ -1115,6 +1766,36 @@ impl PaintPass {
         }
         if clipped {
             display_list.push(DrawCommand::PopClip);
+        }
+        if let Some((cmd_start, slot_idx, geom_hash, style_text_hash)) = frag_capture
+            && let Some(cache) = scratch.fragments.as_deref_mut()
+            && let Some(slot_ref) = cache.slots.get_mut(slot_idx)
+        {
+            let cmd_slice: &[DrawCommand] = &display_list.get_commands()[cmd_start..];
+            cache.fragment_misses = cache.fragment_misses.wrapping_add(1);
+            if let Some(existing) = slot_ref.as_mut() {
+                if existing.node_id != node_id {
+                    cache.fragment_evictions = cache.fragment_evictions.wrapping_add(1);
+                }
+                existing.node_id = node_id;
+                existing.scale_bits = scale.to_bits();
+                existing.opacity_bits = parent_opacity.to_bits();
+                existing.offset_phys = offset_phys;
+                existing.geom_hash = geom_hash;
+                existing.style_text_hash = style_text_hash;
+                existing.commands.clear();
+                existing.commands.extend_from_slice(cmd_slice);
+            } else {
+                *slot_ref = Some(RetainedPaintFragment {
+                    node_id,
+                    scale_bits: scale.to_bits(),
+                    opacity_bits: parent_opacity.to_bits(),
+                    offset_phys,
+                    geom_hash,
+                    style_text_hash,
+                    commands: cmd_slice.to_vec(),
+                });
+            }
         }
     }
 }

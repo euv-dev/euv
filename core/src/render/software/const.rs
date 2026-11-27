@@ -65,7 +65,11 @@ pub(crate) const BAND_CALLER_SPIN_LIMIT: u32 = 32;
 
 /// Maximum damaged pixel area executed directly on the calling thread without touching `BandWorkerPool`.
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) const SMALL_DAMAGE_SINGLE_THREAD_PIXELS: usize = 16_384;
+pub(crate) const SMALL_DAMAGE_SINGLE_THREAD_PIXELS: usize = 32_768;
+
+/// Minimum prepared command count before waking `BandWorkerPool` for mid-sized single-row dirty rects.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) const BAND_DISPATCH_MIN_CMDS: usize = 6;
 
 /// Minimum damaged pixel area required before splitting horizontal bands across background worker threads.
 #[cfg(not(target_arch = "wasm32"))]

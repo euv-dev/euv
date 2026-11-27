@@ -445,6 +445,16 @@ pub struct SoftwareRenderer {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) clip_scope_scratch: Vec<(u32, u32, Option<usize>)>,
+    /// Cumulative number of rasterization passes executed serially on the calling thread.
+    #[get(type(copy))]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) serial_dispatches: u64,
+    /// Cumulative number of rasterization passes dispatched across `BandWorkerPool`.
+    #[get(type(copy))]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) parallel_dispatches: u64,
 }
 
 /// Compact 16-byte hot per-column cache entry reused across every vertical shadow strip scanline.
