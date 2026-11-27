@@ -4,7 +4,7 @@ description: 'Use when implementing or debugging an euv cross-platform native Ru
 license: MIT
 metadata:
   hermes:
-    related_skills: [rust-standards, euv-ui-standards, git-standards, euv-ai-automation, euv-design-restoration, euv-e2e-replay]
+    related_skills: [rust-standards, euv-ui-standards, euv-ui-design-system, git-standards, euv-ai-automation, euv-design-restoration, euv-e2e-replay]
 ---
 
 # euv workspace standards and workflow
@@ -68,6 +68,6 @@ For performance, stress-matrix, and cross-platform checks:
 
 ## Reference Index
 
-- Companion project skills: [AI Automation](../euv-ai-automation/SKILL.md) · [Design Restoration](../euv-design-restoration/SKILL.md) · [E2E Replay](../euv-e2e-replay/SKILL.md)
+- Companion project skills: [UI Design System](../euv-ui-design-system/SKILL.md) · [AI Automation](../euv-ai-automation/SKILL.md) · [Design Restoration](../euv-design-restoration/SKILL.md) · [E2E Replay](../euv-e2e-replay/SKILL.md)
 - Workspace docs: [AGENTS Governance](../../../AGENTS.md) · [Workspace README](../../../README.md) · [Automation README](../../../automation/README.md) · [Benchmark Report](../../../performance/BENCHMARK_REPORT.md)
 - User-global prerequisite skills (loaded by skill name): `rust-standards` · `euv-ui-standards` · `git-standards`
