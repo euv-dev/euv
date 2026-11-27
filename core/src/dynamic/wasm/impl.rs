@@ -750,8 +750,12 @@ impl WasmFetcher for RegistryWasmFetcher {
             }
             _ => {}
         }
-        let mut bytes: Vec<u8> = rec.get_bytes().clone();
-        if rec.get_fault() == WasmFaultKind::TamperedChecksum && !bytes.is_empty() {
+        let RegistryWasmRecord {
+            mut bytes,
+            etag,
+            fault,
+        } = rec;
+        if fault == WasmFaultKind::TamperedChecksum && !bytes.is_empty() {
             let last_idx: usize = bytes.len() - 1;
             bytes[last_idx] ^= 0xFF;
         }
@@ -759,7 +763,7 @@ impl WasmFetcher for RegistryWasmFetcher {
         on_progress(total / 2, total);
         on_progress(total, total);
         let mut payload: WasmFetchedPayload = WasmFetchedPayload::new(bytes);
-        payload.set_etag(rec.get_etag().clone());
+        payload.set_etag(etag);
         Ok(payload)
     }
 }
@@ -905,6 +909,7 @@ impl WasmDynamicManager {
                 next_request_id: 0,
                 active_request_ids: HashMap::new(),
                 cache: HashMap::new(),
+                parsed_cache: HashMap::new(),
                 partial_stacks: HashMap::new(),
                 global_stack: Vec::new(),
                 state_signals: HashMap::new(),
@@ -1067,12 +1072,11 @@ impl WasmDynamicManager {
         let scope: WasmDynamicScope = request.get_scope().clone();
         let scope_key: String = scope.key();
         let state_sig: Signal<WasmLoadState> = self.state_signal(&scope);
-        let (req_id, config, fetcher, active_ver, cached_entry): (
+        let (req_id, config, fetcher, active_ver): (
             u64,
             WasmSandboxConfig,
             Rc<dyn WasmFetcher>,
             u64,
-            Option<WasmCachedEntry>,
         ) = {
             let Self { inner } = self;
             let mut guard: RefMut<'_, WasmDynamicManagerState> = inner
@@ -1094,14 +1098,12 @@ impl WasmDynamicManager {
                     .map(WasmMountedSnapshot::get_version)
                     .unwrap_or(0),
             };
-            let cached: Option<WasmCachedEntry> =
-                guard.cache.get(request.resolved_cache_key()).cloned();
             let _: bool = guard
                 .telemetry_signal
                 .update(|t: &mut WasmDynamicTelemetry| {
                     t.downloads_started = t.downloads_started.saturating_add(1);
                 });
-            (id, guard.config, guard.fetcher.clone(), cur_v, cached)
+            (id, guard.config, guard.fetcher.clone(), cur_v)
         };
         if !request.get_allow_downgrade() && active_ver > 0 && request.get_version() <= active_ver {
             let err: WasmDynamicError = WasmDynamicError::VersionRegression {
@@ -1115,9 +1117,9 @@ impl WasmDynamicManager {
             received_bytes: 0,
             total_bytes: 0,
         });
-        let fetched: WasmFetchedPayload =
-            match self.fetch_with_retry(&request, config, &fetcher, cached_entry, state_sig) {
-                Ok(p) => p,
+        let (fetched, cached_parsed_opt): (WasmFetchedShare, Option<Rc<WasmParsedModule>>) =
+            match self.fetch_with_retry(&request, config, &fetcher, state_sig) {
+                Ok(res) => res,
                 Err(err) => {
                     self.record_failure(&scope, &err);
                     return Err(err);
@@ -1132,7 +1134,7 @@ impl WasmDynamicManager {
             return Err(err);
         }
         let _: bool = state_sig.set(WasmLoadState::Verifying);
-        let raw_bytes: &[u8] = fetched.get_bytes().as_slice();
+        let raw_bytes: &[u8] = fetched.bytes.as_slice();
         if raw_bytes.len() > config.get_max_binary_bytes() {
             let err: WasmDynamicError = WasmDynamicError::BinaryTooLarge {
                 actual: raw_bytes.len(),
@@ -1165,16 +1167,26 @@ impl WasmDynamicManager {
             }
         }
         let _: bool = state_sig.set(WasmLoadState::Compiling);
-        let parsed: WasmParsedModule = match parse_wasm_binary(raw_bytes, &config) {
-            Ok(m) => m,
-            Err(err) => {
-                self.record_failure(&scope, &err);
-                return Err(err);
-            }
+        let cached_module: Option<Rc<WasmParsedModule>> = cached_parsed_opt.or_else(|| {
+            self.lookup_cached_parsed_module(
+                request.resolved_cache_key(),
+                request.get_url().as_str(),
+                computed_checksum,
+            )
+        });
+        let parsed: Rc<WasmParsedModule> = match cached_module {
+            Some(hit) => hit,
+            None => match parse_wasm_binary(raw_bytes, &config) {
+                Ok(m) => Rc::new(m),
+                Err(err) => {
+                    self.record_failure(&scope, &err);
+                    return Err(err);
+                }
+            },
         };
         if parsed.get_exports().contains_key(WASM_EXPORT_ABI) {
             let abi_res: Result<WasmExecutionOutput, WasmDynamicError> =
-                execute_wasm_export(&parsed, WASM_EXPORT_ABI, &[], &config);
+                execute_wasm_export(parsed.as_ref(), WASM_EXPORT_ABI, &[], &config);
             match abi_res {
                 Ok(abi_out) => {
                     let mod_abi: u32 = abi_out.get_return_value().max(0) as u32;
@@ -1195,7 +1207,7 @@ impl WasmDynamicManager {
         }
         let _: bool = state_sig.set(WasmLoadState::Executing);
         let exec_out: WasmExecutionOutput =
-            match execute_wasm_export(&parsed, WASM_EXPORT_RENDER, &[0], &config) {
+            match execute_wasm_export(parsed.as_ref(), WASM_EXPORT_RENDER, &[0], &config) {
                 Ok(out) => out,
                 Err(err) => {
                     self.record_failure(&scope, &err);
@@ -1228,44 +1240,50 @@ impl WasmDynamicManager {
         scope: &WasmDynamicScope,
         action_code: i32,
     ) -> Result<i32, WasmDynamicError> {
-        let (config, snapshot, hub): (WasmSandboxConfig, WasmMountedSnapshot, DynamicUpdateHub) = {
+        let (config, hub, snap_version, snap_state, snap_module): (
+            WasmSandboxConfig,
+            DynamicUpdateHub,
+            u64,
+            i32,
+            Rc<WasmParsedModule>,
+        ) = {
             let Self { inner } = self;
             let guard: Ref<'_, WasmDynamicManagerState> = inner.try_borrow().map_err(|_| {
                 WasmDynamicError::ExecutionTrap(WASM_ERR_MANAGER_BORROW.to_string())
             })?;
-            let snap: WasmMountedSnapshot = match scope {
+            let snap: &WasmMountedSnapshot = match scope {
                 WasmDynamicScope::Partial { slot_id } => guard
                     .partial_stacks
                     .get(slot_id)
                     .and_then(|s: &Vec<WasmMountedSnapshot>| s.last())
-                    .cloned()
                     .ok_or(WasmDynamicError::NoRollbackSnapshot)?,
                 WasmDynamicScope::Global => guard
                     .global_stack
                     .last()
-                    .cloned()
                     .ok_or(WasmDynamicError::NoRollbackSnapshot)?,
             };
-            (guard.config, snap, guard.hub.clone())
+            (
+                guard.config,
+                guard.hub.clone(),
+                snap.get_version(),
+                snap.get_state_value(),
+                Rc::clone(snap.get_module()),
+            )
         };
-        let next_state: i32 = if snapshot
-            .get_module()
-            .get_exports()
-            .contains_key(WASM_EXPORT_ON_EVENT)
-        {
+        let next_state: i32 = if snap_module.get_exports().contains_key(WASM_EXPORT_ON_EVENT) {
             let ev_out: WasmExecutionOutput = execute_wasm_export(
-                snapshot.get_module(),
+                snap_module.as_ref(),
                 WASM_EXPORT_ON_EVENT,
-                &[snapshot.get_state_value()],
+                &[snap_state],
                 &config,
             )?;
             let _: i32 = action_code;
             ev_out.get_return_value() % 2
         } else {
-            (snapshot.get_state_value() + 1) % 2
+            (snap_state + 1) % 2
         };
         let render_out: WasmExecutionOutput = execute_wasm_export(
-            snapshot.get_module(),
+            snap_module.as_ref(),
             WASM_EXPORT_RENDER,
             &[next_state],
             &config,
@@ -1273,11 +1291,8 @@ impl WasmDynamicManager {
         match scope {
             WasmDynamicScope::Partial { slot_id } => {
                 if let Some(spec) = render_out.emitted_spec() {
-                    let mut upd: DynamicComponentUpdate = DynamicComponentUpdate::new(
-                        slot_id.clone(),
-                        snapshot.get_version(),
-                        spec.clone(),
-                    );
+                    let mut upd: DynamicComponentUpdate =
+                        DynamicComponentUpdate::new(slot_id.clone(), snap_version, spec.clone());
                     upd.set_allow_downgrade(true);
                     upd.sign();
                     let _: Result<u64, DynamicUpdateError> = hub.apply_component(upd);
@@ -1492,7 +1507,43 @@ impl WasmDynamicManager {
             .unwrap_or(0)
     }
 
-    /// Executes the download with exponential retry on transient failures and verified offline cache fallback.
+    /// Looks up a previously validated `Rc<WasmParsedModule>` matching `(url, checksum)` without re-parsing binary bytes.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Manager reference.
+    /// - `&str` - Resolved cache key.
+    /// - `&str` - Source module URL.
+    /// - `u64` - Verified FNV-1a checksum of the incoming bytes.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<Rc<WasmParsedModule>>` - Shared cached parsed module if `(url, checksum)` already validated.
+    #[must_use]
+    fn lookup_cached_parsed_module(
+        &self,
+        cache_key: &str,
+        url: &str,
+        checksum: u64,
+    ) -> Option<Rc<WasmParsedModule>> {
+        let Self { inner } = self;
+        let guard: Ref<'_, WasmDynamicManagerState> = inner.try_borrow().ok()?;
+        if let Some(entry) = guard.cache.get(cache_key)
+            && entry.get_checksum() == checksum
+            && entry.get_url().as_str() == url
+        {
+            return Some(Rc::clone(entry.get_parsed()));
+        }
+        if guard.parsed_cache.is_empty() {
+            return None;
+        }
+        guard
+            .parsed_cache
+            .get(&(url.to_string(), checksum))
+            .map(Rc::clone)
+    }
+
+    /// Executes the download with exponential retry on transient failures and zero-clone verified offline cache fallback.
     ///
     /// # Arguments
     ///
@@ -1500,20 +1551,18 @@ impl WasmDynamicManager {
     /// - `&WasmDownloadRequest` - Target download request.
     /// - `WasmSandboxConfig` - Retry and offline cache settings.
     /// - `&Rc<dyn WasmFetcher>` - Transport implementation.
-    /// - `Option<WasmCachedEntry>` - Optional cached verified `.wasm`.
     /// - `Signal<WasmLoadState>` - Live progress signal.
     ///
     /// # Returns
     ///
-    /// - `Result<WasmFetchedPayload, WasmDynamicError>` - Fetched or cached bytes.
+    /// - `Result<(WasmFetchedShare, Option<Rc<WasmParsedModule>>), WasmDynamicError>` - Shared payload bundle and optional cached parsed module.
     fn fetch_with_retry(
         &self,
         request: &WasmDownloadRequest,
         config: WasmSandboxConfig,
         fetcher: &Rc<dyn WasmFetcher>,
-        cached_entry: Option<WasmCachedEntry>,
         state_sig: Signal<WasmLoadState>,
-    ) -> Result<WasmFetchedPayload, WasmDynamicError> {
+    ) -> Result<(WasmFetchedShare, Option<Rc<WasmParsedModule>>), WasmDynamicError> {
         let mut last_err: WasmDynamicError =
             WasmDynamicError::NetworkOffline(request.get_url().clone());
         let max_attempts: u32 = config.get_max_retries().saturating_add(1);
@@ -1534,7 +1583,19 @@ impl WasmDynamicManager {
                     total_bytes: total,
                 });
             }) {
-                Ok(payload) => return Ok(payload),
+                Ok(payload) => {
+                    let WasmFetchedPayload {
+                        bytes,
+                        etag,
+                        from_cache,
+                    } = payload;
+                    let shared: WasmFetchedShare = WasmFetchedShare {
+                        bytes: Rc::new(bytes),
+                        etag,
+                        from_cache,
+                    };
+                    return Ok((shared, None));
+                }
                 Err(err) => {
                     let retryable: bool = matches!(
                         err,
@@ -1551,23 +1612,32 @@ impl WasmDynamicManager {
                 }
             }
         }
-        if config.get_allow_offline_cache()
-            && let Some(cached) = cached_entry
-        {
+        if config.get_allow_offline_cache() {
             let Self { inner } = self;
-            if let Ok(guard) = inner.try_borrow() {
-                let _: bool = guard
-                    .telemetry_signal
-                    .update(|t: &mut WasmDynamicTelemetry| {
-                        t.cache_hits = t.cache_hits.saturating_add(1);
-                    });
+            let hit: Option<(WasmFetchedShare, Rc<WasmParsedModule>)> = if let Ok(guard) =
+                inner.try_borrow()
+            {
+                if let Some(cached) = guard.cache.get(request.resolved_cache_key()) {
+                    let _: bool = guard
+                        .telemetry_signal
+                        .update(|t: &mut WasmDynamicTelemetry| {
+                            t.cache_hits = t.cache_hits.saturating_add(1);
+                        });
+                    let shared: WasmFetchedShare = WasmFetchedShare {
+                        bytes: Rc::clone(cached.get_bytes()),
+                        etag: cached.get_etag().clone(),
+                        from_cache: true,
+                    };
+                    Some((shared, Rc::clone(cached.get_parsed())))
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            if let Some((shared, parsed)) = hit {
+                return Ok((shared, Some(parsed)));
             }
-            let mut payload: WasmFetchedPayload =
-                WasmFetchedPayload::new(cached.get_bytes().clone());
-            payload
-                .set_etag(cached.get_etag().clone())
-                .set_from_cache(true);
-            return Ok(payload);
         }
         Err(last_err)
     }
@@ -1578,9 +1648,9 @@ impl WasmDynamicManager {
     ///
     /// - `&Self` - Manager reference.
     /// - `&WasmDownloadRequest` - Origin request.
-    /// - `WasmFetchedPayload` - Verified payload bytes.
+    /// - `WasmFetchedShare` - Shared verified `.wasm` payload bundle.
     /// - `u64` - Verified FNV-1a checksum.
-    /// - `WasmParsedModule` - Validated `.wasm` module.
+    /// - `Rc<WasmParsedModule>` - Shared validated `.wasm` module.
     /// - `WasmExecutionOutput` - Executed render output.
     /// - `Signal<WasmLoadState>` - Live scope status signal.
     ///
@@ -1590,15 +1660,19 @@ impl WasmDynamicManager {
     fn commit_mounted_output(
         &self,
         request: &WasmDownloadRequest,
-        fetched: WasmFetchedPayload,
+        fetched: WasmFetchedShare,
         checksum: u64,
-        parsed: WasmParsedModule,
+        parsed: Rc<WasmParsedModule>,
         exec_out: WasmExecutionOutput,
         state_sig: Signal<WasmLoadState>,
     ) -> Result<u64, WasmDynamicError> {
+        let WasmFetchedShare {
+            bytes: fetched_bytes,
+            etag: fetched_etag,
+            from_cache,
+        } = fetched;
         let ver: u64 = request.get_version();
         let fuel_used: u64 = exec_out.get_fuel_used();
-        let from_cache: bool = fetched.get_from_cache();
         let logs: Vec<String> = exec_out.get_logs().clone();
         let hub: DynamicUpdateHub = {
             let Self { inner } = self;
@@ -1652,23 +1726,41 @@ impl WasmDynamicManager {
             version: ver,
             url: request.get_url().clone(),
             checksum,
-            module: parsed,
+            module: Rc::clone(&parsed),
             state_value: 0,
             spec: spec_opt,
             bundle: bundle_opt,
         };
-        let cache_entry: WasmCachedEntry = WasmCachedEntry::new(
-            request.get_url().clone(),
-            ver,
-            checksum,
-            fetched.get_bytes().clone(),
-            fetched.get_etag().clone(),
-        );
         let Self { inner } = self;
         if let Ok(mut guard) = inner.try_borrow_mut() {
-            let _: Option<WasmCachedEntry> = guard
-                .cache
-                .insert(request.resolved_cache_key().to_string(), cache_entry);
+            let cache_key: &str = request.resolved_cache_key();
+            let same_cached: bool =
+                guard
+                    .cache
+                    .get(cache_key)
+                    .is_some_and(|e: &WasmCachedEntry| {
+                        e.get_checksum() == checksum && e.get_url() == request.get_url()
+                    });
+            if same_cached {
+                if let Some(existing) = guard.cache.get_mut(cache_key) {
+                    existing.set_version(ver);
+                    existing.set_etag(fetched_etag);
+                }
+            } else {
+                let cache_entry: WasmCachedEntry = WasmCachedEntry::new(
+                    request.get_url().clone(),
+                    ver,
+                    checksum,
+                    fetched_bytes,
+                    Rc::clone(&parsed),
+                    fetched_etag,
+                );
+                let _: Option<WasmCachedEntry> =
+                    guard.cache.insert(cache_key.to_string(), cache_entry);
+                let _: Option<Rc<WasmParsedModule>> = guard
+                    .parsed_cache
+                    .insert((request.get_url().clone(), checksum), parsed);
+            }
             match request.get_scope() {
                 WasmDynamicScope::Partial { slot_id } => {
                     guard
