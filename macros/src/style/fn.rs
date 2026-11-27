@@ -97,7 +97,7 @@ pub(crate) fn parse_style_stmts(body: ParseStream<'_>) -> Result<Vec<StyleStmt>>
 fn expand_style_body(stmts: &[StyleStmt], scope_label: &str) -> Result<proc_macro2::TokenStream> {
     let mut seen: HashSet<String> = HashSet::new();
     let mut ops: Vec<proc_macro2::TokenStream> = Vec::with_capacity(stmts.len());
-    let mut needs_mut_binding: bool = false;
+    let mut has_mut_ops: bool = false;
     for stmt in stmts.iter() {
         match stmt {
             StyleStmt::PropExpr(expr) => {
@@ -105,7 +105,7 @@ fn expand_style_body(stmts: &[StyleStmt], scope_label: &str) -> Result<proc_macr
                 ops.push(quote_spanned! {espan=>
                     __s = ::euv::StyleApply::apply_to(#expr, __s);
                 });
-                needs_mut_binding = true;
+                has_mut_ops = true;
             }
             StyleStmt::KeyValue { key, value } => {
                 let key_str: String = key.to_string();
@@ -120,17 +120,50 @@ fn expand_style_body(stmts: &[StyleStmt], scope_label: &str) -> Result<proc_macr
                         let dir_str: String = quote!(#value).to_string();
                         let trimmed: &str = dir_str.trim();
                         if trimmed == STYLE_VAL_ROW {
-                            quote! { __s = __s.row(); }
+                            if has_mut_ops {
+                                quote! {
+                                    let __euv_dir_layout: &mut ::euv::LayoutStyle =
+                                        __s.get_mut_layout();
+                                    if __euv_dir_layout.get_display() != ::euv::Display::None {
+                                        __euv_dir_layout.set_display(::euv::Display::Flex);
+                                    }
+                                    __euv_dir_layout
+                                        .set_flex_direction(::euv::FlexDirection::Row);
+                                }
+                            } else {
+                                quote! {}
+                            }
                         } else if trimmed == STYLE_VAL_COLUMN {
-                            quote! { __s = __s.column(); }
+                            if has_mut_ops {
+                                quote! {
+                                    let __euv_dir_layout: &mut ::euv::LayoutStyle =
+                                        __s.get_mut_layout();
+                                    if __euv_dir_layout.get_display() != ::euv::Display::None {
+                                        __euv_dir_layout.set_display(::euv::Display::Flex);
+                                    }
+                                    __euv_dir_layout
+                                        .set_flex_direction(::euv::FlexDirection::Column);
+                                }
+                            } else {
+                                quote! {
+                                    __s.get_mut_layout()
+                                        .set_flex_direction(::euv::FlexDirection::Column);
+                                }
+                            }
                         } else {
-                            quote! { __s = __s.direction(#value); }
+                            quote! {
+                                let __euv_dir: ::euv::FlexDirection = #value;
+                                let __euv_dir_layout: &mut ::euv::LayoutStyle = __s.get_mut_layout();
+                                if __euv_dir_layout.get_display() != ::euv::Display::None {
+                                    __euv_dir_layout.set_display(::euv::Display::Flex);
+                                }
+                                __euv_dir_layout.set_flex_direction(__euv_dir);
+                            }
                         }
                     }
-                    STYLE_KEY_DISPLAY => quote! { __s = __s.display(#value); },
-                    STYLE_KEY_POSITION => quote! { __s = __s.position(#value); },
+                    STYLE_KEY_DISPLAY => quote! { __s.get_mut_layout().set_display(#value); },
+                    STYLE_KEY_POSITION => quote! { __s.get_mut_layout().set_position(#value); },
                     STYLE_KEY_INSET => {
-                        needs_mut_binding = true;
                         quote_spanned! {value.span()=>
                             let (__it, __ir, __ib, __il): (
                                 ::core::option::Option<f32>,
@@ -138,53 +171,109 @@ fn expand_style_body(stmts: &[StyleStmt], scope_label: &str) -> Result<proc_macr
                                 ::core::option::Option<f32>,
                                 ::core::option::Option<f32>,
                             ) = #value;
-                            __s = __s.inset(__it, __ir, __ib, __il);
+                            __s.get_mut_layout()
+                                .set_top(__it)
+                                .set_right(__ir)
+                                .set_bottom(__ib)
+                                .set_left(__il);
                         }
                     }
-                    STYLE_KEY_WIDTH => quote! { __s = __s.width(#value); },
-                    STYLE_KEY_HEIGHT => quote! { __s = __s.height(#value); },
-                    STYLE_KEY_MIN_WIDTH => quote! { __s = __s.min_width(#value); },
-                    STYLE_KEY_MIN_HEIGHT => quote! { __s = __s.min_height(#value); },
-                    STYLE_KEY_MAX_WIDTH => quote! { __s = __s.max_width(#value); },
-                    STYLE_KEY_MAX_HEIGHT => quote! { __s = __s.max_height(#value); },
-                    STYLE_KEY_ASPECT_RATIO => quote! { __s = __s.aspect_ratio(#value); },
-                    STYLE_KEY_PADDING => quote! { __s = __s.padding(#value); },
-                    STYLE_KEY_MARGIN => quote! { __s = __s.margin(#value); },
-                    STYLE_KEY_GAP => quote! { __s = __s.gap(#value); },
-                    STYLE_KEY_BACKGROUND => quote! { __s = __s.background(#value); },
-                    STYLE_KEY_GRADIENT => quote! { __s = __s.gradient(#value); },
-                    STYLE_KEY_SHADOW => quote! { __s = __s.shadow(#value); },
-                    STYLE_KEY_FOCUS_RING => quote! { __s = __s.focus_ring(#value); },
-                    STYLE_KEY_CURSOR => quote! { __s = __s.cursor(#value); },
-                    STYLE_KEY_POINTER_EVENTS => quote! { __s = __s.pointer_events(#value); },
+                    STYLE_KEY_WIDTH => quote! { __s.get_mut_layout().set_width(#value); },
+                    STYLE_KEY_HEIGHT => quote! { __s.get_mut_layout().set_height(#value); },
+                    STYLE_KEY_MIN_WIDTH => quote! { __s.get_mut_layout().set_min_width(#value); },
+                    STYLE_KEY_MIN_HEIGHT => quote! { __s.get_mut_layout().set_min_height(#value); },
+                    STYLE_KEY_MAX_WIDTH => quote! { __s.get_mut_layout().set_max_width(#value); },
+                    STYLE_KEY_MAX_HEIGHT => quote! { __s.get_mut_layout().set_max_height(#value); },
+                    STYLE_KEY_ASPECT_RATIO => quote! {
+                        let __euv_ratio: f32 = #value;
+                        if __euv_ratio > 0.0 && __euv_ratio.is_finite() {
+                            __s.get_mut_layout()
+                                .set_aspect_ratio(::core::option::Option::Some(__euv_ratio));
+                        }
+                    },
+                    STYLE_KEY_PADDING => quote! { __s.get_mut_layout().set_padding(#value); },
+                    STYLE_KEY_MARGIN => quote! { __s.get_mut_layout().set_margin(#value); },
+                    STYLE_KEY_GAP => quote! {
+                        let __euv_gap: f32 = #value;
+                        let __euv_gap_clamped: f32 = __euv_gap.max(0.0);
+                        __s.get_mut_layout()
+                            .set_row_gap(__euv_gap_clamped)
+                            .set_column_gap(__euv_gap_clamped);
+                    },
+                    STYLE_KEY_BACKGROUND => quote! {
+                        __s.get_mut_paint()
+                            .set_background(::core::option::Option::Some(#value));
+                    },
+                    STYLE_KEY_GRADIENT => quote! {
+                        __s.get_mut_paint()
+                            .set_gradient(::core::option::Option::Some(#value));
+                    },
+                    STYLE_KEY_SHADOW => quote! {
+                        __s.get_mut_paint()
+                            .set_shadow(::core::option::Option::Some(#value));
+                    },
+                    STYLE_KEY_FOCUS_RING => quote! {
+                        __s.get_mut_paint()
+                            .set_focus_ring(::core::option::Option::Some(#value));
+                    },
+                    STYLE_KEY_CURSOR => quote! { __s.get_mut_paint().set_cursor(#value); },
+                    STYLE_KEY_POINTER_EVENTS => {
+                        quote! { __s.get_mut_paint().set_pointer_events(#value); }
+                    }
                     STYLE_KEY_STOP_SCROLL_PROPAGATION => {
-                        quote! { __s = __s.stop_scroll_propagation(#value); }
+                        quote! { __s.get_mut_paint().set_stop_scroll_propagation(#value); }
                     }
                     STYLE_KEY_STOP_EVENT_PROPAGATION => {
-                        quote! { __s = __s.stop_event_propagation(#value); }
+                        quote! { __s.get_mut_paint().set_stop_event_propagation(#value); }
                     }
-                    STYLE_KEY_COLOR => quote! { __s = __s.color(#value); },
-                    STYLE_KEY_RADIUS => quote! { __s = __s.radius(#value); },
-                    STYLE_KEY_ALIGN => quote! { __s = __s.align(#value); },
-                    STYLE_KEY_JUSTIFY => quote! { __s = __s.justify(#value); },
-                    STYLE_KEY_FLEX_GROW => quote! { __s = __s.flex_grow(#value); },
-                    STYLE_KEY_FLEX_SHRINK => quote! { __s = __s.flex_shrink(#value); },
-                    STYLE_KEY_FLEX_WRAP => quote! { __s = __s.wrap(#value); },
-                    STYLE_KEY_OVERFLOW => quote! { __s = __s.overflow(#value); },
-                    STYLE_KEY_FONT_SIZE => quote! { __s = __s.font_size(#value); },
-                    STYLE_KEY_FONT_WEIGHT => quote! { __s = __s.font_weight(#value); },
-                    STYLE_KEY_FONT_FAMILY => quote! { __s = __s.font_family(#value); },
-                    STYLE_KEY_ITALIC => quote! { __s = __s.italic(#value); },
-                    STYLE_KEY_TEXT_ALIGN => quote! { __s = __s.text_align(#value); },
-                    STYLE_KEY_TEXT_OVERFLOW => quote! { __s = __s.text_overflow(#value); },
-                    STYLE_KEY_OPACITY => quote! { __s = __s.opacity(#value); },
-                    STYLE_KEY_Z_INDEX => quote! { __s = __s.z_index(#value); },
-                    STYLE_KEY_GRID | STYLE_KEY_COLUMNS => quote! { __s = __s.grid(#value); },
+                    STYLE_KEY_COLOR => quote! { __s.get_mut_text().set_color(#value); },
+                    STYLE_KEY_RADIUS => quote! {
+                        let __euv_radius: f32 = #value;
+                        __s.get_mut_paint()
+                            .set_radius(::euv::CornerRadius::all(__euv_radius.max(0.0)));
+                    },
+                    STYLE_KEY_ALIGN => quote! { __s.get_mut_layout().set_align_items(#value); },
+                    STYLE_KEY_JUSTIFY => {
+                        quote! { __s.get_mut_layout().set_justify_content(#value); }
+                    }
+                    STYLE_KEY_FLEX_GROW => quote! {
+                        let __euv_grow: f32 = #value;
+                        __s.get_mut_layout().set_flex_grow(__euv_grow.max(0.0));
+                    },
+                    STYLE_KEY_FLEX_SHRINK => quote! {
+                        let __euv_shrink: f32 = #value;
+                        __s.get_mut_layout().set_flex_shrink(__euv_shrink.max(0.0));
+                    },
+                    STYLE_KEY_FLEX_WRAP => quote! { __s.get_mut_layout().set_flex_wrap(#value); },
+                    STYLE_KEY_OVERFLOW => quote! { __s.get_mut_layout().set_overflow(#value); },
+                    STYLE_KEY_FONT_SIZE => quote! {
+                        let __euv_font_size: f32 = #value;
+                        __s.get_mut_text().set_font_size(__euv_font_size.max(6.0));
+                    },
+                    STYLE_KEY_FONT_WEIGHT => quote! { __s.get_mut_text().set_weight(#value); },
+                    STYLE_KEY_FONT_FAMILY => quote! { __s.get_mut_text().set_family(#value); },
+                    STYLE_KEY_ITALIC => quote! { __s.get_mut_text().set_italic(#value); },
+                    STYLE_KEY_TEXT_ALIGN => quote! { __s.get_mut_text().set_align(#value); },
+                    STYLE_KEY_TEXT_OVERFLOW => quote! { __s.get_mut_text().set_overflow(#value); },
+                    STYLE_KEY_OPACITY => quote! {
+                        let __euv_opacity: f32 = #value;
+                        __s.get_mut_paint()
+                            .set_opacity(__euv_opacity.clamp(0.0, 1.0));
+                    },
+                    STYLE_KEY_Z_INDEX => quote! { __s.get_mut_layout().set_z_index(#value); },
+                    STYLE_KEY_GRID | STYLE_KEY_COLUMNS => quote! {
+                        let __euv_cols: u16 = #value;
+                        let __euv_cols_layout: &mut ::euv::LayoutStyle = __s.get_mut_layout();
+                        if __euv_cols_layout.get_display() != ::euv::Display::None {
+                            __euv_cols_layout.set_display(::euv::Display::Grid);
+                        }
+                        __euv_cols_layout.set_grid_columns(__euv_cols.max(1));
+                    },
                     STYLE_KEY_BORDER => {
-                        needs_mut_binding = true;
                         quote_spanned! {value.span()=>
                             let (__bw, __bc): (f32, ::euv::Color) = #value;
-                            __s = __s.border(__bw, __bc);
+                            __s.get_mut_paint()
+                                .set_border(::euv::Border::new(__bw.max(0.0), __bc));
                         }
                     }
                     _ => {
@@ -192,6 +281,9 @@ fn expand_style_body(stmts: &[StyleStmt], scope_label: &str) -> Result<proc_macr
                         return Err(unknown_prop_error(key, &scope, KNOWN_STYLE_PROPS));
                     }
                 };
+                if !prop_op.is_empty() {
+                    has_mut_ops = true;
+                }
                 ops.push(quote! {
                     const _: fn() = ::euv::style_props::#key;
                     #prop_op
@@ -199,9 +291,15 @@ fn expand_style_body(stmts: &[StyleStmt], scope_label: &str) -> Result<proc_macr
             }
         }
     }
-    let _: bool = needs_mut_binding;
     if ops.is_empty() {
         Ok(quote! { ::euv::Style::default() })
+    } else if !has_mut_ops {
+        Ok(quote! {
+            {
+                #(#ops)*
+                ::euv::Style::default()
+            }
+        })
     } else {
         Ok(quote! {
             {
