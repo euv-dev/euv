@@ -29,8 +29,8 @@ use {
     syn::{
         Attribute, Data, DeriveInput, Error, Expr, ExprRange, Field, Fields, FnArg, Ident,
         ImplGenerics, ImplItem, ImplItemFn, ItemImpl, ItemStruct, LitStr, Meta, Pat, Path,
-        PathArguments, PathSegment, RangeLimits, Result, Token, Type, TypeGenerics, Visibility,
-        WhereClause, braced, parenthesized,
+        PathArguments, PathSegment, RangeLimits, Result, ReturnType, Stmt, Token, Type,
+        TypeGenerics, Visibility, WhereClause, braced, parenthesized,
         parse::{Parse, ParseBuffer, ParseStream},
         parse_macro_input,
         punctuated::Punctuated,
