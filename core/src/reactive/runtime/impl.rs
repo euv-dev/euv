@@ -477,6 +477,7 @@ impl Default for ReactiveRuntime {
             scope_stack: Vec::new(),
             pending_effects: Vec::new(),
             dirty_queue: Vec::with_capacity(INITIAL_SUBSCRIBER_CAPACITY),
+            check_scratch: Vec::new(),
             batch_depth: 0,
             flushing: false,
             clock: 0,
@@ -1205,6 +1206,50 @@ impl ReactiveRuntime {
                 }
             }
         });
+    }
+
+    /// Extracts upstream `MemoId` dependencies for `NodeState::Check` memo slot `memo_idx` without heap allocation.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable reference to the reactive runtime.
+    /// - `usize` - Memo arena slot index.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<MemoCheckDeps>` - Snapshot of upstream memo dependencies, or `None` when zero upstream memos exist.
+    pub(crate) fn collect_check_memos(&mut self, memo_idx: usize) -> Option<MemoCheckDeps> {
+        let Self {
+            memos,
+            check_scratch,
+            ..
+        } = self;
+        let entry: &MemoEntry = memos.get(memo_idx)?;
+        let mut inline_buf: [MemoId; 4] = [MemoId::default(); 4];
+        let mut inline_len: usize = 0;
+        let mut spill_start: Option<usize> = None;
+        entry.get_dependencies().for_each(|dep: DependencyId| {
+            if let DependencyId::Memo(parent_memo) = dep {
+                if spill_start.is_some() {
+                    check_scratch.push(parent_memo);
+                } else if inline_len < inline_buf.len() {
+                    inline_buf[inline_len] = parent_memo;
+                    inline_len += 1;
+                } else {
+                    let start: usize = check_scratch.len();
+                    check_scratch.extend_from_slice(&inline_buf);
+                    check_scratch.push(parent_memo);
+                    spill_start = Some(start);
+                }
+            }
+        });
+        if let Some(start) = spill_start {
+            Some(MemoCheckDeps::Spill(start, check_scratch.len()))
+        } else if inline_len == 0 {
+            None
+        } else {
+            Some(MemoCheckDeps::Inline(inline_buf, inline_len as u8))
+        }
     }
 
     /// Propagates dirty flags downstream from signal slot `signal_idx` using the reusable scratch queue.

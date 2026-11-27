@@ -27,6 +27,53 @@ where
         .unwrap_or(fallback)
 }
 
+/// Pull-verifies upstream `MemoId` dependencies for a `NodeState::Check` memo, short-circuiting on the first change.
+///
+/// # Arguments
+///
+/// - `MemoCheckDeps` - Zero-allocation inline or cursor-sliced upstream memo dependency snapshot.
+///
+/// # Returns
+///
+/// - `bool` - `true` as soon as any upstream memo recomputes to a changed value.
+fn verify_check_memos(deps: MemoCheckDeps) -> bool {
+    match deps {
+        MemoCheckDeps::Inline(buf, count) => {
+            let len: usize = count as usize;
+            for parent_memo in buf.iter().copied().take(len) {
+                if evaluate_memo(parent_memo) {
+                    return true;
+                }
+            }
+            false
+        }
+        MemoCheckDeps::Spill(start, end) => {
+            let mut changed: bool = false;
+            let mut cursor: usize = start;
+            while cursor < end {
+                let parent_opt: Option<MemoId> = with_runtime(
+                    |rt: &mut ReactiveRuntime| rt.get_check_scratch().get(cursor).copied(),
+                    None,
+                );
+                if let Some(parent_memo) = parent_opt
+                    && evaluate_memo(parent_memo)
+                {
+                    changed = true;
+                    break;
+                }
+                cursor += 1;
+            }
+            with_runtime(
+                |rt: &mut ReactiveRuntime| {
+                    rt.get_mut_check_scratch().truncate(start);
+                },
+                (),
+            );
+            changed
+        }
+    }
+}
+
 /// Reads a typed `Memo<T>` using fused runtime borrows (1 borrow on `Clean`, 2 borrows on `Dirty` or unchanged `Check`).
 ///
 /// # Arguments
@@ -45,15 +92,18 @@ where
     let idx: usize = slot.as_usize();
     let prep: MemoReadPrep<T> = with_runtime(
         |rt: &mut ReactiveRuntime| {
-            let Some(entry) = rt.get_mut_memos().get_mut(idx) else {
-                return MemoReadPrep::Dead;
+            let state: NodeState = {
+                let Some(entry) = rt.get_memos().get(idx) else {
+                    return MemoReadPrep::Dead;
+                };
+                if entry.get_generation() != slot.get_generation() {
+                    return MemoReadPrep::Dead;
+                }
+                entry.get_state()
             };
-            if entry.get_generation() != slot.get_generation() {
-                return MemoReadPrep::Dead;
-            }
-            match entry.get_state() {
+            match state {
                 NodeState::Clean => {
-                    let val: Option<T> = entry
+                    let val: Option<T> = rt.get_memos()[idx]
                         .value
                         .as_ref()
                         .and_then(|boxed: &Box<dyn Any>| boxed.downcast_ref::<T>())
@@ -62,19 +112,35 @@ where
                     MemoReadPrep::Ready(val)
                 }
                 NodeState::Dirty => {
-                    let Some(compute) = entry.compute.clone() else {
-                        return MemoReadPrep::Dead;
+                    let (compute, prev_value): StagedMemo = {
+                        let entry: &mut MemoEntry = &mut rt.get_mut_memos()[idx];
+                        let Some(compute) = entry.compute.clone() else {
+                            return MemoReadPrep::Dead;
+                        };
+                        let prev_value: Option<Box<dyn Any>> = entry.value.take();
+                        (compute, prev_value)
                     };
-                    let prev_value: Option<Box<dyn Any>> = entry.value.take();
                     rt.get_mut_observer_stack()
                         .push(Some((SubscriberId::Memo(id), 0)));
                     MemoReadPrep::Compute((compute, prev_value))
                 }
                 NodeState::Check => {
-                    if entry.compute.is_none() {
+                    if rt.get_memos()[idx].compute.is_none() {
                         return MemoReadPrep::Dead;
                     }
-                    MemoReadPrep::Check(entry.get_dependencies().clone())
+                    if let Some(check_deps) = rt.collect_check_memos(idx) {
+                        MemoReadPrep::Check(check_deps)
+                    } else {
+                        let entry: &mut MemoEntry = &mut rt.get_mut_memos()[idx];
+                        entry.set_state(NodeState::Clean);
+                        let val: Option<T> = entry
+                            .value
+                            .as_ref()
+                            .and_then(|boxed: &Box<dyn Any>| boxed.downcast_ref::<T>())
+                            .cloned();
+                        rt.track_dependency(DependencyId::Memo(id));
+                        MemoReadPrep::Ready(val)
+                    }
                 }
             }
         },
@@ -85,15 +151,7 @@ where
         MemoReadPrep::Ready(val) => return val,
         MemoReadPrep::Compute(staged_memo) => staged_memo,
         MemoReadPrep::Check(deps) => {
-            let mut upstream_changed: bool = false;
-            deps.for_each(|dep: DependencyId| {
-                if let DependencyId::Memo(parent_memo) = dep
-                    && evaluate_memo(parent_memo)
-                {
-                    upstream_changed = true;
-                }
-            });
-            if !upstream_changed {
+            if !verify_check_memos(deps) {
                 return with_runtime(
                     |rt: &mut ReactiveRuntime| {
                         let entry: &mut MemoEntry = rt.get_mut_memos().get_mut(idx)?;
@@ -213,24 +271,38 @@ pub(crate) fn evaluate_memo(id: MemoId) -> bool {
     let idx: usize = slot.as_usize();
     let prep: MemoEvalPrep = with_runtime(
         |rt: &mut ReactiveRuntime| {
-            let Some(entry) = rt.get_mut_memos().get_mut(idx) else {
-                return MemoEvalPrep::Clean;
+            let state: NodeState = {
+                let Some(entry) = rt.get_memos().get(idx) else {
+                    return MemoEvalPrep::Clean;
+                };
+                if entry.get_generation() != slot.get_generation() || entry.compute.is_none() {
+                    return MemoEvalPrep::Clean;
+                }
+                entry.get_state()
             };
-            if entry.get_generation() != slot.get_generation() || entry.compute.is_none() {
-                return MemoEvalPrep::Clean;
-            }
-            match entry.get_state() {
+            match state {
                 NodeState::Clean => MemoEvalPrep::Clean,
                 NodeState::Dirty => {
-                    let Some(compute) = entry.compute.clone() else {
-                        return MemoEvalPrep::Clean;
+                    let (compute, prev_value): StagedMemo = {
+                        let entry: &mut MemoEntry = &mut rt.get_mut_memos()[idx];
+                        let Some(compute) = entry.compute.clone() else {
+                            return MemoEvalPrep::Clean;
+                        };
+                        let prev_value: Option<Box<dyn Any>> = entry.value.take();
+                        (compute, prev_value)
                     };
-                    let prev_value: Option<Box<dyn Any>> = entry.value.take();
                     rt.get_mut_observer_stack()
                         .push(Some((SubscriberId::Memo(id), 0)));
                     MemoEvalPrep::Compute((compute, prev_value))
                 }
-                NodeState::Check => MemoEvalPrep::Check(entry.get_dependencies().clone()),
+                NodeState::Check => {
+                    if let Some(check_deps) = rt.collect_check_memos(idx) {
+                        MemoEvalPrep::Check(check_deps)
+                    } else {
+                        rt.get_mut_memos()[idx].set_state(NodeState::Clean);
+                        MemoEvalPrep::Clean
+                    }
+                }
             }
         },
         MemoEvalPrep::Clean,
@@ -239,15 +311,7 @@ pub(crate) fn evaluate_memo(id: MemoId) -> bool {
         MemoEvalPrep::Clean => return false,
         MemoEvalPrep::Compute(staged_memo) => staged_memo,
         MemoEvalPrep::Check(deps) => {
-            let mut upstream_changed: bool = false;
-            deps.for_each(|dep: DependencyId| {
-                if let DependencyId::Memo(parent_memo) = dep
-                    && evaluate_memo(parent_memo)
-                {
-                    upstream_changed = true;
-                }
-            });
-            if !upstream_changed {
+            if !verify_check_memos(deps) {
                 with_runtime(
                     |rt: &mut ReactiveRuntime| {
                         if let Some(entry) = rt.get_mut_memos().get_mut(idx)

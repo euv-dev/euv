@@ -228,6 +228,11 @@ pub struct ReactiveRuntime {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) dirty_queue: Vec<(SubscriberId, bool)>,
+    /// Reusable cursor-sliced scratch stack for zero-allocation `NodeState::Check` verification of >4 memo deps.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) check_scratch: Vec<MemoId>,
     /// Active batch nesting depth; flush executes only when returning to zero.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]

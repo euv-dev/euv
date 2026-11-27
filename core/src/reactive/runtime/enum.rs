@@ -44,6 +44,15 @@ pub(crate) enum SmallSubList<T> {
     Many(Vec<T>),
 }
 
+/// Zero-allocation snapshot of upstream `MemoId` dependencies during `NodeState::Check` verification.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum MemoCheckDeps {
+    /// Up to four upstream memo dependencies stored inline on the stack without heap allocation.
+    Inline([MemoId; 4], u8),
+    /// Cursor-sliced `(start, end)` range in `ReactiveRuntime::check_scratch` for five or more memo dependencies.
+    Spill(usize, usize),
+}
+
 /// Fused single-borrow preparation outcome for reading a typed `Memo<T>`.
 pub(crate) enum MemoReadPrep<T> {
     /// Target memo slot is disposed or invalid.
@@ -52,8 +61,8 @@ pub(crate) enum MemoReadPrep<T> {
     Ready(Option<T>),
     /// Memo is `NodeState::Dirty`; compute closure and prior value staged with tracking frame pushed.
     Compute(StagedMemo),
-    /// Memo is `NodeState::Check`; upstream dependencies extracted for pull verification.
-    Check(SmallSubList<DependencyId>),
+    /// Memo is `NodeState::Check`; upstream memo dependencies extracted for pull verification.
+    Check(MemoCheckDeps),
 }
 
 /// Fused single-borrow preparation outcome for `evaluate_memo`.
@@ -62,6 +71,6 @@ pub(crate) enum MemoEvalPrep {
     Clean,
     /// Memo is `NodeState::Dirty`; compute closure and prior value staged with tracking frame pushed.
     Compute(StagedMemo),
-    /// Memo is `NodeState::Check`; upstream dependencies extracted for pull verification.
-    Check(SmallSubList<DependencyId>),
+    /// Memo is `NodeState::Check`; upstream memo dependencies extracted for pull verification.
+    Check(MemoCheckDeps),
 }
