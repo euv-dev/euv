@@ -38,6 +38,11 @@ pub struct Renderer {
     pub(crate) hardware: HardwareRenderer,
     /// Dedicated hybrid CPU-tile + GPU-compositor renderer instance.
     pub(crate) hybrid: HybridRenderer,
+    /// Reusable scene-to-display-list compiler handle.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) paint_pass: PaintPass,
     /// Reusable frame display list.
     pub(crate) display_list: DisplayList,
     /// Monotonic frame counter.
@@ -46,6 +51,16 @@ pub struct Renderer {
     /// Whether to compute full-framebuffer FNV-1a pixel hashes on each frame (enabled for headless parity tests).
     #[get(type(copy))]
     pub(crate) compute_pixel_hash: bool,
+    /// Active render mode of the most recent hashed frame (`None` before first render or after mode switch).
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) last_hashed_mode: Option<RenderMode>,
+    /// Physical framebuffer dimensions `(phys_w, phys_h)` of the most recent hashed frame.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) last_hashed_dims: (u32, u32),
     /// Telemetry from the most recent frame.
     #[get(type(copy))]
     pub(crate) last_stats: FrameStats,

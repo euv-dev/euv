@@ -120,6 +120,8 @@ impl Renderer {
         } else {
             NativeSystemFont::system()
         };
+        let mut display_list: DisplayList = DisplayList::default();
+        display_list.get_mut_commands().reserve(128);
         Self {
             config,
             active_mode,
@@ -145,9 +147,12 @@ impl Renderer {
                 config,
                 font_provider,
             ),
-            display_list: DisplayList::default(),
+            paint_pass: PaintPass,
+            display_list,
             frame_index: 0,
             compute_pixel_hash,
+            last_hashed_mode: None,
+            last_hashed_dims: (0, 0),
             last_stats: FrameStats::default(),
         }
     }
@@ -222,10 +227,15 @@ impl Renderer {
         self.set_config(next_cfg);
         self.set_active_mode(resolved_mode);
         self.set_active_backend(resolved_backend);
-        self.get_mut_hardware()
-            .get_mut_driver()
-            .switch_backend(resolved_backend);
-        self.get_mut_hybrid()
+        let Self {
+            hardware,
+            hybrid,
+            last_hashed_mode,
+            ..
+        } = self;
+        *last_hashed_mode = None;
+        hardware.get_mut_driver().switch_backend(resolved_backend);
+        hybrid
             .get_mut_compositor()
             .set_backend_kind(resolved_backend);
     }
@@ -254,30 +264,54 @@ impl Renderer {
         layout_stats: LayoutStats,
         damage: DamageRegion,
     ) -> Result<FrameStats, PlatformError> {
-        PaintPass::build(
-            tree,
-            viewport,
-            scale_factor,
-            clear_color,
-            self.get_mut_display_list(),
-        );
-        let cmd_count: usize = self.get_display_list().len();
-        let active_mode: RenderMode = self.get_active_mode();
-        let active_backend: GraphicsBackend = self.get_active_backend();
-        let compute_pixel_hash: bool = self.get_compute_pixel_hash();
+        let scale: f32 = scale_factor.max(0.5);
+        let phys_w: u32 = ((viewport.get_width() * scale).round() as u32).max(1);
+        let phys_h: u32 = ((viewport.get_height() * scale).round() as u32).max(1);
+        let phys_dims: (u32, u32) = (phys_w, phys_h);
         let Self {
+            active_mode,
+            active_backend,
             software,
             hardware,
             hybrid,
+            paint_pass,
             display_list,
             frame_index,
+            compute_pixel_hash,
+            last_hashed_mode,
+            last_hashed_dims,
             last_stats,
             ..
         } = self;
-        let (batches, pixels, hash): (usize, usize, u64) = match active_mode {
+        let mode: RenderMode = *active_mode;
+        let backend: GraphicsBackend = *active_backend;
+        let do_pixel_hash: bool = *compute_pixel_hash;
+        let hash_reusable: bool = *last_hashed_mode == Some(mode) && *last_hashed_dims == phys_dims;
+        if !damage.get_full_damage() && damage.bounds_rect().is_none() && hash_reusable {
+            *frame_index = frame_index.wrapping_add(1);
+            let stats: FrameStats = FrameStats {
+                frame_index: *frame_index,
+                active_mode: mode,
+                active_backend: backend,
+                layout_nodes: layout_stats.get_nodes_computed(),
+                layout_skipped: layout_stats.get_subtrees_skipped(),
+                draw_commands: 0,
+                draw_batches: 0,
+                pixels_shaded: 0,
+                frame_hash: last_stats.get_frame_hash(),
+            };
+            *last_stats = stats;
+            return Ok(stats);
+        }
+        let _: &PaintPass = paint_pass;
+        PaintPass::build(tree, viewport, scale, clear_color, display_list);
+        let cmd_count: usize = display_list.len();
+        let (batches, pixels, hash): (usize, usize, u64) = match mode {
             RenderMode::Software => {
                 let (b, p): (usize, usize) = software.render(display_list, damage);
-                let h: u64 = if compute_pixel_hash {
+                let h: u64 = if p == 0 && hash_reusable {
+                    last_stats.get_frame_hash()
+                } else if do_pixel_hash {
                     software.get_framebuffer().fnv1a_hash()
                 } else {
                     display_list.fast_hash()
@@ -286,7 +320,9 @@ impl Renderer {
             }
             RenderMode::Hybrid => {
                 let (b, p): (usize, usize) = hybrid.render(display_list, damage)?;
-                let h: u64 = if compute_pixel_hash {
+                let h: u64 = if p == 0 && hash_reusable {
+                    last_stats.get_frame_hash()
+                } else if do_pixel_hash {
                     hybrid.get_software().get_framebuffer().fnv1a_hash()
                 } else {
                     display_list.fast_hash()
@@ -295,8 +331,10 @@ impl Renderer {
             }
             RenderMode::Hardware | RenderMode::Auto => {
                 let (b, p): (usize, usize) = hardware.render(display_list, damage)?;
-                let h: u64 = if hardware.get_enable_readback() {
-                    if compute_pixel_hash {
+                let h: u64 = if p == 0 && hash_reusable {
+                    last_stats.get_frame_hash()
+                } else if hardware.get_enable_readback() {
+                    if do_pixel_hash {
                         hardware.get_readback().get_framebuffer().fnv1a_hash()
                     } else {
                         display_list.fast_hash()
@@ -307,11 +345,13 @@ impl Renderer {
                 (b, p, h)
             }
         };
+        *last_hashed_mode = Some(mode);
+        *last_hashed_dims = phys_dims;
         *frame_index = frame_index.wrapping_add(1);
         let stats: FrameStats = FrameStats {
             frame_index: *frame_index,
-            active_mode,
-            active_backend,
+            active_mode: mode,
+            active_backend: backend,
             layout_nodes: layout_stats.get_nodes_computed(),
             layout_skipped: layout_stats.get_subtrees_skipped(),
             draw_commands: cmd_count,
@@ -334,6 +374,7 @@ impl Renderer {
     /// # Returns
     ///
     /// - `Result<FrameStats, PlatformError>` - Frame performance and pixel-hash telemetry.
+    #[inline(always)]
     pub fn render_with(
         &mut self,
         tree: &SceneTree,
