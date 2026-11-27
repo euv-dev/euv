@@ -508,6 +508,10 @@ impl Default for ReactiveRuntime {
             dirty_queue: Vec::with_capacity(INITIAL_SUBSCRIBER_CAPACITY),
             check_scratch: Vec::new(),
             flush_batch_scratch: Vec::new(),
+            scope_stack_scratch: Vec::new(),
+            dispose_effects_scratch: Vec::new(),
+            dispose_memos_scratch: Vec::new(),
+            dispose_signals_scratch: Vec::new(),
             batch_depth: 0,
             flushing: false,
             clock: 0,
@@ -1170,12 +1174,22 @@ impl ReactiveRuntime {
     ///
     /// - `ScopeId` - Identifier for the newly created scope.
     pub(crate) fn create_scope(&mut self) -> ScopeId {
+        let parent_opt: Option<ScopeId> = self.get_scope_stack().last().copied();
+        let live_parent: Option<ScopeId> = parent_opt.filter(|parent_id: &ScopeId| {
+            let parent_slot: SlotId = parent_id.slot();
+            self.get_scopes()
+                .get(parent_slot.as_usize())
+                .is_some_and(|parent: &ScopeEntry| {
+                    parent.get_generation() == parent_slot.get_generation() && parent.get_alive()
+                })
+        });
         let id: ScopeId = if let Some(index) = self.get_mut_free_scopes().pop() {
             let entry: &mut ScopeEntry = &mut self.get_mut_scopes()[index as usize];
             let next_gen: u32 = entry.get_generation().wrapping_add(1);
             entry.set_generation(next_gen);
             entry.set_alive(true);
             entry.set_frozen(false);
+            entry.set_parent(live_parent);
             entry.get_mut_signals().clear();
             entry.get_mut_memos().clear();
             entry.get_mut_effects().clear();
@@ -1188,6 +1202,7 @@ impl ReactiveRuntime {
                 generation: 1,
                 alive: true,
                 frozen: false,
+                parent: live_parent,
                 signals: Vec::new(),
                 memos: Vec::new(),
                 effects: Vec::new(),
@@ -1196,12 +1211,9 @@ impl ReactiveRuntime {
             });
             ScopeId::from_slot(SlotId::new(index, 1))
         };
-        if let Some(parent_id) = self.get_scope_stack().last().copied() {
+        if let Some(parent_id) = live_parent {
             let parent_slot: SlotId = parent_id.slot();
-            if let Some(parent) = self.get_mut_scopes().get_mut(parent_slot.as_usize())
-                && parent.get_generation() == parent_slot.get_generation()
-                && parent.get_alive()
-            {
+            if let Some(parent) = self.get_mut_scopes().get_mut(parent_slot.as_usize()) {
                 parent.get_mut_children().push(id);
             }
         }
@@ -1939,42 +1951,105 @@ impl ReactiveRuntime {
     /// - `Vec<Box<dyn FnOnce()>>` - Cleanup callbacks to execute outside the runtime borrow.
     pub(crate) fn dispose_scope_collect(&mut self, id: ScopeId) -> Vec<Box<dyn FnOnce()>> {
         let mut all_cleanups: Vec<Box<dyn FnOnce()>> = Vec::new();
-        let mut stack: Vec<ScopeId> = vec![id];
-        while let Some(current_id) = stack.pop() {
-            let slot: SlotId = current_id.slot();
-            let (children, effects, memos, signals, cleanups): ScopeDrain =
-                match self.get_mut_scopes().get_mut(slot.as_usize()) {
-                    Some(entry)
-                        if entry.get_generation() == slot.get_generation() && entry.get_alive() =>
-                    {
-                        entry.set_alive(false);
-                        let next_gen: u32 = entry.get_generation().wrapping_add(1);
-                        entry.set_generation(next_gen);
-                        let out: ScopeDrain = (
-                            take(entry.get_mut_children()),
-                            take(entry.get_mut_effects()),
-                            take(entry.get_mut_memos()),
-                            take(entry.get_mut_signals()),
-                            take(entry.get_mut_cleanups()),
-                        );
-                        self.get_mut_free_scopes().push(slot.get_index());
-                        out
+        let root_slot: SlotId = id.slot();
+        let has_children: bool = {
+            let Self {
+                scopes,
+                free_scopes,
+                scope_stack_scratch,
+                dispose_effects_scratch,
+                dispose_memos_scratch,
+                dispose_signals_scratch,
+                ..
+            } = self;
+            let Some(entry) = scopes.get_mut(root_slot.as_usize()) else {
+                return all_cleanups;
+            };
+            let inactive: bool =
+                entry.get_generation() != root_slot.get_generation() || !entry.get_alive();
+            if inactive {
+                return all_cleanups;
+            }
+            entry.set_alive(false);
+            entry.set_frozen(false);
+            entry.set_parent(None);
+            let next_gen: u32 = entry.get_generation().wrapping_add(1);
+            entry.set_generation(next_gen);
+            free_scopes.push(root_slot.get_index());
+            dispose_effects_scratch.clear();
+            dispose_memos_scratch.clear();
+            dispose_signals_scratch.clear();
+            let children_non_empty: bool = !entry.get_children().is_empty();
+            if children_non_empty {
+                scope_stack_scratch.clear();
+                scope_stack_scratch.append(entry.get_mut_children());
+            }
+            if !entry.get_effects().is_empty() {
+                dispose_effects_scratch.append(entry.get_mut_effects());
+            }
+            if !entry.get_memos().is_empty() {
+                dispose_memos_scratch.append(entry.get_mut_memos());
+            }
+            if !entry.get_signals().is_empty() {
+                dispose_signals_scratch.append(entry.get_mut_signals());
+            }
+            if !entry.get_mut_cleanups().is_empty() {
+                all_cleanups = take(entry.get_mut_cleanups());
+            }
+            children_non_empty
+        };
+        if has_children {
+            let Self {
+                scopes,
+                free_scopes,
+                scope_stack_scratch,
+                dispose_effects_scratch,
+                dispose_memos_scratch,
+                dispose_signals_scratch,
+                ..
+            } = self;
+            while let Some(current_id) = scope_stack_scratch.pop() {
+                let slot: SlotId = current_id.slot();
+                if let Some(entry) = scopes.get_mut(slot.as_usize())
+                    && entry.get_generation() == slot.get_generation()
+                    && entry.get_alive()
+                {
+                    entry.set_alive(false);
+                    entry.set_frozen(false);
+                    entry.set_parent(None);
+                    let next_gen: u32 = entry.get_generation().wrapping_add(1);
+                    entry.set_generation(next_gen);
+                    free_scopes.push(slot.get_index());
+                    if !entry.get_children().is_empty() {
+                        scope_stack_scratch.append(entry.get_mut_children());
                     }
-                    _ => continue,
-                };
-            for child in children.into_iter() {
-                stack.push(child);
+                    if !entry.get_effects().is_empty() {
+                        dispose_effects_scratch.append(entry.get_mut_effects());
+                    }
+                    if !entry.get_memos().is_empty() {
+                        dispose_memos_scratch.append(entry.get_mut_memos());
+                    }
+                    if !entry.get_signals().is_empty() {
+                        dispose_signals_scratch.append(entry.get_mut_signals());
+                    }
+                    if !entry.get_mut_cleanups().is_empty() {
+                        if all_cleanups.is_empty() {
+                            all_cleanups = take(entry.get_mut_cleanups());
+                        } else {
+                            all_cleanups.append(entry.get_mut_cleanups());
+                        }
+                    }
+                }
             }
-            for eff in effects.into_iter() {
-                self.dispose_effect(eff);
-            }
-            for memo in memos.into_iter() {
-                self.dispose_memo(memo);
-            }
-            for sig in signals.into_iter() {
-                self.dispose_signal(sig);
-            }
-            all_cleanups.extend(cleanups);
+        }
+        while let Some(eff) = self.get_mut_dispose_effects_scratch().pop() {
+            self.dispose_effect(eff);
+        }
+        while let Some(memo) = self.get_mut_dispose_memos_scratch().pop() {
+            self.dispose_memo(memo);
+        }
+        while let Some(sig) = self.get_mut_dispose_signals_scratch().pop() {
+            self.dispose_signal(sig);
         }
         all_cleanups
     }
@@ -2083,6 +2158,52 @@ impl ReactiveRuntime {
         }
     }
 
+    /// Applies a freeze or resume transition to a slice of scope-owned effects without cloning.
+    ///
+    /// # Arguments
+    ///
+    /// - `&[EffectId]` - Slice of effects owned by a scope.
+    /// - `bool` - `true` to increment freeze depth; `false` to decrement and schedule pending effects.
+    /// - `&mut [EffectEntry]` - Mutable effect arena slice.
+    /// - `&mut Vec<EffectId>` - Pending effect queue receiving any resumed dirty effects.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when at least one resumed effect was newly scheduled.
+    #[inline]
+    fn apply_scope_effects_frozen(
+        effect_ids: &[EffectId],
+        freeze: bool,
+        effects: &mut [EffectEntry],
+        pending_effects: &mut Vec<EffectId>,
+    ) -> bool {
+        let mut any_resumed_dirty: bool = false;
+        for &eff_id in effect_ids {
+            let eslot: SlotId = eff_id.slot();
+            if let Some(eff) = effects.get_mut(eslot.as_usize())
+                && eff.get_generation() == eslot.get_generation()
+                && eff.get_alive()
+            {
+                if freeze {
+                    let next_d: u32 = eff.get_frozen_depth().saturating_add(1);
+                    eff.set_frozen_depth(next_d);
+                } else {
+                    let next_d: u32 = eff.get_frozen_depth().saturating_sub(1);
+                    eff.set_frozen_depth(next_d);
+                    if next_d == 0 && eff.get_pending_while_frozen() {
+                        eff.set_pending_while_frozen(false);
+                        if !eff.get_scheduled() {
+                            eff.set_scheduled(true);
+                            pending_effects.push(eff_id);
+                            any_resumed_dirty = true;
+                        }
+                    }
+                }
+            }
+        }
+        any_resumed_dirty
+    }
+
     /// Recursively freezes or resumes `id` and all nested child scopes, coalescing any pending dirty effects on resume.
     ///
     /// # Arguments
@@ -2095,67 +2216,67 @@ impl ReactiveRuntime {
     ///
     /// - `bool` - `true` when resuming scheduled one or more deferred effects that require flushing.
     pub(crate) fn set_scope_frozen(&mut self, id: ScopeId, freeze: bool) -> bool {
+        let Self {
+            scopes,
+            effects,
+            pending_effects,
+            scope_stack_scratch,
+            batch_depth,
+            flushing,
+            ..
+        } = self;
         let root_slot: SlotId = id.slot();
-        let should_change: bool = self
-            .get_scopes()
-            .get(root_slot.as_usize())
-            .map(|entry: &ScopeEntry| {
-                entry.get_generation() == root_slot.get_generation()
-                    && entry.get_alive()
-                    && entry.get_frozen() != freeze
-            })
-            .unwrap_or(false);
-        if !should_change {
+        let Some(root_entry) = scopes.get_mut(root_slot.as_usize()) else {
+            return false;
+        };
+        let inactive: bool =
+            root_entry.get_generation() != root_slot.get_generation() || !root_entry.get_alive();
+        if inactive || root_entry.get_frozen() == freeze {
             return false;
         }
-        let mut stack: Vec<ScopeId> = vec![id];
-        let mut any_resumed_dirty: bool = false;
-        while let Some(cur_id) = stack.pop() {
+        root_entry.set_frozen(freeze);
+        let root_children_empty: bool = root_entry.get_children().is_empty();
+        let root_effects_empty: bool = root_entry.get_effects().is_empty();
+        if root_children_empty && root_effects_empty {
+            return false;
+        }
+        let mut any_resumed_dirty: bool = if root_effects_empty {
+            false
+        } else {
+            Self::apply_scope_effects_frozen(
+                root_entry.get_effects(),
+                freeze,
+                effects,
+                pending_effects,
+            )
+        };
+        if root_children_empty {
+            return any_resumed_dirty && *batch_depth == 0 && !*flushing;
+        }
+        scope_stack_scratch.clear();
+        scope_stack_scratch.extend_from_slice(root_entry.get_children());
+        while let Some(cur_id) = scope_stack_scratch.pop() {
             let slot: SlotId = cur_id.slot();
-            let (children, effects): (Vec<ScopeId>, Vec<EffectId>) =
-                match self.get_mut_scopes().get_mut(slot.as_usize()) {
-                    Some(entry)
-                        if entry.get_generation() == slot.get_generation() && entry.get_alive() =>
-                    {
-                        if cur_id == id {
-                            entry.set_frozen(freeze);
-                        }
-                        (entry.get_children().clone(), entry.get_effects().clone())
-                    }
-                    _ => continue,
-                };
-            for child in children.into_iter() {
-                stack.push(child);
-            }
-            for eff_id in effects.into_iter() {
-                let eslot: SlotId = eff_id.slot();
-                let mut schedule_now: bool = false;
-                if let Some(eff) = self.get_mut_effects().get_mut(eslot.as_usize())
-                    && eff.get_generation() == eslot.get_generation()
-                    && eff.get_alive()
-                {
-                    if freeze {
-                        let next_d: u32 = eff.get_frozen_depth().saturating_add(1);
-                        eff.set_frozen_depth(next_d);
-                    } else {
-                        let next_d: u32 = eff.get_frozen_depth().saturating_sub(1);
-                        eff.set_frozen_depth(next_d);
-                        if next_d == 0 && eff.get_pending_while_frozen() {
-                            eff.set_pending_while_frozen(false);
-                            if !eff.get_scheduled() {
-                                eff.set_scheduled(true);
-                                schedule_now = true;
-                            }
-                        }
-                    }
+            if let Some(entry) = scopes.get(slot.as_usize())
+                && entry.get_generation() == slot.get_generation()
+                && entry.get_alive()
+            {
+                if !entry.get_children().is_empty() {
+                    scope_stack_scratch.extend_from_slice(entry.get_children());
                 }
-                if schedule_now {
-                    self.get_mut_pending_effects().push(eff_id);
+                if !entry.get_effects().is_empty()
+                    && Self::apply_scope_effects_frozen(
+                        entry.get_effects(),
+                        freeze,
+                        effects,
+                        pending_effects,
+                    )
+                {
                     any_resumed_dirty = true;
                 }
             }
         }
-        any_resumed_dirty
+        any_resumed_dirty && *batch_depth == 0 && !*flushing
     }
 
     /// Returns whether scope `id` is currently alive and frozen.
@@ -2168,6 +2289,7 @@ impl ReactiveRuntime {
     /// # Returns
     ///
     /// - `bool` - `true` when the scope is frozen.
+    #[inline]
     pub(crate) fn is_scope_frozen(&self, id: ScopeId) -> bool {
         let slot: SlotId = id.slot();
         self.get_scopes()
@@ -2190,6 +2312,7 @@ impl ReactiveRuntime {
     ///
     /// - `Option<ScopeId>` - Active scope identifier or `None` outside `Scope::run`/`Scope::enter`.
     #[must_use]
+    #[inline(always)]
     pub(crate) fn current_scope_id(&self) -> Option<ScopeId> {
         self.get_scope_stack().last().copied()
     }
@@ -2210,20 +2333,34 @@ impl ReactiveRuntime {
         if candidate == root {
             return true;
         }
-        let mut stack: Vec<ScopeId> = vec![root];
-        while let Some(cur) = stack.pop() {
+        let scopes: &[ScopeEntry] = self.get_scopes();
+        let max_steps: usize = scopes.len();
+        let mut cur: ScopeId = candidate;
+        let mut steps: usize = 0;
+        while steps < max_steps {
             let slot: SlotId = cur.slot();
-            if let Some(entry) = self.get_scopes().get(slot.as_usize())
-                && entry.get_generation() == slot.get_generation()
-                && entry.get_alive()
-            {
-                for child in entry.get_children().iter().copied() {
-                    if child == candidate {
-                        return true;
-                    }
-                    stack.push(child);
-                }
+            let Some(entry) = scopes.get(slot.as_usize()) else {
+                return false;
+            };
+            let inactive: bool =
+                entry.get_generation() != slot.get_generation() || !entry.get_alive();
+            if inactive {
+                return false;
             }
+            let Some(parent_id) = entry.get_parent() else {
+                return false;
+            };
+            if parent_id == root {
+                let root_slot: SlotId = root.slot();
+                return scopes
+                    .get(root_slot.as_usize())
+                    .is_some_and(|root_entry: &ScopeEntry| {
+                        root_entry.get_generation() == root_slot.get_generation()
+                            && root_entry.get_alive()
+                    });
+            }
+            cur = parent_id;
+            steps += 1;
         }
         false
     }
@@ -2240,17 +2377,28 @@ impl ReactiveRuntime {
     /// - `bool` - Whether `id` is suspended by freezing.
     #[must_use]
     pub(crate) fn is_scope_effectively_frozen(&self, id: ScopeId) -> bool {
-        if self.is_scope_frozen(id) {
-            return true;
-        }
-        for (idx, entry) in self.get_scopes().iter().enumerate() {
-            if entry.get_alive() && entry.get_frozen() {
-                let frozen_id: ScopeId =
-                    ScopeId::from_slot(SlotId::new(idx as u32, entry.get_generation()));
-                if self.is_scope_in_subtree(id, frozen_id) {
-                    return true;
-                }
+        let scopes: &[ScopeEntry] = self.get_scopes();
+        let max_steps: usize = scopes.len();
+        let mut cur: ScopeId = id;
+        let mut steps: usize = 0;
+        while steps < max_steps {
+            let slot: SlotId = cur.slot();
+            let Some(entry) = scopes.get(slot.as_usize()) else {
+                return false;
+            };
+            let inactive: bool =
+                entry.get_generation() != slot.get_generation() || !entry.get_alive();
+            if inactive {
+                return false;
             }
+            if entry.get_frozen() {
+                return true;
+            }
+            let Some(parent_id) = entry.get_parent() else {
+                return false;
+            };
+            cur = parent_id;
+            steps += 1;
         }
         false
     }

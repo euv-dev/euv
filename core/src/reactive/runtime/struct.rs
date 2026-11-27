@@ -137,6 +137,11 @@ pub(crate) struct ScopeEntry {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) frozen: bool,
+    /// Optional parent scope identifier for O(depth) zero-allocation ancestry and freeze queries.
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) parent: Option<ScopeId>,
     /// Signals owned by this scope.
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
@@ -238,6 +243,26 @@ pub struct ReactiveRuntime {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) flush_batch_scratch: Vec<(u32, EffectId)>,
+    /// Reusable DFS stack for zero-allocation scope disposal and freeze/resume traversals.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) scope_stack_scratch: Vec<ScopeId>,
+    /// Reusable scratch list of effects collected during `dispose_scope_collect`.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) dispose_effects_scratch: Vec<EffectId>,
+    /// Reusable scratch list of memos collected during `dispose_scope_collect`.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) dispose_memos_scratch: Vec<MemoId>,
+    /// Reusable scratch list of signals collected during `dispose_scope_collect`.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) dispose_signals_scratch: Vec<SignalId>,
     /// Active batch nesting depth; flush executes only when returning to zero.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
