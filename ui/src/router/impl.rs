@@ -1,5 +1,17 @@
 use super::*;
 
+/// Default empty root router initialized at `"/"` for component prop initialization.
+impl Default for EuvRouter {
+    /// Creates a default router starting at `"/"`.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Default router handle.
+    fn default() -> Self {
+        Self::new("/")
+    }
+}
+
 /// History stack navigation, pattern matching, lazy page lifecycle, and system-back integration for `EuvRouter`.
 impl EuvRouter {
     /// Creates a new `EuvRouter` initialized at `initial_path` with `PageRetention::Freeze` as default retention.
@@ -460,6 +472,7 @@ impl EuvRouter {
             theme: None,
             double_back_exit: false,
             exit_prompt: DOUBLE_BACK_EXIT_PROMPT.to_string(),
+            route_order: Vec::new(),
         }
     }
 }
@@ -513,6 +526,22 @@ impl EuvRouterOutlet {
         self.set_exit_prompt(prompt);
         self
     }
+
+    /// Sets an ordered list of route paths so horizontal left/right page transitions follow tab and swipe order.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source outlet.
+    /// - `Vec<String>` - Ordered route path list.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated router outlet.
+    #[must_use]
+    pub fn with_route_order(mut self, routes: Vec<String>) -> Self {
+        self.set_route_order(routes);
+        self
+    }
 }
 
 /// Declarative `#[component]` implementation for `EuvRouterOutlet` providing lazy page mounting, `PageRetention` (`Destroy`/`Freeze`/`Alive`), cross-page coalesced resume, and automatic OS Back + double-back-to-exit wiring.
@@ -535,9 +564,12 @@ impl EuvRouterOutlet {
                 .column()
                 .width(Length::Percent(100.0))
                 .align(AlignItems::Center)
-                .gap(SPACE_LG),
+                .gap(SPACE_LG)
+                .overflow(Overflow::Hidden),
         );
         let router: EuvRouter = self.get_router().clone();
+        let route_order: Vec<String> = self.get_route_order().clone();
+        let vp_sig: Signal<Size> = ctx.get_viewport_size();
         let fallback: EuvRouteBuilder = {
             let Self { fallback, .. } = self;
             Rc::clone(fallback)
@@ -695,11 +727,20 @@ impl EuvRouterOutlet {
             });
             Effect::new(move || {
                 let active_path: String = path_sig.get();
-                let cur_theme: Option<(DesignScheme, ThemeMode)> =
-                    theme_opt.as_ref().map(|t: &UiThemeState| {
-                        let _tok: ThemeTokens = t.get_tokens().get();
-                        (t.get_scheme().get_untracked(), t.get_mode().get_untracked())
-                    });
+                let (cur_theme, cur_bg): (Option<(DesignScheme, ThemeMode)>, Option<Color>) =
+                    match theme_opt.as_ref() {
+                        Some(t) => {
+                            let tok: ThemeTokens = t.get_tokens().get();
+                            (
+                                Some((
+                                    t.get_scheme().get_untracked(),
+                                    t.get_mode().get_untracked(),
+                                )),
+                                Some(tok.get_palette().get_background()),
+                            )
+                        }
+                        None => (None, None),
+                    };
                 let cur_dyn_rev: u64 = hub_opt
                     .as_ref()
                     .map(|h: &DynamicUpdateHub| {
@@ -731,6 +772,45 @@ impl EuvRouterOutlet {
                         );
                     }
                 }
+                let slide_dir: f32 = if route_changed && let Some(prev_p) = prev_path_opt.as_deref()
+                {
+                    let from_idx: Option<usize> = route_order
+                        .iter()
+                        .position(|r: &String| r.as_str() == prev_p);
+                    let to_idx: Option<usize> = route_order
+                        .iter()
+                        .position(|r: &String| r.as_str() == active_path.as_str());
+                    match (from_idx, to_idx) {
+                        (Some(a), Some(b)) if b > a => 1.0,
+                        (Some(a), Some(b)) if b < a => -1.0,
+                        _ => {
+                            let reg_dir: Option<f32> =
+                                router.get_inner().try_borrow().ok().and_then(
+                                    |g: Ref<'_, EuvRouterInner>| {
+                                        let pa: Option<usize> = g
+                                            .get_routes()
+                                            .iter()
+                                            .position(|d: &EuvRouteDef| d.get_pattern() == prev_p);
+                                        let pb: Option<usize> =
+                                            g.get_routes().iter().position(|d: &EuvRouteDef| {
+                                                d.get_pattern().as_str() == active_path.as_str()
+                                            });
+                                        match (pa, pb) {
+                                            (Some(a), Some(b)) if b > a => Some(1.0),
+                                            (Some(a), Some(b)) if b < a => Some(-1.0),
+                                            _ => None,
+                                        }
+                                    },
+                                );
+                            reg_dir.unwrap_or(1.0)
+                        }
+                    }
+                } else {
+                    0.0
+                };
+                let vp_w: f32 = vp_sig.get_untracked().get_width().max(320.0);
+                let enter_px: f32 = (vp_w * 0.28).clamp(96.0, 260.0);
+                let exit_px: f32 = (vp_w * 0.22).clamp(72.0, 200.0);
                 if route_changed && let Some(prev_path) = prev_path_opt {
                     let leave_entry: Option<EuvCachedPage> = cache.try_borrow_mut().ok().and_then(
                         |mut map: RefMut<'_, HashMap<String, EuvCachedPage>>| {
@@ -762,16 +842,35 @@ impl EuvRouterOutlet {
                             }
                             PageRetention::Freeze => {
                                 prev_entry.scope.freeze();
-                                scene.freeze_subtree(prev_entry.wrapper);
+                                scene.freeze_subtree_animated(
+                                    prev_entry.wrapper,
+                                    NodeTransition::route_slide_exit(
+                                        prev_entry.wrapper,
+                                        -slide_dir * exit_px,
+                                    ),
+                                );
                             }
                             PageRetention::Alive => {
                                 scene.with_write(
                                     |tree: &mut SceneTree| {
+                                        tree.cancel_subtree_transitions(prev_entry.wrapper);
                                         if let Some(n) = tree.get_node_mut(prev_entry.wrapper) {
                                             let mut st: Style = n.get_style();
-                                            st.get_mut_layout().set_display(Display::None);
+                                            st.get_mut_layout()
+                                                .set_position(Position::Absolute)
+                                                .set_top(Some(0.0))
+                                                .set_right(Some(0.0))
+                                                .set_bottom(None)
+                                                .set_left(Some(0.0))
+                                                .set_z_index(0);
+                                            st.get_mut_paint()
+                                                .set_pointer_events(PointerEvents::None);
                                             n.set_style(st);
                                         }
+                                        tree.start_transition(NodeTransition::route_slide_exit(
+                                            prev_entry.wrapper,
+                                            -slide_dir * exit_px,
+                                        ));
                                         tree.mark_dirty(
                                             prev_entry.wrapper,
                                             DIRTY_LAYOUT | DIRTY_PAINT,
@@ -793,23 +892,33 @@ impl EuvRouterOutlet {
                     })
                     .unwrap_or(false);
                 if reusable && let Some(hit) = cached_hit {
+                    scene.with_write(
+                        |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(hit.wrapper);
+                            if let Some(n) = tree.get_node_mut(hit.wrapper) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_layout()
+                                    .set_display(Display::Flex)
+                                    .set_position(Position::Relative)
+                                    .set_top(None)
+                                    .set_right(None)
+                                    .set_bottom(None)
+                                    .set_left(None)
+                                    .set_z_index(1);
+                                st.get_mut_paint()
+                                    .set_pointer_events(PointerEvents::Auto)
+                                    .set_opacity(1.0)
+                                    .set_transform(Transform2D::default());
+                                n.set_style(st);
+                            }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(hit.wrapper, dirty_l | DIRTY_PAINT);
+                        },
+                        (),
+                    );
                     if hit.phase == LifecyclePhase::Frozen {
                         scene.resume_subtree(hit.wrapper);
                         hit.scope.resume();
-                    } else if hit.phase != LifecyclePhase::Active {
-                        scene.with_write(
-                            |tree: &mut SceneTree| {
-                                if let Some(n) = tree.get_node_mut(hit.wrapper) {
-                                    let mut st: Style = n.get_style();
-                                    if st.get_layout().get_display() == Display::None {
-                                        st.get_mut_layout().set_display(Display::Flex);
-                                        n.set_style(st);
-                                    }
-                                }
-                                tree.mark_dirty(hit.wrapper, DIRTY_LAYOUT | DIRTY_PAINT);
-                            },
-                            (),
-                        );
                     }
                     if let Ok(mut map) = cache.try_borrow_mut()
                         && let Some(entry) = map.get_mut(&active_path)
@@ -819,7 +928,12 @@ impl EuvRouterOutlet {
                     }
                     scene.activate_subtree(hit.page_node);
                     if route_changed {
-                        scene.start_transition(NodeTransition::route_enter(hit.page_node));
+                        let tr: NodeTransition = if slide_dir.abs() > 0.01 {
+                            NodeTransition::route_slide_enter(hit.wrapper, slide_dir * enter_px)
+                        } else {
+                            NodeTransition::route_enter(hit.wrapper)
+                        };
+                        scene.start_transition(tr);
                     }
                 } else {
                     if let Some(stale) = cached_hit {
@@ -868,13 +982,16 @@ impl EuvRouterOutlet {
                     let resolved_ret: PageRetention = route_ret.or(comp_ret).unwrap_or(default_ret);
                     let wrapper: NodeId = scene.with_write(
                         |tree: &mut SceneTree| {
-                            let w: NodeId = tree.create_view(
-                                Style::default()
-                                    .column()
-                                    .width(Length::Percent(100.0))
-                                    .align(AlignItems::Center)
-                                    .gap(SPACE_LG),
-                            );
+                            let mut w_style: Style = Style::default()
+                                .column()
+                                .width(Length::Percent(100.0))
+                                .align(AlignItems::Center)
+                                .gap(SPACE_LG)
+                                .z_index(1);
+                            if let Some(bg) = cur_bg {
+                                w_style = w_style.background(bg);
+                            }
+                            let w: NodeId = tree.create_view(w_style);
                             tree.append_child(w, page_node);
                             tree.append_child(host, w);
                             w
@@ -903,7 +1020,12 @@ impl EuvRouterOutlet {
                         .map(|g: Ref<'_, Option<String>>| g.is_none())
                         .unwrap_or(true);
                     if !is_initial {
-                        scene.start_transition(NodeTransition::route_enter(page_node));
+                        let tr: NodeTransition = if slide_dir.abs() > 0.01 {
+                            NodeTransition::route_slide_enter(wrapper, slide_dir * enter_px)
+                        } else {
+                            NodeTransition::route_enter(wrapper)
+                        };
+                        scene.start_transition(tr);
                     }
                 }
                 if let Ok(mut active_slot) = active_key_cell.try_borrow_mut() {

@@ -1,13 +1,14 @@
 use super::*;
 
 /// Horizontal breadcrumb trail separated by `/` with optional reactive active segment selection.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvBreadcrumb {
     /// Ordered trail labels.
     pub(crate) segments: Vec<String>,
     /// Optional reactive active segment index updated when clicking breadcrumb items.
     #[new(skip)]
     #[get(skip)]
+    #[prop(custom)]
     pub(crate) active: Option<Signal<usize>>,
     /// Active theme tokens.
     #[get(type(copy))]
@@ -15,7 +16,7 @@ pub struct EuvBreadcrumb {
 }
 
 /// Interactive page navigation bar bound to `Signal<usize>`.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvPagination {
     /// Current 1-based page number signal.
     #[get(type(copy))]
@@ -29,7 +30,7 @@ pub struct EuvPagination {
 }
 
 /// Multi-step progress indicator bound to `Signal<usize>`.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvSteps {
     /// Step titles.
     pub(crate) labels: Vec<String>,
@@ -51,7 +52,7 @@ pub struct EuvAccordionItem {
 }
 
 /// Reactive accordion expanding one active section at a time.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvAccordion {
     /// Accordion entries.
     pub(crate) items: Vec<EuvAccordionItem>,
@@ -64,7 +65,7 @@ pub struct EuvAccordion {
 }
 
 /// Table-of-contents outline panel with active anchor selection.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvToc {
     /// Ordered section heading labels.
     pub(crate) headings: Vec<String>,

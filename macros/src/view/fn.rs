@@ -469,7 +469,7 @@ fn expand_component_element(elem: &ViewElement) -> proc_macro2::TokenStream {
         .unwrap_or(false);
     let args: &[Expr] = elem.args.as_deref().unwrap_or(&[]);
     let mut builder_expr: proc_macro2::TokenStream = if is_type_ctor {
-        quote! { <#path>::new(#(#args),*) }
+        quote! { <#path as ::euv::ComponentProps>::init_props() }
     } else {
         quote! { #path(#(#args),*) }
     };

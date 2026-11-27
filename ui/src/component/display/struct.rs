@@ -1,12 +1,13 @@
 use super::*;
 
 /// Compact status pill badge component.
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvBadge {
     /// Badge text label.
     pub(crate) label: String,
     /// Semantic tone.
     #[get(type(copy))]
+    #[prop(custom)]
     pub(crate) tone: EuvTone,
     /// Active theme tokens.
     #[get(type(copy))]
@@ -14,7 +15,7 @@ pub struct EuvBadge {
 }
 
 /// Semantic alert banner displaying title and message.
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvAlert {
     /// Alert heading.
     pub(crate) title: String,
@@ -29,7 +30,7 @@ pub struct EuvAlert {
 }
 
 /// Linear progress bar displaying normalized completion in `[0.0, 1.0]`.
-#[derive(Clone, Copy, Data, Debug, New)]
+#[derive(Clone, Copy, Data, Debug, New, Props)]
 pub struct EuvProgress {
     /// Progress fraction clamped to `[0.0, 1.0]`.
     #[get(type(copy))]
@@ -37,6 +38,7 @@ pub struct EuvProgress {
     /// Bar height in logical pixels (`0.0` uses default `8.0`).
     #[new(skip)]
     #[get(type(copy))]
+    #[prop(custom)]
     pub(crate) height: f32,
     /// Active theme tokens.
     #[get(type(copy))]
@@ -69,7 +71,7 @@ pub struct EuvVirtualList {
 }
 
 /// Simple structured cross-platform data table.
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvTable {
     /// Ordered column header labels.
     pub(crate) headers: Vec<String>,

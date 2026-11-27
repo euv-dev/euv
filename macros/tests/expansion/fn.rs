@@ -248,23 +248,18 @@ style! {
     }
 }
 
+#[derive(Props)]
 struct MockCard {
     title: String,
+    #[prop(custom)]
     subtitle: Option<String>,
+    #[prop(custom)]
     elevated: bool,
+    #[prop(custom)]
     children: Vec<NodeId>,
 }
 
 impl MockCard {
-    fn new(title: String) -> Self {
-        Self {
-            title,
-            subtitle: None,
-            elevated: false,
-            children: Vec::new(),
-        }
-    }
-
     fn elevated(mut self) -> Self {
         self.elevated = true;
         self
@@ -357,9 +352,12 @@ fn view_v2_control_flow_spread_components_fragments_and_parity_work() {
             column {
                 width: Length::Px(340.0)
                 gap: 8.0
-                MockCard("Bare Sibling".to_string())
+                MockCard {
+                    title: "Bare Sibling"
+                }
                 { sibling_after_bare_comp }
-                MockCard("Macro Card".to_string()) {
+                MockCard {
+                    title: "Macro Card"
                     elevated()
                     tag_pair("Typed", "Pair")
                     subtitle: "Typed Sub".to_string()

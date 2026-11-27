@@ -1089,6 +1089,118 @@ impl<'a> PixelBand<'a> {
         let va: u32 = (pixels[offset + 3] as u32) * (255 - sa_u32) + 128;
         pixels[offset + 3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
     }
+
+    /// Reads the raw RGBA8 bytes at global pixel `(x, y)` if owned by this band.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Pixel band reference.
+    /// - `u32` - X pixel coordinate.
+    /// - `u32` - Global Y pixel coordinate.
+    ///
+    /// # Returns
+    ///
+    /// - `[u8; 4]` - Pixel RGBA8 bytes (`[0, 0, 0, 0]` when out of bounds).
+    #[must_use]
+    pub fn get_pixel_rgba(&self, x: u32, y: u32) -> [u8; 4] {
+        let Self {
+            width,
+            y_offset,
+            height,
+            pixels,
+        } = self;
+        if x >= *width || y < *y_offset || y >= *y_offset + *height {
+            return [0, 0, 0, 0];
+        }
+        let offset: usize = (((y - *y_offset) as usize) * (*width as usize) + (x as usize)) * 4;
+        if offset + 4 > pixels.len() {
+            return [0, 0, 0, 0];
+        }
+        [
+            pixels[offset],
+            pixels[offset + 1],
+            pixels[offset + 2],
+            pixels[offset + 3],
+        ]
+    }
+
+    /// Writes raw RGBA8 bytes directly to global pixel `(x, y)` when owned by this band.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable pixel band.
+    /// - `u32` - X pixel coordinate.
+    /// - `u32` - Global Y pixel coordinate.
+    /// - `[u8; 4]` - Target RGBA8 pixel bytes.
+    pub fn set_pixel_rgba(&mut self, x: u32, y: u32, rgba: [u8; 4]) {
+        let Self {
+            width,
+            y_offset,
+            height,
+            pixels,
+        } = self;
+        if x >= *width || y < *y_offset || y >= *y_offset + *height {
+            return;
+        }
+        let offset: usize = (((y - *y_offset) as usize) * (*width as usize) + (x as usize)) * 4;
+        if offset + 4 > pixels.len() {
+            return;
+        }
+        pixels[offset] = rgba[0];
+        pixels[offset + 1] = rgba[1];
+        pixels[offset + 2] = rgba[2];
+        pixels[offset + 3] = rgba[3];
+    }
+
+    /// Blends the current rasterized pixel at `(x, y)` back toward `saved_rgba` using linear-light clip coverage `cov`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable pixel band.
+    /// - `u32` - X pixel coordinate.
+    /// - `u32` - Global Y pixel coordinate.
+    /// - `[u8; 4]` - Pre-command saved RGBA8 pixel bytes.
+    /// - `f32` - Clip mask coverage in `[0.0, 1.0]` (`1.0` keeps current pixel, `0.0` restores `saved_rgba`).
+    pub fn lerp_pixel_from_saved_linear(&mut self, x: u32, y: u32, saved_rgba: [u8; 4], cov: f32) {
+        let Self {
+            width,
+            y_offset,
+            height,
+            pixels,
+        } = self;
+        if x >= *width || y < *y_offset || y >= *y_offset + *height {
+            return;
+        }
+        let offset: usize = (((y - *y_offset) as usize) * (*width as usize) + (x as usize)) * 4;
+        if offset + 4 > pixels.len() {
+            return;
+        }
+        let cur: [u8; 4] = [
+            pixels[offset],
+            pixels[offset + 1],
+            pixels[offset + 2],
+            pixels[offset + 3],
+        ];
+        if cur == saved_rgba {
+            return;
+        }
+        let c: f32 = cov.clamp(0.0, 1.0);
+        let inv_c: f32 = 1.0 - c;
+        let nr: f32 = SRGB_TO_LIN_LUT[cur[0] as usize];
+        let ng: f32 = SRGB_TO_LIN_LUT[cur[1] as usize];
+        let nb: f32 = SRGB_TO_LIN_LUT[cur[2] as usize];
+        let or: f32 = SRGB_TO_LIN_LUT[saved_rgba[0] as usize];
+        let og: f32 = SRGB_TO_LIN_LUT[saved_rgba[1] as usize];
+        let ob: f32 = SRGB_TO_LIN_LUT[saved_rgba[2] as usize];
+        let ir: usize = ((nr * c + or * inv_c) * 4095.0).clamp(0.0, 4095.0) as usize;
+        let ig: usize = ((ng * c + og * inv_c) * 4095.0).clamp(0.0, 4095.0) as usize;
+        let ib: usize = ((nb * c + ob * inv_c) * 4095.0).clamp(0.0, 4095.0) as usize;
+        pixels[offset] = ((LIN_TO_SRGB_Q4_LUT[ir] + 8) >> 4).min(255) as u8;
+        pixels[offset + 1] = ((LIN_TO_SRGB_Q4_LUT[ig] + 8) >> 4).min(255) as u8;
+        pixels[offset + 2] = ((LIN_TO_SRGB_Q4_LUT[ib] + 8) >> 4).min(255) as u8;
+        let na: f32 = (cur[3] as f32) * c + (saved_rgba[3] as f32) * inv_c;
+        pixels[offset + 3] = na.round().clamp(0.0, 255.0) as u8;
+    }
 }
 
 /// Damage accumulation helpers for `DamageRegion`.

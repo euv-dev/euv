@@ -214,11 +214,24 @@ pub fn bench_software_full_redraw(iterations: usize) -> BenchMetric {
                 width: Length::Percent(100.0)
                 padding: Edges::all(SPACE_LG)
                 gap: SPACE_MD
-                EuvHeader(BENCH_TITLE.to_string(), BENCH_SUBTITLE.to_string(), tokens)
-                EuvCard(BENCH_TITLE.to_string(), tokens) {
+                EuvHeader {
+                    title: BENCH_TITLE.to_string()
+                    subtitle: BENCH_SUBTITLE.to_string()
+                    tokens: tokens
+                }
+                EuvCard {
+                    title: BENCH_TITLE.to_string()
+                    tokens: tokens
                     subtitle: BENCH_SUBTITLE
-                    EuvBadge(BENCH_BADGE.to_string(), EuvTone::Primary, tokens)
-                    EuvProgress(0.72, tokens)
+                    EuvBadge {
+                        label: BENCH_BADGE.to_string()
+                        tone: EuvTone::Primary
+                        tokens: tokens
+                    }
+                    EuvProgress {
+                        value: 0.72
+                        tokens: tokens
+                    }
                 }
             }
         }
@@ -775,10 +788,19 @@ pub fn bench_stress_hidpi_4x_1440x3168(iterations: usize) -> BenchMetric {
                 gap: SPACE_MD
                 background: tokens.get_palette().get_background()
                 for idx in 0..16usize {
-                    EuvCard(format!("{BENCH_TITLE} #{idx}"), tokens) {
+                    EuvCard {
+                        title: format!("{BENCH_TITLE} #{idx}")
+                        tokens: tokens
                         subtitle: BENCH_CARD_CAPTION
-                        EuvBadge(BENCH_BADGE.to_string(), EuvTone::Primary, tokens)
-                        EuvProgress(((idx % 9) as f32 + 1.0) * 0.1, tokens)
+                        EuvBadge {
+                            label: BENCH_BADGE.to_string()
+                            tone: EuvTone::Primary
+                            tokens: tokens
+                        }
+                        EuvProgress {
+                            value: ((idx % 9) as f32 + 1.0) * 0.1
+                            tokens: tokens
+                        }
                     }
                 }
             }
@@ -985,11 +1007,24 @@ fn bench_render_pipeline(name: &str, render: RenderConfig, iterations: usize) ->
                 width: Length::Percent(100.0)
                 padding: Edges::all(SPACE_LG)
                 gap: SPACE_MD
-                EuvHeader(BENCH_TITLE.to_string(), BENCH_SUBTITLE.to_string(), tokens)
-                EuvCard(BENCH_TITLE.to_string(), tokens) {
+                EuvHeader {
+                    title: BENCH_TITLE.to_string()
+                    subtitle: BENCH_SUBTITLE.to_string()
+                    tokens: tokens
+                }
+                EuvCard {
+                    title: BENCH_TITLE.to_string()
+                    tokens: tokens
                     subtitle: BENCH_SUBTITLE
-                    EuvBadge(BENCH_BADGE.to_string(), EuvTone::Primary, tokens)
-                    EuvProgress(0.72, tokens)
+                    EuvBadge {
+                        label: BENCH_BADGE.to_string()
+                        tone: EuvTone::Primary
+                        tokens: tokens
+                    }
+                    EuvProgress {
+                        value: 0.72
+                        tokens: tokens
+                    }
                 }
             }
         }

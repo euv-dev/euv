@@ -29,7 +29,7 @@ Switch rendering backends at initialization or runtime with `app.set_render_mode
 
 `euv-macros` compiles `view!`, `style!`, `tokens!`, `watch!`, `computed!`, and `event!` directly to static Rust without a virtual DOM:
 
-- **Go-to-Definition Schemas**: Primitive `view!` tags/properties resolve to `euv::view_elements` and `style!` keys resolve to `euv::style_props`. Custom component invocations expand as `<ComponentPath>::new(...)`, so IDE jump-to-definition lands directly on the component struct definition rather than the `Component` trait.
+- **Named Component Props & Go-to-Definition Schemas**: Primitive `view!` tags/properties resolve to `euv::view_elements` and `style!` keys resolve to `euv::style_props`. Custom components derive `Props` and pass parameters as self-documenting named attributes (`EuvButton { label: "Save" tokens: tokens }`), expanding as `<ComponentPath as ::euv::ComponentProps>::init_props()` so IDE jump-to-definition lands directly on the component struct and each field declaration.
 - **Clean `style!` Syntax**: One style rule per line with zero trailing semicolons; the compiler rejects stray `;` tokens or multiple rules packed on a single line.
 - **Sibling Closure Discipline**: Keep multi-statement handlers and reactive text builders in sibling `let` bindings or outer helper `fn`s, then pass identifiers into `view!` (`text { { summary_text } }`, `on_click: on_save`).
 

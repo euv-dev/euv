@@ -97,6 +97,7 @@ impl EuvPanel {
                 background: p.get_muted()
                 border: (g.get_border_width(), p.get_border())
                 radius: g.get_radius_md()
+                overflow: Overflow::Hidden
                 if !title.is_empty() {
                     text {
                         font_size: 14.0

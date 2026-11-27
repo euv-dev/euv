@@ -1,7 +1,7 @@
 use super::*;
 
 /// Side slide-over drawer portal controlled by `Signal<bool>`.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvDrawer {
     /// Reactive open state.
     #[get(type(copy))]
@@ -17,7 +17,7 @@ pub struct EuvDrawer {
 }
 
 /// Bottom sheet portal ideal for iOS / Android / iPadOS action flows.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvSheet {
     /// Reactive open state.
     #[get(type(copy))]
@@ -33,7 +33,7 @@ pub struct EuvSheet {
 }
 
 /// Anchored popover surface toggled by `Signal<bool>`.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvPopover {
     /// Reactive open state.
     #[get(type(copy))]
@@ -50,7 +50,7 @@ pub struct EuvPopover {
 }
 
 /// Compact floating tooltip label attached to a trigger node.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvTooltip {
     /// Tooltip help text.
     pub(crate) text: String,
@@ -60,6 +60,7 @@ pub struct EuvTooltip {
     /// When `true`, keeps the tooltip permanently displayed instead of toggling on hover.
     #[new(skip)]
     #[get(type(copy))]
+    #[prop(custom)]
     pub(crate) always_visible: bool,
     /// Active theme tokens.
     #[get(type(copy))]
@@ -67,7 +68,7 @@ pub struct EuvTooltip {
 }
 
 /// Click-triggered dropdown action menu.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvDropdown {
     /// Trigger button label.
     pub(crate) label: String,
@@ -76,6 +77,7 @@ pub struct EuvDropdown {
     /// Optional controlled reactive open flag (creates internal state when omitted).
     #[new(skip)]
     #[get(skip)]
+    #[prop(custom)]
     pub(crate) open: Option<Signal<bool>>,
     /// Optional controlled last-selected item index signal.
     #[new(skip)]
@@ -87,7 +89,7 @@ pub struct EuvDropdown {
 }
 
 /// Rich corner notification card with title, message, and semantic tone.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvNotification {
     /// Reactive visibility signal.
     #[get(type(copy))]
@@ -99,6 +101,7 @@ pub struct EuvNotification {
     /// Semantic tone (`Neutral` by default).
     #[new(skip)]
     #[get(type(copy))]
+    #[prop(custom)]
     pub(crate) tone: EuvTone,
     /// Active theme tokens.
     #[get(type(copy))]
@@ -106,7 +109,7 @@ pub struct EuvNotification {
 }
 
 /// Full-surface loading indicator overlay with spinner and caption.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvLoading {
     /// Reactive active loading state.
     #[get(type(copy))]

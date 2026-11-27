@@ -17,50 +17,80 @@ fn ui_components_render_deterministically_across_desktop_and_mobile_breakpoints(
     let mut app: App = App::headless(cfg).unwrap();
     let _: NodeId = app.mount(|| {
         let nav: NodeId = view! {
-            EuvSidebarNav(
-                vec![
+            EuvSidebarNav {
+                items: vec![
                     EuvNavItem::new("/home".to_string(), "Home".to_string()),
                     EuvNavItem::new("/render".to_string(), "Render".to_string()),
-                ],
-                active_route,
-                tokens
-            )
+                ]
+                active_route: active_route
+                tokens: tokens
+            }
         };
         let content: NodeId = view! {
             column {
                 width: Length::Percent(100.0)
                 gap: SPACE_LG
-                EuvHeader("Dashboard".to_string(), "Unified native UI".to_string(), tokens)
-                EuvCard("Controls".to_string(), tokens) {
+                EuvHeader {
+                    title: "Dashboard".to_string()
+                    subtitle: "Unified native UI".to_string()
+                    tokens: tokens
+                }
+                EuvCard {
+                    title: "Controls".to_string()
+                    tokens: tokens
                     subtitle: "Cross-platform UI primitives"
-                    EuvBadge("v0.39".to_string(), EuvTone::Primary, tokens)
-                    EuvButton("Action".to_string(), tokens) {
+                    EuvBadge {
+                        label: "v0.39".to_string()
+                        tone: EuvTone::Primary
+                        tokens: tokens
+                    }
+                    EuvButton {
+                        label: "Action".to_string()
+                        tokens: tokens
                         on_click: move |_: &UiEvent| {
                             let _: bool = clicks.update(|v: &mut u32| *v += 1);
                         }
                     }
-                    EuvField(
-                        "Username".to_string(),
-                        view! { EuvInput(input_val, "Enter name".to_string(), tokens) },
-                        tokens
-                    )
-                    EuvSwitch(switch_on, "Hardware GPU".to_string(), tokens)
-                    EuvSegmented(
-                        vec!["Software".to_string(), "Hardware".to_string()],
-                        selected_seg,
-                        tokens
-                    )
-                    EuvProgress(0.75, tokens)
+                    EuvField {
+                        label: "Username".to_string()
+                        control: view! { EuvInput {
+                            value: input_val
+                            placeholder: "Enter name".to_string()
+                            tokens: tokens
+                        } }
+                        tokens: tokens
+                    }
+                    EuvSwitch {
+                        checked: switch_on
+                        label: "Hardware GPU".to_string()
+                        tokens: tokens
+                    }
+                    EuvSegmented {
+                        options: vec!["Software".to_string(), "Hardware".to_string()]
+                        selected: selected_seg
+                        tokens: tokens
+                    }
+                    EuvProgress {
+                        value: 0.75
+                        tokens: tokens
+                    }
                 }
-                EuvModal(
-                    modal_open,
-                    "Dialog".to_string(),
-                    view! { text { "Modal body" } },
-                    tokens
-                )
+                EuvModal {
+                    open: modal_open
+                    title: "Dialog".to_string()
+                    body: view! { text { "Modal body" } }
+                    tokens: tokens
+                }
             }
         };
-        view! { EuvAppShell("euv-ui".to_string(), nav, content, tokens) }
+        view! {
+            EuvAppShell {
+                brand: "euv-ui".to_string()
+                sidebar: nav
+                main_content: content
+                tokens: tokens
+            }
+        }
     });
     let stats: FrameStats = app.step_frame().unwrap();
     assert_ne!(stats.get_frame_hash(), 0);
@@ -118,115 +148,242 @@ fn full_production_component_suite_and_hooks_mount_and_render_cleanly() {
         let (_safe_sig, _mode_sig): (Signal<SafeAreaInsets>, Signal<ThemeMode>) = use_window();
         assert!(!bp_sig.get_untracked().is_compact());
         let left_p: NodeId = view! {
-            EuvPanel("Inspector".to_string(), tokens) {
-                EuvAvatar("EV".to_string(), 36.0, tokens)
-                EuvIcon("*".to_string(), 18.0, tokens.get_palette().get_primary())
-                EuvTag("Native".to_string(), EuvTone::Success, tokens)
-                EuvTypography("Title".to_string(), EuvTypographyVariant::H2, tokens)
-                EuvEmpty("No items".to_string(), "Add one".to_string(), tokens)
-                EuvSkeleton(140.0, 16.0, tokens)
-                EuvSpinner(24.0, tokens)
+            EuvPanel {
+                title: "Inspector".to_string()
+                tokens: tokens
+                EuvAvatar {
+                    initials: "EV".to_string()
+                    size: 36.0
+                    tokens: tokens
+                }
+                EuvIcon {
+                    symbol: "*".to_string()
+                    size: 18.0
+                    color: tokens.get_palette().get_primary()
+                }
+                EuvTag {
+                    label: "Native".to_string()
+                    tone: EuvTone::Success
+                    tokens: tokens
+                }
+                EuvTypography {
+                    text: "Title".to_string()
+                    variant: EuvTypographyVariant::H2
+                    tokens: tokens
+                }
+                EuvEmpty {
+                    title: "No items".to_string()
+                    description: "Add one".to_string()
+                    tokens: tokens
+                }
+                EuvSkeleton {
+                    width: 140.0
+                    height: 16.0
+                    tokens: tokens
+                }
+                EuvSpinner {
+                    size: 24.0
+                    tokens: tokens
+                }
             }
         };
         let right_p: NodeId = view! {
-            EuvScrollArea(240.0, tokens) {
-                EuvTimeline(
-                    vec![EuvTimelineItem::new(
+            EuvScrollArea {
+                height: 240.0
+                tokens: tokens
+                EuvTimeline {
+                    items: vec![EuvTimelineItem::new(
                         "Boot".to_string(),
                         "00:01".to_string(),
                         "Metal ready".to_string(),
-                    )],
-                    tokens
-                )
-                EuvList(vec!["Item A".to_string(), "Item B".to_string()], tokens)
-                EuvTree(
-                    vec![EuvTreeNode::new(
+                    )]
+                    tokens: tokens
+                }
+                EuvList {
+                    items: vec!["Item A".to_string(), "Item B".to_string()]
+                    tokens: tokens
+                }
+                EuvTree {
+                    roots: vec![EuvTreeNode::new(
                         "Workspace".to_string(),
                         vec![EuvTreeNode::new("core".to_string(), Vec::new())],
-                    )],
-                    tokens
-                )
+                    )]
+                    tokens: tokens
+                }
             }
         };
-        let btn_a: NodeId = view! { EuvButton("A".to_string(), tokens) };
-        let btn_b: NodeId = view! { EuvToggle(toggle_sig, "Pin".to_string(), tokens) };
-        let pop_trig: NodeId = view! { EuvButton("Info".to_string(), tokens) };
+        let btn_a: NodeId = view! {
+            EuvButton {
+                label: "A".to_string()
+                tokens: tokens
+            }
+        };
+        let btn_b: NodeId = view! {
+            EuvToggle {
+                pressed: toggle_sig
+                label: "Pin".to_string()
+                tokens: tokens
+            }
+        };
+        let pop_trig: NodeId = view! {
+            EuvButton {
+                label: "Info".to_string()
+                tokens: tokens
+            }
+        };
         let pop_body: NodeId = view! { text { "Popover details" } };
-        let tip_trig: NodeId = view! { EuvButton("Help".to_string(), tokens) };
+        let tip_trig: NodeId = view! {
+            EuvButton {
+                label: "Help".to_string()
+                tokens: tokens
+            }
+        };
         let drawer_body: NodeId = view! { text { "Drawer body" } };
         let sheet_body: NodeId = view! { text { "Sheet body" } };
         view! {
-            EuvPageContainer(tokens) {
-                EuvNavbar("euv Studio".to_string(), tokens) {
-                    EuvKbd("Cmd+K".to_string(), tokens)
+            EuvPageContainer {
+                tokens: tokens
+                EuvNavbar {
+                    brand: "euv Studio".to_string()
+                    tokens: tokens
+                    EuvKbd {
+                        key: "Cmd+K".to_string()
+                        tokens: tokens
+                    }
                 }
-                EuvButtonGroup(vec![btn_a, btn_b], tokens)
-                EuvSplitter(35.0, left_p, right_p, tokens)
-                EuvGrid(2, SPACE_MD) {
-                    EuvForm(tokens) {
-                        EuvLabel("Bio".to_string(), true, tokens)
-                        EuvTextarea(text_sig, "Write...".to_string(), 72.0, tokens)
-                        EuvNumberInput(num_sig, tokens) {
+                EuvButtonGroup {
+                    children: vec![btn_a, btn_b]
+                    tokens: tokens
+                }
+                EuvSplitter {
+                    ratio_percent: 35.0
+                    primary: left_p
+                    secondary: right_p
+                    tokens: tokens
+                }
+                EuvGrid {
+                    columns: 2
+                    gap: SPACE_MD
+                    EuvForm {
+                        tokens: tokens
+                        EuvLabel {
+                            text: "Bio".to_string()
+                            required: true
+                            tokens: tokens
+                        }
+                        EuvTextarea {
+                            value: text_sig
+                            placeholder: "Write...".to_string()
+                            height: 72.0
+                            tokens: tokens
+                        }
+                        EuvNumberInput {
+                            value: num_sig
+                            tokens: tokens
                             range(0, 20)
                             step: 1
                         }
-                        EuvRadioGroup(
-                            vec!["CPU".to_string(), "GPU".to_string()],
-                            radio_sig,
-                            tokens
-                        )
-                        EuvSlider(slider_sig, 0.0, 100.0, tokens)
-                        EuvSelect(
-                            vec!["Metal".to_string(), "Vulkan".to_string()],
-                            select_sig,
-                            select_open,
-                            tokens
-                        )
-                        EuvRating(rating_sig, 5, tokens)
+                        EuvRadioGroup {
+                            options: vec!["CPU".to_string(), "GPU".to_string()]
+                            selected: radio_sig
+                            tokens: tokens
+                        }
+                        EuvSlider {
+                            value: slider_sig
+                            min: 0.0
+                            max: 100.0
+                            tokens: tokens
+                        }
+                        EuvSelect {
+                            options: vec!["Metal".to_string(), "Vulkan".to_string()]
+                            selected: select_sig
+                            open: select_open
+                            tokens: tokens
+                        }
+                        EuvRating {
+                            value: rating_sig
+                            max_stars: 5
+                            tokens: tokens
+                        }
                     }
                     EuvSpace::column(SPACE_SM) {
-                        EuvBreadcrumb(vec!["Home".to_string(), "UI".to_string()], tokens)
-                        EuvPagination(page_sig, 5, tokens)
-                        EuvSteps(
-                            vec!["Build".to_string(), "Test".to_string()],
-                            step_sig,
-                            tokens
-                        )
-                        EuvAccordion(
-                            vec![EuvAccordionItem::new(
+                        EuvBreadcrumb {
+                            segments: vec!["Home".to_string(), "UI".to_string()]
+                            tokens: tokens
+                        }
+                        EuvPagination {
+                            current: page_sig
+                            total_pages: 5
+                            tokens: tokens
+                        }
+                        EuvSteps {
+                            labels: vec!["Build".to_string(), "Test".to_string()]
+                            active: step_sig
+                            tokens: tokens
+                        }
+                        EuvAccordion {
+                            items: vec![EuvAccordionItem::new(
                                 "FAQ".to_string(),
                                 "Zero WebView".to_string(),
-                            )],
-                            acc_sig,
-                            tokens
-                        )
-                        EuvToc(vec!["Intro".to_string(), "API".to_string()], toc_sig, tokens)
+                            )]
+                            open_index: acc_sig
+                            tokens: tokens
+                        }
+                        EuvToc {
+                            headings: vec!["Intro".to_string(), "API".to_string()]
+                            active: toc_sig
+                            tokens: tokens
+                        }
                     }
                 }
                 EuvSpace::row(SPACE_SM) {
-                    EuvPopover(pop_open, pop_trig, pop_body, tokens)
-                    EuvTooltip("Shortcut".to_string(), tip_trig, tokens)
-                    EuvDropdown(
-                        "Actions".to_string(),
-                        vec!["Export".to_string(), "Share".to_string()],
-                        tokens
-                    ) {
+                    EuvPopover {
+                        open: pop_open
+                        trigger: pop_trig
+                        content: pop_body
+                        tokens: tokens
+                    }
+                    EuvTooltip {
+                        text: "Shortcut".to_string()
+                        trigger: tip_trig
+                        tokens: tokens
+                    }
+                    EuvDropdown {
+                        label: "Actions".to_string()
+                        items: vec!["Export".to_string(), "Share".to_string()]
+                        tokens: tokens
                         open: dd_open
                         selected: dd_sel
                     }
                 }
-                EuvFooter("euv 0.39 Native".to_string(), tokens)
-                EuvDrawer(drawer_open, "Settings".to_string(), drawer_body, tokens)
-                EuvSheet(sheet_open, "Actions".to_string(), sheet_body, tokens)
-                EuvNotification(
-                    notif_vis,
-                    "Build OK".to_string(),
-                    "7 targets verified".to_string(),
-                    tokens
-                ) {
+                EuvFooter {
+                    text: "euv 0.39 Native".to_string()
+                    tokens: tokens
+                }
+                EuvDrawer {
+                    open: drawer_open
+                    title: "Settings".to_string()
+                    body: drawer_body
+                    tokens: tokens
+                }
+                EuvSheet {
+                    open: sheet_open
+                    title: "Actions".to_string()
+                    body: sheet_body
+                    tokens: tokens
+                }
+                EuvNotification {
+                    visible: notif_vis
+                    title: "Build OK".to_string()
+                    message: "7 targets verified".to_string()
+                    tokens: tokens
                     tone: EuvTone::Success
                 }
-                EuvLoading(loading_sig, "Syncing...".to_string(), tokens)
+                EuvLoading {
+                    active: loading_sig
+                    label: "Syncing...".to_string()
+                    tokens: tokens
+                }
             }
         }
     });
@@ -279,22 +436,36 @@ fn interactive_widgets_and_virtual_scroll_list_respond_to_events_and_update_pixe
                 padding: Edges::all(16.0)
                 gap: 12.0
                 background: tokens.get_palette().get_background()
-                EuvButton("Increment".to_string(), tokens) {
+                EuvButton {
+                    label: "Increment".to_string()
+                    tokens: tokens
                     node_ref: btn_id
                     on_click: move |_: &UiEvent| {
                         let _: bool = clicks.update(|v: &mut u32| *v += 1);
                     }
                 }
-                EuvSwitch(switch_on, "Hardware GPU".to_string(), tokens) {
+                EuvSwitch {
+                    checked: switch_on
+                    label: "Hardware GPU".to_string()
+                    tokens: tokens
                     node_ref: sw_id
                 }
-                EuvCheckbox(check_on, "Enable telemetry".to_string(), tokens) {
+                EuvCheckbox {
+                    checked: check_on
+                    label: "Enable telemetry".to_string()
+                    tokens: tokens
                     node_ref: chk_id
                 }
-                EuvToggle(toggle_on, "Pin panel".to_string(), tokens) {
+                EuvToggle {
+                    pressed: toggle_on
+                    label: "Pin panel".to_string()
+                    tokens: tokens
                     node_ref: tog_id
                 }
-                EuvInput(input_val, "Type here".to_string(), tokens) {
+                EuvInput {
+                    value: input_val
+                    placeholder: "Type here".to_string()
+                    tokens: tokens
                     node_ref: inp_id
                 }
                 { list_id }
@@ -400,11 +571,11 @@ fn shadcn_extra_components_and_responsive_shell_adapt_across_mobile_tablet_deskt
             let vp_size: Size = use_viewport_size().get_untracked();
             assert!((vp_size.get_width() - (vw as f32)).abs() < 1.0);
             let nav: NodeId = view! {
-                EuvSidebarNav(
-                    vec![EuvNavItem::new("/home".to_string(), "Home".to_string())],
-                    route,
-                    tokens
-                )
+                EuvSidebarNav {
+                    items: vec![EuvNavItem::new("/home".to_string(), "Home".to_string())]
+                    active_route: route
+                    tokens: tokens
+                }
             };
             let coll_body: NodeId = view! { text { "Collapsible content" } };
             let aspect_child: NodeId = view! { text { "16:9 Media" } };
@@ -412,52 +583,82 @@ fn shadcn_extra_components_and_responsive_shell_adapt_across_mobile_tablet_deskt
                 column {
                     width: Length::Percent(100.0)
                     gap: SPACE_MD
-                    EuvMenubar(
-                        vec!["File".to_string(), "Edit".to_string(), "View".to_string()],
-                        menu_act,
-                        tokens
-                    )
-                    EuvToggleGroup(
-                        vec!["Left".to_string(), "Center".to_string(), "Right".to_string()],
-                        tg_sel,
-                        tokens
-                    )
-                    EuvInputOtp(otp, 6, tokens)
-                    EuvCollapsible(coll_open, "Details".to_string(), coll_body, tokens)
-                    EuvCommand(
-                        vec!["Build".to_string(), "Deploy".to_string()],
-                        cmd_sel,
-                        tokens
-                    ) {
+                    EuvMenubar {
+                        menus: vec!["File".to_string(), "Edit".to_string(), "View".to_string()]
+                        active_menu: menu_act
+                        tokens: tokens
+                    }
+                    EuvToggleGroup {
+                        options: vec!["Left".to_string(), "Center".to_string(), "Right".to_string()]
+                        selected: tg_sel
+                        tokens: tokens
+                    }
+                    EuvInputOtp {
+                        value: otp
+                        length: 6
+                        tokens: tokens
+                    }
+                    EuvCollapsible {
+                        open: coll_open
+                        title: "Details".to_string()
+                        content: coll_body
+                        tokens: tokens
+                    }
+                    EuvCommand {
+                        items: vec!["Build".to_string(), "Deploy".to_string()]
+                        selected: cmd_sel
+                        tokens: tokens
                         query: cmd_q
                         placeholder: "Search..."
                     }
-                    EuvHoverCard("@shadcn".to_string(), "shadcn/ui".to_string(), tokens) {
+                    EuvHoverCard {
+                        trigger_label: "@shadcn".to_string()
+                        title: "shadcn/ui".to_string()
+                        tokens: tokens
                         open: hover_open
                         description: "Design system parity."
                     }
-                    EuvContextMenu(
-                        "Canvas Surface".to_string(),
-                        vec!["Inspect".to_string(), "Duplicate".to_string()],
-                        tokens
-                    ) {
+                    EuvContextMenu {
+                        trigger_label: "Canvas Surface".to_string()
+                        items: vec!["Inspect".to_string(), "Duplicate".to_string()]
+                        tokens: tokens
                         open: ctx_open
                         selected: ctx_sel
                     }
-                    EuvCalendar("November 2026".to_string(), 30, cal_day, tokens)
-                    EuvAspectRatio(16.0 / 9.0, aspect_child, tokens)
-                    EuvCarousel(
-                        vec!["Slide A".to_string(), "Slide B".to_string()],
-                        car_idx,
-                        tokens
-                    )
-                    EuvAlertDialog(alert_open, "Confirm".to_string(), alert_confirmed, tokens) {
+                    EuvCalendar {
+                        month_label: "November 2026".to_string()
+                        days_in_month: 30
+                        selected_day: cal_day
+                        tokens: tokens
+                    }
+                    EuvAspectRatio {
+                        ratio: 16.0 / 9.0
+                        child: aspect_child
+                        tokens: tokens
+                    }
+                    EuvCarousel {
+                        slides: vec!["Slide A".to_string(), "Slide B".to_string()]
+                        active_slide: car_idx
+                        tokens: tokens
+                    }
+                    EuvAlertDialog {
+                        open: alert_open
+                        title: "Confirm".to_string()
+                        confirmed: alert_confirmed
+                        tokens: tokens
                         description: "Proceed?"
                         labels("Cancel", "Continue")
                     }
                 }
             };
-            view! { EuvAppShell("shadcn-euv".to_string(), nav, body, tokens) }
+            view! {
+                EuvAppShell {
+                    brand: "shadcn-euv".to_string()
+                    sidebar: nav
+                    main_content: body
+                    tokens: tokens
+                }
+            }
         });
         let stats: FrameStats = app.step_frame().unwrap();
         assert_ne!(stats.get_frame_hash(), 0);
@@ -505,10 +706,15 @@ fn hover_bubbling_and_hover_card_pointer_enter_leave_update_visual_state() {
                 height: Length::Px(480.0)
                 padding: Edges::all(24.0)
                 gap: 16.0
-                EuvButton("Hover Target".to_string(), tokens) {
+                EuvButton {
+                    label: "Hover Target".to_string()
+                    tokens: tokens
                     node_ref: btn_node
                 }
-                EuvHoverCard("@hover".to_string(), "Preview".to_string(), tokens) {
+                EuvHoverCard {
+                    trigger_label: "@hover".to_string()
+                    title: "Preview".to_string()
+                    tokens: tokens
                     open: hover_open
                     description: "Triggered on hover"
                 }
@@ -563,15 +769,43 @@ fn full_media_component_suite_renders_image_svg_gif_live_video_audio_pdf_and_htm
     let mut app: App = App::headless(cfg).unwrap();
     let _: NodeId = app.mount(|| {
         view! {
-            EuvPage("Media Test".to_string(), "All 8 media types".to_string(), tokens) {
-                EuvImage(ImageAsset::sample_photo("Sample"), tokens)
-                EuvSvgView(SvgDocument::sample_svg(), "SVG".to_string(), tokens)
-                EuvGifPlayer(gif_sig, tokens)
-                EuvLivePhoto(live_sig, tokens)
-                EuvVideoPlayer(video_sig, tokens)
-                EuvAudioPlayer(audio_sig, tokens)
-                EuvPdfViewer(pdf_sig, tokens)
-                EuvHtmlView(HtmlDocument::sample_html(), tokens)
+            EuvPage {
+                title: "Media Test".to_string()
+                subtitle: "All 8 media types".to_string()
+                tokens: tokens
+                EuvImage {
+                    asset: ImageAsset::sample_photo("Sample")
+                    tokens: tokens
+                }
+                EuvSvgView {
+                    document: SvgDocument::sample_svg()
+                    label: "SVG".to_string()
+                    tokens: tokens
+                }
+                EuvGifPlayer {
+                    state: gif_sig
+                    tokens: tokens
+                }
+                EuvLivePhoto {
+                    state: live_sig
+                    tokens: tokens
+                }
+                EuvVideoPlayer {
+                    state: video_sig
+                    tokens: tokens
+                }
+                EuvAudioPlayer {
+                    state: audio_sig
+                    tokens: tokens
+                }
+                EuvPdfViewer {
+                    state: pdf_sig
+                    tokens: tokens
+                }
+                EuvHtmlView {
+                    document: HtmlDocument::sample_html()
+                    tokens: tokens
+                }
             }
         }
     });
@@ -595,23 +829,38 @@ fn rating_tooltip_context_menu_and_input_external_sync_update_pixels() {
     cfg.set_window(win);
     let mut app: App = App::headless(cfg).unwrap();
     let _: NodeId = app.mount(|| {
-        let trig: NodeId = view! { EuvButton("Tip Trigger".to_string(), tokens) };
+        let trig: NodeId = view! {
+            EuvButton {
+                label: "Tip Trigger".to_string()
+                tokens: tokens
+            }
+        };
         view! {
             column {
                 width: Length::Px(640.0)
                 height: Length::Px(480.0)
                 padding: Edges::all(20.0)
                 gap: 12.0
-                EuvRating(rating, 5, tokens)
-                EuvInput(text_sig, "External sync".to_string(), tokens)
-                EuvTooltip("Hover Hint".to_string(), trig, tokens) {
+                EuvRating {
+                    value: rating
+                    max_stars: 5
+                    tokens: tokens
+                }
+                EuvInput {
+                    value: text_sig
+                    placeholder: "External sync".to_string()
+                    tokens: tokens
+                }
+                EuvTooltip {
+                    text: "Hover Hint".to_string()
+                    trigger: trig
+                    tokens: tokens
                     node_ref: tip_wrap
                 }
-                EuvContextMenu(
-                    "Target".to_string(),
-                    vec!["Copy".to_string(), "Paste".to_string()],
-                    tokens
-                ) {
+                EuvContextMenu {
+                    trigger_label: "Target".to_string()
+                    items: vec!["Copy".to_string(), "Paste".to_string()]
+                    tokens: tokens
                     open: ctx_open
                     selected: ctx_sel
                 }
@@ -672,24 +921,30 @@ fn color_picker_time_picker_tag_input_interactive_tree_and_breadcrumb_work() {
                 padding: Edges::all(16.0)
                 gap: 12.0
                 background: tokens.get_palette().get_background()
-                EuvBreadcrumb(
-                    vec!["Home".to_string(), "Forms".to_string(), "Pickers".to_string()],
-                    tokens
-                ) {
+                EuvBreadcrumb {
+                    segments: vec!["Home".to_string(), "Forms".to_string(), "Pickers".to_string()]
+                    tokens: tokens
                     active: crumb_active
                 }
-                EuvColorPicker(color_sig, tokens)
-                EuvTimePicker(time_sig, tokens)
-                EuvTagInput(tags_sig, tokens) {
+                EuvColorPicker {
+                    value: color_sig
+                    tokens: tokens
+                }
+                EuvTimePicker {
+                    value: time_sig
+                    tokens: tokens
+                }
+                EuvTagInput {
+                    tags: tags_sig
+                    tokens: tokens
                     placeholder: "Add tag..."
                 }
-                EuvTree(
-                    vec![EuvTreeNode::new(
+                EuvTree {
+                    roots: vec![EuvTreeNode::new(
                         "Root".to_string(),
                         vec![EuvTreeNode::new("Child".to_string(), Vec::new())],
-                    )],
-                    tokens
-                ) {
+                    )]
+                    tokens: tokens
                     selected: tree_sel
                 }
             }
@@ -927,7 +1182,12 @@ fn router_lazy_mounting_freeze_destroy_alive_and_double_back_exit_work() {
             .with_double_back_exit(true)
             .mount();
         let modal: NodeId = view! {
-            EuvModal(modal_open, "Overlay".to_string(), view! { text { "Body" } }, tokens)
+            EuvModal {
+                open: modal_open
+                title: "Overlay".to_string()
+                body: view! { text { "Body" } }
+                tokens: tokens
+            }
         };
         view! {
             column {
@@ -1042,18 +1302,20 @@ fn eva_code_block_full_markdown_suite_and_fullscreen_swipe_gesture_work() {
     let mut app: App = App::headless(cfg).unwrap();
     let _: NodeId = app.mount(move || {
         let nav: NodeId = view! {
-            EuvSidebarNav(
-                vec![EuvNavItem::new("/".to_string(), "Home".to_string())],
-                route,
-                tokens_dark
-            )
+            EuvSidebarNav {
+                items: vec![EuvNavItem::new("/".to_string(), "Home".to_string())]
+                active_route: route
+                tokens: tokens_dark
+            }
         };
         let md_src: String = "# Eva Studio\n\n> [!TIP]\n> Exact VS Code Eva Dark Bold.\n\n- [x] Ready\n- [ ] Pending\n\n| Key | Value |\n| :--- | ---: |\n| Theme | Eva Dark |\n\n```rust\nfn main() { let x: i32 = 42; }\n```\n\n<details>\n<summary>More</summary>\nDetails body\n</details>\n".to_string();
         let body: NodeId = view! {
             column {
                 width: Length::Percent(100.0)
                 gap: SPACE_MD
-                EuvCodeBlock("pub fn hello() -> i32 { 42 }".to_string(), tokens_dark) {
+                EuvCodeBlock {
+                    code: "pub fn hello() -> i32 { 42 }".to_string()
+                    tokens: tokens_dark
                     language: "rust"
                     filename: "lib.rs"
                     line_numbers: true
@@ -1061,10 +1323,20 @@ fn eva_code_block_full_markdown_suite_and_fullscreen_swipe_gesture_work() {
                         copied_c.set(txt.len());
                     }
                 }
-                EuvMarkdown(md_src, tokens_dark)
+                EuvMarkdown {
+                    source: md_src
+                    tokens: tokens_dark
+                }
             }
         };
-        view! { EuvAppShell("Eva Docs".to_string(), nav, body, tokens_dark) }
+        view! {
+            EuvAppShell {
+                brand: "Eva Docs".to_string()
+                sidebar: nav
+                main_content: body
+                tokens: tokens_dark
+            }
+        }
     });
     let wid: WindowId = app.get_window_state().get_id();
     let f0: FrameStats = app.step_frame().unwrap();
@@ -1085,4 +1357,87 @@ fn eva_code_block_full_markdown_suite_and_fullscreen_swipe_gesture_work() {
     assert_ne!(f1.get_frame_hash(), f0.get_frame_hash());
     assert!(EuvOverlayStack::active_count() >= 1);
     assert!(EuvOverlayStack::dismiss_top());
+}
+
+#[test]
+fn floating_bottom_nav_is_centered_with_side_margins_and_bottom_lift() {
+    reset_reactive_runtime();
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
+    let route: Signal<String> = Signal::new("/".to_string());
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(1280, 800).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(move || {
+        let nav: NodeId = view! {
+            EuvSidebarNav {
+                items: vec![
+                    EuvNavItem::new("/".to_string(), "Home".to_string()),
+                    EuvNavItem::new("/markdown".to_string(), "Docs".to_string()),
+                ]
+                active_route: route
+                tokens: tokens
+            }
+        };
+        let bottom: NodeId = view! {
+            EuvBottomNav {
+                items: vec![
+                    EuvNavItem::new("/".to_string(), "Home".to_string()),
+                    EuvNavItem::new("/markdown".to_string(), "Docs".to_string()),
+                    EuvNavItem::new("/lab".to_string(), "Cases".to_string()),
+                    EuvNavItem::new("/stress".to_string(), "Stress".to_string()),
+                    EuvNavItem::new("/game3d".to_string(), "3D RT".to_string()),
+                ]
+                active_route: route
+                tokens: tokens
+            }
+        };
+        let body: NodeId = view! {
+            column {
+                width: Length::Percent(100.0)
+                text { "Floating Dock Body" }
+            }
+        };
+        view! {
+            EuvAppShell {
+                brand: "Floating Dock".to_string()
+                sidebar: nav
+                main_content: body
+                tokens: tokens
+                route: route
+                bottom_nav: bottom
+            }
+        }
+    });
+    let wid: WindowId = app.get_window_state().get_id();
+    for (vp_w, vp_h) in [(1280_u32, 800_u32), (390_u32, 844_u32)].into_iter() {
+        app.dispatch_window_event(WindowEvent::Resized(wid, vp_w, vp_h, 1.0));
+        let _: FrameStats = app.step_frame().unwrap();
+        let dock_bounds: Option<Rect> = app.get_scene().with_read(
+            |tree: &SceneTree| {
+                tree.get_nodes().iter().find_map(|n: &SceneNode| {
+                    let lay: LayoutStyle = n.get_style().get_layout();
+                    let b: Rect = n.get_layout_box().get_bounds();
+                    if n.get_alive()
+                        && lay.get_position() == Position::Fixed
+                        && lay.get_z_index() == Z_INDEX_CHROME
+                        && (b.get_height() - 60.0).abs() < 1.0
+                    {
+                        Some(b)
+                    } else {
+                        None
+                    }
+                })
+            },
+            None,
+        );
+        let dock: Rect = dock_bounds.expect("floating bottom nav dock must exist");
+        let w_f: f32 = vp_w as f32;
+        let h_f: f32 = vp_h as f32;
+        assert!(dock.get_width() < w_f - 32.0);
+        assert!(dock.get_x() >= 18.0 && w_f - dock.right() >= 18.0);
+        assert!(((dock.get_x() + dock.get_width() * 0.5) - w_f * 0.5).abs() <= 1.5);
+        assert!(h_f - dock.bottom() >= 12.0);
+    }
 }

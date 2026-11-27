@@ -612,12 +612,23 @@ fn run_stress_drawer_anim(entry: &mut StressCaseResult) {
                     gap: SPACE_MD
                     background: p.get_background()
                     for idx in 0..6usize {
-                        EuvCard(format!("{STRESS_CARD_PREFIX} #{idx}"), tokens) {
+                        EuvCard {
+                            title: format!("{STRESS_CARD_PREFIX} #{idx}")
+                            tokens: tokens
                             subtitle: STRESS_CARD_SUB
-                            EuvBadge(STRESS_BADGE_TXT.to_string(), EuvTone::Primary, tokens)
+                            EuvBadge {
+                                label: STRESS_BADGE_TXT.to_string()
+                                tone: EuvTone::Primary
+                                tokens: tokens
+                            }
                         }
                     }
-                    EuvDrawer(drawer_open, STRESS_DRAWER_TITLE.to_string(), drawer_body, tokens)
+                    EuvDrawer {
+                        open: drawer_open
+                        title: STRESS_DRAWER_TITLE.to_string()
+                        body: drawer_body
+                        tokens: tokens
+                    }
                 }
             }
         });
@@ -760,10 +771,19 @@ fn run_stress_hidpi_shadow(entry: &mut StressCaseResult) {
                     gap: SPACE_MD
                     background: tokens.get_palette().get_background()
                     for idx in 0..12usize {
-                        EuvCard(format!("{STRESS_CARD_PREFIX} #{idx}"), tokens) {
+                        EuvCard {
+                            title: format!("{STRESS_CARD_PREFIX} #{idx}")
+                            tokens: tokens
                             subtitle: STRESS_CARD_SUB
-                            EuvBadge(STRESS_BADGE_TXT.to_string(), EuvTone::Primary, tokens)
-                            EuvProgress(((idx % 9) as f32 + 1.0) * 0.1, tokens)
+                            EuvBadge {
+                                label: STRESS_BADGE_TXT.to_string()
+                                tone: EuvTone::Primary
+                                tokens: tokens
+                            }
+                            EuvProgress {
+                                value: ((idx % 9) as f32 + 1.0) * 0.1
+                                tokens: tokens
+                            }
                         }
                     }
                 }
@@ -923,7 +943,11 @@ fn run_stress_macro_mount(entry: &mut StressCaseResult) {
                                     color: p.get_foreground()
                                     { format!("{STRESS_CARD_PREFIX} {idx}") }
                                 }
-                                EuvBadge(STRESS_BADGE_TXT.to_string(), EuvTone::Primary, tokens)
+                                EuvBadge {
+                                    label: STRESS_BADGE_TXT.to_string()
+                                    tone: EuvTone::Primary
+                                    tokens: tokens
+                                }
                             }
                         }
                     }
@@ -1039,7 +1063,10 @@ pub fn mount_stress_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     let st_reset: ShowcaseState = state.clone();
     let st_list: ShowcaseState = state.clone();
     view! {
-        EuvPage(STRESS_PAGE_TITLE.to_string(), STRESS_PAGE_SUBTITLE.to_string(), tokens) {
+        EuvPage {
+            title: STRESS_PAGE_TITLE.to_string()
+            subtitle: STRESS_PAGE_SUBTITLE.to_string()
+            tokens: tokens
             column {
                 width: Length::Percent(100.0)
                 bind_children: move || {
@@ -1065,38 +1092,42 @@ pub fn mount_stress_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         ),
                     };
                     let kpi_grid: NodeId = view! {
-                        EuvStatGrid() {
-                            EuvStatCard(
-                                STRESS_KPI_COMPLETED_LABEL.to_string(),
-                                format!("{done} / {total}"),
-                                format!("{total} interactive workloads ready"),
-                                tokens
-                            )
-                            EuvStatCard(
-                                STRESS_KPI_BUDGET_LABEL.to_string(),
-                                if done == 0 {
+                        EuvStatGrid {
+                            EuvStatCard {
+                                label: STRESS_KPI_COMPLETED_LABEL.to_string()
+                                value: format!("{done} / {total}")
+                                caption: format!("{total} interactive workloads ready")
+                                tokens: tokens
+                            }
+                            EuvStatCard {
+                                label: STRESS_KPI_BUDGET_LABEL.to_string()
+                                value: if done == 0 {
                                     STRESS_KPI_IDLE_VAL.to_string()
                                 } else {
                                     format!("{passed} / {done} {STRESS_STATUS_PASS}")
-                                },
-                                STRESS_KPI_BUDGET_CAP.to_string(),
-                                tokens
-                            )
-                            EuvStatCard(
-                                STRESS_KPI_LATEST_LABEL.to_string(),
-                                latest_val,
-                                latest_cap,
-                                tokens
-                            )
+                                }
+                                caption: STRESS_KPI_BUDGET_CAP.to_string()
+                                tokens: tokens
+                            }
+                            EuvStatCard {
+                                label: STRESS_KPI_LATEST_LABEL.to_string()
+                                value: latest_val
+                                caption: latest_cap
+                                tokens: tokens
+                            }
                         }
                     };
                     vec![kpi_grid]
                 }
             }
-            EuvCard(STRESS_CTRL_TITLE.to_string(), tokens) {
+            EuvCard {
+                title: STRESS_CTRL_TITLE.to_string()
+                tokens: tokens
                 subtitle: STRESS_CTRL_SUBTITLE
-                EuvActionRow() {
-                    EuvButton(STRESS_BTN_RUN_ALL.to_string(), tokens) {
+                EuvActionRow {
+                    EuvButton {
+                        label: STRESS_BTN_RUN_ALL.to_string()
+                        tokens: tokens
                         on_click: move |_: &UiEvent| {
                             let all_ids: [&str; 10] = [
                                 STRESS_ID_VLIST_100K,
@@ -1113,7 +1144,9 @@ pub fn mount_stress_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                             execute_stress_batch(&st_all, &all_ids);
                         }
                     }
-                    EuvButton(STRESS_BTN_RUN_CORE.to_string(), tokens) {
+                    EuvButton {
+                        label: STRESS_BTN_RUN_CORE.to_string()
+                        tokens: tokens
                         secondary()
                         on_click: move |_: &UiEvent| {
                             let core_ids: [&str; 5] = [
@@ -1126,7 +1159,9 @@ pub fn mount_stress_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                             execute_stress_batch(&st_core, &core_ids);
                         }
                     }
-                    EuvButton(STRESS_BTN_RESET.to_string(), tokens) {
+                    EuvButton {
+                        label: STRESS_BTN_RESET.to_string()
+                        tokens: tokens
                         outline()
                         on_click: move |_: &UiEvent| {
                             batch(|| {
@@ -1146,7 +1181,9 @@ pub fn mount_stress_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                     { move || summary_sig.get() }
                 }
             }
-            EuvCard(STRESS_SCENARIOS_TITLE.to_string(), tokens) {
+            EuvCard {
+                title: STRESS_SCENARIOS_TITLE.to_string()
+                tokens: tokens
                 subtitle: STRESS_SCENARIOS_SUB
                 column {
                     width: Length::Percent(100.0)
@@ -1207,8 +1244,16 @@ pub fn mount_stress_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                                         row {
                                             gap: SPACE_XS
                                             align: AlignItems::Center
-                                            EuvBadge(item.get_category().clone(), EuvTone::Primary, tokens)
-                                            EuvBadge(item.get_status().clone(), status_tone, tokens)
+                                            EuvBadge {
+                                                label: item.get_category().clone()
+                                                tone: EuvTone::Primary
+                                                tokens: tokens
+                                            }
+                                            EuvBadge {
+                                                label: item.get_status().clone()
+                                                tone: status_tone
+                                                tokens: tokens
+                                            }
                                         }
                                     }
                                     text {
@@ -1222,8 +1267,10 @@ pub fn mount_stress_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                                         color: p.get_foreground()
                                         { metric_line }
                                     }
-                                    EuvActionRow() {
-                                        EuvButton(item.get_button_label().clone(), tokens) {
+                                    EuvActionRow {
+                                        EuvButton {
+                                            label: item.get_button_label().clone()
+                                            tokens: tokens
                                             secondary()
                                             sm()
                                             on_click: move |_: &UiEvent| {

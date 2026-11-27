@@ -720,8 +720,9 @@ impl DemoPhysicsScene {
             score: 0,
             wave: 1,
             show_colliders: false,
-            smoothed_fps: 60.0,
+            smoothed_fps: 0.0,
             ticks: 0,
+            viewport_size: Size::new(820.0, 340.0),
         };
         scene.spawn_enemy_wave(8);
         scene
@@ -972,8 +973,8 @@ impl GameScene for DemoPhysicsScene {
         let _: Vec<AudioCommand> = self.get_mut_audio().drain();
         if let Some(player) = self.get_world().get_entity(player_id) {
             let p: Point = player.get_transform().get_position();
-            self.get_mut_camera()
-                .follow(p, 7.5, dt, Size::new(820.0, 320.0));
+            let vp: Size = self.get_viewport_size();
+            self.get_mut_camera().follow(p, 7.5, dt, vp);
         }
         self.set_ticks(self.get_ticks().saturating_add(1));
     }
@@ -988,7 +989,12 @@ impl GameScene for DemoPhysicsScene {
     fn update(&mut self, dt: f32, _input: &InputState) {
         if dt > 0.0001 {
             let inst_fps: f32 = (1.0 / dt).clamp(1.0, 9999.0);
-            let next: f32 = self.get_smoothed_fps() * 0.85 + inst_fps * 0.15;
+            let prev: f32 = self.get_smoothed_fps();
+            let next: f32 = if prev <= 0.5 {
+                inst_fps
+            } else {
+                prev * 0.85 + inst_fps * 0.15
+            };
             self.set_smoothed_fps(next);
         }
     }
@@ -1002,6 +1008,14 @@ impl GameScene for DemoPhysicsScene {
     /// - `&mut GameRenderContext<'_>` - Immediate-mode game draw surface.
     fn render(&mut self, _alpha: f32, ctx: &mut GameRenderContext<'_>) {
         let size: Size = ctx.viewport_size();
+        if size.get_width() > 32.0 && size.get_height() > 32.0 {
+            self.set_viewport_size(size);
+            let world_rect: Rect = self.get_tilemap().world_bounds();
+            let fit_zoom: f32 = (size.get_width() / world_rect.get_width().max(1.0))
+                .max(size.get_height() / world_rect.get_height().max(1.0))
+                .clamp(1.0, 1.85);
+            self.get_mut_camera().set_zoom(fit_zoom);
+        }
         ctx.clear(Color::hex(0x020617));
         let cam: Camera2D = self.get_camera();
         ctx.render_tilemap(self.get_tilemap(), &cam);
@@ -1056,11 +1070,18 @@ impl GameScene for DemoPhysicsScene {
             12.0,
             Color::hex(0xE2E8F0),
         );
+        let hint_y: f32 = (size.get_height() - 32.0).max(44.0);
+        let hint_w: f32 = (size.get_width() - 24.0).clamp(180.0, 380.0);
+        ctx.fill_rounded_rect(
+            Rect::new(10.0, hint_y, hint_w, 22.0),
+            Color::rgba(15, 23, 42, 200),
+            6.0,
+        );
         ctx.draw_text(
-            Point::new(14.0, (size.get_height() - 22.0).max(40.0)),
+            Point::new(18.0, hint_y + 4.0),
             GAME_HUD_CONTROLS_HINT.to_string(),
             11.0,
-            Color::rgba(148, 163, 184, 220),
+            Color::rgba(226, 232, 240, 235),
         );
     }
 }
@@ -1098,7 +1119,7 @@ impl DemoOpenWorld3DScene {
             last_import_seq: 0,
             status_signal,
             camera_mode_signal,
-            smoothed_fps: 60.0,
+            smoothed_fps: 0.0,
         }
     }
 }
@@ -1170,7 +1191,12 @@ impl GameScene for DemoOpenWorld3DScene {
     fn update(&mut self, dt: f32, _input: &InputState) {
         if dt > 0.0001 {
             let inst_fps: f32 = (1.0 / dt).clamp(1.0, 9999.0);
-            let next: f32 = self.get_smoothed_fps() * 0.85 + inst_fps * 0.15;
+            let prev: f32 = self.get_smoothed_fps();
+            let next: f32 = if prev <= 0.5 {
+                inst_fps
+            } else {
+                prev * 0.85 + inst_fps * 0.15
+            };
             self.set_smoothed_fps(next);
         }
     }
@@ -1192,8 +1218,15 @@ impl GameScene for DemoOpenWorld3DScene {
             QualityPreset::Ultra => 1.45,
             QualityPreset::Cinematic => 1.52,
         };
-        let vw: u32 = ((size.get_width() * dpi_boost).round() as u32).clamp(280, 960);
-        let vh: u32 = ((size.get_height() * dpi_boost).round() as u32).clamp(180, 720);
+        let raw_w: f32 = (size.get_width().max(64.0) * dpi_boost).max(160.0);
+        let raw_h: f32 = (size.get_height().max(64.0) * dpi_boost).max(160.0);
+        let max_dim: f32 = 960.0;
+        let max_pixels: f32 = 960.0 * 540.0;
+        let dim_scale: f32 = (max_dim / raw_w.max(raw_h)).min(1.0);
+        let area_scale: f32 = (max_pixels / (raw_w * raw_h).max(1.0)).sqrt().min(1.0);
+        let fit_scale: f32 = dim_scale.min(area_scale);
+        let vw: u32 = ((raw_w * fit_scale).round() as u32).clamp(160, 960);
+        let vh: u32 = ((raw_h * fit_scale).round() as u32).clamp(160, 960);
         let frame_img: ImageBuffer = {
             let Self {
                 world, renderer, ..

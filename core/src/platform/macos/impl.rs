@@ -469,4 +469,23 @@ impl PlatformBackend for MacOsPlatform {
     fn system_theme(&self) -> ThemeMode {
         macos_system_theme()
     }
+
+    /// Queries the native macOS display refresh rate via `NSScreen.maximumFramesPerSecond`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Platform reference.
+    ///
+    /// # Returns
+    ///
+    /// - `f32` - Active display refresh rate in Hertz.
+    fn display_refresh_rate_hz(&self) -> f32 {
+        let win_ptr: *mut c_void = self
+            .get_windows()
+            .values()
+            .next()
+            .map(|rec: &MacOsWindowRecord| rec.get_ns_window() as *mut c_void)
+            .unwrap_or(null_mut());
+        macos_window_refresh_rate_hz(win_ptr)
+    }
 }

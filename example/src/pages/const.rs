@@ -113,6 +113,18 @@ pub(crate) const GAME_SUBTITLE: &str = "Fixed-timestep FrameClock, InputState po
 pub(crate) const GAME_CARD_TITLE: &str = "Embedded 60Hz Physics Arena";
 pub(crate) const GAME_CARD_SUB: &str = "Step deterministic physics frames or overlay transparent euv HUD panels on top of any 2D/3D engine.";
 pub(crate) const BTN_STEP_PHYSICS: &str = "Step Physics (+3 Frames)";
+pub(crate) const BTN_EXIT_FULLSCREEN: &str = "Exit Fullscreen";
+pub(crate) const FS_OVERLAY_NAME: &str = "GameFullscreenPortal";
+pub(crate) const FS_ACTION_ON: &str = "on";
+pub(crate) const FS_ACTION_OFF: &str = "off";
+pub(crate) const FS_CTRL_LEFT: &str = "Left";
+pub(crate) const FS_CTRL_UP: &str = "Up";
+pub(crate) const FS_CTRL_DOWN: &str = "Down";
+pub(crate) const FS_CTRL_RIGHT: &str = "Right";
+pub(crate) const FS_CTRL_DASH: &str = "Dash";
+pub(crate) const FS_CTRL_DRIVE: &str = "Drive";
+pub(crate) const FS_CTRL_REVERSE: &str = "Rev";
+pub(crate) const FS_CTRL_CAMERA: &str = "Camera";
 pub(crate) const GAME3D_TITLE: &str = "AAA 3D Open-World Engine & Ray Tracing";
 pub(crate) const GAME3D_SUBTITLE: &str = "BVH ray-traced shadows, glossy reflections, GI, LOD streaming, .OBJ/.glTF model import, and live runtime quality tuning.";
 pub(crate) const GAME3D_CARD_TITLE: &str = "Vice Boulevard 3D Sandbox";
@@ -169,7 +181,9 @@ pub(crate) const TREE_NODE_RENDER: &str = "Renderer (SW/GPU)";
 pub(crate) const TREE_NODE_REACTIVE: &str = "Reactive Signals";
 pub(crate) const TREE_NONE_SELECTED: &str = "None";
 pub(crate) const TREE_SELECTED_PREFIX: &str = "Selected Tree Node";
-pub(crate) const HERO_BADGE_VER: &str = "euv 0.40";
+pub(crate) const HERO_BADGE_VER: &str = "euv 0.43";
+pub(crate) const LAB_ITEM_VER: &str = "v0.43";
+pub(crate) const HOVER_CARD_ENGINE_TITLE: &str = "euv 0.43 Native Engine";
 pub(crate) const HERO_BADGE_ZERO_WV: &str = "Zero WebView";
 pub(crate) const HERO_BADGE_EVA: &str = "VS Code Eva Bold";
 pub(crate) const HERO_BADGE_FREEZE: &str = "Freeze Router";
@@ -203,7 +217,9 @@ impl MarkdownStudioPage {
             Overflow::Hidden
         };
         view! {
-            EuvCodeBlock(source, tokens) {
+            EuvCodeBlock {
+                code: source
+                tokens: tokens
                 language: "rust"
                 line_numbers: true
             }

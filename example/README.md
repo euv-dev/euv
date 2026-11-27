@@ -2,16 +2,16 @@
 
 # euv-example
 
-<img src="https://docs.ltpp.vip/img/euv-example.png" alt="euv-example logo" height="160">
+<img src="https://ltpp.vip/github/pages/docs-pages/pages/img/euv.png" alt="euv-example logo" height="160">
 
 **15-Route Cross-Platform Reference Showcase & Interactive Stress Lab**
 
-[![Crates.io Version](https://img.shields.io/crates/v/euv-example.svg?style=flat-square)](https://crates.io/crates/euv-example)
-[![Crates.io Downloads](https://img.shields.io/crates/d/euv-example.svg?style=flat-square)](https://crates.io/crates/euv-example)
+[![Crates.io Version](https://flat.badgen.net/crates/v/euv-example)](https://crates.io/crates/euv-example)
+[![Crates.io Downloads](https://flat.badgen.net/crates/d/euv-example)](https://crates.io/crates/euv-example)
 [![Docs.rs](https://img.shields.io/docsrs/euv-example?style=flat-square)](https://docs.rs/euv-example)
 [![CI Status](https://img.shields.io/github/actions/workflow/status/euv-dev/euv/rust.yml?style=flat-square&label=CI)](https://github.com/euv-dev/euv/actions)
 [![Rust 2024](https://img.shields.io/badge/edition-2024-orange.svg?style=flat-square)](https://www.rust-lang.org)
-[![License: MIT](https://img.shields.io/crates/l/euv-example.svg?style=flat-square)](../LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](../LICENSE)
 
 [Workspace Overview](../README.md) · [API Docs](https://docs.rs/euv-example/latest/) · [Agent Engineering Rules](../AGENTS.md)
 

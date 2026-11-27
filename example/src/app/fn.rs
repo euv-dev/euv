@@ -402,10 +402,12 @@ pub fn euv_web_boot() {
     let canvas_down: HtmlCanvasElement = canvas.clone();
     let on_down: Closure<dyn FnMut(web_sys::PointerEvent)> =
         Closure::wrap(Box::new(move |ev: web_sys::PointerEvent| {
-            drop(canvas_down.focus());
             drop(canvas_down.set_pointer_capture(ev.pointer_id()));
             let ptr: PointerEvent = web_pointer_from_dom(&ev, &canvas_down, Some(true));
             web_queue_pointer_down_event(ptr);
+            if !WEB_IME_ACTIVE.with(Cell::get) {
+                drop(canvas_down.focus());
+            }
         }) as Box<dyn FnMut(web_sys::PointerEvent)>);
     drop(canvas.add_event_listener_with_callback(
         WEB_EVENT_POINTER_DOWN,
@@ -464,14 +466,23 @@ pub fn euv_web_boot() {
     }) as Box<dyn FnMut(Event)>);
     drop(win.add_event_listener_with_callback(WEB_EVENT_BLUR, on_blur.as_ref().unchecked_ref()));
     on_blur.forget();
+    let canvas_wheel: HtmlCanvasElement = canvas.clone();
     let on_wheel: Closure<dyn FnMut(WheelEvent)> = Closure::wrap(Box::new(move |ev: WheelEvent| {
         ev.prevent_default();
+        let rect: DomRect = canvas_wheel.get_bounding_client_rect();
+        let x: f32 = (ev.client_x() as f64 - rect.left()) as f32;
+        let y: f32 = (ev.client_y() as f64 - rect.top()) as f32;
         let mult: f32 = match ev.delta_mode() {
             1 => 20.0,
             2 => 320.0,
             _ => 1.0,
         };
-        web_queue_scroll((ev.delta_x() as f32) * mult, (ev.delta_y() as f32) * mult);
+        web_queue_scroll_at(
+            x,
+            y,
+            (ev.delta_x() as f32) * mult,
+            (ev.delta_y() as f32) * mult,
+        );
     })
         as Box<dyn FnMut(WheelEvent)>);
     drop(
@@ -536,26 +547,43 @@ pub fn euv_web_boot() {
     let win_raf: Window = win.clone();
     let canvas_raf: HtmlCanvasElement = canvas.clone();
     let last_ts: Rc<RefCell<f64>> = Rc::new(RefCell::new(0.0));
+    let raf_accum_secs: Rc<Cell<f32>> = Rc::new(Cell::new(0.0));
+    let raf_accum_frames: Rc<Cell<u32>> = Rc::new(Cell::new(0));
     if let Ok(mut slot) = raf_cell.try_borrow_mut() {
         *slot = Some(Closure::wrap(Box::new(move |ts: f64| {
             let mut dt: f32 = 1.0 / 60.0;
+            let mut valid_step: bool = false;
             if let Ok(mut prev) = last_ts.try_borrow_mut() {
                 if *prev > 0.0 {
-                    dt = (((ts - *prev) / 1000.0) as f32).clamp(0.001, 0.05);
+                    let raw_dt: f32 = ((ts - *prev) / 1000.0) as f32;
+                    if (0.001..=0.1).contains(&raw_dt) {
+                        valid_step = true;
+                    }
+                    dt = raw_dt.clamp(0.001, 0.05);
                 }
                 *prev = ts;
             }
-            let resized_or_scaled: bool = web_sync_exact_viewport(&win_raf, &canvas_raf);
-            if resized_or_scaled {
-                let _: u64 = web_flush_frame(dt);
+            if valid_step {
+                let next_secs: f32 = raf_accum_secs.get() + dt;
+                let next_frames: u32 = raf_accum_frames.get().saturating_add(1);
+                if next_secs >= 0.35 && next_frames >= 8 {
+                    let measured_hz: f32 = (next_frames as f32) / next_secs;
+                    raf_accum_secs.set(0.0);
+                    raf_accum_frames.set(0);
+                    web_report_host_refresh_rate(measured_hz);
+                } else {
+                    raf_accum_secs.set(next_secs);
+                    raf_accum_frames.set(next_frames);
+                }
             }
+            let resized_or_scaled: bool = web_sync_exact_viewport(&win_raf, &canvas_raf);
             let cur_route: String = euv_web_current_route();
             let on_game: bool = cur_route == ROUTE_GAME || cur_route == ROUTE_GAME_3D;
             let animating: bool = web_has_active_animations();
             let dirty: bool = WEB_NEEDS_FRAME.with(|flag: &Cell<bool>| flag.replace(false));
-            if on_game || animating {
-                let _: u64 = euv_web_tick(dt);
-            } else if dirty && !resized_or_scaled {
+            if resized_or_scaled || on_game {
+                let _: u64 = web_flush_frame(dt);
+            } else if animating || dirty {
                 let _: u64 = web_flush_frame(dt);
             }
             if let Ok(cb_ref) = raf_loop.try_borrow()
@@ -773,19 +801,22 @@ fn web_queue_pointer_cancel(pointer_id: u64) {
     });
 }
 
-/// Enqueues a normalized browser wheel scroll delta for coalesced VSync rendering.
+/// Enqueues a normalized browser wheel scroll delta at `(x, y)` for coalesced VSync rendering.
 ///
 /// # Arguments
 ///
+/// - `f32` - Pointer X coordinate inside the canvas.
+/// - `f32` - Pointer Y coordinate inside the canvas.
 /// - `f32` - Horizontal scroll delta.
 /// - `f32` - Vertical scroll delta.
 #[cfg(target_arch = "wasm32")]
-fn web_queue_scroll(dx: f32, dy: f32) {
+fn web_queue_scroll_at(x: f32, y: f32, dx: f32, dy: f32) {
     WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
         if let Ok(mut borrow) = slot.try_borrow_mut()
             && let Some((app, _)) = borrow.as_mut()
         {
             let wid: WindowId = app.get_window_state().get_id();
+            app.dispatch_window_event(WindowEvent::PointerMove(wid, PointerEvent::mouse(x, y)));
             app.dispatch_window_event(WindowEvent::Scroll(wid, Point::new(dx, dy)));
             web_mark_needs_frame();
         }
@@ -916,6 +947,14 @@ fn web_attach_ime_proxy(doc: &Document) {
     let on_ime_blur: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
         WEB_IME_ACTIVE.with(|a: &Cell<bool>| a.set(false));
         WEB_IME_COMPOSING.with(|c: &Cell<bool>| c.set(false));
+        WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
+            if let Ok(mut borrow) = slot.try_borrow_mut()
+                && let Some((app, _)) = borrow.as_mut()
+            {
+                let wid: WindowId = app.get_window_state().get_id();
+                app.dispatch_window_event(WindowEvent::Ime(wid, ImeEvent::Disabled));
+            }
+        });
     }) as Box<dyn FnMut(Event)>);
     drop(
         html_el
@@ -954,6 +993,13 @@ fn web_native_action_bridge(kind: &str, arg1: &str, _arg2: &str) -> bool {
         };
         if arg1 == WEB_IME_ACTION_SHOW {
             WEB_IME_ACTIVE.with(|a: &Cell<bool>| a.set(true));
+            if let Some(win) = window()
+                && let Some(doc) = win.document()
+                && let Some(active_el) = doc.active_element()
+                && active_el.id() == WEB_IME_INPUT_ID
+            {
+                drop(el.blur());
+            }
             drop(el.focus());
             true
         } else if arg1 == WEB_IME_ACTION_HIDE {
@@ -1056,6 +1102,27 @@ fn web_sync_exact_viewport(win: &Window, canvas: &HtmlCanvasElement) -> bool {
         app.set_exact_physical_viewport(phys_w, phys_h, dpr);
         true
     })
+}
+
+/// Reports measured browser `requestAnimationFrame` refresh cadence into the active `App` runtime.
+///
+/// # Arguments
+///
+/// - `f32` - Measured browser presentation cadence in Hertz.
+#[cfg(target_arch = "wasm32")]
+fn web_report_host_refresh_rate(measured_hz: f32) {
+    WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
+        if let Ok(mut borrow) = slot.try_borrow_mut()
+            && let Some((app, _)) = borrow.as_mut()
+        {
+            let prev_fps: f32 = app.get_context().get_live_fps().get_untracked();
+            app.report_host_refresh_rate(measured_hz);
+            let next_fps: f32 = app.get_context().get_live_fps().get_untracked();
+            if (next_fps - prev_fps).abs() >= 1.0 {
+                web_mark_needs_frame();
+            }
+        }
+    });
 }
 
 /// Steps one coalesced WebAssembly frame during `requestAnimationFrame` with accurate real-time `dt_secs`.

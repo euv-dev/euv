@@ -31,6 +31,7 @@ impl EuvChart {
                 background: p.get_card()
                 border: (g.get_border_width(), p.get_border())
                 radius: g.get_radius_lg()
+                overflow: Overflow::Hidden
                 text {
                     font_size: 14.0
                     font_weight: FontWeight::SemiBold
@@ -333,7 +334,11 @@ impl EuvCombobox {
                 column {
                     node_ref: panel
                     bind_style: panel_style
-                    EuvInput(query, resolved_ph, tokens)
+                    EuvInput {
+                        value: query
+                        placeholder: resolved_ph
+                        tokens: tokens
+                    }
                     column {
                         width: Length::Percent(100.0)
                         gap: 2.0
@@ -446,8 +451,14 @@ impl EuvDataTable {
                     justify: JustifyContent::SpaceBetween
                     align: AlignItems::Center
                     gap: SPACE_SM
-                    EuvInput(filter, DATATABLE_FILTER_PLACEHOLDER.to_string(), tokens)
-                    EuvButton(DATATABLE_SORT_LABEL.to_string(), tokens) {
+                    EuvInput {
+                        value: filter
+                        placeholder: DATATABLE_FILTER_PLACEHOLDER.to_string()
+                        tokens: tokens
+                    }
+                    EuvButton {
+                        label: DATATABLE_SORT_LABEL.to_string()
+                        tokens: tokens
                         outline()
                         sm()
                         node_ref: sort_btn
@@ -650,7 +661,12 @@ impl EuvDatePicker {
                 view {
                     node_ref: cal_wrap
                     bind_style: cal_wrap_style
-                    EuvCalendar(month_label, 30, selected_day, tokens)
+                    EuvCalendar {
+                        month_label: month_label
+                        days_in_month: 30
+                        selected_day: selected_day
+                        tokens: tokens
+                    }
                 }
             }
         };
@@ -771,15 +787,28 @@ impl EuvInputGroup {
                             { prefix }
                         }
                     }
+                    view {
+                        width: Length::Px(g.get_border_width().max(1.0))
+                        height: Length::Px(g.get_control_md())
+                        background: p.get_border()
+                    }
                 }
                 column {
                     flex_grow: 1.0
                     min_width: Length::Px(40.0)
-                    EuvInput(value, placeholder, tokens) {
+                    EuvInput {
+                        value: value
+                        placeholder: placeholder
+                        tokens: tokens
                         borderless: true
                     }
                 }
                 if !suffix.is_empty() {
+                    view {
+                        width: Length::Px(g.get_border_width().max(1.0))
+                        height: Length::Px(g.get_control_md())
+                        background: p.get_border()
+                    }
                     row {
                         height: Length::Px(g.get_control_md())
                         padding: Edges::symmetric(0.0, SPACE_SM)
@@ -1094,7 +1123,9 @@ impl EuvNavigationMenu {
                     width: Length::Percent(100.0)
                     gap: SPACE_XS
                     for (idx, (label, _)) in items.into_iter().enumerate() {
-                        EuvButton(label, tokens) {
+                        EuvButton {
+                            label: label
+                            tokens: tokens
                             ghost()
                             sm()
                             on_click: move |_: &UiEvent| {
@@ -1339,7 +1370,9 @@ impl EuvSonner {
                                         { desc }
                                     }
                                 }
-                                EuvButton(SONNER_DISMISS_LABEL.to_string(), tokens) {
+                                EuvButton {
+                                    label: SONNER_DISMISS_LABEL.to_string()
+                                    tokens: tokens
                                     ghost()
                                     sm()
                                     on_click: move |_: &UiEvent| {
@@ -1543,7 +1576,9 @@ impl EuvAttachment {
                         { meta }
                     }
                 }
-                EuvButton(ATTACHMENT_REMOVE_LABEL.to_string(), tokens) {
+                EuvButton {
+                    label: ATTACHMENT_REMOVE_LABEL.to_string()
+                    tokens: tokens
                     outline()
                     sm()
                     on_click: move |_: &UiEvent| {

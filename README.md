@@ -8,11 +8,11 @@
 
 _Zero WebView · Zero Virtual DOM · Direct OS APIs · 7 Target Platforms · Bit-Identical Rendering_
 
-[![Crates.io Version](https://img.shields.io/crates/v/euv.svg?style=flat-square)](https://crates.io/crates/euv)
-[![Crates.io Downloads](https://img.shields.io/crates/d/euv.svg?style=flat-square)](https://crates.io/crates/euv)
+[![Crates.io Version](https://flat.badgen.net/crates/v/euv)](https://crates.io/crates/euv)
+[![Crates.io Downloads](https://flat.badgen.net/crates/d/euv)](https://crates.io/crates/euv)
 [![Docs.rs](https://img.shields.io/docsrs/euv?style=flat-square)](https://docs.rs/euv)
 [![CI Status](https://img.shields.io/github/actions/workflow/status/euv-dev/euv/rust.yml?style=flat-square&label=CI)](https://github.com/euv-dev/euv/actions)
-[![License: MIT](https://img.shields.io/crates/l/euv.svg?style=flat-square)](./LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](./LICENSE)
 [![Rust 2024](https://img.shields.io/badge/edition-2024-orange.svg?style=flat-square)](https://www.rust-lang.org)
 
 [API Docs](https://docs.rs/euv/latest/) · [Guide](./docs/docs/en/guide/getting-started.md) · [Component Catalog](./docs/docs/en/components/README.md) · [Markdown & Eva Theme Showcase](./docs/docs/en/guide/markdown-syntax.md) · [Agent Engineering Rules](./AGENTS.md)
@@ -117,7 +117,9 @@ impl CounterCard {
                     color: p.get_foreground()
                     { count_text }
                 }
-                EuvButton("Increment (+1)".to_string(), tokens) {
+                EuvButton {
+                    label: "Increment (+1)"
+                    tokens: tokens
                     on_click: on_inc
                 }
             }

@@ -98,11 +98,18 @@ fn hit_test_subtree(
         return None;
     }
     let raw_bounds: Rect = node.get_layout_box().get_bounds();
+    let transform: Transform2D = style.get_paint().get_transform();
+    let tx: f32 = transform.get_translate_x();
+    let ty: f32 = transform.get_translate_y();
+    let scaled_w: f32 = raw_bounds.get_width() * transform.get_scale_x();
+    let scaled_h: f32 = raw_bounds.get_height() * transform.get_scale_y();
+    let scale_dx: f32 = (raw_bounds.get_width() - scaled_w) * 0.5;
+    let scale_dy: f32 = (raw_bounds.get_height() - scaled_h) * 0.5;
     let shifted_bounds: Rect = Rect::new(
-        raw_bounds.get_x() - scroll_offset.get_x(),
-        raw_bounds.get_y() - scroll_offset.get_y(),
-        raw_bounds.get_width(),
-        raw_bounds.get_height(),
+        raw_bounds.get_x() - scroll_offset.get_x() + tx + scale_dx,
+        raw_bounds.get_y() - scroll_offset.get_y() + ty + scale_dy,
+        scaled_w,
+        scaled_h,
     );
     let effective_clip: Option<Rect> = match layout.get_overflow() {
         Overflow::Hidden | Overflow::Scroll => match clip_rect {
@@ -117,8 +124,8 @@ fn hit_test_subtree(
         return None;
     }
     let child_scroll: Point = Point::new(
-        scroll_offset.get_x() + node.get_layout_box().get_scroll_offset().get_x(),
-        scroll_offset.get_y() + node.get_layout_box().get_scroll_offset().get_y(),
+        scroll_offset.get_x() + node.get_layout_box().get_scroll_offset().get_x() - tx,
+        scroll_offset.get_y() + node.get_layout_box().get_scroll_offset().get_y() - ty,
     );
     let mut sorted_children: Vec<(i32, usize, NodeId)> = node
         .get_children()

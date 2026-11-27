@@ -43,6 +43,58 @@ pub(crate) fn linux_dlsym(handle: *mut c_void, sym: &'static str) -> *mut c_void
     unsafe { dlsym(handle, sym.as_ptr().cast::<c_char>()) }
 }
 
+/// Queries the native Linux display refresh rate via `EUV_REFRESH_RATE_HZ` or `libXrandr.so.2`.
+///
+/// # Arguments
+///
+/// - `*mut c_void` - Active X11 `Display*` pointer (or null when unavailable).
+/// - `usize` - Target X11 window handle (`0` when unavailable).
+///
+/// # Returns
+///
+/// - `f32` - Active display refresh rate in Hertz (`60.0` fallback).
+#[must_use]
+pub(crate) fn linux_display_refresh_rate_hz(display: *mut c_void, window: usize) -> f32 {
+    if let Ok(val) = env::var(LINUX_REFRESH_ENV_VAR)
+        && let Ok(parsed) = val.trim().parse::<f32>()
+        && parsed.is_finite()
+        && parsed >= 24.0
+    {
+        return parsed.clamp(24.0, 480.0);
+    }
+    if display.is_null() || window == 0 {
+        return 60.0;
+    }
+    // SAFETY: Dynamically loads optional `libXrandr.so.2` symbols at runtime without link dependency.
+    unsafe {
+        let xrandr: *mut c_void = dlopen(LINUX_LIB_XRANDR.as_ptr().cast::<c_char>(), RTLD_LAZY);
+        if xrandr.is_null() {
+            return 60.0;
+        }
+        let get_info_sym: *mut c_void = linux_dlsym(xrandr, SYM_XRR_GET_SCREEN_INFO);
+        let cur_rate_sym: *mut c_void = linux_dlsym(xrandr, SYM_XRR_CONFIG_CURRENT_RATE);
+        let free_info_sym: *mut c_void = linux_dlsym(xrandr, SYM_XRR_FREE_SCREEN_CONFIG_INFO);
+        if get_info_sym.is_null() || cur_rate_sym.is_null() || free_info_sym.is_null() {
+            return 60.0;
+        }
+        let get_info: unsafe extern "C" fn(*mut c_void, usize) -> *mut c_void =
+            transmute(get_info_sym);
+        let cur_rate: unsafe extern "C" fn(*mut c_void) -> i16 = transmute(cur_rate_sym);
+        let free_info: unsafe extern "C" fn(*mut c_void) = transmute(free_info_sym);
+        let config: *mut c_void = get_info(display, window);
+        if config.is_null() {
+            return 60.0;
+        }
+        let rate: i16 = cur_rate(config);
+        free_info(config);
+        if rate >= 24 {
+            (rate as f32).clamp(24.0, 480.0)
+        } else {
+            60.0
+        }
+    }
+}
+
 /// Queries the Linux display DPI scale factor from environment variables or `XResourceManagerString` (`Xft.dpi`).
 ///
 /// # Arguments

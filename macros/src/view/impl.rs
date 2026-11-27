@@ -213,6 +213,22 @@ impl Parse for ViewElement {
         let (args, args_close_line): (Option<Vec<Expr>>, Option<usize>) = if input.peek(Paren) {
             let arg_buf: ParseBuffer<'_>;
             let paren_tok: Paren = parenthesized!(arg_buf in input);
+            let last_name: String = path
+                .segments
+                .last()
+                .map(|seg: &PathSegment| seg.ident.to_string())
+                .unwrap_or_default();
+            let is_type_ctor: bool = last_name
+                .chars()
+                .next()
+                .map(|ch: char| ch.is_ascii_uppercase())
+                .unwrap_or(false);
+            if is_type_ctor {
+                let msg: String = format!(
+                    "{ERR_COMPONENT_POSITIONAL_ARGS} — rewrite `{last_name}(...)` as `{last_name} {{ prop: value }}`"
+                );
+                return Err(Error::new(paren_tok.span.join(), msg));
+            }
             let parsed_args: Punctuated<Expr, Token![,]> =
                 arg_buf.parse_terminated(Expr::parse, Token![,])?;
             (

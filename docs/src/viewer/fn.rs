@@ -32,23 +32,35 @@ pub fn mount_docs_viewer(
     let main_col: NodeId = match active_page {
         Some(page) => mount_doc_page(page, tokens),
         None => view! {
-            EuvHeader(EMPTY_PAGE_TITLE.to_string(), EMPTY_PAGE_MSG.to_string(), tokens)
+            EuvHeader {
+                title: EMPTY_PAGE_TITLE.to_string()
+                subtitle: EMPTY_PAGE_MSG.to_string()
+                tokens: tokens
+            }
         },
     };
     view! {
-        EuvAppShell(
-            site.get_title().clone(),
-            view! {
+        EuvAppShell {
+            brand: site.get_title().clone()
+            sidebar: view! {
                 column {
                     width: Length::Percent(100.0)
                     gap: SPACE_MD
-                    EuvInput(search_query, SEARCH_PLACEHOLDER.to_string(), tokens)
-                    EuvSidebarNav(nav_items, active_route, tokens)
+                    EuvInput {
+                        value: search_query
+                        placeholder: SEARCH_PLACEHOLDER.to_string()
+                        tokens: tokens
+                    }
+                    EuvSidebarNav {
+                        items: nav_items
+                        active_route: active_route
+                        tokens: tokens
+                    }
                 }
-            },
-            main_col,
-            tokens
-        )
+            }
+            main_content: main_col
+            tokens: tokens
+        }
     }
 }
 
@@ -68,10 +80,20 @@ pub fn mount_doc_page(page: &DocPage, tokens: ThemeTokens) -> NodeId {
         column {
             width: Length::Percent(100.0)
             gap: SPACE_MD
-            EuvBadge(page.get_section().clone(), EuvTone::Primary, tokens)
-            EuvHeader(page.get_title().clone(), page.get_summary().clone(), tokens)
+            EuvBadge {
+                label: page.get_section().clone()
+                tone: EuvTone::Primary
+                tokens: tokens
+            }
+            EuvHeader {
+                title: page.get_title().clone()
+                subtitle: page.get_summary().clone()
+                tokens: tokens
+            }
             if !page.get_toc().is_empty() {
-                EuvCard(TOC_CARD_TITLE.to_string(), tokens) {
+                EuvCard {
+                    title: TOC_CARD_TITLE.to_string()
+                    tokens: tokens
                     for item in page.get_toc().iter() {
                         text {
                             font_size: 13.0
@@ -82,7 +104,10 @@ pub fn mount_doc_page(page: &DocPage, tokens: ThemeTokens) -> NodeId {
                 }
             }
             if !page.get_markdown_body().trim().is_empty() {
-                EuvMarkdown(page.get_markdown_body().clone(), tokens)
+                EuvMarkdown {
+                    source: page.get_markdown_body().clone()
+                    tokens: tokens
+                }
             } else {
                 column {
                     width: Length::Percent(100.0)
@@ -90,33 +115,48 @@ pub fn mount_doc_page(page: &DocPage, tokens: ThemeTokens) -> NodeId {
                     for block in page.get_blocks().iter() {
                         match block {
                             DocBlock::Heading { level, text, .. } => {
-                                EuvMarkdownHeading(*level, text.clone(), tokens)
+                                EuvMarkdownHeading {
+                                    level: *level
+                                    text: text.clone()
+                                    tokens: tokens
+                                }
                             }
                             DocBlock::Paragraph(text) => {
-                                EuvMarkdownParagraph(parse_markdown_inlines(text), tokens)
+                                EuvMarkdownParagraph {
+                                    inlines: parse_markdown_inlines(text)
+                                    tokens: tokens
+                                }
                             }
-                            DocBlock::ListItem(text) => EuvMarkdownList(
-                                false,
-                                vec![EuvMarkdownListItem::new(text.clone(), 0, None)],
-                                tokens,
-                            ),
-                            DocBlock::BlockQuote(text) => EuvMarkdownQuote(
-                                EuvMarkdownAlertKind::Quote,
-                                vec![text.clone()],
-                                tokens,
-                            ),
-                            DocBlock::Table { headers, rows } => EuvMarkdownTable(
-                                headers.clone(),
-                                vec![EuvMarkdownAlign::Left; headers.len()],
-                                rows.clone(),
-                                tokens,
-                            ),
+                            DocBlock::ListItem(text) => EuvMarkdownList {
+                                ordered: false
+                                items: vec![EuvMarkdownListItem::new(text.clone(), 0, None)]
+                                tokens: tokens
+                            },
+                            DocBlock::BlockQuote(text) => EuvMarkdownQuote {
+                                kind: EuvMarkdownAlertKind::Quote
+                                lines: vec![text.clone()]
+                                tokens: tokens
+                            },
+                            DocBlock::Table { headers, rows } => EuvMarkdownTable {
+                                headers: headers.clone()
+                                alignments: vec![EuvMarkdownAlign::Left; headers.len()]
+                                rows: rows.clone()
+                                tokens: tokens
+                            },
                             DocBlock::Image { alt, src } => {
-                                EuvMarkdownImage(alt.clone(), src.clone(), tokens)
+                                EuvMarkdownImage {
+                                    alt: alt.clone()
+                                    url: src.clone()
+                                    tokens: tokens
+                                }
                             }
-                            DocBlock::HorizontalRule => EuvMarkdownDivider(tokens),
+                            DocBlock::HorizontalRule => EuvMarkdownDivider {
+                                tokens: tokens
+                            },
                             DocBlock::Code { language, code } => {
-                                EuvCodeBlock(code.clone(), tokens) {
+                                EuvCodeBlock {
+                                    code: code.clone()
+                                    tokens: tokens
                                     language: language.clone()
                                     line_numbers: true
                                 }

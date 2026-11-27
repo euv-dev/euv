@@ -811,18 +811,20 @@ impl AiSchemaProtocol {
     /// - `&AiLayoutNode` - Subtree root to audit.
     /// - `f32` - Active logical viewport width.
     /// - `bool` - Whether all ancestors are displayed with non-zero opacity.
+    /// - `bool` - Whether an in-bounds `Overflow::Scroll` ancestor clips horizontal overflow.
     /// - `&mut Vec<AiLayoutAnomaly>` - Output anomaly list.
     fn detect_anomalies(
         node: &AiLayoutNode,
         viewport_w: f32,
         ancestor_displayed: bool,
+        ancestor_scroll_clipped: bool,
         out: &mut Vec<AiLayoutAnomaly>,
     ) {
         let b: AiRect = node.get_screen_bounds();
         let style: &AiStyleSummary = node.get_style();
         let displayed: bool =
-            ancestor_displayed && style.get_display() != "None" && style.get_opacity() > 0.0;
-        if node.get_visible() && b.right() > viewport_w + 2.0 {
+            ancestor_displayed && style.get_display() != DISPLAY_NONE && style.get_opacity() > 0.0;
+        if node.get_visible() && !ancestor_scroll_clipped && b.right() > viewport_w + 2.0 {
             out.push(AiLayoutAnomaly::new(
                 AiAnomalyKind::HorizontalOverflow,
                 node.get_node_index(),
@@ -836,7 +838,7 @@ impl AiSchemaProtocol {
                 b,
             ));
         }
-        if node.get_visible() && b.get_x() < -2.0 {
+        if node.get_visible() && !ancestor_scroll_clipped && b.get_x() < -2.0 {
             out.push(AiLayoutAnomaly::new(
                 AiAnomalyKind::NegativeBounds,
                 node.get_node_index(),
@@ -900,8 +902,13 @@ impl AiSchemaProtocol {
                 }
             }
         }
+        let next_scroll_clipped: bool = ancestor_scroll_clipped
+            || (style.get_overflow() == OVERFLOW_SCROLL
+                && b.get_width() > 0.0
+                && b.right() <= viewport_w + 2.0
+                && b.get_x() >= -2.0);
         for child in node.get_children().iter() {
-            Self::detect_anomalies(child, viewport_w, displayed, out);
+            Self::detect_anomalies(child, viewport_w, displayed, next_scroll_clipped, out);
         }
     }
 
@@ -1032,7 +1039,13 @@ impl AiSchemaProtocol {
         );
         let mut anomalies: Vec<AiLayoutAnomaly> = Vec::new();
         if let Some(root_ref) = root_tree.as_ref() {
-            Self::detect_anomalies(root_ref, ws.get_logical_width(), true, &mut anomalies);
+            Self::detect_anomalies(
+                root_ref,
+                ws.get_logical_width(),
+                true,
+                false,
+                &mut anomalies,
+            );
         }
         AiRuntimeSnapshot {
             protocol_version: AI_SCHEMA_PROTOCOL_VERSION.to_string(),

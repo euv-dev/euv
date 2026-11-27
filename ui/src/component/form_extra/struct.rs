@@ -1,7 +1,7 @@
 use super::*;
 
 /// Accessible form control label.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvLabel {
     /// Label text.
     pub(crate) text: String,
@@ -14,7 +14,7 @@ pub struct EuvLabel {
 }
 
 /// Structured form wrapper stacking labeled fields with uniform vertical spacing.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvForm {
     /// Ordered form field nodes.
     #[new(skip)]
@@ -25,7 +25,7 @@ pub struct EuvForm {
 }
 
 /// Multi-line text input surface bound to `Signal<String>`.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvTextarea {
     /// Bound string signal.
     #[get(type(copy))]
@@ -41,7 +41,7 @@ pub struct EuvTextarea {
 }
 
 /// Numeric stepper input bound to `Signal<i64>` with optional min/max bounds and step size.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvNumberInput {
     /// Bound integer value signal.
     #[get(type(copy))]
@@ -57,6 +57,7 @@ pub struct EuvNumberInput {
     /// Increment step size (`<= 0` defaults to `1`).
     #[new(skip)]
     #[get(type(copy))]
+    #[prop(custom)]
     pub(crate) step: i64,
     /// Active theme tokens.
     #[get(type(copy))]
@@ -64,7 +65,7 @@ pub struct EuvNumberInput {
 }
 
 /// Mutually exclusive radio button group bound to `Signal<usize>`.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvRadioGroup {
     /// Option labels.
     pub(crate) options: Vec<String>,
@@ -77,7 +78,7 @@ pub struct EuvRadioGroup {
 }
 
 /// Continuous range slider bound to `Signal<f32>` in `[min, max]`.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvSlider {
     /// Reactive numeric value signal.
     #[get(type(copy))]
@@ -94,7 +95,7 @@ pub struct EuvSlider {
 }
 
 /// Dropdown option selector bound to `Signal<usize>` with reactive menu toggle.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvSelect {
     /// Ordered selectable option labels.
     pub(crate) options: Vec<String>,
@@ -110,7 +111,7 @@ pub struct EuvSelect {
 }
 
 /// Interactive 1..=N star rating control bound to `Signal<usize>`.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvRating {
     /// Current rating value (`0..=max_stars`).
     #[get(type(copy))]
@@ -124,13 +125,14 @@ pub struct EuvRating {
 }
 
 /// Interactive swatch palette color selector bound to `Signal<Color>`.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvColorPicker {
     /// Bound reactive selected color signal.
     #[get(type(copy))]
     pub(crate) value: Signal<Color>,
     /// Optional custom swatch presets (empty falls back to the built-in curated palette).
     #[new(skip)]
+    #[prop(custom)]
     pub(crate) presets: Vec<Color>,
     /// Active theme tokens.
     #[get(type(copy))]
@@ -138,7 +140,7 @@ pub struct EuvColorPicker {
 }
 
 /// Interactive 24-hour `HH:MM` time picker with steppers and quick presets bound to `Signal<(u8, u8)>`.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvTimePicker {
     /// Bound reactive `(hour, minute)` tuple signal (`hour` in `0..=23`, `minute` in `0..=59`).
     #[get(type(copy))]
@@ -149,13 +151,14 @@ pub struct EuvTimePicker {
 }
 
 /// Interactive multi-tag chip input supporting live tag addition and removal bound to `Signal<Vec<String>>`.
-#[derive(Clone, Data, New)]
+#[derive(Clone, Data, New, Props)]
 pub struct EuvTagInput {
     /// Bound reactive list of active tag strings.
     #[get(type(copy))]
     pub(crate) tags: Signal<Vec<String>>,
     /// Input field placeholder text.
     #[new(skip)]
+    #[prop(custom)]
     pub(crate) placeholder: String,
     /// Active theme tokens.
     #[get(type(copy))]

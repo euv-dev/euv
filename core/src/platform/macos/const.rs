@@ -46,6 +46,12 @@ pub(crate) const OBJC_SEL_SHARED_APP: &str = "sharedApplication\0";
 /// Objective-C selector for `mainScreen`.
 pub(crate) const OBJC_SEL_MAIN_SCREEN: &str = "mainScreen\0";
 
+/// Objective-C selector for `screen` on `NSWindow`.
+pub(crate) const OBJC_SEL_SCREEN: &str = "screen\0";
+
+/// Objective-C selector for `maximumFramesPerSecond` on `NSScreen`.
+pub(crate) const OBJC_SEL_MAX_FPS: &str = "maximumFramesPerSecond\0";
+
 /// Objective-C selector for `backingScaleFactor`.
 pub(crate) const OBJC_SEL_BACKING_SCALE: &str = "backingScaleFactor\0";
 

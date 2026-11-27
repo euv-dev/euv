@@ -69,6 +69,7 @@ use std::{
 #[cfg(not(target_arch = "wasm32"))]
 use std::{
     fs,
+    hint::spin_loop,
     io::{self, Read, Write},
     net::{SocketAddr, TcpStream, ToSocketAddrs},
     slice::from_raw_parts,

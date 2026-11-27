@@ -1,7 +1,7 @@
 use super::*;
 
 /// Modal confirmation dialog aligned with shadcn/ui `AlertDialog`.
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvAlertDialog {
     /// Reactive dialog open state.
     #[get(type(copy))]
@@ -10,6 +10,7 @@ pub struct EuvAlertDialog {
     pub(crate) title: String,
     /// Explanatory description text.
     #[new(skip)]
+    #[prop(custom)]
     pub(crate) description: String,
     /// Cancel button label (`"Cancel"` when omitted).
     #[new(skip)]
@@ -26,7 +27,7 @@ pub struct EuvAlertDialog {
 }
 
 /// Interactive collapsible disclosure panel aligned with shadcn/ui `Collapsible`.
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvCollapsible {
     /// Reactive expanded state.
     #[get(type(copy))]
@@ -42,7 +43,7 @@ pub struct EuvCollapsible {
 }
 
 /// Wrapping multi-option toggle button group aligned with shadcn/ui `ToggleGroup`.
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvToggleGroup {
     /// Ordered toggle item labels.
     pub(crate) options: Vec<String>,
@@ -55,7 +56,7 @@ pub struct EuvToggleGroup {
 }
 
 /// Segmented one-time passcode input aligned with shadcn/ui `InputOTP`.
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvInputOtp {
     /// Reactive passcode string value.
     #[get(type(copy))]
@@ -69,14 +70,16 @@ pub struct EuvInputOtp {
 }
 
 /// Searchable command palette aligned with shadcn/ui `Command`.
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvCommand {
     /// Optional controlled reactive search query string (creates internal state when omitted).
     #[new(skip)]
     #[get(skip)]
+    #[prop(custom)]
     pub(crate) query: Option<Signal<String>>,
     /// Input placeholder prompt (`"Type a command or search..."` when empty).
     #[new(skip)]
+    #[prop(custom)]
     pub(crate) placeholder: String,
     /// Available command item labels.
     pub(crate) items: Vec<String>,
@@ -89,11 +92,12 @@ pub struct EuvCommand {
 }
 
 /// Interactive preview card aligned with shadcn/ui `HoverCard`.
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvHoverCard {
     /// Optional controlled reactive preview card visibility flag (creates internal state when omitted).
     #[new(skip)]
     #[get(skip)]
+    #[prop(custom)]
     pub(crate) open: Option<Signal<bool>>,
     /// Trigger link button label.
     pub(crate) trigger_label: String,
@@ -101,6 +105,7 @@ pub struct EuvHoverCard {
     pub(crate) title: String,
     /// Optional preview card body text.
     #[new(skip)]
+    #[prop(custom)]
     pub(crate) description: String,
     /// Active theme tokens.
     #[get(type(copy))]
@@ -108,7 +113,7 @@ pub struct EuvHoverCard {
 }
 
 /// Interactive 7-column monthly calendar picker aligned with shadcn/ui `Calendar`.
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvCalendar {
     /// Month and year display heading (e.g. `"November 2026"`).
     pub(crate) month_label: String,
@@ -124,7 +129,7 @@ pub struct EuvCalendar {
 }
 
 /// Aspect-ratio constrained media container aligned with shadcn/ui `AspectRatio`.
-#[derive(Clone, Copy, Data, Debug, New)]
+#[derive(Clone, Copy, Data, Debug, New, Props)]
 pub struct EuvAspectRatio {
     /// Target width-to-height ratio (e.g. `16.0 / 9.0`).
     #[get(type(copy))]
@@ -138,7 +143,7 @@ pub struct EuvAspectRatio {
 }
 
 /// Responsive horizontal menubar aligned with shadcn/ui `Menubar`.
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvMenubar {
     /// Top-level menu item labels.
     pub(crate) menus: Vec<String>,
@@ -151,7 +156,7 @@ pub struct EuvMenubar {
 }
 
 /// Responsive slide carousel aligned with shadcn/ui `Carousel`.
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvCarousel {
     /// Slide content titles or summaries.
     pub(crate) slides: Vec<String>,

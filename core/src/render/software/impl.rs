@@ -77,10 +77,9 @@ impl BandWorkerPool {
     /// - `&mut [PixelBand<'_>]` - Disjoint horizontal framebuffer strips.
     /// - `&[DrawCommand]` - Display list commands.
     /// - `&[PreppedCommand]` - Pre-clipped command table.
-    /// - `&[TextLayoutResult]` - Pre-measured text layouts.
+    /// - `(&[TextLayoutResult], &[RoundedClipMask])` - Pre-measured text layouts and active rounded clip masks.
     /// - `&GlyphAtlas` - Shared read-only glyph atlas.
-    /// - `(f32, AntialiasingMode)` - Tuple of `(scale, antialiasing)`.
-    /// - `Option<&[u8]>` - Optional cached base-scene RGBA8 pixel slice.
+    /// - `(f32, AntialiasingMode, Option<&[u8]>)` - Tuple of `(scale, antialiasing, optional_base_restore)`.
     ///
     /// # Returns
     ///
@@ -89,12 +88,12 @@ impl BandWorkerPool {
         bands: &mut [PixelBand<'_>],
         commands: &[DrawCommand],
         prepped: &[PreppedCommand],
-        layouts: &[TextLayoutResult],
+        aux: (&[TextLayoutResult], &[RoundedClipMask]),
         atlas: &GlyphAtlas,
-        render_opts: (f32, AntialiasingMode),
-        base_restore: Option<&[u8]>,
+        render_opts: (f32, AntialiasingMode, Option<&[u8]>),
     ) -> usize {
-        let (scale, aa): (f32, AntialiasingMode) = render_opts;
+        let (layouts, rounded_clips): (&[TextLayoutResult], &[RoundedClipMask]) = aux;
+        let (scale, aa, base_restore): (f32, AntialiasingMode, Option<&[u8]>) = render_opts;
         let mut total: usize = 0;
         for band in bands.iter_mut() {
             if let Some(src_buf) = base_restore {
@@ -104,8 +103,15 @@ impl BandWorkerPool {
                     band.pixels.copy_from_slice(src_slice);
                 }
             }
-            total +=
-                SoftwareRenderer::render_band(band, commands, prepped, layouts, atlas, scale, aa);
+            total += SoftwareRenderer::render_band(
+                band,
+                commands,
+                prepped,
+                layouts,
+                rounded_clips,
+                atlas,
+                (scale, aa),
+            );
         }
         total
     }
@@ -129,7 +135,7 @@ impl BandWorkerPool {
     /// - `&mut [PixelBand<'_>]` - Disjoint horizontal framebuffer strips.
     /// - `&[DrawCommand]` - Display list commands.
     /// - `&[PreppedCommand]` - Pre-clipped command table.
-    /// - `&[TextLayoutResult]` - Pre-measured text layouts.
+    /// - `(&[TextLayoutResult], &[RoundedClipMask])` - Pre-measured text layouts and active rounded clip masks.
     /// - `&GlyphAtlas` - Shared read-only glyph atlas.
     /// - `(f32, AntialiasingMode, Option<&[u8]>)` - Tuple of `(scale, antialiasing, optional_base_restore)`.
     ///
@@ -141,7 +147,7 @@ impl BandWorkerPool {
         bands: &mut [PixelBand<'_>],
         commands: &[DrawCommand],
         prepped: &[PreppedCommand],
-        layouts: &[TextLayoutResult],
+        aux: (&[TextLayoutResult], &[RoundedClipMask]),
         atlas: &GlyphAtlas,
         render_opts: (f32, AntialiasingMode, Option<&[u8]>),
     ) -> usize {
@@ -150,16 +156,16 @@ impl BandWorkerPool {
             dispatch_lock,
             shared,
         } = self;
+        let (layouts, rounded_clips): (&[TextLayoutResult], &[RoundedClipMask]) = aux;
         let (scale, aa, base_restore): (f32, AntialiasingMode, Option<&[u8]>) = render_opts;
         if *worker_count == 0 || bands.len() <= 1 {
             return Self::execute_serial(
                 bands,
                 commands,
                 prepped,
-                layouts,
+                (layouts, rounded_clips),
                 atlas,
-                (scale, aa),
-                base_restore,
+                (scale, aa, base_restore),
             );
         }
         let Ok(_dispatch_guard) = dispatch_lock.try_lock() else {
@@ -167,10 +173,9 @@ impl BandWorkerPool {
                 bands,
                 commands,
                 prepped,
-                layouts,
+                (layouts, rounded_clips),
                 atlas,
-                (scale, aa),
-                base_restore,
+                (scale, aa, base_restore),
             );
         };
         let mut tasks: Vec<BandTaskSlice> = Vec::with_capacity(bands.len());
@@ -204,6 +209,8 @@ impl BandWorkerPool {
             prepped_len: prepped.len(),
             layouts_ptr: layouts.as_ptr() as usize,
             layouts_len: layouts.len(),
+            rounded_clips_ptr: rounded_clips.as_ptr() as usize,
+            rounded_clips_len: rounded_clips.len(),
             atlas_ptr: (atlas as *const GlyphAtlas) as usize,
             scale,
             aa,
@@ -281,11 +288,13 @@ impl SoftwareRenderer {
             measurer: DeterministicTextMeasurer,
             text_layout_cache: HashMap::with_capacity(128),
             clip_stack: Vec::with_capacity(8),
+            rounded_clip_stack: Vec::with_capacity(8),
             antialiasing: config.get_antialiasing(),
             tile_size: config.get_tile_size().max(16),
             base_cache_width: 0,
             base_cache_height: 0,
             base_cache_hash: 0,
+            prev_base_hash: 0,
             base_cache_pixels: Vec::new(),
         }
     }
@@ -309,6 +318,7 @@ impl SoftwareRenderer {
         let resized: bool = self.get_mut_framebuffer().resize(phys_w, phys_h);
         if resized {
             self.set_base_cache_hash(0);
+            self.set_prev_base_hash(0);
             self.set_base_cache_width(0);
             self.set_base_cache_height(0);
         }
@@ -340,36 +350,50 @@ impl SoftwareRenderer {
                 && self.get_base_cache_height() == phys_h
                 && self.get_base_cache_pixels().len() == fb_len;
             if cache_hit {
-                let (prepped, text_layouts): (Vec<PreppedCommand>, Vec<TextLayoutResult>) = self
-                    .prepare_frame_range(
-                        display_list,
-                        split,
-                        commands.len(),
-                        root_clip,
-                        scale,
-                        phys_h,
-                    );
+                let (prepped, text_layouts, rounded_clips): (
+                    Vec<PreppedCommand>,
+                    Vec<TextLayoutResult>,
+                    Vec<RoundedClipMask>,
+                ) = self.prepare_frame_range(
+                    display_list,
+                    split,
+                    commands.len(),
+                    root_clip,
+                    scale,
+                    phys_h,
+                );
                 let pixels_shaded: usize = self.execute_prepared_bands(
                     commands,
-                    prepped.as_slice(),
-                    text_layouts.as_slice(),
+                    (
+                        prepped.as_slice(),
+                        text_layouts.as_slice(),
+                        rounded_clips.as_slice(),
+                    ),
                     root_clip,
                     (phys_w, phys_h, scale),
                     true,
                 );
                 return (tiles_updated, pixels_shaded.max(1));
             }
-            let (base_prepped, base_layouts): (Vec<PreppedCommand>, Vec<TextLayoutResult>) =
-                self.prepare_frame_range(display_list, 0, split, root_clip, scale, phys_h);
+            let (base_prepped, base_layouts, base_rounded): (
+                Vec<PreppedCommand>,
+                Vec<TextLayoutResult>,
+                Vec<RoundedClipMask>,
+            ) = self.prepare_frame_range(display_list, 0, split, root_clip, scale, phys_h);
             let base_shaded: usize = self.execute_prepared_bands(
                 commands,
-                base_prepped.as_slice(),
-                base_layouts.as_slice(),
+                (
+                    base_prepped.as_slice(),
+                    base_layouts.as_slice(),
+                    base_rounded.as_slice(),
+                ),
                 root_clip,
                 (phys_w, phys_h, scale),
                 false,
             );
-            {
+            let base_stable: bool = base_hash != 0 && self.get_prev_base_hash() == base_hash;
+            self.set_prev_base_hash(base_hash);
+            if base_stable {
                 let Self {
                     framebuffer,
                     base_cache_pixels,
@@ -387,19 +411,25 @@ impl SoftwareRenderer {
                 *base_cache_height = phys_h;
                 *base_cache_hash = base_hash;
             }
-            let (portal_prepped, portal_layouts): (Vec<PreppedCommand>, Vec<TextLayoutResult>) =
-                self.prepare_frame_range(
-                    display_list,
-                    split,
-                    commands.len(),
-                    root_clip,
-                    scale,
-                    phys_h,
-                );
+            let (portal_prepped, portal_layouts, portal_rounded): (
+                Vec<PreppedCommand>,
+                Vec<TextLayoutResult>,
+                Vec<RoundedClipMask>,
+            ) = self.prepare_frame_range(
+                display_list,
+                split,
+                commands.len(),
+                root_clip,
+                scale,
+                phys_h,
+            );
             let portal_shaded: usize = self.execute_prepared_bands(
                 commands,
-                portal_prepped.as_slice(),
-                portal_layouts.as_slice(),
+                (
+                    portal_prepped.as_slice(),
+                    portal_layouts.as_slice(),
+                    portal_rounded.as_slice(),
+                ),
                 root_clip,
                 (phys_w, phys_h, scale),
                 false,
@@ -408,13 +438,20 @@ impl SoftwareRenderer {
         }
         if !has_portals {
             self.set_base_cache_hash(0);
+            self.set_prev_base_hash(0);
         }
-        let (prepped, text_layouts): (Vec<PreppedCommand>, Vec<TextLayoutResult>) =
-            self.prepare_frame_range(display_list, 0, commands.len(), root_clip, scale, phys_h);
+        let (prepped, text_layouts, rounded_clips): (
+            Vec<PreppedCommand>,
+            Vec<TextLayoutResult>,
+            Vec<RoundedClipMask>,
+        ) = self.prepare_frame_range(display_list, 0, commands.len(), root_clip, scale, phys_h);
         let pixels_shaded: usize = self.execute_prepared_bands(
             commands,
-            prepped.as_slice(),
-            text_layouts.as_slice(),
+            (
+                prepped.as_slice(),
+                text_layouts.as_slice(),
+                rounded_clips.as_slice(),
+            ),
             root_clip,
             (phys_w, phys_h, scale),
             false,
@@ -428,8 +465,7 @@ impl SoftwareRenderer {
     ///
     /// - `&Self` - Mutable software renderer.
     /// - `&[DrawCommand]` - Full frame draw command slice.
-    /// - `&[PreppedCommand]` - Pre-clipped command slice.
-    /// - `&[TextLayoutResult]` - Pre-measured text layouts.
+    /// - `(&[PreppedCommand], &[TextLayoutResult], &[RoundedClipMask])` - Pre-clipped commands, text layouts, and rounded clip masks.
     /// - `Rect` - Root physical damage clip rectangle.
     /// - `(u32, u32, f32)` - Tuple `(phys_w, phys_h, scale)`.
     /// - `bool` - Whether to restore `base_cache_pixels` into each strip before rasterizing.
@@ -440,12 +476,16 @@ impl SoftwareRenderer {
     fn execute_prepared_bands(
         &mut self,
         commands: &[DrawCommand],
-        prepped_slice: &[PreppedCommand],
-        layouts_slice: &[TextLayoutResult],
+        prepared: (&[PreppedCommand], &[TextLayoutResult], &[RoundedClipMask]),
         root_clip: Rect,
         dims: (u32, u32, f32),
         restore_base_cache: bool,
     ) -> usize {
+        let (prepped_slice, layouts_slice, rounded_clips_slice): (
+            &[PreppedCommand],
+            &[TextLayoutResult],
+            &[RoundedClipMask],
+        ) = prepared;
         let (phys_w, phys_h, scale): (u32, u32, f32) = dims;
         let aa: AntialiasingMode = self.get_antialiasing();
         let clip_y0: u32 = (root_clip.get_y().floor().max(0.0) as u32).min(phys_h);
@@ -478,7 +518,7 @@ impl SoftwareRenderer {
                         bands.as_mut_slice(),
                         commands,
                         prepped_slice,
-                        layouts_slice,
+                        (layouts_slice, rounded_clips_slice),
                         atlas_ref,
                         (scale, aa, base_restore),
                     );
@@ -495,9 +535,9 @@ impl SoftwareRenderer {
                 commands,
                 prepped_slice,
                 layouts_slice,
+                rounded_clips_slice,
                 atlas_ref,
-                scale,
-                aa,
+                (scale, aa),
             )
         }
         #[cfg(target_arch = "wasm32")]
@@ -514,9 +554,9 @@ impl SoftwareRenderer {
                 commands,
                 prepped_slice,
                 layouts_slice,
+                rounded_clips_slice,
                 atlas_ref,
-                scale,
-                aa,
+                (scale, aa),
             )
         }
     }
@@ -535,7 +575,7 @@ impl SoftwareRenderer {
     ///
     /// # Returns
     ///
-    /// - `(Vec<PreppedCommand>, Vec<TextLayoutResult>)` - Band-ready commands and pre-measured text layouts.
+    /// - `PreparedFrameData` - Band-ready commands, text layouts, and rounded clip masks.
     fn prepare_frame_range(
         &mut self,
         display_list: &DisplayList,
@@ -544,22 +584,26 @@ impl SoftwareRenderer {
         root_clip: Rect,
         scale: f32,
         phys_h: u32,
-    ) -> (Vec<PreppedCommand>, Vec<TextLayoutResult>) {
+    ) -> PreparedFrameData {
         let commands: &[DrawCommand] = display_list.get_commands().as_slice();
         let clamped_end: usize = end_idx.min(commands.len());
         let clamped_start: usize = start_idx.min(clamped_end);
         let mut prepped: Vec<PreppedCommand> = Vec::with_capacity(clamped_end - clamped_start);
         let mut text_layouts: Vec<TextLayoutResult> = Vec::new();
+        let mut rounded_clips: Vec<RoundedClipMask> = Vec::new();
         let Self {
             glyph_atlas,
             font_provider,
             measurer,
             text_layout_cache,
             clip_stack,
+            rounded_clip_stack,
             ..
         } = self;
         clip_stack.clear();
         clip_stack.push(root_clip);
+        rounded_clip_stack.clear();
+        rounded_clip_stack.push(None);
         if text_layout_cache.len() > TEXT_LAYOUT_CACHE_LIMIT {
             text_layout_cache.clear();
         }
@@ -571,16 +615,40 @@ impl SoftwareRenderer {
                     let phys: Rect = snap_physical_rect(*rect, scale);
                     let next: Rect = active_clip.intersect(phys).unwrap_or_default();
                     clip_stack.push(next);
+                    rounded_clip_stack.push(None);
+                }
+                DrawCommand::PushRoundedClip { rect, radius } => {
+                    let phys: Rect = snap_physical_rect(*rect, scale);
+                    let next: Rect = active_clip.intersect(phys).unwrap_or_default();
+                    clip_stack.push(next);
+                    let phys_r: CornerRadius = Self::scale_radius(*radius, scale);
+                    if phys.get_width() > 0.0
+                        && phys.get_height() > 0.0
+                        && phys_r.max_radius() > 0.25
+                    {
+                        rounded_clip_stack.push(Some(RoundedClipMask {
+                            rect: phys,
+                            radius: phys_r,
+                        }));
+                    } else {
+                        rounded_clip_stack.push(None);
+                    }
                 }
                 DrawCommand::PopClip => {
                     if clip_stack.len() > 1 {
                         clip_stack.pop();
+                        let _: Option<Option<RoundedClipMask>> = rounded_clip_stack.pop();
                     }
                 }
                 DrawCommand::Clear(_) => {
                     let y0: u32 = (active_clip.get_y().floor().max(0.0) as u32).min(phys_h);
                     let y1: u32 = (active_clip.bottom().ceil().max(0.0) as u32).min(phys_h);
                     if y0 < y1 {
+                        let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
+                            rounded_clip_stack.as_slice(),
+                            &mut rounded_clips,
+                            active_clip,
+                        );
                         prepped.push(PreppedCommand {
                             cmd_index,
                             active_clip,
@@ -589,6 +657,8 @@ impl SoftwareRenderer {
                             opaque_cutout_h: Rect::default(),
                             opaque_cutout_v: Rect::default(),
                             text_layout_idx: u32::MAX,
+                            rounded_clip_start: rc_start,
+                            rounded_clip_len: rc_len,
                         });
                     }
                 }
@@ -601,6 +671,11 @@ impl SoftwareRenderer {
                         let y0: u32 = (vis.get_y().floor().max(0.0) as u32).min(phys_h);
                         let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).min(phys_h);
                         if y0 < y1 {
+                            let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
+                                rounded_clip_stack.as_slice(),
+                                &mut rounded_clips,
+                                vis,
+                            );
                             prepped.push(PreppedCommand {
                                 cmd_index,
                                 active_clip,
@@ -609,6 +684,8 @@ impl SoftwareRenderer {
                                 opaque_cutout_h: Rect::default(),
                                 opaque_cutout_v: Rect::default(),
                                 text_layout_idx: u32::MAX,
+                                rounded_clip_start: rc_start,
+                                rounded_clip_len: rc_len,
                             });
                         }
                     }
@@ -642,6 +719,11 @@ impl SoftwareRenderer {
                                 commands.get(cmd_index + 1),
                                 scale,
                             );
+                            let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
+                                rounded_clip_stack.as_slice(),
+                                &mut rounded_clips,
+                                vis,
+                            );
                             prepped.push(PreppedCommand {
                                 cmd_index,
                                 active_clip,
@@ -650,6 +732,8 @@ impl SoftwareRenderer {
                                 opaque_cutout_h: cut_h,
                                 opaque_cutout_v: cut_v,
                                 text_layout_idx: u32::MAX,
+                                rounded_clip_start: rc_start,
+                                rounded_clip_len: rc_len,
                             });
                         }
                     }
@@ -701,6 +785,11 @@ impl SoftwareRenderer {
                     }
                     let layout_idx: u32 = text_layouts.len() as u32;
                     text_layouts.push(layout);
+                    let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
+                        rounded_clip_stack.as_slice(),
+                        &mut rounded_clips,
+                        vis,
+                    );
                     prepped.push(PreppedCommand {
                         cmd_index,
                         active_clip,
@@ -709,6 +798,8 @@ impl SoftwareRenderer {
                         opaque_cutout_h: Rect::default(),
                         opaque_cutout_v: Rect::default(),
                         text_layout_idx: layout_idx,
+                        rounded_clip_start: rc_start,
+                        rounded_clip_len: rc_len,
                     });
                 }
                 DrawCommand::TextCaret {
@@ -750,6 +841,11 @@ impl SoftwareRenderer {
                     }
                     let layout_idx: u32 = text_layouts.len() as u32;
                     text_layouts.push(layout);
+                    let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
+                        rounded_clip_stack.as_slice(),
+                        &mut rounded_clips,
+                        vis,
+                    );
                     prepped.push(PreppedCommand {
                         cmd_index,
                         active_clip,
@@ -758,6 +854,8 @@ impl SoftwareRenderer {
                         opaque_cutout_h: Rect::default(),
                         opaque_cutout_v: Rect::default(),
                         text_layout_idx: layout_idx,
+                        rounded_clip_start: rc_start,
+                        rounded_clip_len: rc_len,
                     });
                 }
                 DrawCommand::Line {
@@ -774,6 +872,11 @@ impl SoftwareRenderer {
                         let y0: u32 = (vis.get_y().floor().max(0.0) as u32).min(phys_h);
                         let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).min(phys_h);
                         if y0 < y1 {
+                            let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
+                                rounded_clip_stack.as_slice(),
+                                &mut rounded_clips,
+                                vis,
+                            );
                             prepped.push(PreppedCommand {
                                 cmd_index,
                                 active_clip,
@@ -782,6 +885,8 @@ impl SoftwareRenderer {
                                 opaque_cutout_h: Rect::default(),
                                 opaque_cutout_v: Rect::default(),
                                 text_layout_idx: u32::MAX,
+                                rounded_clip_start: rc_start,
+                                rounded_clip_len: rc_len,
                             });
                         }
                     }
@@ -798,6 +903,11 @@ impl SoftwareRenderer {
                         let y0: u32 = (vis.get_y().floor().max(0.0) as u32).min(phys_h);
                         let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).min(phys_h);
                         if y0 < y1 {
+                            let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
+                                rounded_clip_stack.as_slice(),
+                                &mut rounded_clips,
+                                vis,
+                            );
                             prepped.push(PreppedCommand {
                                 cmd_index,
                                 active_clip,
@@ -806,6 +916,8 @@ impl SoftwareRenderer {
                                 opaque_cutout_h: Rect::default(),
                                 opaque_cutout_v: Rect::default(),
                                 text_layout_idx: u32::MAX,
+                                rounded_clip_start: rc_start,
+                                rounded_clip_len: rc_len,
                             });
                         }
                     }
@@ -821,6 +933,11 @@ impl SoftwareRenderer {
                         let y0: u32 = (vis.get_y().floor().max(0.0) as u32).min(phys_h);
                         let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).min(phys_h);
                         if y0 < y1 {
+                            let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
+                                rounded_clip_stack.as_slice(),
+                                &mut rounded_clips,
+                                vis,
+                            );
                             prepped.push(PreppedCommand {
                                 cmd_index,
                                 active_clip,
@@ -829,13 +946,44 @@ impl SoftwareRenderer {
                                 opaque_cutout_h: Rect::default(),
                                 opaque_cutout_v: Rect::default(),
                                 text_layout_idx: u32::MAX,
+                                rounded_clip_start: rc_start,
+                                rounded_clip_len: rc_len,
                             });
                         }
                     }
                 }
             }
         }
-        (prepped, text_layouts)
+        (prepped, text_layouts, rounded_clips)
+    }
+
+    /// Collects active rounded clip masks intersecting `vis` into `out` and returns their `(start, len)` span.
+    ///
+    /// # Arguments
+    ///
+    /// - `&[Option<RoundedClipMask>]` - Current rounded clip stack.
+    /// - `&mut Vec<RoundedClipMask>` - Frame-wide rounded clip output buffer.
+    /// - `Rect` - Visible clipped physical bounds of the command.
+    ///
+    /// # Returns
+    ///
+    /// - `(u32, u16)` - `(start_index, mask_count)` slice range inside `out`.
+    #[must_use]
+    fn collect_active_rounded(
+        stack: &[Option<RoundedClipMask>],
+        out: &mut Vec<RoundedClipMask>,
+        vis: Rect,
+    ) -> (u32, u16) {
+        let start: u32 = out.len() as u32;
+        for entry in stack.iter().copied().flatten() {
+            if rect_intersects_rounded_corners(vis, entry.get_rect(), entry.get_radius()) {
+                out.push(entry);
+            }
+        }
+        let len: u16 = (out.len() as u32)
+            .saturating_sub(start)
+            .min(u16::MAX as u32) as u16;
+        (start, len)
     }
 
     /// Computes two strictly-interior opaque cutout rectangles `(horizontal_bar, vertical_bar)` if the next command is an opaque `FillRoundedRect`.
@@ -893,9 +1041,9 @@ impl SoftwareRenderer {
     /// - `&[DrawCommand]` - Full frame draw command slice.
     /// - `&[PreppedCommand]` - Pre-clipped command list.
     /// - `&[TextLayoutResult]` - Pre-measured text layouts.
+    /// - `&[RoundedClipMask]` - Active rounded-rectangle clip masks referenced by prepped commands.
     /// - `&GlyphAtlas` - Immutable pre-warmed glyph atlas.
-    /// - `f32` - Active DPI scale factor.
-    /// - `AntialiasingMode` - Active anti-aliasing policy.
+    /// - `(f32, AntialiasingMode)` - Tuple `(scale, antialiasing)`.
     ///
     /// # Returns
     ///
@@ -905,18 +1053,18 @@ impl SoftwareRenderer {
         commands: &[DrawCommand],
         prepped: &[PreppedCommand],
         text_layouts: &[TextLayoutResult],
+        rounded_clips: &[RoundedClipMask],
         glyph_atlas: &GlyphAtlas,
-        scale: f32,
-        aa: AntialiasingMode,
+        render_opts: (f32, AntialiasingMode),
     ) -> usize {
+        let (scale, aa): (f32, AntialiasingMode) = render_opts;
         let band_y0: u32 = band.y_offset();
         let band_y1: u32 = band.y_end();
-        let band_rect: Rect = Rect::new(
-            0.0,
-            band_y0 as f32,
-            band.width() as f32,
-            (band_y1 - band_y0) as f32,
-        );
+        let fb_w: u32 = band.width();
+        let band_rect: Rect =
+            Rect::new(0.0, band_y0 as f32, fb_w as f32, (band_y1 - band_y0) as f32);
+        let mut corner_boxes: Vec<(u32, u32, u32, u32)> = Vec::new();
+        let mut saved_corners: Vec<[u8; 4]> = Vec::new();
         let mut shaded: usize = 0;
         for item in prepped.iter() {
             if item.get_y1() <= band_y0 || item.get_y0() >= band_y1 {
@@ -924,6 +1072,40 @@ impl SoftwareRenderer {
             }
             let Some(active_clip) = item.get_active_clip().intersect(band_rect) else {
                 continue;
+            };
+            let rc_len: usize = item.get_rounded_clip_len() as usize;
+            let item_masks: &[RoundedClipMask] = if rc_len > 0 {
+                let start: usize = item.get_rounded_clip_start() as usize;
+                let end: usize = start.saturating_add(rc_len).min(rounded_clips.len());
+                &rounded_clips[start..end]
+            } else {
+                &[]
+            };
+            let has_corner_mask: bool = if !item_masks.is_empty() {
+                corner_boxes.clear();
+                saved_corners.clear();
+                for mask in item_masks.iter().copied() {
+                    collect_rounded_clip_boxes(
+                        mask,
+                        active_clip,
+                        (fb_w, band_y0, band_y1),
+                        &mut corner_boxes,
+                    );
+                }
+                if corner_boxes.is_empty() {
+                    false
+                } else {
+                    for &(bx0, by0, bx1, by1) in corner_boxes.iter() {
+                        for y in by0..by1 {
+                            for x in bx0..bx1 {
+                                saved_corners.push(band.get_pixel_rgba(x, y));
+                            }
+                        }
+                    }
+                    true
+                }
+            } else {
+                false
             };
             let cmd: &DrawCommand = &commands[item.get_cmd_index()];
             shaded += match cmd {
@@ -1176,8 +1358,43 @@ impl SoftwareRenderer {
                         aa,
                     )
                 }
-                DrawCommand::PushClip(_) | DrawCommand::PopClip => 0,
+                DrawCommand::PushClip(_)
+                | DrawCommand::PushRoundedClip { .. }
+                | DrawCommand::PopClip => 0,
             };
+            if has_corner_mask {
+                let multi_mask: bool = item_masks.len() > 1;
+                let mut saved_idx: usize = 0;
+                for (box_idx, &(bx0, by0, bx1, by1)) in corner_boxes.iter().enumerate() {
+                    for y in by0..by1 {
+                        for x in bx0..bx1 {
+                            let saved_rgba: [u8; 4] = saved_corners[saved_idx];
+                            saved_idx += 1;
+                            if multi_mask
+                                && corner_boxes[..box_idx].iter().any(
+                                    |&(px0, py0, px1, py1): &(u32, u32, u32, u32)| {
+                                        x >= px0 && x < px1 && y >= py0 && y < py1
+                                    },
+                                )
+                            {
+                                continue;
+                            }
+                            let mut cov: f32 = 1.0;
+                            for mask in item_masks.iter().copied() {
+                                cov *= rounded_clip_coverage(x, y, mask, aa);
+                                if cov <= 0.0005 {
+                                    break;
+                                }
+                            }
+                            if cov <= 0.0005 {
+                                band.set_pixel_rgba(x, y, saved_rgba);
+                            } else if cov < 0.9995 {
+                                band.lerp_pixel_from_saved_linear(x, y, saved_rgba, cov);
+                            }
+                        }
+                    }
+                }
+            }
         }
         shaded
     }
@@ -1308,7 +1525,8 @@ impl SoftwareRenderer {
         let y0: u32 = (vis.get_y().floor().max(0.0) as u32).clamp(band_y0, band_y1);
         let x1: u32 = (vis.right().ceil().max(0.0) as u32).min(fb_w);
         let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).clamp(band_y0, band_y1);
-        let safe_inset: f32 = radius.max_radius().max(border_w) + 1.5;
+        let effective_r: f32 = radius.max_radius().min(half_w).min(half_h);
+        let safe_inset: f32 = effective_r.max(border_w) + 1.5;
         let edge_inset: f32 = border_w + 1.5;
         let iy0: u32 = ((rect.get_y() + safe_inset).ceil().max(0.0) as u32).clamp(y0, y1);
         let iy1: u32 = ((rect.bottom() - safe_inset).floor().max(0.0) as u32).clamp(y0, y1);
@@ -1890,9 +2108,12 @@ impl SoftwareRenderer {
         let letter_sp: f32 = style.get_letter_spacing() * scale;
         let space_adv: f32 = measure_char_advance(' ', style) * scale;
         let glyphs: &HashMap<GlyphKey, RasterizedGlyph> = glyph_atlas.get_glyphs();
+        let base_x_phys: f32 = (rect.get_x() * scale).round();
+        let base_y_phys: f32 = (rect.get_y() * scale).round();
         let mut shaded: usize = 0;
         for (line_idx, line) in layout.get_lines().iter().enumerate() {
-            let pen_y: f32 = rect.get_y() * scale + (line_idx as f32) * line_h_phys;
+            let line_off_y: f32 = ((line_idx as f32) * line_h_phys).round();
+            let pen_y: f32 = base_y_phys + line_off_y;
             if (pen_y + line_h_phys) < (clip_y0 as f32) || pen_y > (clip_y1 as f32) {
                 continue;
             }
@@ -1920,7 +2141,7 @@ impl SoftwareRenderer {
                     }
                 }
             };
-            let mut pen_x: f32 = rect.get_x() * scale + align_x;
+            let mut pen_x: f32 = base_x_phys + align_x.round();
             for ch in line.get_text().chars() {
                 if ch == ' ' {
                     pen_x += space_adv + letter_sp;
@@ -1936,8 +2157,8 @@ impl SoftwareRenderer {
                 };
                 let adv_phys: f32 = (glyph.get_advance() as f32).max(1.0) + letter_sp;
                 let gx0: i32 = pen_x.round() as i32;
-                let gy0: i32 =
-                    (pen_y + (line_h_phys - (glyph.get_height() as f32)) * 0.5).round() as i32;
+                let glyph_v_off: f32 = ((line_h_phys - (glyph.get_height() as f32)) * 0.5).round();
+                let gy0: i32 = (pen_y + glyph_v_off) as i32;
                 let gw: i32 = glyph.get_width() as i32;
                 let gh: i32 = glyph.get_height() as i32;
                 let py_start: i32 = (clip_y0 - gy0).max(0);

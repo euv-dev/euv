@@ -22,6 +22,24 @@ where
 /// Marker `Copy` implementation for `Signal<T>`.
 impl<T> Copy for Signal<T> where T: 'static {}
 
+/// Zero-allocation dangling `Default` handle for `Signal<T>`, used when initializing component prop descriptors.
+impl<T> Default for Signal<T>
+where
+    T: 'static,
+{
+    /// Constructs an unallocated placeholder `Signal<T>` handle with `SignalId::default()`.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Zero-cost placeholder signal handle.
+    fn default() -> Self {
+        Self {
+            id: SignalId::default(),
+            marker: PhantomData,
+        }
+    }
+}
+
 /// Equality comparison by underlying `SignalId`.
 impl<T> PartialEq for Signal<T>
 where
