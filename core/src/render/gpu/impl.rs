@@ -38,6 +38,9 @@ impl NativeGpuDriver {
             device_handle,
             queue_handle,
             library_handle,
+            staging_buffer_handle: 0,
+            staging_contents_ptr: 0,
+            staging_buffer_capacity: 0,
             submitted_frames: 0,
             uploaded_instances: 0,
             fallback,
@@ -106,14 +109,29 @@ impl GpuDriver for NativeGpuDriver {
         clear_color: Color,
         batches: &[GpuBatch],
     ) -> Result<usize, PlatformError> {
-        let uploaded: usize =
-            submit_native_gpu_batches(self.get_device_handle(), self.get_queue_handle(), batches);
         let Self {
+            device_handle,
+            queue_handle,
+            staging_buffer_handle,
+            staging_contents_ptr,
+            staging_buffer_capacity,
             submitted_frames,
             uploaded_instances,
             fallback,
             ..
         } = self;
+        let mut staging: (usize, usize, usize) = (
+            *staging_buffer_handle,
+            *staging_contents_ptr,
+            *staging_buffer_capacity,
+        );
+        let uploaded: usize =
+            submit_native_gpu_batches_staged(*device_handle, *queue_handle, &mut staging, batches);
+        (
+            *staging_buffer_handle,
+            *staging_contents_ptr,
+            *staging_buffer_capacity,
+        ) = staging;
         *submitted_frames = submitted_frames.wrapping_add(1);
         *uploaded_instances = uploaded_instances.wrapping_add(uploaded as u64);
         fallback.submit_batches(width, height, clear_color, batches)
@@ -122,16 +140,25 @@ impl GpuDriver for NativeGpuDriver {
 
 /// Automatic native GPU handle cleanup when `NativeGpuDriver` is dropped.
 impl Drop for NativeGpuDriver {
-    /// Releases retained OS GPU device, command queue, and shader library handles.
+    /// Releases retained OS GPU staging buffer, device, command queue, and shader library handles.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Dropping driver.
     fn drop(&mut self) {
-        release_native_gpu_handles(
-            self.get_device_handle(),
-            self.get_queue_handle(),
-            self.get_library_handle(),
-        );
+        let Self {
+            device_handle,
+            queue_handle,
+            library_handle,
+            staging_buffer_handle,
+            staging_contents_ptr,
+            staging_buffer_capacity,
+            ..
+        } = self;
+        release_native_gpu_staging(*staging_buffer_handle);
+        *staging_buffer_handle = 0;
+        *staging_contents_ptr = 0;
+        *staging_buffer_capacity = 0;
+        release_native_gpu_handles(*device_handle, *queue_handle, *library_handle);
     }
 }

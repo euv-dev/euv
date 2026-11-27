@@ -30,6 +30,15 @@ pub struct NativeGpuDriver {
     /// Opaque compiled shader library handle (`id<MTLLibrary>` on Apple, `0` when fallback).
     #[get(type(copy))]
     pub(crate) library_handle: usize,
+    /// Persistent grow-only Metal staging `id<MTLBuffer>` handle reused across frames (`0` when unallocated).
+    #[get(skip)]
+    pub(crate) staging_buffer_handle: usize,
+    /// Cached CPU-writable `contents()` address of the active shared-mode staging `MTLBuffer` (`0` when unallocated).
+    #[get(skip)]
+    pub(crate) staging_contents_ptr: usize,
+    /// Byte capacity of the retained staging `MTLBuffer`.
+    #[get(skip)]
+    pub(crate) staging_buffer_capacity: usize,
     /// Total GPU frames submitted through this driver.
     #[get(type(copy))]
     pub(crate) submitted_frames: u64,
@@ -38,4 +47,22 @@ pub struct NativeGpuDriver {
     pub(crate) uploaded_instances: u64,
     /// Fallback command recorder active on headless hosts.
     pub(crate) fallback: RecordingGpuDriver,
+}
+
+/// Process-wide cached Objective-C selector pointers for Apple Metal hot-path submission.
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct MetalSelectors {
+    /// Cached `newBufferWithBytes:length:options:` selector address.
+    pub(crate) new_buffer_with_bytes: usize,
+    /// Cached `newBufferWithLength:options:` selector address.
+    pub(crate) new_buffer_with_length: usize,
+    /// Cached `contents` selector address.
+    pub(crate) contents: usize,
+    /// Cached `commandBuffer` selector address.
+    pub(crate) command_buffer: usize,
+    /// Cached `commit` selector address.
+    pub(crate) commit: usize,
+    /// Cached `release` selector address.
+    pub(crate) release: usize,
 }

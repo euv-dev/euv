@@ -81,6 +81,60 @@ pub fn submit_native_gpu_batches(
     }
 }
 
+/// Uploads instanced quad buffers via a reusable grow-only staging buffer and submits a command buffer to the active GPU.
+///
+/// # Arguments
+///
+/// - `usize` - Raw OS device handle.
+/// - `usize` - Raw OS command queue handle.
+/// - `&mut (usize, usize, usize)` - Reusable staging state `(buffer_handle, contents_ptr, byte_capacity)`.
+/// - `&[GpuBatch]` - Compiled instanced draw batches.
+///
+/// # Returns
+///
+/// - `usize` - Total GPU instances uploaded and submitted.
+pub(crate) fn submit_native_gpu_batches_staged(
+    device_handle: usize,
+    queue_handle: usize,
+    staging: &mut (usize, usize, usize),
+    batches: &[GpuBatch],
+) -> usize {
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    {
+        metal_submit_batches_staged(device_handle, queue_handle, staging, batches)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "ios")))]
+    {
+        let _: (usize, usize, &mut (usize, usize, usize)) = (device_handle, queue_handle, staging);
+        batches
+            .iter()
+            .map(|b: &GpuBatch| b.get_instances().len())
+            .sum()
+    }
+}
+
+/// Releases any retained persistent GPU staging buffer before tearing down device handles.
+///
+/// # Arguments
+///
+/// - `usize` - Retained staging buffer handle (`0` when unallocated).
+pub(crate) fn release_native_gpu_staging(staging_buffer_handle: usize) {
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    {
+        if staging_buffer_handle != 0 {
+            let sel: &MetalSelectors = cached_metal_selectors();
+            mtl_send_void0(
+                staging_buffer_handle as *mut c_void,
+                sel.release as *mut c_void,
+            );
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "ios")))]
+    {
+        let _: usize = staging_buffer_handle;
+    }
+}
+
 /// Releases native GPU handles on driver teardown.
 ///
 /// # Arguments
@@ -311,6 +365,133 @@ fn probe_apple_metal(backend: GraphicsBackend) -> (GpuAdapterInfo, usize, usize,
     }
 }
 
+/// Returns the process-wide `OnceLock`-cached Objective-C selector pointers for Metal submission and teardown.
+///
+/// # Returns
+///
+/// - `&'static MetalSelectors` - Cached Metal selector addresses.
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+fn cached_metal_selectors() -> &'static MetalSelectors {
+    METAL_SELECTORS.get_or_init(|| MetalSelectors {
+        new_buffer_with_bytes: mtl_sel(MTL_SEL_NEW_BUFFER) as usize,
+        new_buffer_with_length: mtl_sel(MTL_SEL_NEW_BUFFER_LENGTH) as usize,
+        contents: mtl_sel(MTL_SEL_CONTENTS) as usize,
+        command_buffer: mtl_sel(MTL_SEL_CMD_BUFFER) as usize,
+        commit: mtl_sel(MTL_SEL_COMMIT) as usize,
+        release: mtl_sel(MTL_SEL_RELEASE) as usize,
+    })
+}
+
+/// Uploads `GpuQuadInstance` buffers into a reusable grow-only shared `MTLBuffer` and commits a command buffer using cached selectors.
+///
+/// # Arguments
+///
+/// - `usize` - Retained `id<MTLDevice>` pointer.
+/// - `usize` - Retained `id<MTLCommandQueue>` pointer.
+/// - `&mut (usize, usize, usize)` - Persistent staging tuple `(buffer_handle, contents_ptr, byte_capacity)`.
+/// - `&[GpuBatch]` - Ordered GPU batches to upload.
+///
+/// # Returns
+///
+/// - `usize` - Total instances uploaded into Metal GPU memory.
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+fn metal_submit_batches_staged(
+    device_handle: usize,
+    queue_handle: usize,
+    staging: &mut (usize, usize, usize),
+    batches: &[GpuBatch],
+) -> usize {
+    let total_instances: usize = batches
+        .iter()
+        .map(|b: &GpuBatch| b.get_instances().len())
+        .sum();
+    if device_handle == 0 || queue_handle == 0 || total_instances == 0 {
+        return total_instances;
+    }
+    let total_bytes: usize = total_instances.saturating_mul(size_of::<GpuQuadInstance>());
+    let device: *mut c_void = device_handle as *mut c_void;
+    let queue: *mut c_void = queue_handle as *mut c_void;
+    let sel: &MetalSelectors = cached_metal_selectors();
+    let sel_rel: *mut c_void = sel.release as *mut c_void;
+    let (buf_handle, contents_ptr, capacity): &mut (usize, usize, usize) = staging;
+    unsafe {
+        if *buf_handle == 0 || *contents_ptr == 0 || total_bytes > *capacity {
+            if *buf_handle != 0 {
+                mtl_send_void0(*buf_handle as *mut c_void, sel_rel);
+                *buf_handle = 0;
+                *contents_ptr = 0;
+                *capacity = 0;
+            }
+            let alloc_bytes: usize = total_bytes.max(4096).next_power_of_two();
+            let send_new_len: unsafe extern "C" fn(
+                *mut c_void,
+                *mut c_void,
+                usize,
+                usize,
+            ) -> *mut c_void = transmute(objc_msgSend as *const c_void);
+            let new_buf: *mut c_void = send_new_len(
+                device,
+                sel.new_buffer_with_length as *mut c_void,
+                alloc_bytes,
+                0,
+            );
+            if !new_buf.is_null() {
+                let ptr: *mut c_void = mtl_send_ptr0(new_buf, sel.contents as *mut c_void);
+                if !ptr.is_null() {
+                    *buf_handle = new_buf as usize;
+                    *contents_ptr = ptr as usize;
+                    *capacity = alloc_bytes;
+                } else {
+                    mtl_send_void0(new_buf, sel_rel);
+                }
+            }
+        }
+        if *contents_ptr != 0 && total_bytes <= *capacity {
+            let mut dst: *mut u8 = (*contents_ptr as *mut c_void).cast::<u8>();
+            for batch in batches.iter() {
+                let instances: &[GpuQuadInstance] = batch.get_instances();
+                if instances.is_empty() {
+                    continue;
+                }
+                let byte_len: usize = size_of_val(instances);
+                dst.copy_from_nonoverlapping(instances.as_ptr().cast::<u8>(), byte_len);
+                dst = dst.add(byte_len);
+            }
+        } else {
+            let send_buf: unsafe extern "C" fn(
+                *mut c_void,
+                *mut c_void,
+                *const c_void,
+                usize,
+                usize,
+            ) -> *mut c_void = transmute(objc_msgSend as *const c_void);
+            let sel_buf: *mut c_void = sel.new_buffer_with_bytes as *mut c_void;
+            for batch in batches.iter() {
+                let instances: &[GpuQuadInstance] = batch.get_instances();
+                if instances.is_empty() {
+                    continue;
+                }
+                let byte_len: usize = size_of_val(instances);
+                let mtl_buf: *mut c_void = send_buf(
+                    device,
+                    sel_buf,
+                    instances.as_ptr().cast::<c_void>(),
+                    byte_len,
+                    0,
+                );
+                if !mtl_buf.is_null() {
+                    mtl_send_void0(mtl_buf, sel_rel);
+                }
+            }
+        }
+        let cmd_buf: *mut c_void = mtl_send_ptr0(queue, sel.command_buffer as *mut c_void);
+        if !cmd_buf.is_null() {
+            mtl_send_void0(cmd_buf, sel.commit as *mut c_void);
+        }
+    }
+    total_instances
+}
+
 /// Uploads `GpuQuadInstance` buffers to Metal GPU memory and commits a command buffer.
 ///
 /// # Arguments
@@ -333,8 +514,9 @@ fn metal_submit_batches(device_handle: usize, queue_handle: usize, batches: &[Gp
     }
     let device: *mut c_void = device_handle as *mut c_void;
     let queue: *mut c_void = queue_handle as *mut c_void;
-    let sel_buf: *mut c_void = mtl_sel(MTL_SEL_NEW_BUFFER);
-    let sel_rel: *mut c_void = mtl_sel(MTL_SEL_RELEASE);
+    let sel: &MetalSelectors = cached_metal_selectors();
+    let sel_buf: *mut c_void = sel.new_buffer_with_bytes as *mut c_void;
+    let sel_rel: *mut c_void = sel.release as *mut c_void;
     unsafe {
         let send_buf: unsafe extern "C" fn(
             *mut c_void,
@@ -360,9 +542,9 @@ fn metal_submit_batches(device_handle: usize, queue_handle: usize, batches: &[Gp
                 mtl_send_void0(mtl_buf, sel_rel);
             }
         }
-        let cmd_buf: *mut c_void = mtl_send_ptr0(queue, mtl_sel(MTL_SEL_CMD_BUFFER));
+        let cmd_buf: *mut c_void = mtl_send_ptr0(queue, sel.command_buffer as *mut c_void);
         if !cmd_buf.is_null() {
-            mtl_send_void0(cmd_buf, mtl_sel(MTL_SEL_COMMIT));
+            mtl_send_void0(cmd_buf, sel.commit as *mut c_void);
         }
     }
     total_instances
@@ -377,7 +559,7 @@ fn metal_submit_batches(device_handle: usize, queue_handle: usize, batches: &[Gp
 /// - `usize` - `id<MTLLibrary>` pointer.
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 fn metal_release_handles(device_handle: usize, queue_handle: usize, library_handle: usize) {
-    let sel_rel: *mut c_void = mtl_sel(MTL_SEL_RELEASE);
+    let sel_rel: *mut c_void = cached_metal_selectors().release as *mut c_void;
     if library_handle != 0 {
         mtl_send_void0(library_handle as *mut c_void, sel_rel);
     }

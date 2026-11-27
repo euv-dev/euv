@@ -24,6 +24,10 @@ pub(crate) const MTL_SEL_NEW_FUNCTION: &str = "newFunctionWithName:";
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub(crate) const MTL_SEL_NEW_BUFFER: &str = "newBufferWithBytes:length:options:";
 #[cfg(any(target_os = "macos", target_os = "ios"))]
+pub(crate) const MTL_SEL_NEW_BUFFER_LENGTH: &str = "newBufferWithLength:options:";
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+pub(crate) const MTL_SEL_CONTENTS: &str = "contents";
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 pub(crate) const MTL_SEL_CMD_BUFFER: &str = "commandBuffer";
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub(crate) const MTL_SEL_COMMIT: &str = "commit";
