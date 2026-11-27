@@ -27,7 +27,6 @@ pub struct App {
     /// Framework context carrying reactive breakpoint, theme, gesture, and safe-area signals.
     pub(crate) context: Context,
     /// Deterministic cross-platform layout engine.
-    #[get(type(copy))]
     pub(crate) layout_engine: LayoutEngine,
     /// Multi-mode rendering pipeline (`Auto`, `Software`, `Hardware`, `Hybrid`).
     pub(crate) renderer: Renderer,

@@ -17,6 +17,7 @@ impl LayoutEngine {
         let root_id: NodeId = tree.get_root();
         let space: AvailableSpace = AvailableSpace::root(viewport);
         let mut stats: LayoutStats = LayoutStats::default();
+        self.get_mut_children_scratch().clear();
         self.layout_node(tree, root_id, space, &mut stats);
         self.set_last_stats(stats);
         stats
@@ -26,7 +27,7 @@ impl LayoutEngine {
     ///
     /// # Arguments
     ///
-    /// - `&Self` - Layout engine reference.
+    /// - `&Self` - Mutable layout engine reference.
     /// - `&mut SceneTree` - Mutable scene tree.
     /// - `NodeId` - Node handle to compute.
     /// - `AvailableSpace` - Parent space constraint and origin.
@@ -36,72 +37,67 @@ impl LayoutEngine {
     ///
     /// - `Size` - Computed border-box dimensions of `node_id`.
     fn layout_node(
-        &self,
+        &mut self,
         tree: &mut SceneTree,
         node_id: NodeId,
         space: AvailableSpace,
         stats: &mut LayoutStats,
     ) -> Size {
-        if let Some(node) = tree.get_node(node_id) {
-            if !node.get_dirty().intersects(DIRTY_LAYOUT_PASS_MASK)
-                && let Some(prev_space) = node.cached_constraint()
-            {
-                let same_size: bool = (prev_space.get_width() - space.get_width()).abs() <= 0.01
-                    && (prev_space.get_height() - space.get_height()).abs() <= 0.01
-                    && (prev_space.get_viewport().get_width() - space.get_viewport().get_width())
-                        .abs()
-                        <= 0.01
-                    && (prev_space.get_viewport().get_height() - space.get_viewport().get_height())
-                        .abs()
-                        <= 0.01
-                    && prev_space.get_stretch_width() == space.get_stretch_width()
-                    && prev_space.get_stretch_height() == space.get_stretch_height();
-                if same_size {
-                    let dx: f32 = space.get_origin_x() - prev_space.get_origin_x();
-                    let dy: f32 = space.get_origin_y() - prev_space.get_origin_y();
-                    let prev_bounds: Rect = node.get_layout_box().get_bounds();
-                    if dx.abs() > 0.001 || dy.abs() > 0.001 {
-                        self.translate_subtree(tree, node_id, dx, dy);
-                    }
-                    stats.set_subtrees_skipped(stats.get_subtrees_skipped() + 1);
-                    return Size::new(prev_bounds.get_width(), prev_bounds.get_height());
-                }
-            }
-        } else {
-            return Size::default();
-        }
-        let snapshot: Option<LayoutNodeSnapshot> =
-            tree.get_node(node_id).map(|node: &SceneNode| {
-                (
-                    node.get_style(),
-                    node.get_kind().clone(),
-                    node.get_dirty(),
-                    node.cached_constraint(),
-                    node.get_layout_box().get_bounds(),
-                    node.get_children().clone(),
-                )
-            });
-        let Some((style, kind, _, _, _, children)) = snapshot else {
+        let Some(node) = tree.get_node(node_id) else {
             return Size::default();
         };
+        if !node.get_dirty().intersects(DIRTY_LAYOUT_PASS_MASK)
+            && let Some(prev_space) = node.cached_constraint()
+        {
+            let same_size: bool = (prev_space.get_width() - space.get_width()).abs() <= 0.01
+                && (prev_space.get_height() - space.get_height()).abs() <= 0.01
+                && (prev_space.get_viewport().get_width() - space.get_viewport().get_width()).abs()
+                    <= 0.01
+                && (prev_space.get_viewport().get_height() - space.get_viewport().get_height())
+                    .abs()
+                    <= 0.01
+                && prev_space.get_stretch_width() == space.get_stretch_width()
+                && prev_space.get_stretch_height() == space.get_stretch_height();
+            if same_size {
+                let dx: f32 = space.get_origin_x() - prev_space.get_origin_x();
+                let dy: f32 = space.get_origin_y() - prev_space.get_origin_y();
+                let prev_bounds: Rect = node.get_layout_box().get_bounds();
+                if dx.abs() > 0.001 || dy.abs() > 0.001 {
+                    self.translate_subtree(tree, node_id, dx, dy);
+                }
+                stats.set_subtrees_skipped(stats.get_subtrees_skipped() + 1);
+                return Size::new(prev_bounds.get_width(), prev_bounds.get_height());
+            }
+        }
         stats.set_nodes_computed(stats.get_nodes_computed() + 1);
-        let layout: LayoutStyle = style.get_layout();
+        let style_ref: &Style = node.style_ref();
+        let Style {
+            paint: paint_ref,
+            text: text_ref,
+            ..
+        } = style_ref;
+        let layout: LayoutStyle = style_ref.get_layout();
         if layout.get_display() == Display::None {
-            let mut stack: Vec<NodeId> = vec![node_id];
-            while let Some(hid) = stack.pop() {
-                if let Some(node) = tree.get_node_mut(hid) {
-                    node.get_mut_layout_box().set_bounds(Rect::default());
-                    node.get_mut_layout_box()
+            let stack_base: usize = self.get_children_scratch().len();
+            self.get_mut_children_scratch().push(node_id);
+            while self.get_children_scratch().len() > stack_base {
+                if let Some(hid) = self.get_mut_children_scratch().pop()
+                    && let Some(hidden_node) = tree.get_node_mut(hid)
+                {
+                    hidden_node.get_mut_layout_box().set_bounds(Rect::default());
+                    hidden_node
+                        .get_mut_layout_box()
                         .set_content_bounds(Rect::default());
-                    node.set_last_constraint(Some(space));
-                    node.get_mut_dirty().remove(DIRTY_LAYOUT_PASS_MASK);
-                    stack.extend(node.get_children().iter().copied());
+                    hidden_node.set_last_constraint(Some(space));
+                    hidden_node.get_mut_dirty().remove(DIRTY_LAYOUT_PASS_MASK);
+                    self.get_mut_children_scratch()
+                        .extend_from_slice(hidden_node.get_children().as_slice());
                 }
             }
             return Size::default();
         }
         let padding: Edges = layout.get_padding();
-        let border_w: f32 = style.get_paint().get_border().get_width();
+        let border_w: f32 = paint_ref.get_border().get_width();
         let chrome_h: f32 = padding.horizontal() + border_w * 2.0;
         let chrome_v: f32 = padding.vertical() + border_w * 2.0;
         let mut resolved_w: Option<f32> = layout
@@ -153,47 +149,67 @@ impl LayoutEngine {
         let origin_y: f32 = space.get_origin_y();
         let content_origin_x: f32 = origin_x + padding.get_left() + border_w;
         let content_origin_y: f32 = origin_y + padding.get_top() + border_w;
-        let content_size: Size = match &kind {
+        let mut child_range: Option<(usize, usize)> = None;
+        let leaf_content_size: Option<Size> = match node.get_kind() {
             NodeKind::Text(text) => {
                 let measured: TextLayoutResult = self.get_measurer().measure(
-                    text,
-                    style.get_text(),
+                    text.as_str(),
+                    *text_ref,
                     Some(inner_avail_w.max(1.0)),
                 );
-                measured.get_size()
+                Some(measured.get_size())
             }
-            NodeKind::Image(img) => Size::new(img.get_width() as f32, img.get_height() as f32),
+            NodeKind::Image(img) => {
+                Some(Size::new(img.get_width() as f32, img.get_height() as f32))
+            }
             NodeKind::Input(input_state) => {
                 let sample: &str = if input_state.get_value().is_empty() {
                     input_state.get_placeholder().as_str()
                 } else {
                     input_state.get_value().as_str()
                 };
-                let measured: TextLayoutResult = self.get_measurer().measure(
-                    sample,
-                    style.get_text(),
-                    Some(inner_avail_w.max(1.0)),
-                );
-                Size::new(
+                let measured: TextLayoutResult =
+                    self.get_measurer()
+                        .measure(sample, *text_ref, Some(inner_avail_w.max(1.0)));
+                Some(Size::new(
                     measured.get_size().get_width().max(120.0),
                     measured.get_size().get_height().max(20.0),
-                )
+                ))
             }
             NodeKind::View
             | NodeKind::ScrollView
             | NodeKind::Portal
             | NodeKind::Fragment
             | NodeKind::Canvas => {
-                let frame: ContainerFrame = ContainerFrame::new(
-                    layout,
-                    Size::new(inner_avail_w, inner_avail_h),
-                    space.get_viewport(),
-                    Point::new(content_origin_x, content_origin_y),
-                    resolved_w.is_some(),
-                    resolved_h.is_some(),
-                );
-                self.layout_children(tree, &children, frame, stats)
+                let node_children: &[NodeId] = node.get_children().as_slice();
+                if node_children.is_empty() {
+                    Some(Size::default())
+                } else {
+                    let start: usize = self.get_children_scratch().len();
+                    self.get_mut_children_scratch()
+                        .extend_from_slice(node_children);
+                    let end: usize = self.get_children_scratch().len();
+                    child_range = Some((start, end));
+                    None
+                }
             }
+        };
+        let content_size: Size = if let Some(size) = leaf_content_size {
+            size
+        } else if let Some((child_start, child_end)) = child_range {
+            let frame: ContainerFrame = ContainerFrame::new(
+                layout,
+                Size::new(inner_avail_w, inner_avail_h),
+                space.get_viewport(),
+                Point::new(content_origin_x, content_origin_y),
+                resolved_w.is_some(),
+                resolved_h.is_some(),
+            );
+            let size: Size = self.layout_children(tree, child_start, child_end, frame, stats);
+            self.get_mut_children_scratch().truncate(child_start);
+            size
+        } else {
+            Size::default()
         };
         let mut final_w: f32 = resolved_w.unwrap_or(content_size.get_width() + chrome_h);
         let mut final_h: f32 = resolved_h.unwrap_or(content_size.get_height() + chrome_v);
@@ -229,9 +245,10 @@ impl LayoutEngine {
     ///
     /// # Arguments
     ///
-    /// - `&Self` - Layout engine reference.
+    /// - `&Self` - Mutable layout engine reference.
     /// - `&mut SceneTree` - Mutable scene tree.
-    /// - `&[NodeId]` - Ordered child handles.
+    /// - `usize` - Inclusive start index into `children_scratch`.
+    /// - `usize` - Exclusive end index into `children_scratch`.
     /// - `ContainerFrame` - Parent layout constraints and origin.
     /// - `&mut LayoutStats` - Mutable telemetry counters.
     ///
@@ -239,24 +256,27 @@ impl LayoutEngine {
     ///
     /// - `Size` - Intrinsic aggregate content size occupied by flow children.
     fn layout_children(
-        &self,
+        &mut self,
         tree: &mut SceneTree,
-        children: &[NodeId],
+        child_start: usize,
+        child_end: usize,
         frame: ContainerFrame,
         stats: &mut LayoutStats,
     ) -> Size {
-        if children.is_empty() {
+        let child_count: usize = child_end.saturating_sub(child_start);
+        if child_count == 0 {
             return Size::default();
         }
         let parent_layout: LayoutStyle = frame.get_parent_layout();
         let inner_avail: Size = frame.get_inner_avail();
         let viewport: Size = frame.get_viewport();
         let content_origin: Point = frame.get_content_origin();
-        let mut flow_children: Vec<NodeId> = Vec::with_capacity(children.len());
+        let mut flow_children: Vec<NodeId> = Vec::with_capacity(child_count);
         let mut abs_children: Vec<NodeId> = Vec::new();
-        for child_id in children.iter().copied() {
+        for idx in child_start..child_end {
+            let child_id: NodeId = self.get_children_scratch()[idx];
             if let Some(child_node) = tree.get_node(child_id) {
-                let child_layout: LayoutStyle = child_node.get_style().get_layout();
+                let child_layout: LayoutStyle = child_node.style_ref().get_layout();
                 if child_layout.get_display() == Display::None {
                     let _: Size = self.layout_node(
                         tree,
@@ -288,7 +308,7 @@ impl LayoutEngine {
         for abs_id in abs_children.into_iter() {
             let child_layout_opt: Option<LayoutStyle> = tree
                 .get_node(abs_id)
-                .map(|node: &SceneNode| node.get_style().get_layout());
+                .map(|node: &SceneNode| node.style_ref().get_layout());
             let Some(child_layout) = child_layout_opt else {
                 continue;
             };
@@ -361,7 +381,7 @@ impl LayoutEngine {
     ///
     /// - `Size` - Aggregate content size of all flex lines.
     fn layout_flex(
-        &self,
+        &mut self,
         tree: &mut SceneTree,
         children: &[NodeId],
         frame: ContainerFrame,
@@ -416,7 +436,7 @@ impl LayoutEngine {
             for child_id in ordered.iter().copied() {
                 let child_layout: LayoutStyle = tree
                     .get_node(child_id)
-                    .map(|node: &SceneNode| node.get_style().get_layout())
+                    .map(|node: &SceneNode| node.style_ref().get_layout())
                     .unwrap_or_default();
                 if child_layout.get_flex_grow() > 0.0 {
                     single_pass_ok = false;
@@ -458,7 +478,7 @@ impl LayoutEngine {
                 for (idx, child_id) in ordered.iter().copied().enumerate() {
                     let child_layout: LayoutStyle = tree
                         .get_node(child_id)
-                        .map(|node: &SceneNode| node.get_style().get_layout())
+                        .map(|node: &SceneNode| node.style_ref().get_layout())
                         .unwrap_or_default();
                     let margin: Edges = child_layout.get_margin();
                     let align: AlignItems = match child_layout.get_align_self() {
@@ -564,7 +584,7 @@ impl LayoutEngine {
         for child_id in ordered.iter().copied() {
             let child_layout: LayoutStyle = tree
                 .get_node(child_id)
-                .map(|node: &SceneNode| node.get_style().get_layout())
+                .map(|node: &SceneNode| node.style_ref().get_layout())
                 .unwrap_or_default();
             let grow: f32 = child_layout.get_flex_grow();
             total_grow += grow;
@@ -923,7 +943,7 @@ impl LayoutEngine {
     ///
     /// - `Size` - Aggregate grid content dimensions.
     fn layout_grid(
-        &self,
+        &mut self,
         tree: &mut SceneTree,
         children: &[NodeId],
         frame: ContainerFrame,
@@ -951,7 +971,7 @@ impl LayoutEngine {
                 let y: f32 = content_origin.get_y() + y_cursor;
                 let auto_w: bool = tree
                     .get_node(child_id)
-                    .map(|n: &SceneNode| n.get_style().get_layout().get_width() == Length::Auto)
+                    .map(|n: &SceneNode| n.style_ref().get_layout().get_width() == Length::Auto)
                     .unwrap_or(false);
                 let cell_space: AvailableSpace =
                     AvailableSpace::new(col_w, inner_avail.get_height(), viewport, x, y)
@@ -998,7 +1018,7 @@ impl LayoutEngine {
                 let Some(node) = tree.get_node_mut(nid) else {
                     continue;
                 };
-                let layout: LayoutStyle = node.get_style().get_layout();
+                let layout: LayoutStyle = node.style_ref().get_layout();
                 if !is_root && layout.get_position() == Position::Fixed {
                     continue;
                 }
