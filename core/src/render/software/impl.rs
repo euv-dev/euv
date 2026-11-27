@@ -885,6 +885,7 @@ impl SoftwareRenderer {
             prev_portal_scrim: None,
             prepped_bounds: None,
             prepped_fg_bounds: None,
+            clip_scope_scratch: Vec::with_capacity(8),
         }
     }
 
@@ -907,7 +908,7 @@ impl SoftwareRenderer {
     ) -> Option<Color> {
         let (phys_w, phys_h, scale): (u32, u32, f32) = dims;
         let first: &PreppedCommand = prepped.first()?;
-        if first.get_rounded_clip_len() != 0 {
+        if first.get_cmd_index() == usize::MAX || first.get_rounded_clip_len() != 0 {
             return None;
         }
         let clip: Rect = first.get_active_clip();
@@ -1344,6 +1345,7 @@ impl SoftwareRenderer {
             corner_mask_cache,
             prepped_bounds,
             prepped_fg_bounds,
+            clip_scope_scratch: clip_scopes,
             antialiasing,
             ..
         } = self;
@@ -1359,6 +1361,12 @@ impl SoftwareRenderer {
         clip_stack.push(root_clip);
         rounded_clip_stack.clear();
         rounded_clip_stack.push(None);
+        let root_y0: u32 = (root_clip.get_y().floor().max(0.0) as u32).min(phys_h);
+        let root_y1: u32 = (root_clip.bottom().ceil().max(0.0) as u32).min(phys_h);
+        clip_scopes.clear();
+        clip_scopes.push((root_y0, root_y1, None));
+        let mut empty_clip_depth: usize = 0;
+        let mut has_first_cmd: bool = false;
         if text_layout_cache.len() > TEXT_LAYOUT_CACHE_LIMIT {
             text_layout_cache.clear();
         }
@@ -1366,18 +1374,76 @@ impl SoftwareRenderer {
             corner_mask_cache.clear();
         }
         for (offset, cmd) in commands[clamped_start..clamped_end].iter().enumerate() {
+            if empty_clip_depth > 0 {
+                match cmd {
+                    DrawCommand::PushClip(_) | DrawCommand::PushRoundedClip { .. } => {
+                        empty_clip_depth += 1;
+                    }
+                    DrawCommand::PopClip => {
+                        empty_clip_depth -= 1;
+                    }
+                    _ => {}
+                }
+                continue;
+            }
             let cmd_index: usize = clamped_start + offset;
             let active_clip: Rect = clip_stack.last().copied().unwrap_or(root_clip);
             match cmd {
                 DrawCommand::PushClip(rect) => {
                     let phys: Rect = snap_physical_rect(*rect, scale);
-                    let next: Rect = active_clip.intersect(phys).unwrap_or_default();
+                    let Some(next) = active_clip.intersect(phys) else {
+                        empty_clip_depth = 1;
+                        continue;
+                    };
+                    let nx0: u32 = (next.get_x().floor().max(0.0) as u32).min(phys_w);
+                    let nx1: u32 = (next.right().ceil().max(0.0) as u32).min(phys_w);
+                    let ny0: u32 = (next.get_y().floor().max(0.0) as u32).min(phys_h);
+                    let ny1: u32 = (next.bottom().ceil().max(0.0) as u32).min(phys_h);
+                    if nx0 >= nx1 || ny0 >= ny1 {
+                        empty_clip_depth = 1;
+                        continue;
+                    }
                     clip_stack.push(next);
                     rounded_clip_stack.push(None);
+                    let (parent_y0, parent_y1, _): (u32, u32, Option<usize>) = clip_scopes
+                        .last()
+                        .copied()
+                        .unwrap_or((root_y0, root_y1, None));
+                    if ny0 > parent_y0 || ny1 < parent_y1 {
+                        let slot_idx: usize = prepped.len();
+                        prepped.push(PreppedCommand {
+                            cmd_index: usize::MAX,
+                            active_clip: next,
+                            y0: ny0,
+                            y1: ny1,
+                            opaque_cutout_h: Rect::default(),
+                            opaque_cutout_v: Rect::default(),
+                            glyph_run_start: 0,
+                            glyph_run_len: 0,
+                            caret_rect_idx: u32::MAX,
+                            rounded_clip_start: 0,
+                            rounded_clip_len: 0,
+                            skip_delta: 1,
+                        });
+                        clip_scopes.push((ny0, ny1, Some(slot_idx)));
+                    } else {
+                        clip_scopes.push((parent_y0, parent_y1, None));
+                    }
                 }
                 DrawCommand::PushRoundedClip { rect, radius } => {
                     let phys: Rect = snap_physical_rect(*rect, scale);
-                    let next: Rect = active_clip.intersect(phys).unwrap_or_default();
+                    let Some(next) = active_clip.intersect(phys) else {
+                        empty_clip_depth = 1;
+                        continue;
+                    };
+                    let nx0: u32 = (next.get_x().floor().max(0.0) as u32).min(phys_w);
+                    let nx1: u32 = (next.right().ceil().max(0.0) as u32).min(phys_w);
+                    let ny0: u32 = (next.get_y().floor().max(0.0) as u32).min(phys_h);
+                    let ny1: u32 = (next.bottom().ceil().max(0.0) as u32).min(phys_h);
+                    if nx0 >= nx1 || ny0 >= ny1 {
+                        empty_clip_depth = 1;
+                        continue;
+                    }
                     clip_stack.push(next);
                     let phys_r: CornerRadius = Self::scale_radius(*radius, scale);
                     if phys.get_width() > 0.0
@@ -1394,11 +1460,47 @@ impl SoftwareRenderer {
                     } else {
                         rounded_clip_stack.push(None);
                     }
+                    let (parent_y0, parent_y1, _): (u32, u32, Option<usize>) = clip_scopes
+                        .last()
+                        .copied()
+                        .unwrap_or((root_y0, root_y1, None));
+                    if ny0 > parent_y0 || ny1 < parent_y1 {
+                        let slot_idx: usize = prepped.len();
+                        prepped.push(PreppedCommand {
+                            cmd_index: usize::MAX,
+                            active_clip: next,
+                            y0: ny0,
+                            y1: ny1,
+                            opaque_cutout_h: Rect::default(),
+                            opaque_cutout_v: Rect::default(),
+                            glyph_run_start: 0,
+                            glyph_run_len: 0,
+                            caret_rect_idx: u32::MAX,
+                            rounded_clip_start: 0,
+                            rounded_clip_len: 0,
+                            skip_delta: 1,
+                        });
+                        clip_scopes.push((ny0, ny1, Some(slot_idx)));
+                    } else {
+                        clip_scopes.push((parent_y0, parent_y1, None));
+                    }
                 }
                 DrawCommand::PopClip => {
                     if clip_stack.len() > 1 {
                         clip_stack.pop();
                         let _: Option<Option<RoundedClipMask>> = rounded_clip_stack.pop();
+                        if let Some((_, _, Some(slot_idx))) = clip_scopes.pop() {
+                            let span_len: usize = prepped.len().saturating_sub(slot_idx);
+                            if span_len <= 1 {
+                                prepped.truncate(slot_idx);
+                            } else if span_len == 2 {
+                                let only_cmd: PreppedCommand = prepped[slot_idx + 1];
+                                prepped[slot_idx] = only_cmd;
+                                let _: Option<PreppedCommand> = prepped.pop();
+                            } else {
+                                prepped[slot_idx].skip_delta = span_len as u32;
+                            }
+                        }
                     }
                 }
                 DrawCommand::Clear(_) => {
@@ -1410,9 +1512,10 @@ impl SoftwareRenderer {
                             rounded_clips,
                             active_clip,
                         );
-                        if !prepped.is_empty() {
+                        if has_first_cmd {
                             expand_opt_rect(prepped_fg_bounds, active_clip);
                         }
+                        has_first_cmd = true;
                         expand_opt_rect(prepped_bounds, active_clip);
                         prepped.push(PreppedCommand {
                             cmd_index,
@@ -1426,6 +1529,7 @@ impl SoftwareRenderer {
                             caret_rect_idx: u32::MAX,
                             rounded_clip_start: rc_start,
                             rounded_clip_len: rc_len,
+                            skip_delta: 0,
                         });
                     }
                 }
@@ -1443,9 +1547,10 @@ impl SoftwareRenderer {
                                 rounded_clips,
                                 vis,
                             );
-                            if !prepped.is_empty() {
+                            if has_first_cmd {
                                 expand_opt_rect(prepped_fg_bounds, vis);
                             }
+                            has_first_cmd = true;
                             expand_opt_rect(prepped_bounds, vis);
                             prepped.push(PreppedCommand {
                                 cmd_index,
@@ -1459,6 +1564,7 @@ impl SoftwareRenderer {
                                 caret_rect_idx: u32::MAX,
                                 rounded_clip_start: rc_start,
                                 rounded_clip_len: rc_len,
+                                skip_delta: 0,
                             });
                         }
                     }
@@ -1497,9 +1603,10 @@ impl SoftwareRenderer {
                                 rounded_clips,
                                 vis,
                             );
-                            if !prepped.is_empty() {
+                            if has_first_cmd {
                                 expand_opt_rect(prepped_fg_bounds, vis);
                             }
+                            has_first_cmd = true;
                             expand_opt_rect(prepped_bounds, vis);
                             prepped.push(PreppedCommand {
                                 cmd_index,
@@ -1513,6 +1620,7 @@ impl SoftwareRenderer {
                                 caret_rect_idx: u32::MAX,
                                 rounded_clip_start: rc_start,
                                 rounded_clip_len: rc_len,
+                                skip_delta: 0,
                             });
                         }
                     }
@@ -1532,9 +1640,9 @@ impl SoftwareRenderer {
                     let Some(vis) = expanded.intersect(active_clip) else {
                         continue;
                     };
-                    let y0: u32 = (vis.get_y().floor().max(0.0) as u32).min(phys_h);
-                    let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).min(phys_h);
-                    if y0 >= y1 {
+                    let vis_y0: u32 = (vis.get_y().floor().max(0.0) as u32).min(phys_h);
+                    let vis_y1: u32 = (vis.bottom().ceil().max(0.0) as u32).min(phys_h);
+                    if vis_y0 >= vis_y1 {
                         continue;
                     }
                     let max_w: f32 = rect.get_width().max(1.0);
@@ -1561,29 +1669,43 @@ impl SoftwareRenderer {
                     if glyph_run_len == 0 {
                         continue;
                     }
-                    let mut run_vis: Rect = vis;
+                    let clip_y0: u32 = (active_clip.get_y().floor().max(0.0) as u32).min(phys_h);
+                    let clip_y1: u32 = (active_clip.bottom().ceil().max(0.0) as u32).min(phys_h);
+                    let mut tight_y0: u32 = phys_h;
+                    let mut tight_y1: u32 = 0;
+                    let mut glyph_bounds: Option<Rect> = None;
                     let g_s: usize = glyph_run_start as usize;
                     let g_e: usize = g_s.saturating_add(glyph_run_len as usize);
                     for g in positioned_glyphs[g_s..g_e].iter() {
                         let g_rect: Rect =
                             Rect::new(g.x as f32, g.y as f32, g.width as f32, g.height as f32);
                         if let Some(clipped_g) = g_rect.intersect(active_clip) {
-                            let gx0: f32 = run_vis.get_x().min(clipped_g.get_x());
-                            let gy0: f32 = run_vis.get_y().min(clipped_g.get_y());
-                            let gx1: f32 = run_vis.right().max(clipped_g.right());
-                            let gy1: f32 = run_vis.bottom().max(clipped_g.bottom());
-                            run_vis =
-                                Rect::new(gx0, gy0, (gx1 - gx0).max(0.0), (gy1 - gy0).max(0.0));
+                            expand_opt_rect(&mut glyph_bounds, clipped_g);
+                            let gy0: u32 = (g.y.max(0) as u32).min(phys_h);
+                            let gy1: u32 = ((g.y + g.height as i32).max(0) as u32).min(phys_h);
+                            tight_y0 = tight_y0.min(gy0);
+                            tight_y1 = tight_y1.max(gy1);
                         }
                     }
+                    let (y0, y1, run_vis): (u32, u32, Rect) = if let Some(gb) = glyph_bounds {
+                        let ty0: u32 = tight_y0.max(clip_y0);
+                        let ty1: u32 = tight_y1.min(clip_y1);
+                        if ty0 >= ty1 {
+                            continue;
+                        }
+                        (ty0, ty1, gb)
+                    } else {
+                        (vis_y0, vis_y1, vis)
+                    };
                     let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
                         rounded_clip_stack.as_slice(),
                         rounded_clips,
                         run_vis,
                     );
-                    if !prepped.is_empty() {
+                    if has_first_cmd {
                         expand_opt_rect(prepped_fg_bounds, run_vis);
                     }
+                    has_first_cmd = true;
                     expand_opt_rect(prepped_bounds, run_vis);
                     prepped.push(PreppedCommand {
                         cmd_index,
@@ -1597,6 +1719,7 @@ impl SoftwareRenderer {
                         caret_rect_idx: u32::MAX,
                         rounded_clip_start: rc_start,
                         rounded_clip_len: rc_len,
+                        skip_delta: 0,
                     });
                 }
                 DrawCommand::TextCaret {
@@ -1615,9 +1738,9 @@ impl SoftwareRenderer {
                     let Some(vis) = phys_content.intersect(active_clip) else {
                         continue;
                     };
-                    let y0: u32 = (vis.get_y().floor().max(0.0) as u32).min(phys_h);
-                    let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).min(phys_h);
-                    if y0 >= y1 {
+                    let vis_y0: u32 = (vis.get_y().floor().max(0.0) as u32).min(phys_h);
+                    let vis_y1: u32 = (vis.bottom().ceil().max(0.0) as u32).min(phys_h);
+                    if vis_y0 >= vis_y1 {
                         continue;
                     }
                     let (max_w, width_key): (Option<f32>, u32) = if *multiline {
@@ -1638,24 +1761,25 @@ impl SoftwareRenderer {
                         (*caret_height, scale, *multiline),
                         (glyph_atlas, font_provider),
                     );
+                    let Some(caret_vis) = caret_rect.intersect(active_clip) else {
+                        continue;
+                    };
+                    let y0: u32 = (caret_vis.get_y().floor().max(0.0) as u32).min(phys_h);
+                    let y1: u32 = (caret_vis.bottom().ceil().max(0.0) as u32).min(phys_h);
+                    if y0 >= y1 {
+                        continue;
+                    }
                     let caret_rect_idx: u32 = caret_rects.len() as u32;
                     caret_rects.push(caret_rect);
                     let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
                         rounded_clip_stack.as_slice(),
                         rounded_clips,
-                        vis,
+                        caret_vis,
                     );
-                    let mut caret_vis: Rect = vis;
-                    if let Some(cv) = caret_rect.intersect(active_clip) {
-                        let cx0: f32 = caret_vis.get_x().min(cv.get_x());
-                        let cy0: f32 = caret_vis.get_y().min(cv.get_y());
-                        let cx1: f32 = caret_vis.right().max(cv.right());
-                        let cy1: f32 = caret_vis.bottom().max(cv.bottom());
-                        caret_vis = Rect::new(cx0, cy0, (cx1 - cx0).max(0.0), (cy1 - cy0).max(0.0));
-                    }
-                    if !prepped.is_empty() {
+                    if has_first_cmd {
                         expand_opt_rect(prepped_fg_bounds, caret_vis);
                     }
+                    has_first_cmd = true;
                     expand_opt_rect(prepped_bounds, caret_vis);
                     prepped.push(PreppedCommand {
                         cmd_index,
@@ -1669,6 +1793,7 @@ impl SoftwareRenderer {
                         caret_rect_idx,
                         rounded_clip_start: rc_start,
                         rounded_clip_len: rc_len,
+                        skip_delta: 0,
                     });
                 }
                 DrawCommand::Line {
@@ -1690,9 +1815,10 @@ impl SoftwareRenderer {
                                 rounded_clips,
                                 vis,
                             );
-                            if !prepped.is_empty() {
+                            if has_first_cmd {
                                 expand_opt_rect(prepped_fg_bounds, vis);
                             }
+                            has_first_cmd = true;
                             expand_opt_rect(prepped_bounds, vis);
                             prepped.push(PreppedCommand {
                                 cmd_index,
@@ -1706,6 +1832,7 @@ impl SoftwareRenderer {
                                 caret_rect_idx: u32::MAX,
                                 rounded_clip_start: rc_start,
                                 rounded_clip_len: rc_len,
+                                skip_delta: 0,
                             });
                         }
                     }
@@ -1727,9 +1854,10 @@ impl SoftwareRenderer {
                                 rounded_clips,
                                 vis,
                             );
-                            if !prepped.is_empty() {
+                            if has_first_cmd {
                                 expand_opt_rect(prepped_fg_bounds, vis);
                             }
+                            has_first_cmd = true;
                             expand_opt_rect(prepped_bounds, vis);
                             prepped.push(PreppedCommand {
                                 cmd_index,
@@ -1743,6 +1871,7 @@ impl SoftwareRenderer {
                                 caret_rect_idx: u32::MAX,
                                 rounded_clip_start: rc_start,
                                 rounded_clip_len: rc_len,
+                                skip_delta: 0,
                             });
                         }
                     }
@@ -1763,9 +1892,10 @@ impl SoftwareRenderer {
                                 rounded_clips,
                                 vis,
                             );
-                            if !prepped.is_empty() {
+                            if has_first_cmd {
                                 expand_opt_rect(prepped_fg_bounds, vis);
                             }
+                            has_first_cmd = true;
                             expand_opt_rect(prepped_bounds, vis);
                             prepped.push(PreppedCommand {
                                 cmd_index,
@@ -1779,9 +1909,24 @@ impl SoftwareRenderer {
                                 caret_rect_idx: u32::MAX,
                                 rounded_clip_start: rc_start,
                                 rounded_clip_len: rc_len,
+                                skip_delta: 0,
                             });
                         }
                     }
+                }
+            }
+        }
+        while let Some((_, _, opt_slot)) = clip_scopes.pop() {
+            if let Some(slot_idx) = opt_slot {
+                let span_len: usize = prepped.len().saturating_sub(slot_idx);
+                if span_len <= 1 {
+                    prepped.truncate(slot_idx);
+                } else if span_len == 2 {
+                    let only_cmd: PreppedCommand = prepped[slot_idx + 1];
+                    prepped[slot_idx] = only_cmd;
+                    let _: Option<PreppedCommand> = prepped.pop();
+                } else {
+                    prepped[slot_idx].skip_delta = span_len as u32;
                 }
             }
         }
@@ -2422,7 +2567,19 @@ impl SoftwareRenderer {
             BandCornerScratch::default()
         };
         let mut shaded: usize = 0;
-        for item in prepped.iter() {
+        let prepped_len: usize = prepped.len();
+        let mut idx: usize = 0;
+        while idx < prepped_len {
+            let item: &PreppedCommand = &prepped[idx];
+            if item.get_cmd_index() == usize::MAX {
+                if item.get_y1() <= band_y0 || item.get_y0() >= band_y1 {
+                    idx += (item.get_skip_delta() as usize).max(1);
+                } else {
+                    idx += 1;
+                }
+                continue;
+            }
+            idx += 1;
             if item.get_y1() <= band_y0 || item.get_y0() >= band_y1 {
                 continue;
             }

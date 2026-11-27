@@ -297,6 +297,9 @@ pub(crate) struct PreppedCommand {
     /// Count of active `RoundedClipMask` entries touching this command (`0` on fast path).
     #[get(type(copy))]
     pub(crate) rounded_clip_len: u16,
+    /// Relative index jump inside `prepped_scratch` when a `usize::MAX` clip-scope sentinel misses a band.
+    #[get(type(copy))]
+    pub(crate) skip_delta: u32,
 }
 
 /// Single open-addressed slot in `TextLayoutCache` mapping `(key_hash, width_key)` to an arena index.
@@ -419,6 +422,11 @@ pub struct SoftwareRenderer {
     #[get(pub(crate), type(copy))]
     #[set(pub(crate))]
     pub(crate) prepped_fg_bounds: Option<Rect>,
+    /// Reusable clip-scope stack `(clip_y0, clip_y1, optional_sentinel_idx)` for O(1) off-band subtree skipping.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) clip_scope_scratch: Vec<(u32, u32, Option<usize>)>,
 }
 
 /// Compact 16-byte hot per-column cache entry reused across every vertical shadow strip scanline.
