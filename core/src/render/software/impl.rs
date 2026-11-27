@@ -2032,7 +2032,159 @@ impl SoftwareRenderer {
         span_len * rows
     }
 
-    /// Rasterizes a rounded rectangle with optional border using edge-bounded 4x4 RGSS supersampling and linear-light spans.
+    /// Precomputes 1D horizontal edge samples for vertical side strip `x_start..x_end` into stack buffer `out`.
+    ///
+    /// # Arguments
+    ///
+    /// - `(u32, u32)` - Inclusive/exclusive horizontal span `(x_start, x_end)`.
+    /// - `(f32, f32, f32, f32)` - Box geometry `(center_x, half_w, half_h, border_w)`.
+    /// - `(Color, Border)` - Fill color and border specification.
+    /// - `([f32; 4], [f32; 4])` - Precomputed linear fill and border tuples `(lin_r, lin_g, lin_b, alpha_norm)`.
+    /// - `AntialiasingMode` - Active anti-aliasing policy.
+    /// - `&mut [EdgeBlendSample; ROUNDED_EDGE_STRIP_CAP]` - Stack-allocated sample destination.
+    ///
+    /// # Returns
+    ///
+    /// - `(usize, usize)` - Tuple `(sample_count, shaded_count)` written to `out`.
+    #[must_use]
+    fn build_vertical_edge_strip(
+        x_span: (u32, u32),
+        geom: (f32, f32, f32, f32),
+        colors: (Color, Border),
+        lin_colors: ([f32; 4], [f32; 4]),
+        aa: AntialiasingMode,
+        out: &mut [EdgeBlendSample; ROUNDED_EDGE_STRIP_CAP],
+    ) -> (usize, usize) {
+        let (x_start, x_end): (u32, u32) = x_span;
+        let (cx, half_w, half_h, bw): (f32, f32, f32, f32) = geom;
+        let (color, border): (Color, Border) = colors;
+        let (fill_lin, border_lin): ([f32; 4], [f32; 4]) = lin_colors;
+        let has_border: bool = bw > 0.0 && border.get_color().get_a() > 0;
+        let inner_hw: f32 = (half_w - bw).max(0.0);
+        let inner_hh: f32 = (half_h - bw).max(0.0);
+        let mut len: usize = 0;
+        let mut shaded: usize = 0;
+        for x in x_start..x_end {
+            let px: f32 = (x as f32) + 0.5 - cx;
+            let dist: f32 = px.abs() - half_w;
+            if dist > 0.85 {
+                continue;
+            }
+            if !has_border {
+                if dist < -0.85 {
+                    let sa: u8 = color.get_a();
+                    if sa > 0 {
+                        let a: f32 = (sa as f32) * (1.0 / 255.0);
+                        out[len] = EdgeBlendSample {
+                            x,
+                            rgba: [color.get_r(), color.get_g(), color.get_b(), 255],
+                            sr_a: fill_lin[0] * a,
+                            sg_a: fill_lin[1] * a,
+                            sb_a: fill_lin[2] * a,
+                            inv_a: 1.0 - a,
+                            sa_u32: sa as u32,
+                            is_opaque: sa == 255,
+                        };
+                        len += 1;
+                        shaded += 1;
+                    }
+                    continue;
+                }
+                let outer_cov: f32 = sdf_coverage(dist, aa);
+                if outer_cov > 0.0 && color.get_a() > 0 {
+                    let alpha_f: f32 = ((color.get_a() as f32) * (1.0 / 255.0)) * outer_cov;
+                    shaded += 1;
+                    if alpha_f > 0.0002 {
+                        let a: f32 = alpha_f.clamp(0.0, 1.0);
+                        out[len] = EdgeBlendSample {
+                            x,
+                            rgba: [color.get_r(), color.get_g(), color.get_b(), 255],
+                            sr_a: fill_lin[0] * a,
+                            sg_a: fill_lin[1] * a,
+                            sb_a: fill_lin[2] * a,
+                            inv_a: 1.0 - a,
+                            sa_u32: (a * 255.0) as u32,
+                            is_opaque: a >= 0.9995,
+                        };
+                        len += 1;
+                    }
+                }
+                continue;
+            }
+            if dist < -(bw + 0.85) {
+                let sa: u8 = color.get_a();
+                if sa > 0 {
+                    let a: f32 = (sa as f32) * (1.0 / 255.0);
+                    out[len] = EdgeBlendSample {
+                        x,
+                        rgba: [color.get_r(), color.get_g(), color.get_b(), 255],
+                        sr_a: fill_lin[0] * a,
+                        sg_a: fill_lin[1] * a,
+                        sb_a: fill_lin[2] * a,
+                        inv_a: 1.0 - a,
+                        sa_u32: sa as u32,
+                        is_opaque: sa == 255,
+                    };
+                    len += 1;
+                    shaded += 1;
+                }
+                continue;
+            }
+            let inner_dist: f32 = if inner_hw > 0.0 && inner_hh > 0.0 {
+                px.abs() - inner_hw
+            } else {
+                2.0
+            };
+            if dist < -0.85 && inner_dist > 0.85 {
+                let bc: Color = border.get_color();
+                let sa: u8 = bc.get_a();
+                let a: f32 = (sa as f32) * (1.0 / 255.0);
+                out[len] = EdgeBlendSample {
+                    x,
+                    rgba: [bc.get_r(), bc.get_g(), bc.get_b(), 255],
+                    sr_a: border_lin[0] * a,
+                    sg_a: border_lin[1] * a,
+                    sb_a: border_lin[2] * a,
+                    inv_a: 1.0 - a,
+                    sa_u32: sa as u32,
+                    is_opaque: sa == 255,
+                };
+                len += 1;
+                shaded += 1;
+                continue;
+            }
+            let outer_cov: f32 = sdf_coverage(dist, aa);
+            if outer_cov <= 0.0 {
+                continue;
+            }
+            let inner_cov: f32 = if inner_hw > 0.0 && inner_hh > 0.0 {
+                sdf_coverage(inner_dist, aa)
+            } else {
+                0.0
+            };
+            let mixed: Color =
+                composite_fill_and_border_precomputed(fill_lin, border_lin, outer_cov, inner_cov);
+            let sa: u8 = mixed.get_a();
+            if sa > 0 {
+                let a: f32 = (sa as f32) * (1.0 / 255.0);
+                out[len] = EdgeBlendSample {
+                    x,
+                    rgba: [mixed.get_r(), mixed.get_g(), mixed.get_b(), 255],
+                    sr_a: SRGB_TO_LIN_LUT[mixed.get_r() as usize] * a,
+                    sg_a: SRGB_TO_LIN_LUT[mixed.get_g() as usize] * a,
+                    sb_a: SRGB_TO_LIN_LUT[mixed.get_b() as usize] * a,
+                    inv_a: 1.0 - a,
+                    sa_u32: sa as u32,
+                    is_opaque: sa == 255,
+                };
+                len += 1;
+                shaded += 1;
+            }
+        }
+        (len, shaded)
+    }
+
+    /// Rasterizes a rounded rectangle with optional border using edge-bounded 4x4 RGSS supersampling, precomputed 1D vertical edge strips, and linear-light spans.
     ///
     /// # Arguments
     ///
@@ -2067,7 +2219,7 @@ impl SoftwareRenderer {
         let half_h: f32 = rect.get_height() * 0.5;
         let cx: f32 = rect.get_x() + half_w;
         let cy: f32 = rect.get_y() + half_h;
-        let border_w: f32 = border.get_width();
+        let border_w: f32 = if has_border { border.get_width() } else { 0.0 };
         let fb_w: u32 = band.width();
         let band_y0: u32 = band.y_offset();
         let band_y1: u32 = band.y_end();
@@ -2075,6 +2227,9 @@ impl SoftwareRenderer {
         let y0: u32 = (vis.get_y().floor().max(0.0) as u32).clamp(band_y0, band_y1);
         let x1: u32 = (vis.right().ceil().max(0.0) as u32).min(fb_w);
         let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).clamp(band_y0, band_y1);
+        if x0 >= x1 || y0 >= y1 {
+            return 0;
+        }
         let effective_r: f32 = radius.max_radius().min(half_w).min(half_h);
         let safe_inset: f32 = effective_r.max(border_w) + 1.5;
         let edge_inset: f32 = border_w + 1.5;
@@ -2086,6 +2241,19 @@ impl SoftwareRenderer {
         let cx1: u32 = ((rect.right() - safe_inset).floor().max(0.0) as u32).clamp(x0, x1);
         let has_interior: bool = iy0 < iy1 && ix0 < ix1;
         let has_center_band: bool = cx0 < cx1;
+        let fill_lin: [f32; 4] = [
+            SRGB_TO_LIN_LUT[color.get_r() as usize],
+            SRGB_TO_LIN_LUT[color.get_g() as usize],
+            SRGB_TO_LIN_LUT[color.get_b() as usize],
+            (color.get_a() as f32) / 255.0,
+        ];
+        let bc: Color = border.get_color();
+        let border_lin: [f32; 4] = [
+            SRGB_TO_LIN_LUT[bc.get_r() as usize],
+            SRGB_TO_LIN_LUT[bc.get_g() as usize],
+            SRGB_TO_LIN_LUT[bc.get_b() as usize],
+            (bc.get_a() as f32) / 255.0,
+        ];
         let interior_luts: Option<RgbaLutQuad> = if has_interior
             && color.get_a() > 0
             && color.get_a() < 255
@@ -2096,51 +2264,252 @@ impl SoftwareRenderer {
             None
         };
         let mut shaded: usize = 0;
+        if has_interior {
+            for y in y0..iy0 {
+                let py: f32 = (y as f32) + 0.5 - cy;
+                let box_geom: (f32, f32, f32, f32) = (cx, py, half_w, half_h);
+                if has_center_band {
+                    if let Some(row) = band.row_slice_mut(y) {
+                        for x in x0..cx0 {
+                            shaded += Self::shade_rounded_pixel_row(
+                                row,
+                                x,
+                                box_geom,
+                                radius,
+                                (color, border, fill_lin, border_lin),
+                                aa,
+                            );
+                        }
+                        for x in cx1..x1 {
+                            shaded += Self::shade_rounded_pixel_row(
+                                row,
+                                x,
+                                box_geom,
+                                radius,
+                                (color, border, fill_lin, border_lin),
+                                aa,
+                            );
+                        }
+                    }
+                    let dist_y: f32 = py.abs() - half_h;
+                    let outer_cov: f32 = sdf_coverage(dist_y, aa);
+                    if outer_cov > 0.0 {
+                        if has_border {
+                            let inner_hh: f32 = (half_h - border_w).max(0.0);
+                            let inner_cov: f32 = if inner_hh > 0.0 && half_w > border_w {
+                                sdf_coverage(py.abs() - inner_hh, aa)
+                            } else {
+                                0.0
+                            };
+                            let mixed: Color = composite_fill_and_border_precomputed(
+                                fill_lin, border_lin, outer_cov, inner_cov,
+                            );
+                            if mixed.get_a() > 0 {
+                                band.fill_span_linear(cx0, cx1, y, mixed);
+                            }
+                            shaded += (cx1 - cx0) as usize;
+                        } else if color.get_a() > 0 {
+                            band.fill_span_linear(cx0, cx1, y, color.multiply_alpha(outer_cov));
+                            shaded += (cx1 - cx0) as usize;
+                        }
+                    }
+                } else if let Some(row) = band.row_slice_mut(y) {
+                    for x in x0..x1 {
+                        shaded += Self::shade_rounded_pixel_row(
+                            row,
+                            x,
+                            box_geom,
+                            radius,
+                            (color, border, fill_lin, border_lin),
+                            aa,
+                        );
+                    }
+                }
+            }
+            let use_1d_strip: bool = ((ix0 - x0) as usize) <= ROUNDED_EDGE_STRIP_CAP
+                && ((x1 - ix1) as usize) <= ROUNDED_EDGE_STRIP_CAP;
+            if use_1d_strip {
+                let mut left_strip: [EdgeBlendSample; ROUNDED_EDGE_STRIP_CAP] =
+                    [EdgeBlendSample::default(); ROUNDED_EDGE_STRIP_CAP];
+                let mut right_strip: [EdgeBlendSample; ROUNDED_EDGE_STRIP_CAP] =
+                    [EdgeBlendSample::default(); ROUNDED_EDGE_STRIP_CAP];
+                let (left_len, left_shaded): (usize, usize) = if x0 < ix0 {
+                    Self::build_vertical_edge_strip(
+                        (x0, ix0),
+                        (cx, half_w, half_h, border_w),
+                        (color, border),
+                        (fill_lin, border_lin),
+                        aa,
+                        &mut left_strip,
+                    )
+                } else {
+                    (0, 0)
+                };
+                let (right_len, right_shaded): (usize, usize) = if ix1 < x1 {
+                    Self::build_vertical_edge_strip(
+                        (ix1, x1),
+                        (cx, half_w, half_h, border_w),
+                        (color, border),
+                        (fill_lin, border_lin),
+                        aa,
+                        &mut right_strip,
+                    )
+                } else {
+                    (0, 0)
+                };
+                let left_slice: &[EdgeBlendSample] = &left_strip[..left_len];
+                let right_slice: &[EdgeBlendSample] = &right_strip[..right_len];
+                let edge_shaded: usize = left_shaded + right_shaded;
+                let has_edges: bool = left_len > 0 || right_len > 0;
+                let fill_visible: bool = color.get_a() > 0;
+                let interior_span: usize = (ix1 - ix0) as usize;
+                for y in iy0..iy1 {
+                    if fill_visible {
+                        if let Some(ref luts) = interior_luts {
+                            band.fill_span_linear_luts(ix0, ix1, y, luts);
+                        } else {
+                            band.fill_span_linear(ix0, ix1, y, color);
+                        }
+                        shaded += interior_span;
+                    }
+                    if has_edges {
+                        if let Some(row) = band.row_slice_mut(y) {
+                            if left_len > 0 {
+                                apply_edge_strip_row(row, left_slice);
+                            }
+                            if right_len > 0 {
+                                apply_edge_strip_row(row, right_slice);
+                            }
+                        }
+                        shaded += edge_shaded;
+                    }
+                }
+            } else {
+                let fill_visible: bool = color.get_a() > 0;
+                let interior_span: usize = (ix1 - ix0) as usize;
+                for y in iy0..iy1 {
+                    let py: f32 = (y as f32) + 0.5 - cy;
+                    let box_geom: (f32, f32, f32, f32) = (cx, py, half_w, half_h);
+                    if fill_visible {
+                        if let Some(ref luts) = interior_luts {
+                            band.fill_span_linear_luts(ix0, ix1, y, luts);
+                        } else {
+                            band.fill_span_linear(ix0, ix1, y, color);
+                        }
+                        shaded += interior_span;
+                    }
+                    if let Some(row) = band.row_slice_mut(y) {
+                        for x in x0..ix0 {
+                            shaded += Self::shade_rounded_pixel_row(
+                                row,
+                                x,
+                                box_geom,
+                                radius,
+                                (color, border, fill_lin, border_lin),
+                                aa,
+                            );
+                        }
+                        for x in ix1..x1 {
+                            shaded += Self::shade_rounded_pixel_row(
+                                row,
+                                x,
+                                box_geom,
+                                radius,
+                                (color, border, fill_lin, border_lin),
+                                aa,
+                            );
+                        }
+                    }
+                }
+            }
+            for y in iy1..y1 {
+                let py: f32 = (y as f32) + 0.5 - cy;
+                let box_geom: (f32, f32, f32, f32) = (cx, py, half_w, half_h);
+                if has_center_band {
+                    if let Some(row) = band.row_slice_mut(y) {
+                        for x in x0..cx0 {
+                            shaded += Self::shade_rounded_pixel_row(
+                                row,
+                                x,
+                                box_geom,
+                                radius,
+                                (color, border, fill_lin, border_lin),
+                                aa,
+                            );
+                        }
+                        for x in cx1..x1 {
+                            shaded += Self::shade_rounded_pixel_row(
+                                row,
+                                x,
+                                box_geom,
+                                radius,
+                                (color, border, fill_lin, border_lin),
+                                aa,
+                            );
+                        }
+                    }
+                    let dist_y: f32 = py.abs() - half_h;
+                    let outer_cov: f32 = sdf_coverage(dist_y, aa);
+                    if outer_cov > 0.0 {
+                        if has_border {
+                            let inner_hh: f32 = (half_h - border_w).max(0.0);
+                            let inner_cov: f32 = if inner_hh > 0.0 && half_w > border_w {
+                                sdf_coverage(py.abs() - inner_hh, aa)
+                            } else {
+                                0.0
+                            };
+                            let mixed: Color = composite_fill_and_border_precomputed(
+                                fill_lin, border_lin, outer_cov, inner_cov,
+                            );
+                            if mixed.get_a() > 0 {
+                                band.fill_span_linear(cx0, cx1, y, mixed);
+                            }
+                            shaded += (cx1 - cx0) as usize;
+                        } else if color.get_a() > 0 {
+                            band.fill_span_linear(cx0, cx1, y, color.multiply_alpha(outer_cov));
+                            shaded += (cx1 - cx0) as usize;
+                        }
+                    }
+                } else if let Some(row) = band.row_slice_mut(y) {
+                    for x in x0..x1 {
+                        shaded += Self::shade_rounded_pixel_row(
+                            row,
+                            x,
+                            box_geom,
+                            radius,
+                            (color, border, fill_lin, border_lin),
+                            aa,
+                        );
+                    }
+                }
+            }
+            return shaded;
+        }
         for y in y0..y1 {
             let py: f32 = (y as f32) + 0.5 - cy;
             let box_geom: (f32, f32, f32, f32) = (cx, py, half_w, half_h);
-            if has_interior && y >= iy0 && y < iy1 {
-                for x in x0..ix0 {
-                    shaded += Self::shade_rounded_pixel(
-                        band,
-                        (x, y),
-                        box_geom,
-                        radius,
-                        color,
-                        border,
-                        aa,
-                    );
-                }
-                if color.get_a() > 0 {
-                    if let Some(ref luts) = interior_luts {
-                        band.fill_span_linear_luts(ix0, ix1, y, luts);
-                    } else {
-                        band.fill_span_linear(ix0, ix1, y, color);
+            if has_center_band {
+                if let Some(row) = band.row_slice_mut(y) {
+                    for x in x0..cx0 {
+                        shaded += Self::shade_rounded_pixel_row(
+                            row,
+                            x,
+                            box_geom,
+                            radius,
+                            (color, border, fill_lin, border_lin),
+                            aa,
+                        );
                     }
-                    shaded += (ix1 - ix0) as usize;
-                }
-                for x in ix1..x1 {
-                    shaded += Self::shade_rounded_pixel(
-                        band,
-                        (x, y),
-                        box_geom,
-                        radius,
-                        color,
-                        border,
-                        aa,
-                    );
-                }
-            } else if has_center_band {
-                for x in x0..cx0 {
-                    shaded += Self::shade_rounded_pixel(
-                        band,
-                        (x, y),
-                        box_geom,
-                        radius,
-                        color,
-                        border,
-                        aa,
-                    );
+                    for x in cx1..x1 {
+                        shaded += Self::shade_rounded_pixel_row(
+                            row,
+                            x,
+                            box_geom,
+                            radius,
+                            (color, border, fill_lin, border_lin),
+                            aa,
+                        );
+                    }
                 }
                 let dist_y: f32 = py.abs() - half_h;
                 let outer_cov: f32 = sdf_coverage(dist_y, aa);
@@ -2152,11 +2521,8 @@ impl SoftwareRenderer {
                         } else {
                             0.0
                         };
-                        let mixed: Color = composite_fill_and_border(
-                            color,
-                            border.get_color(),
-                            outer_cov,
-                            inner_cov,
+                        let mixed: Color = composite_fill_and_border_precomputed(
+                            fill_lin, border_lin, outer_cov, inner_cov,
                         );
                         if mixed.get_a() > 0 {
                             band.fill_span_linear(cx0, cx1, y, mixed);
@@ -2167,26 +2533,14 @@ impl SoftwareRenderer {
                         shaded += (cx1 - cx0) as usize;
                     }
                 }
-                for x in cx1..x1 {
-                    shaded += Self::shade_rounded_pixel(
-                        band,
-                        (x, y),
-                        box_geom,
-                        radius,
-                        color,
-                        border,
-                        aa,
-                    );
-                }
-            } else {
+            } else if let Some(row) = band.row_slice_mut(y) {
                 for x in x0..x1 {
-                    shaded += Self::shade_rounded_pixel(
-                        band,
-                        (x, y),
+                    shaded += Self::shade_rounded_pixel_row(
+                        row,
+                        x,
                         box_geom,
                         radius,
-                        color,
-                        border,
+                        (color, border, fill_lin, border_lin),
                         aa,
                     );
                 }
@@ -2195,32 +2549,33 @@ impl SoftwareRenderer {
         shaded
     }
 
-    /// Evaluates fast early-rejected analytical SDF and edge-only 4x4 RGSS coverage for a single edge/corner pixel.
+    /// Evaluates fast early-rejected analytical SDF and edge-only 4x4 RGSS coverage directly onto a mutable scanline slice.
     ///
     /// # Arguments
     ///
-    /// - `&mut PixelBand<'_>` - Target pixel band.
-    /// - `(u32, u32)` - Global pixel `(x, y)` coordinates.
+    /// - `&mut [u8]` - Target scanline RGBA8 slice.
+    /// - `u32` - Global pixel X coordinate.
     /// - `(f32, f32, f32, f32)` - Box geometry `(center_x, rel_py, half_w, half_h)`.
     /// - `CornerRadius` - Physical corner radii.
-    /// - `Color` - Fill color.
-    /// - `Border` - Border width and color.
+    /// - `(Color, Border, [f32; 4], [f32; 4])` - Fill color, border spec, and precomputed linear fill/border tuples.
     /// - `AntialiasingMode` - Active AA policy.
     ///
     /// # Returns
     ///
     /// - `usize` - `1` if the pixel was shaded, `0` otherwise.
-    fn shade_rounded_pixel(
-        band: &mut PixelBand<'_>,
-        pos: (u32, u32),
+    #[inline(always)]
+    fn shade_rounded_pixel_row(
+        row: &mut [u8],
+        x: u32,
         geom: (f32, f32, f32, f32),
         radius: CornerRadius,
-        color: Color,
-        border: Border,
+        style_colors: (Color, Border, [f32; 4], [f32; 4]),
         aa: AntialiasingMode,
     ) -> usize {
-        let (x, y): (u32, u32) = pos;
         let (cx, py, half_w, half_h): (f32, f32, f32, f32) = geom;
+        let (color, border, fill_lin, border_lin): (Color, Border, [f32; 4], [f32; 4]) =
+            style_colors;
+        let fill_rgb: [f32; 3] = [fill_lin[0], fill_lin[1], fill_lin[2]];
         let px: f32 = (x as f32) + 0.5 - cx;
         let corner_r: f32 = quadrant_corner_radius(radius, px, py)
             .min(half_w)
@@ -2234,7 +2589,7 @@ impl SoftwareRenderer {
         if !has_border {
             if dist < -0.85 {
                 if color.get_a() > 0 {
-                    band.blend_pixel_linear_dithered(x, y, color, 0.0);
+                    blend_row_pixel_linear_precomputed(row, x, color, fill_rgb);
                     return 1;
                 }
                 return 0;
@@ -2250,14 +2605,14 @@ impl SoftwareRenderer {
             };
             if outer_cov > 0.0 && color.get_a() > 0 {
                 let alpha_f: f32 = ((color.get_a() as f32) * (1.0 / 255.0)) * outer_cov;
-                band.blend_pixel_f32_dithered(x, y, color, alpha_f, 0.0);
+                blend_row_pixel_f32_precomputed(row, x, color, fill_rgb, alpha_f);
                 return 1;
             }
             return 0;
         }
         if dist < -(bw + 0.85) {
             if color.get_a() > 0 {
-                band.blend_pixel_linear_dithered(x, y, color, 0.0);
+                blend_row_pixel_linear_precomputed(row, x, color, fill_rgb);
                 return 1;
             }
             return 0;
@@ -2271,7 +2626,8 @@ impl SoftwareRenderer {
             2.0
         };
         if dist < -0.85 && inner_dist > 0.85 {
-            band.blend_pixel_linear_dithered(x, y, border.get_color(), 0.0);
+            let border_rgb: [f32; 3] = [border_lin[0], border_lin[1], border_lin[2]];
+            blend_row_pixel_linear_precomputed(row, x, border.get_color(), border_rgb);
             return 1;
         }
         let in_corner_zone: bool = aa != AntialiasingMode::None
@@ -2296,9 +2652,14 @@ impl SoftwareRenderer {
             return 0;
         }
         let mixed: Color =
-            composite_fill_and_border(color, border.get_color(), outer_cov, inner_cov);
+            composite_fill_and_border_precomputed(fill_lin, border_lin, outer_cov, inner_cov);
         if mixed.get_a() > 0 {
-            band.blend_pixel_linear_dithered(x, y, mixed, 0.0);
+            let mixed_rgb: [f32; 3] = [
+                SRGB_TO_LIN_LUT[mixed.get_r() as usize],
+                SRGB_TO_LIN_LUT[mixed.get_g() as usize],
+                SRGB_TO_LIN_LUT[mixed.get_b() as usize],
+            ];
+            blend_row_pixel_linear_precomputed(row, x, mixed, mixed_rgb);
             return 1;
         }
         0

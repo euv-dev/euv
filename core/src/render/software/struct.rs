@@ -24,6 +24,27 @@ pub(crate) struct BandTaskSlice {
     pub(crate) base_src_ptr: usize,
 }
 
+/// Precomputed 1D horizontal edge pixel sample reused across every vertical interior scanline of a rounded rectangle.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct EdgeBlendSample {
+    /// Physical X pixel coordinate inside the target scanline.
+    pub(crate) x: u32,
+    /// Direct RGBA8 bytes written verbatim when `is_opaque` is true.
+    pub(crate) rgba: [u8; 4],
+    /// Pre-multiplied linear red channel `SRGB_TO_LIN_LUT[r] * alpha`.
+    pub(crate) sr_a: f32,
+    /// Pre-multiplied linear green channel `SRGB_TO_LIN_LUT[g] * alpha`.
+    pub(crate) sg_a: f32,
+    /// Pre-multiplied linear blue channel `SRGB_TO_LIN_LUT[b] * alpha`.
+    pub(crate) sb_a: f32,
+    /// Complement opacity `1.0 - alpha`.
+    pub(crate) inv_a: f32,
+    /// Quantized source alpha in `0..=255` for destination alpha update.
+    pub(crate) sa_u32: u32,
+    /// True when the sample overwrites destination pixels without blending.
+    pub(crate) is_opaque: bool,
+}
+
 /// Active rounded-rectangle clip mask in physical pixels applied during software band rasterization.
 #[derive(Clone, Copy, Data, Debug, Default, PartialEq)]
 pub(crate) struct RoundedClipMask {

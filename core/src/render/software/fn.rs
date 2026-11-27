@@ -476,6 +476,172 @@ pub fn composite_fill_and_border(
     Color::new(r, g, b, a)
 }
 
+/// Composites rounded-rectangle fill and border using precomputed linear-light RGB and normalized alphas.
+///
+/// # Arguments
+///
+/// - `[f32; 4]` - Precomputed fill `(lin_r, lin_g, lin_b, alpha_norm)`.
+/// - `[f32; 4]` - Precomputed border `(lin_r, lin_g, lin_b, alpha_norm)`.
+/// - `f32` - Outer shape coverage in `[0.0, 1.0]`.
+/// - `f32` - Inner fill coverage in `[0.0, 1.0]`.
+///
+/// # Returns
+///
+/// - `Color` - Bit-exact blended RGBA sample matching `composite_fill_and_border`.
+#[inline(always)]
+#[must_use]
+pub(crate) fn composite_fill_and_border_precomputed(
+    fill_lin: [f32; 4],
+    border_lin: [f32; 4],
+    outer_cov: f32,
+    inner_cov: f32,
+) -> Color {
+    let border_cov: f32 = (outer_cov - inner_cov).clamp(0.0, 1.0);
+    let fill_a: f32 = fill_lin[3] * inner_cov;
+    let border_a: f32 = border_lin[3] * border_cov;
+    let total_a: f32 = (fill_a + border_a).clamp(0.0, 1.0);
+    if total_a <= 0.0001 {
+        return COLOR_TRANSPARENT;
+    }
+    let inv_a: f32 = 1.0 / total_a;
+    let ir: usize = (((fill_lin[0] * fill_a + border_lin[0] * border_a) * inv_a) * 4095.0)
+        .clamp(0.0, 4095.0) as usize;
+    let ig: usize = (((fill_lin[1] * fill_a + border_lin[1] * border_a) * inv_a) * 4095.0)
+        .clamp(0.0, 4095.0) as usize;
+    let ib: usize = (((fill_lin[2] * fill_a + border_lin[2] * border_a) * inv_a) * 4095.0)
+        .clamp(0.0, 4095.0) as usize;
+    let r: u8 = ((LIN_TO_SRGB_Q4_LUT[ir] + 8) >> 4).min(255) as u8;
+    let g: u8 = ((LIN_TO_SRGB_Q4_LUT[ig] + 8) >> 4).min(255) as u8;
+    let b: u8 = ((LIN_TO_SRGB_Q4_LUT[ib] + 8) >> 4).min(255) as u8;
+    let a: u8 = (total_a * 255.0).round().clamp(0.0, 255.0) as u8;
+    Color::new(r, g, b, a)
+}
+
+/// Blends an undithered RGBA `Color` directly into a mutable 4-byte pixel slot using linear-light compositing.
+///
+/// # Arguments
+///
+/// - `&mut [u8]` - Destination framebuffer row slice.
+/// - `u32` - Pixel X coordinate within `row`.
+/// - `Color` - Foreground color.
+/// - `[f32; 3]` - Precomputed linear RGB `(lin_r, lin_g, lin_b)` for `color`.
+#[inline(always)]
+pub(crate) fn blend_row_pixel_linear_precomputed(
+    row: &mut [u8],
+    x: u32,
+    color: Color,
+    lin_rgb: [f32; 3],
+) {
+    let sa: u8 = color.get_a();
+    let off: usize = (x as usize) * 4;
+    if sa == 0 || off + 4 > row.len() {
+        return;
+    }
+    if sa == 255 {
+        row[off] = color.get_r();
+        row[off + 1] = color.get_g();
+        row[off + 2] = color.get_b();
+        row[off + 3] = 255;
+        return;
+    }
+    let a: f32 = (sa as f32) * (1.0 / 255.0);
+    let inv_a: f32 = 1.0 - a;
+    let dr: f32 = SRGB_TO_LIN_LUT[row[off] as usize];
+    let dg: f32 = SRGB_TO_LIN_LUT[row[off + 1] as usize];
+    let db: f32 = SRGB_TO_LIN_LUT[row[off + 2] as usize];
+    let ir: usize = ((lin_rgb[0] * a + dr * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+    let ig: usize = ((lin_rgb[1] * a + dg * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+    let ib: usize = ((lin_rgb[2] * a + db * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+    row[off] = ((LIN_TO_SRGB_Q4_LUT[ir] + 8) >> 4).min(255) as u8;
+    row[off + 1] = ((LIN_TO_SRGB_Q4_LUT[ig] + 8) >> 4).min(255) as u8;
+    row[off + 2] = ((LIN_TO_SRGB_Q4_LUT[ib] + 8) >> 4).min(255) as u8;
+    let sa_u32: u32 = sa as u32;
+    let va: u32 = (row[off + 3] as u32) * (255 - sa_u32) + 128;
+    row[off + 3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+}
+
+/// Blends an undithered RGB color with continuous opacity `alpha_f` directly into a mutable row slice.
+///
+/// # Arguments
+///
+/// - `&mut [u8]` - Destination framebuffer row slice.
+/// - `u32` - Pixel X coordinate within `row`.
+/// - `Color` - Foreground RGB tint.
+/// - `[f32; 3]` - Precomputed linear RGB `(lin_r, lin_g, lin_b)` for `color`.
+/// - `f32` - Continuous opacity in `[0.0, 1.0]`.
+#[inline(always)]
+pub(crate) fn blend_row_pixel_f32_precomputed(
+    row: &mut [u8],
+    x: u32,
+    color: Color,
+    lin_rgb: [f32; 3],
+    alpha_f: f32,
+) {
+    let off: usize = (x as usize) * 4;
+    if alpha_f <= 0.0002 || off + 4 > row.len() {
+        return;
+    }
+    let a: f32 = alpha_f.clamp(0.0, 1.0);
+    if a >= 0.9995 {
+        row[off] = color.get_r();
+        row[off + 1] = color.get_g();
+        row[off + 2] = color.get_b();
+        row[off + 3] = 255;
+        return;
+    }
+    let inv_a: f32 = 1.0 - a;
+    let dr: f32 = SRGB_TO_LIN_LUT[row[off] as usize];
+    let dg: f32 = SRGB_TO_LIN_LUT[row[off + 1] as usize];
+    let db: f32 = SRGB_TO_LIN_LUT[row[off + 2] as usize];
+    let ir: usize = ((lin_rgb[0] * a + dr * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+    let ig: usize = ((lin_rgb[1] * a + dg * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+    let ib: usize = ((lin_rgb[2] * a + db * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+    row[off] = ((LIN_TO_SRGB_Q4_LUT[ir] + 8) >> 4).min(255) as u8;
+    row[off + 1] = ((LIN_TO_SRGB_Q4_LUT[ig] + 8) >> 4).min(255) as u8;
+    row[off + 2] = ((LIN_TO_SRGB_Q4_LUT[ib] + 8) >> 4).min(255) as u8;
+    let sa_u32: u32 = (a * 255.0) as u32;
+    let va: u32 = (row[off + 3] as u32) * (255 - sa_u32) + 128;
+    row[off + 3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+}
+
+/// Applies a slice of precomputed 1D edge samples directly onto mutable scanline `row`.
+///
+/// # Arguments
+///
+/// - `&mut [u8]` - Destination framebuffer row slice.
+/// - `&[EdgeBlendSample]` - Precomputed horizontal edge strip samples.
+#[inline(always)]
+pub(crate) fn apply_edge_strip_row(row: &mut [u8], samples: &[EdgeBlendSample]) {
+    let row_len: usize = row.len();
+    for sample in samples.iter() {
+        let off: usize = (sample.x as usize) * 4;
+        if off + 4 > row_len {
+            continue;
+        }
+        if sample.is_opaque {
+            row[off] = sample.rgba[0];
+            row[off + 1] = sample.rgba[1];
+            row[off + 2] = sample.rgba[2];
+            row[off + 3] = 255;
+        } else {
+            let dr: f32 = SRGB_TO_LIN_LUT[row[off] as usize];
+            let dg: f32 = SRGB_TO_LIN_LUT[row[off + 1] as usize];
+            let db: f32 = SRGB_TO_LIN_LUT[row[off + 2] as usize];
+            let ir: usize =
+                ((sample.sr_a + dr * sample.inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+            let ig: usize =
+                ((sample.sg_a + dg * sample.inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+            let ib: usize =
+                ((sample.sb_a + db * sample.inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+            row[off] = ((LIN_TO_SRGB_Q4_LUT[ir] + 8) >> 4).min(255) as u8;
+            row[off + 1] = ((LIN_TO_SRGB_Q4_LUT[ig] + 8) >> 4).min(255) as u8;
+            row[off + 2] = ((LIN_TO_SRGB_Q4_LUT[ib] + 8) >> 4).min(255) as u8;
+            let va: u32 = (row[off + 3] as u32) * (255 - sample.sa_u32) + 128;
+            row[off + 3] = (sample.sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+        }
+    }
+}
+
 /// Tests whether a physical visible rectangle overlaps any rounded-corner cutout square of `(clip_rect, radius)`.
 ///
 /// # Arguments

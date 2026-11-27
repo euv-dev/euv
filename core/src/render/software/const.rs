@@ -29,6 +29,9 @@ pub(crate) const EMPTY_TEXT_LAYOUT_SLOT: TextLayoutSlot = TextLayoutSlot {
     entry_idx: u32::MAX,
 };
 
+/// Maximum stack-cached width in physical pixels for precomputed 1D vertical rounded-rect edge strips.
+pub(crate) const ROUNDED_EDGE_STRIP_CAP: usize = 16;
+
 /// Thread name prefix assigned to persistent horizontal-band rasterization workers.
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) const BAND_WORKER_THREAD_PREFIX: &str = "euv-band";
