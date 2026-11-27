@@ -43,6 +43,10 @@ impl NativeGpuDriver {
             staging_buffer_capacity: 0,
             submitted_frames: 0,
             uploaded_instances: 0,
+            uploaded_bytes: 0,
+            last_upload_bytes: 0,
+            last_submitted_batches: 0,
+            staging_reallocations: 0,
             fallback,
         }
     }
@@ -117,9 +121,14 @@ impl GpuDriver for NativeGpuDriver {
             staging_buffer_capacity,
             submitted_frames,
             uploaded_instances,
+            uploaded_bytes,
+            last_upload_bytes,
+            last_submitted_batches,
+            staging_reallocations,
             fallback,
             ..
         } = self;
+        let prev_staging_handle: usize = *staging_buffer_handle;
         let mut staging: (usize, usize, usize) = (
             *staging_buffer_handle,
             *staging_contents_ptr,
@@ -132,8 +141,15 @@ impl GpuDriver for NativeGpuDriver {
             *staging_contents_ptr,
             *staging_buffer_capacity,
         ) = staging;
+        if *staging_buffer_handle != 0 && *staging_buffer_handle != prev_staging_handle {
+            *staging_reallocations = staging_reallocations.wrapping_add(1);
+        }
+        let frame_bytes: usize = uploaded.saturating_mul(GPU_QUAD_INSTANCE_BYTES);
         *submitted_frames = submitted_frames.wrapping_add(1);
         *uploaded_instances = uploaded_instances.wrapping_add(uploaded as u64);
+        *uploaded_bytes = uploaded_bytes.wrapping_add(frame_bytes as u64);
+        *last_upload_bytes = frame_bytes;
+        *last_submitted_batches = batches.len();
         fallback.submit_batches(width, height, clear_color, batches)
     }
 }

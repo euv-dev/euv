@@ -45,6 +45,18 @@ pub struct NativeGpuDriver {
     /// Total instanced quad uploads submitted to the GPU.
     #[get(type(copy))]
     pub(crate) uploaded_instances: u64,
+    /// Cumulative instance payload bytes uploaded to the GPU across all frames.
+    #[get(type(copy))]
+    pub(crate) uploaded_bytes: u64,
+    /// Instance payload bytes uploaded during the most recent submitted frame.
+    #[get(type(copy))]
+    pub(crate) last_upload_bytes: usize,
+    /// Number of draw batches submitted during the most recent frame.
+    #[get(type(copy))]
+    pub(crate) last_submitted_batches: usize,
+    /// Number of persistent staging buffer allocations or grows across the driver's lifetime.
+    #[get(type(copy))]
+    pub(crate) staging_reallocations: u64,
     /// Fallback command recorder active on headless hosts.
     pub(crate) fallback: RecordingGpuDriver,
 }

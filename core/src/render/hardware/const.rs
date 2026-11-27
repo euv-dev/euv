@@ -378,3 +378,6 @@ float4 PSMain(PSInput input) : SV_TARGET {
 
 /// Maximum instanced quads packed into a single GPU vertex-instance draw batch.
 pub const MAX_QUADS_PER_BATCH: usize = 4096;
+
+/// Exact packed byte stride of one `#[repr(C)]` `GpuQuadInstance` (`5 * 16 + 4 * 4 = 96` bytes).
+pub const GPU_QUAD_INSTANCE_BYTES: usize = 96;
