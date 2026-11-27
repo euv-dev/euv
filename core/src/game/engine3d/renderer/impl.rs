@@ -453,7 +453,133 @@ impl Renderer3D {
         }
     }
 
-    /// Runs a fast 5-tap separable Gaussian blur over the quarter-resolution HDR bloom buffer.
+    /// Evaluates a symmetric 5-tap Gaussian bloom kernel (`0.08, 0.22, 0.40, 0.22, 0.08`) using fused multiply-adds.
+    ///
+    /// # Arguments
+    ///
+    /// - `[f32; 3]` - Tap at offset `-2`.
+    /// - `[f32; 3]` - Tap at offset `-1`.
+    /// - `[f32; 3]` - Center tap `0`.
+    /// - `[f32; 3]` - Tap at offset `+1`.
+    /// - `[f32; 3]` - Tap at offset `+2`.
+    ///
+    /// # Returns
+    ///
+    /// - `[f32; 3]` - Filtered linear HDR bloom RGB triple.
+    #[inline(always)]
+    #[must_use]
+    fn blur_bloom_tap5(
+        c0: [f32; 3],
+        c1: [f32; 3],
+        c2: [f32; 3],
+        c3: [f32; 3],
+        c4: [f32; 3],
+    ) -> [f32; 3] {
+        [
+            (c0[0] + c4[0]).mul_add(0.08, (c1[0] + c3[0]).mul_add(0.22, c2[0] * 0.40)),
+            (c0[1] + c4[1]).mul_add(0.08, (c1[1] + c3[1]).mul_add(0.22, c2[1] * 0.40)),
+            (c0[2] + c4[2]).mul_add(0.08, (c1[2] + c3[2]).mul_add(0.22, c2[2] * 0.40)),
+        ]
+    }
+
+    /// Runs the horizontal 5-tap bloom blur pass over a band of rows with branchless interior taps.
+    ///
+    /// # Arguments
+    ///
+    /// - `usize` - Quarter-res bloom width `bw` (`>= 3`).
+    /// - `&[[f32; 3]]` - Full source bloom buffer.
+    /// - `usize` - Inclusive starting row `y_start`.
+    /// - `&mut [[f32; 3]]` - Disjoint mutable output row band.
+    fn blur_bloom_horiz_band(
+        bw: usize,
+        src: &[[f32; 3]],
+        y_start: usize,
+        dst_band: &mut [[f32; 3]],
+    ) {
+        let band_rows: usize = dst_band.len() / bw;
+        let max_x: usize = bw - 1;
+        for local_y in 0..band_rows {
+            let src_row_off: usize = (y_start + local_y) * bw;
+            let dst_row_off: usize = local_y * bw;
+            let src_row: &[[f32; 3]] = &src[src_row_off..(src_row_off + bw)];
+            let dst_row: &mut [[f32; 3]] = &mut dst_band[dst_row_off..(dst_row_off + bw)];
+            if bw >= 5 {
+                dst_row[0] = Self::blur_bloom_tap5(
+                    src_row[0], src_row[0], src_row[0], src_row[1], src_row[2],
+                );
+                dst_row[1] = Self::blur_bloom_tap5(
+                    src_row[0], src_row[0], src_row[1], src_row[2], src_row[3],
+                );
+                for (win, out) in src_row.windows(5).zip(dst_row[2..(bw - 2)].iter_mut()) {
+                    *out = Self::blur_bloom_tap5(win[0], win[1], win[2], win[3], win[4]);
+                }
+                dst_row[bw - 2] = Self::blur_bloom_tap5(
+                    src_row[bw - 4],
+                    src_row[bw - 3],
+                    src_row[bw - 2],
+                    src_row[max_x],
+                    src_row[max_x],
+                );
+                dst_row[max_x] = Self::blur_bloom_tap5(
+                    src_row[bw - 3],
+                    src_row[bw - 2],
+                    src_row[max_x],
+                    src_row[max_x],
+                    src_row[max_x],
+                );
+            } else {
+                for x in 0..bw {
+                    dst_row[x] = Self::blur_bloom_tap5(
+                        src_row[x.saturating_sub(2)],
+                        src_row[x.saturating_sub(1)],
+                        src_row[x],
+                        src_row[(x + 1).min(max_x)],
+                        src_row[(x + 2).min(max_x)],
+                    );
+                }
+            }
+        }
+    }
+
+    /// Runs the vertical 5-tap bloom blur pass over a band of rows with row-hoisted slices.
+    ///
+    /// # Arguments
+    ///
+    /// - `usize` - Quarter-res bloom width `bw`.
+    /// - `usize` - Quarter-res bloom height `bh`.
+    /// - `&[[f32; 3]]` - Full horizontally blurred bloom buffer.
+    /// - `usize` - Inclusive starting row `y_start`.
+    /// - `&mut [[f32; 3]]` - Disjoint mutable output row band.
+    fn blur_bloom_vert_band(
+        bw: usize,
+        bh: usize,
+        src: &[[f32; 3]],
+        y_start: usize,
+        dst_band: &mut [[f32; 3]],
+    ) {
+        let band_rows: usize = dst_band.len() / bw;
+        let max_y: usize = bh - 1;
+        for local_y in 0..band_rows {
+            let y: usize = y_start + local_y;
+            let o0: usize = y.saturating_sub(2) * bw;
+            let o1: usize = y.saturating_sub(1) * bw;
+            let o2: usize = y * bw;
+            let o3: usize = (y + 1).min(max_y) * bw;
+            let o4: usize = (y + 2).min(max_y) * bw;
+            let r0: &[[f32; 3]] = &src[o0..(o0 + bw)];
+            let r1: &[[f32; 3]] = &src[o1..(o1 + bw)];
+            let r2: &[[f32; 3]] = &src[o2..(o2 + bw)];
+            let r3: &[[f32; 3]] = &src[o3..(o3 + bw)];
+            let r4: &[[f32; 3]] = &src[o4..(o4 + bw)];
+            let dst_off: usize = local_y * bw;
+            let dst_row: &mut [[f32; 3]] = &mut dst_band[dst_off..(dst_off + bw)];
+            for x in 0..bw {
+                dst_row[x] = Self::blur_bloom_tap5(r0[x], r1[x], r2[x], r3[x], r4[x]);
+            }
+        }
+    }
+
+    /// Runs a parallel branchless 5-tap separable Gaussian blur over the quarter-resolution HDR bloom buffer.
     ///
     /// # Arguments
     ///
@@ -469,45 +595,29 @@ impl Renderer3D {
         if buf_a.len() < min_len || buf_b.len() < min_len {
             return;
         }
-        let max_x: usize = bw - 1;
-        let max_y: usize = bh - 1;
-        for y in 0..bh {
-            let row: usize = y * bw;
-            for x in 0..bw {
-                let x_m2: usize = x.saturating_sub(2);
-                let x_m1: usize = x.saturating_sub(1);
-                let x_p1: usize = (x + 1).min(max_x);
-                let x_p2: usize = (x + 2).min(max_x);
-                let c0: [f32; 3] = buf_a[row + x_m2];
-                let c1: [f32; 3] = buf_a[row + x_m1];
-                let c2: [f32; 3] = buf_a[row + x];
-                let c3: [f32; 3] = buf_a[row + x_p1];
-                let c4: [f32; 3] = buf_a[row + x_p2];
-                buf_b[row + x] = [
-                    c0[0] * 0.08 + c1[0] * 0.22 + c2[0] * 0.40 + c3[0] * 0.22 + c4[0] * 0.08,
-                    c0[1] * 0.08 + c1[1] * 0.22 + c2[1] * 0.40 + c3[1] * 0.22 + c4[1] * 0.08,
-                    c0[2] * 0.08 + c1[2] * 0.22 + c2[2] * 0.40 + c3[2] * 0.22 + c4[2] * 0.08,
-                ];
-            }
-        }
-        for y in 0..bh {
-            let r_m2: usize = y.saturating_sub(2) * bw;
-            let r_m1: usize = y.saturating_sub(1) * bw;
-            let r_0: usize = y * bw;
-            let r_p1: usize = (y + 1).min(max_y) * bw;
-            let r_p2: usize = (y + 2).min(max_y) * bw;
-            for x in 0..bw {
-                let c0: [f32; 3] = buf_b[r_m2 + x];
-                let c1: [f32; 3] = buf_b[r_m1 + x];
-                let c2: [f32; 3] = buf_b[r_0 + x];
-                let c3: [f32; 3] = buf_b[r_p1 + x];
-                let c4: [f32; 3] = buf_b[r_p2 + x];
-                buf_a[r_0 + x] = [
-                    c0[0] * 0.08 + c1[0] * 0.22 + c2[0] * 0.40 + c3[0] * 0.22 + c4[0] * 0.08,
-                    c0[1] * 0.08 + c1[1] * 0.22 + c2[1] * 0.40 + c3[1] * 0.22 + c4[1] * 0.08,
-                    c0[2] * 0.08 + c1[2] * 0.22 + c2[2] * 0.40 + c3[2] * 0.22 + c4[2] * 0.08,
-                ];
-            }
+        if min_len >= 8_192 && bh >= 16 {
+            let grain: usize = (bh / 16).clamp(8, 24);
+            let src_a: &[[f32; 3]] = &buf_a[..min_len];
+            let dst_b_base: usize = buf_b.as_mut_ptr() as usize;
+            parallel_for_ranges(bh, grain, |y0: usize, y1: usize| {
+                // SAFETY: `parallel_for_ranges` partitions `0..bh` into disjoint row bands within `buf_b[..min_len]`.
+                let out_band: &mut [[f32; 3]] = unsafe {
+                    from_raw_parts_mut((dst_b_base as *mut [f32; 3]).add(y0 * bw), (y1 - y0) * bw)
+                };
+                Self::blur_bloom_horiz_band(bw, src_a, y0, out_band);
+            });
+            let src_b: &[[f32; 3]] = &buf_b[..min_len];
+            let dst_a_base: usize = buf_a.as_mut_ptr() as usize;
+            parallel_for_ranges(bh, grain, |y0: usize, y1: usize| {
+                // SAFETY: `parallel_for_ranges` partitions `0..bh` into disjoint row bands within `buf_a[..min_len]`.
+                let out_band: &mut [[f32; 3]] = unsafe {
+                    from_raw_parts_mut((dst_a_base as *mut [f32; 3]).add(y0 * bw), (y1 - y0) * bw)
+                };
+                Self::blur_bloom_vert_band(bw, bh, src_b, y0, out_band);
+            });
+        } else {
+            Self::blur_bloom_horiz_band(bw, &buf_a[..min_len], 0, &mut buf_b[..min_len]);
+            Self::blur_bloom_vert_band(bw, bh, &buf_b[..min_len], 0, &mut buf_a[..min_len]);
         }
     }
 
@@ -1145,16 +1255,21 @@ impl Renderer3D {
                 let lmax: i32 = lc.max(ln).max(ls).max(le).max(lw);
                 let lmin: i32 = lc.min(ln).min(ls).min(le).min(lw);
                 let contrast: i32 = lmax - lmin;
-                let tid_c: u32 = g_tri_idx[row + x];
-                let edge_v_id: bool =
-                    tid_c != g_tri_idx[row_up + x] || tid_c != g_tri_idx[row_dn + x];
-                let edge_h_id: bool =
-                    tid_c != g_tri_idx[row + x - 1] || tid_c != g_tri_idx[row + x + 1];
-                let geom_edge: bool = edge_v_id || edge_h_id;
+                let (geom_edge, run_fxaa): (bool, bool) = if contrast >= 3 {
+                    let tid_c: u32 = g_tri_idx[row + x];
+                    let edge_v_id: bool =
+                        tid_c != g_tri_idx[row_up + x] || tid_c != g_tri_idx[row_dn + x];
+                    let edge_h_id: bool =
+                        tid_c != g_tri_idx[row + x - 1] || tid_c != g_tri_idx[row + x + 1];
+                    let ge: bool = edge_v_id || edge_h_id;
+                    (ge, contrast >= 7 || ge)
+                } else {
+                    (false, false)
+                };
                 let sc: usize = (row + x) * 4;
                 let dc: usize = dst_off + x * 4;
                 let mut rgb: [i32; 3] = [src[sc] as i32, src[sc + 1] as i32, src[sc + 2] as i32];
-                if contrast >= 7 || (geom_edge && contrast >= 3) {
+                if run_fxaa {
                     let lnw: i32 = luma[row_up + x - 1] as i32;
                     let lne: i32 = luma[row_up + x + 1] as i32;
                     let lsw: i32 = luma[row_dn + x - 1] as i32;
@@ -1267,27 +1382,56 @@ impl Renderer3D {
                     }
                 }
                 if has_taa {
-                    let offsets: [usize; 8] = [
-                        (row_up + x - 1) * 4,
-                        (row_up + x) * 4,
-                        (row_up + x + 1) * 4,
-                        (row + x - 1) * 4,
-                        (row + x + 1) * 4,
-                        (row_dn + x - 1) * 4,
-                        (row_dn + x) * 4,
-                        (row_dn + x + 1) * 4,
-                    ];
-                    for ch in 0..3 {
-                        let c0: i32 = rgb[ch];
-                        let mut n_min: i32 = c0;
-                        let mut n_max: i32 = c0;
-                        for off in offsets.into_iter() {
-                            let v: i32 = src[off + ch] as i32;
-                            n_min = n_min.min(v);
-                            n_max = n_max.max(v);
+                    let flat_3x3: bool = if contrast == 0 {
+                        let lc_u8: u8 = lc as u8;
+                        let diag_top: bool =
+                            luma[row_up + x - 1] == lc_u8 && luma[row_up + x + 1] == lc_u8;
+                        let diag_bot: bool =
+                            luma[row_dn + x - 1] == lc_u8 && luma[row_dn + x + 1] == lc_u8;
+                        diag_top && diag_bot
+                    } else {
+                        false
+                    };
+                    if !flat_3x3 {
+                        let hr: i32 = history[sc] as i32;
+                        let hg: i32 = history[sc + 1] as i32;
+                        let hb: i32 = history[sc + 2] as i32;
+                        let diff_rg: bool = hr != rgb[0] || hg != rgb[1];
+                        if diff_rg || hb != rgb[2] {
+                            let offsets: [usize; 8] = [
+                                (row_up + x - 1) * 4,
+                                (row_up + x) * 4,
+                                (row_up + x + 1) * 4,
+                                (row + x - 1) * 4,
+                                (row + x + 1) * 4,
+                                (row_dn + x - 1) * 4,
+                                (row_dn + x) * 4,
+                                (row_dn + x + 1) * 4,
+                            ];
+                            let mut r_min: i32 = rgb[0];
+                            let mut r_max: i32 = rgb[0];
+                            let mut g_min: i32 = rgb[1];
+                            let mut g_max: i32 = rgb[1];
+                            let mut b_min: i32 = rgb[2];
+                            let mut b_max: i32 = rgb[2];
+                            for off in offsets.into_iter() {
+                                let vr: i32 = src[off] as i32;
+                                let vg: i32 = src[off + 1] as i32;
+                                let vb: i32 = src[off + 2] as i32;
+                                r_min = r_min.min(vr);
+                                r_max = r_max.max(vr);
+                                g_min = g_min.min(vg);
+                                g_max = g_max.max(vg);
+                                b_min = b_min.min(vb);
+                                b_max = b_max.max(vb);
+                            }
+                            let hr_c: i32 = hr.clamp(r_min, r_max);
+                            let hg_c: i32 = hg.clamp(g_min, g_max);
+                            let hb_c: i32 = hb.clamp(b_min, b_max);
+                            rgb[0] = ((rgb[0] * 164 + hr_c * 92 + 128) >> 8).clamp(0, 255);
+                            rgb[1] = ((rgb[1] * 164 + hg_c * 92 + 128) >> 8).clamp(0, 255);
+                            rgb[2] = ((rgb[2] * 164 + hb_c * 92 + 128) >> 8).clamp(0, 255);
                         }
-                        let hist_clamped: i32 = (history[sc + ch] as i32).clamp(n_min, n_max);
-                        rgb[ch] = ((c0 * 164 + hist_clamped * 92 + 128) >> 8).clamp(0, 255);
                     }
                 }
                 if has_bloom {
