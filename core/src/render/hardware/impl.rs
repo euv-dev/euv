@@ -128,6 +128,8 @@ impl HardwareRenderer {
         Self {
             driver,
             batches: Vec::with_capacity(16),
+            active_batches: 0,
+            clip_stack: Vec::with_capacity(16),
             readback: SoftwareRenderer::with_font_provider(width, height, config, font_provider),
             enable_readback,
         }
@@ -145,7 +147,8 @@ impl HardwareRenderer {
     #[must_use]
     pub fn batch_hash(&self) -> u64 {
         let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-        for batch in self.get_batches().iter() {
+        let active: usize = self.get_active_batches().min(self.get_batches().len());
+        for batch in self.get_batches()[..active].iter() {
             for inst in batch.get_instances().iter() {
                 for v in inst
                     .get_rect()
@@ -182,9 +185,18 @@ impl HardwareRenderer {
         let phys_h: u32 =
             ((display_list.get_viewport().get_height() * scale).round() as u32).max(1);
         let full_clip: Rect = Rect::new(0.0, 0.0, phys_w as f32, phys_h as f32);
-        let mut clip_stack: Vec<Rect> = vec![full_clip];
+        let Self {
+            driver,
+            batches,
+            active_batches,
+            clip_stack,
+            readback,
+            enable_readback,
+        } = self;
+        clip_stack.clear();
+        clip_stack.push(full_clip);
+        *active_batches = 0;
         let mut clear_color: Color = COLOR_WHITE;
-        self.get_mut_batches().clear();
         for cmd in display_list.get_commands().iter() {
             let active_clip: Rect = clip_stack.last().copied().unwrap_or(full_clip);
             match cmd {
@@ -238,7 +250,7 @@ impl HardwareRenderer {
                         kind: GpuPrimitiveKind::RoundedRect as u32,
                         reserved: 0,
                     };
-                    self.push_instance(active_clip, inst);
+                    Self::push_instance_into(batches, active_batches, active_clip, inst);
                 }
                 DrawCommand::LinearGradientRect {
                     rect,
@@ -272,7 +284,7 @@ impl HardwareRenderer {
                         kind: GpuPrimitiveKind::Gradient as u32,
                         reserved: 0,
                     };
-                    self.push_instance(active_clip, inst);
+                    Self::push_instance_into(batches, active_batches, active_clip, inst);
                 }
                 DrawCommand::BoxShadow {
                     rect,
@@ -316,11 +328,18 @@ impl HardwareRenderer {
                         kind: GpuPrimitiveKind::Shadow as u32,
                         reserved: 0,
                     };
-                    self.push_instance(active_clip, inst);
+                    Self::push_instance_into(batches, active_batches, active_clip, inst);
                 }
                 DrawCommand::TextRun { rect, text, style } => {
-                    let glyph_count: usize =
-                        text.chars().filter(|c: &char| *c != ' ').count().max(1);
+                    let glyph_count: usize = if text.is_ascii() {
+                        text.as_bytes()
+                            .iter()
+                            .filter(|b: &&u8| **b != b' ')
+                            .count()
+                            .max(1)
+                    } else {
+                        text.chars().filter(|c: &char| *c != ' ').count().max(1)
+                    };
                     let inst: GpuQuadInstance = GpuQuadInstance {
                         rect: [
                             rect.get_x() * scale,
@@ -342,7 +361,7 @@ impl HardwareRenderer {
                         kind: GpuPrimitiveKind::Glyph as u32,
                         reserved: glyph_count as u32,
                     };
-                    self.push_instance(active_clip, inst);
+                    Self::push_instance_into(batches, active_batches, active_clip, inst);
                 }
                 DrawCommand::TextCaret {
                     text_rect,
@@ -405,7 +424,7 @@ impl HardwareRenderer {
                         kind: GpuPrimitiveKind::RoundedRect as u32,
                         reserved: 0,
                     };
-                    self.push_instance(active_clip, inst);
+                    Self::push_instance_into(batches, active_batches, active_clip, inst);
                 }
                 DrawCommand::Image { rect, radius, .. } => {
                     let snapped: Rect = snap_physical_rect(*rect, scale);
@@ -435,7 +454,7 @@ impl HardwareRenderer {
                         kind: GpuPrimitiveKind::TexturedQuad as u32,
                         reserved: 0,
                     };
-                    self.push_instance(active_clip, inst);
+                    Self::push_instance_into(batches, active_batches, active_clip, inst);
                 }
                 DrawCommand::Circle {
                     center,
@@ -464,7 +483,7 @@ impl HardwareRenderer {
                         kind: GpuPrimitiveKind::Circle as u32,
                         reserved: 0,
                     };
-                    self.push_instance(active_clip, inst);
+                    Self::push_instance_into(batches, active_batches, active_clip, inst);
                 }
                 DrawCommand::Line {
                     from,
@@ -499,7 +518,7 @@ impl HardwareRenderer {
                         kind: GpuPrimitiveKind::Line as u32,
                         reserved: 0,
                     };
-                    self.push_instance(active_clip, inst);
+                    Self::push_instance_into(batches, active_batches, active_clip, inst);
                 }
                 DrawCommand::Triangle { p0, p1, p2, color } => {
                     let min_x: f32 = p0.get_x().min(p1.get_x()).min(p2.get_x()) * scale;
@@ -532,7 +551,7 @@ impl HardwareRenderer {
                         kind: GpuPrimitiveKind::Triangle as u32,
                         reserved: 3,
                     };
-                    self.push_instance(active_clip, inst);
+                    Self::push_instance_into(batches, active_batches, active_clip, inst);
                 }
                 DrawCommand::SpriteRegion { rect, tint, .. } => {
                     let snapped: Rect = snap_physical_rect(*rect, scale);
@@ -557,17 +576,12 @@ impl HardwareRenderer {
                         kind: GpuPrimitiveKind::TexturedQuad as u32,
                         reserved: 1,
                     };
-                    self.push_instance(active_clip, inst);
+                    Self::push_instance_into(batches, active_batches, active_clip, inst);
                 }
             }
         }
-        let Self {
-            driver,
-            batches,
-            readback,
-            enable_readback,
-        } = self;
-        let submitted: usize = driver.submit_batches(phys_w, phys_h, clear_color, batches)?;
+        let active_slice: &[GpuBatch] = &batches[..(*active_batches).min(batches.len())];
+        let submitted: usize = driver.submit_batches(phys_w, phys_h, clear_color, active_slice)?;
         let pixels: usize = if *enable_readback {
             let (_, px): (usize, usize) = readback.render(display_list, damage);
             px
@@ -577,24 +591,39 @@ impl HardwareRenderer {
         Ok((submitted, pixels))
     }
 
-    /// Appends `instance` to the tail `GpuBatch` if scissor matches and batch is below capacity.
+    /// Appends `instance` to the tail active `GpuBatch`, or reuses/allocates the next batch slot while preserving inner `Vec` capacities.
     ///
     /// # Arguments
     ///
-    /// - `&Self` - Mutable hardware renderer.
+    /// - `&mut Vec<GpuBatch>` - Persistent batch pool vector.
+    /// - `&mut usize` - Active batch watermark for the current frame.
     /// - `Rect` - Active scissor rectangle.
     /// - `GpuQuadInstance` - Instance data to batch.
-    fn push_instance(&mut self, scissor: Rect, instance: GpuQuadInstance) {
-        if let Some(last) = self.get_mut_batches().last_mut()
-            && last.get_scissor() == scissor
-            && last.get_instances().len() < MAX_QUADS_PER_BATCH
-        {
-            last.get_mut_instances().push(instance);
-            return;
+    fn push_instance_into(
+        batches: &mut Vec<GpuBatch>,
+        active_batches: &mut usize,
+        scissor: Rect,
+        instance: GpuQuadInstance,
+    ) {
+        let count: usize = *active_batches;
+        if count > 0 {
+            let last: &mut GpuBatch = &mut batches[count - 1];
+            if last.get_scissor() == scissor && last.get_instances().len() < MAX_QUADS_PER_BATCH {
+                last.get_mut_instances().push(instance);
+                return;
+            }
         }
-        let mut batch: GpuBatch = GpuBatch::default();
-        batch.set_scissor(scissor);
-        batch.get_mut_instances().push(instance);
-        self.get_mut_batches().push(batch);
+        if count < batches.len() {
+            let slot: &mut GpuBatch = &mut batches[count];
+            slot.set_scissor(scissor);
+            slot.get_mut_instances().clear();
+            slot.get_mut_instances().push(instance);
+        } else {
+            let mut batch: GpuBatch = GpuBatch::default();
+            batch.set_scissor(scissor);
+            batch.get_mut_instances().push(instance);
+            batches.push(batch);
+        }
+        *active_batches = count + 1;
     }
 }

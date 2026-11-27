@@ -70,6 +70,16 @@ pub struct HardwareRenderer {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) batches: Vec<GpuBatch>,
+    /// Count of active `GpuBatch` slots populated for the latest frame so inner `Vec` capacities persist across frames.
+    #[get(type(copy))]
+    #[get_mut(skip)]
+    #[set(pub(crate))]
+    pub(crate) active_batches: usize,
+    /// Persistent physical clip-rectangle stack reused across frames without heap reallocation.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) clip_stack: Vec<Rect>,
     /// Optional software readback mirror used for deterministic pixel-parity testing.
     pub(crate) readback: SoftwareRenderer,
     /// Whether readback mirroring is enabled.
