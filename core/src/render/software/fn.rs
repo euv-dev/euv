@@ -944,6 +944,97 @@ pub(crate) fn rounded_clip_coverage_cached(
     rounded_clip_coverage(x, y, mask, aa)
 }
 
+/// Blends a single gradient pixel sample with coverage `cov` and bit-exact IGN dithering into scanline `row`.
+///
+/// # Arguments
+///
+/// - `&mut [u8]` - Mutable destination framebuffer scanline slice.
+/// - `u32` - Physical pixel X coordinate within `row`.
+/// - `f32` - Precomputed vertical IGN phase `(y as f32) * 0.005_837_15`.
+/// - `Color` - Interpolated gradient stop color at `(x, y)`.
+/// - `f32` - Coverage multiplier in `(0.0, 1.0]`.
+#[inline(always)]
+pub(crate) fn blend_gradient_row_pixel(
+    row: &mut [u8],
+    x: u32,
+    y_term: f32,
+    sample: Color,
+    cov: f32,
+) {
+    let off: usize = (x as usize) * 4;
+    let alpha_f: f32 = ((sample.get_a() as f32) * (1.0 / 255.0)) * cov;
+    if alpha_f <= 0.0002 || off + 4 > row.len() {
+        return;
+    }
+    let a: f32 = alpha_f.clamp(0.0, 1.0);
+    if a >= 0.9995 {
+        row[off] = sample.get_r();
+        row[off + 1] = sample.get_g();
+        row[off + 2] = sample.get_b();
+        row[off + 3] = 255;
+        return;
+    }
+    let inv_a: f32 = 1.0 - a;
+    let sr: f32 = SRGB_TO_LIN_LUT[sample.get_r() as usize];
+    let sg: f32 = SRGB_TO_LIN_LUT[sample.get_g() as usize];
+    let sb: f32 = SRGB_TO_LIN_LUT[sample.get_b() as usize];
+    let dr: f32 = SRGB_TO_LIN_LUT[row[off] as usize];
+    let dg: f32 = SRGB_TO_LIN_LUT[row[off + 1] as usize];
+    let db: f32 = SRGB_TO_LIN_LUT[row[off + 2] as usize];
+    let ir: usize = ((sr * a + dr * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+    let ig: usize = ((sg * a + dg * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+    let ib: usize = ((sb * a + db * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+    let n: f32 = (52.982_918 * ((x as f32) * 0.067_110_56 + y_term).fract()).fract();
+    let dq: i32 = ((n - 0.5) * 16.0) as i32 + 8;
+    row[off] = (((LIN_TO_SRGB_Q4_LUT[ir] as i32) + dq) >> 4).clamp(0, 255) as u8;
+    row[off + 1] = (((LIN_TO_SRGB_Q4_LUT[ig] as i32) + dq) >> 4).clamp(0, 255) as u8;
+    row[off + 2] = (((LIN_TO_SRGB_Q4_LUT[ib] as i32) + dq) >> 4).clamp(0, 255) as u8;
+    let sa_u32: u32 = (a * 255.0) as u32;
+    let va: u32 = (row[off + 3] as u32) * (255 - sa_u32) + 128;
+    row[off + 3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+}
+
+/// Evaluates anti-aliased coverage for a rounded-rectangle gradient corner/edge pixel without redundant SDF work.
+///
+/// # Arguments
+///
+/// - `(f32, f32, f32, f32)` - Tuple `(px, py, half_w, half_h)` relative to box center.
+/// - `CornerRadius` - Physical per-quadrant corner radii.
+/// - `AntialiasingMode` - Active anti-aliasing policy.
+///
+/// # Returns
+///
+/// - `f32` - Pixel coverage in `[0.0, 1.0]`.
+#[inline(always)]
+#[must_use]
+pub(crate) fn gradient_rounded_pixel_coverage(
+    geom: (f32, f32, f32, f32),
+    radius: CornerRadius,
+    aa: AntialiasingMode,
+) -> f32 {
+    let (px, py, half_w, half_h): (f32, f32, f32, f32) = geom;
+    let corner_r: f32 = quadrant_corner_radius(radius, px, py)
+        .min(half_w)
+        .min(half_h)
+        .max(0.0);
+    let dist: f32 = rounded_box_sdf(px, py, half_w, half_h, corner_r);
+    if dist > 0.85 {
+        return 0.0;
+    }
+    if dist < -0.85 {
+        return 1.0;
+    }
+    let in_corner: bool = aa != AntialiasingMode::None
+        && corner_r > 0.5
+        && px.abs() > (half_w - corner_r - 1.5)
+        && py.abs() > (half_h - corner_r - 1.5);
+    if in_corner {
+        rounded_box_supersampled_coverage(px, py, half_w, half_h, corner_r, 0.0).0
+    } else {
+        sdf_coverage(dist, aa)
+    }
+}
+
 /// Computes tight non-cutout bounding span `[out0, out1)` inside `[start, end)` excluding `[cut0, cut1)`.
 ///
 /// # Arguments

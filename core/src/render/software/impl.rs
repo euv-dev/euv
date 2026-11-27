@@ -3208,7 +3208,119 @@ impl SoftwareRenderer {
         0
     }
 
-    /// Rasterizes a two-stop linear gradient inside an SDF rounded rectangle with edge-bounded RGSS and IGN dithering.
+    /// Fills a constant-coverage horizontal span `[sx0, sx1)` on row `y` for a pure vertical gradient.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut PixelBand<'_>` - Target pixel band.
+    /// - `(u32, u32, u32)` - Tuple `(sx0, sx1, y)` defining the horizontal span.
+    /// - `Color` - Row-constant interpolated gradient color.
+    /// - `f32` - Row-constant coverage in `(0.0, 1.0]`.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Number of pixels shaded across `[sx0, sx1)`.
+    #[inline(always)]
+    fn fill_vertical_gradient_span(
+        band: &mut PixelBand<'_>,
+        coords: (u32, u32, u32),
+        sample: Color,
+        cov: f32,
+    ) -> usize {
+        let (sx0, sx1, y): (u32, u32, u32) = coords;
+        if sx0 >= sx1 || cov <= 0.0 {
+            return 0;
+        }
+        let alpha_f: f32 = ((sample.get_a() as f32) * (1.0 / 255.0)) * cov;
+        if alpha_f >= 0.9995 {
+            band.fill_span(
+                sx0,
+                sx1,
+                y,
+                Color::new(sample.get_r(), sample.get_g(), sample.get_b(), 255),
+            );
+        } else if alpha_f > 0.0005 {
+            band.blend_shadow_span_const_alpha(sx0, sx1, y, sample, alpha_f);
+        } else if alpha_f > 0.0002
+            && let Some(row) = band.row_slice_mut(y)
+        {
+            let y_term: f32 = (y as f32) * 0.005_837_15;
+            for x in sx0..sx1 {
+                blend_gradient_row_pixel(row, x, y_term, sample, cov);
+            }
+        }
+        (sx1 - sx0) as usize
+    }
+
+    /// Fills a full-coverage or constant-coverage horizontal span `[sx0, sx1)` for a horizontal or diagonal gradient.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut [u8]` - Mutable target framebuffer scanline slice.
+    /// - `(u32, u32, f32)` - Tuple `(sx0, sx1, y_term)` for span bounds and IGN phase.
+    /// - `(f32, f32, f32)` - Tuple `(t_start, dt_dx, cov)` for incremental gradient stepping.
+    /// - `(Color, Color)` - Gradient endpoints `(start_color, end_color)`.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Number of pixels shaded across `[sx0, sx1)`.
+    #[inline(always)]
+    fn fill_angled_gradient_span(
+        row: &mut [u8],
+        coords: (u32, u32, f32),
+        step: (f32, f32, f32),
+        stops: (Color, Color),
+    ) -> usize {
+        let (sx0, sx1, y_term): (u32, u32, f32) = coords;
+        let (t_start, dt_dx, cov): (f32, f32, f32) = step;
+        let (start_c, end_c): (Color, Color) = stops;
+        if sx0 >= sx1 || cov <= 0.0 {
+            return 0;
+        }
+        let byte_start: usize = (sx0 as usize) * 4;
+        let byte_end: usize = (sx1 as usize) * 4;
+        if byte_end > row.len() {
+            return 0;
+        }
+        let sr_f: f32 = start_c.get_r() as f32;
+        let sg_f: f32 = start_c.get_g() as f32;
+        let sb_f: f32 = start_c.get_b() as f32;
+        let er_f: f32 = end_c.get_r() as f32;
+        let eg_f: f32 = end_c.get_g() as f32;
+        let eb_f: f32 = end_c.get_b() as f32;
+        let both_opaque: bool = start_c.get_a() == 255 && end_c.get_a() == 255;
+        let mut t_cur: f32 = t_start;
+        if both_opaque && cov >= 0.9995 {
+            let chunks: &mut [[u8; 4]] = row[byte_start..byte_end].as_chunks_mut::<4>().0;
+            for px in chunks.iter_mut() {
+                let f: f32 = t_cur.clamp(0.0, 1.0);
+                let inv: f32 = 1.0 - f;
+                px[0] = (sr_f * inv + er_f * f + 0.5) as u8;
+                px[1] = (sg_f * inv + eg_f * f + 0.5) as u8;
+                px[2] = (sb_f * inv + eb_f * f + 0.5) as u8;
+                px[3] = 255;
+                t_cur += dt_dx;
+            }
+            return (sx1 - sx0) as usize;
+        }
+        let sa_f: f32 = start_c.get_a() as f32;
+        let ea_f: f32 = end_c.get_a() as f32;
+        for x in sx0..sx1 {
+            let f: f32 = t_cur.clamp(0.0, 1.0);
+            let inv: f32 = 1.0 - f;
+            let sample: Color = Color::new(
+                (sr_f * inv + er_f * f + 0.5) as u8,
+                (sg_f * inv + eg_f * f + 0.5) as u8,
+                (sb_f * inv + eb_f * f + 0.5) as u8,
+                (sa_f * inv + ea_f * f + 0.5) as u8,
+            );
+            blend_gradient_row_pixel(row, x, y_term, sample, cov);
+            t_cur += dt_dx;
+        }
+        (sx1 - sx0) as usize
+    }
+
+    /// Rasterizes a two-stop linear gradient inside an SDF rounded rectangle with vertical/interior fast paths and corner AA.
     ///
     /// # Arguments
     ///
@@ -3233,9 +3345,21 @@ impl SoftwareRenderer {
         let Some(vis) = rect.intersect(clip) else {
             return 0;
         };
+        let fb_w: u32 = band.width();
+        let band_y0: u32 = band.y_offset();
+        let band_y1: u32 = band.y_end();
+        let x0: u32 = (vis.get_x().floor().max(0.0) as u32).min(fb_w);
+        let y0: u32 = (vis.get_y().floor().max(0.0) as u32).clamp(band_y0, band_y1);
+        let x1: u32 = (vis.right().ceil().max(0.0) as u32).min(fb_w);
+        let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).clamp(band_y0, band_y1);
+        if x0 >= x1 || y0 >= y1 {
+            return 0;
+        }
         let rad: f32 = gradient.get_angle_deg().to_radians();
         let dir_x: f32 = rad.sin();
         let dir_y: f32 = rad.cos();
+        let start_c: Color = gradient.get_start_color();
+        let end_c: Color = gradient.get_end_color();
         let half_w: f32 = rect.get_width() * 0.5;
         let half_h: f32 = rect.get_height() * 0.5;
         let cx: f32 = rect.get_x() + half_w;
@@ -3250,50 +3374,287 @@ impl SoftwareRenderer {
         } else {
             0.0
         };
-        let fb_w: u32 = band.width();
-        let band_y0: u32 = band.y_offset();
-        let band_y1: u32 = band.y_end();
-        let x0: u32 = (vis.get_x().floor().max(0.0) as u32).min(fb_w);
-        let y0: u32 = (vis.get_y().floor().max(0.0) as u32).clamp(band_y0, band_y1);
-        let x1: u32 = (vis.right().ceil().max(0.0) as u32).min(fb_w);
-        let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).clamp(band_y0, band_y1);
+        let r_max: f32 = radius.max_radius().min(half_w).min(half_h).max(0.0);
+        let ix0: u32 = ((rect.get_x() + 1.0).ceil().max(0.0) as u32).clamp(x0, x1);
+        let ix1: u32 = ((rect.right() - 1.0).floor().max(0.0) as u32).clamp(ix0, x1);
+        let iy0: u32 = ((rect.get_y() + r_max + 1.0).ceil().max(0.0) as u32).clamp(y0, y1);
+        let iy1: u32 = ((rect.bottom() - r_max - 1.0).floor().max(0.0) as u32).clamp(iy0, y1);
+        let cx0: u32 = ((rect.get_x() + r_max + 1.0).ceil().max(0.0) as u32).clamp(x0, x1);
+        let cx1: u32 = ((rect.right() - r_max - 1.0).floor().max(0.0) as u32).clamp(cx0, x1);
+        let is_vertical: bool = dir_x.abs() < 1e-5;
+        let dt_dx: f32 = inv_w * dir_x;
+        let rect_x: f32 = rect.get_x();
+        let rect_y: f32 = rect.get_y();
         let mut shaded: usize = 0;
-        for y in y0..y1 {
-            let py: f32 = (y as f32) + 0.5 - cy;
-            let ny: f32 = ((y as f32) - rect.get_y()) * inv_h;
-            for x in x0..x1 {
-                let px: f32 = (x as f32) + 0.5 - cx;
-                let corner_r: f32 = quadrant_corner_radius(radius, px, py)
-                    .min(half_w)
-                    .min(half_h);
-                let dist: f32 = rounded_box_sdf(px, py, half_w, half_h, corner_r);
-                if dist > 0.85 {
-                    continue;
-                }
-                let cov: f32 = if dist < -0.85 {
+        if is_vertical {
+            for y in y0..iy0 {
+                let py: f32 = (y as f32) + 0.5 - cy;
+                let ny: f32 = ((y as f32) - rect_y) * inv_h;
+                let t: f32 = ((ny - 0.5) * dir_y + 0.5).clamp(0.0, 1.0);
+                let sample: Color = start_c.lerp(end_c, t);
+                let dist_y: f32 = py.abs() - half_h;
+                let mid_cov: f32 = if dist_y > 0.85 {
+                    0.0
+                } else if dist_y < -0.85 {
                     1.0
                 } else {
-                    let in_corner: bool = aa != AntialiasingMode::None
-                        && corner_r > 0.5
-                        && px.abs() > (half_w - corner_r - 1.5)
-                        && py.abs() > (half_h - corner_r - 1.5);
-                    if in_corner {
-                        rounded_box_supersampled_coverage(px, py, half_w, half_h, corner_r, 0.0).0
+                    sdf_coverage(dist_y, aa)
+                };
+                if cx0 < cx1 && mid_cov > 0.0 {
+                    shaded +=
+                        Self::fill_vertical_gradient_span(band, (cx0, cx1, y), sample, mid_cov);
+                }
+                if (x0 < cx0 || cx1 < x1)
+                    && let Some(row) = band.row_slice_mut(y)
+                {
+                    let y_term: f32 = (y as f32) * 0.005_837_15;
+                    for x in x0..cx0 {
+                        let px: f32 = (x as f32) + 0.5 - cx;
+                        let cov: f32 =
+                            gradient_rounded_pixel_coverage((px, py, half_w, half_h), radius, aa);
+                        if cov > 0.0 {
+                            blend_gradient_row_pixel(row, x, y_term, sample, cov);
+                            shaded += 1;
+                        }
+                    }
+                    for x in cx1..x1 {
+                        let px: f32 = (x as f32) + 0.5 - cx;
+                        let cov: f32 =
+                            gradient_rounded_pixel_coverage((px, py, half_w, half_h), radius, aa);
+                        if cov > 0.0 {
+                            blend_gradient_row_pixel(row, x, y_term, sample, cov);
+                            shaded += 1;
+                        }
+                    }
+                }
+            }
+            for y in iy0..iy1 {
+                let ny: f32 = ((y as f32) - rect_y) * inv_h;
+                let t: f32 = ((ny - 0.5) * dir_y + 0.5).clamp(0.0, 1.0);
+                let sample: Color = start_c.lerp(end_c, t);
+                if ix0 < ix1 {
+                    shaded += Self::fill_vertical_gradient_span(band, (ix0, ix1, y), sample, 1.0);
+                }
+                if (x0 < ix0 || ix1 < x1)
+                    && let Some(row) = band.row_slice_mut(y)
+                {
+                    let y_term: f32 = (y as f32) * 0.005_837_15;
+                    for x in x0..ix0 {
+                        let dist: f32 = ((x as f32) + 0.5 - cx).abs() - half_w;
+                        if dist <= 0.85 {
+                            let cov: f32 = if dist < -0.85 {
+                                1.0
+                            } else {
+                                sdf_coverage(dist, aa)
+                            };
+                            if cov > 0.0 {
+                                blend_gradient_row_pixel(row, x, y_term, sample, cov);
+                                shaded += 1;
+                            }
+                        }
+                    }
+                    for x in ix1..x1 {
+                        let dist: f32 = ((x as f32) + 0.5 - cx).abs() - half_w;
+                        if dist <= 0.85 {
+                            let cov: f32 = if dist < -0.85 {
+                                1.0
+                            } else {
+                                sdf_coverage(dist, aa)
+                            };
+                            if cov > 0.0 {
+                                blend_gradient_row_pixel(row, x, y_term, sample, cov);
+                                shaded += 1;
+                            }
+                        }
+                    }
+                }
+            }
+            for y in iy1..y1 {
+                let py: f32 = (y as f32) + 0.5 - cy;
+                let ny: f32 = ((y as f32) - rect_y) * inv_h;
+                let t: f32 = ((ny - 0.5) * dir_y + 0.5).clamp(0.0, 1.0);
+                let sample: Color = start_c.lerp(end_c, t);
+                let dist_y: f32 = py.abs() - half_h;
+                let mid_cov: f32 = if dist_y > 0.85 {
+                    0.0
+                } else if dist_y < -0.85 {
+                    1.0
+                } else {
+                    sdf_coverage(dist_y, aa)
+                };
+                if cx0 < cx1 && mid_cov > 0.0 {
+                    shaded +=
+                        Self::fill_vertical_gradient_span(band, (cx0, cx1, y), sample, mid_cov);
+                }
+                if (x0 < cx0 || cx1 < x1)
+                    && let Some(row) = band.row_slice_mut(y)
+                {
+                    let y_term: f32 = (y as f32) * 0.005_837_15;
+                    for x in x0..cx0 {
+                        let px: f32 = (x as f32) + 0.5 - cx;
+                        let cov: f32 =
+                            gradient_rounded_pixel_coverage((px, py, half_w, half_h), radius, aa);
+                        if cov > 0.0 {
+                            blend_gradient_row_pixel(row, x, y_term, sample, cov);
+                            shaded += 1;
+                        }
+                    }
+                    for x in cx1..x1 {
+                        let px: f32 = (x as f32) + 0.5 - cx;
+                        let cov: f32 =
+                            gradient_rounded_pixel_coverage((px, py, half_w, half_h), radius, aa);
+                        if cov > 0.0 {
+                            blend_gradient_row_pixel(row, x, y_term, sample, cov);
+                            shaded += 1;
+                        }
+                    }
+                }
+            }
+            return shaded;
+        }
+        for y in y0..iy0 {
+            let Some(row) = band.row_slice_mut(y) else {
+                continue;
+            };
+            let py: f32 = (y as f32) + 0.5 - cy;
+            let ny: f32 = ((y as f32) - rect_y) * inv_h;
+            let y_bias: f32 = (ny - 0.5) * dir_y + 0.5;
+            let y_term: f32 = (y as f32) * 0.005_837_15;
+            let dist_y: f32 = py.abs() - half_h;
+            let mid_cov: f32 = if dist_y > 0.85 {
+                0.0
+            } else if dist_y < -0.85 {
+                1.0
+            } else {
+                sdf_coverage(dist_y, aa)
+            };
+            if cx0 < cx1 && mid_cov > 0.0 {
+                let t_start: f32 = (((cx0 as f32) - rect_x) * inv_w - 0.5) * dir_x + y_bias;
+                shaded += Self::fill_angled_gradient_span(
+                    row,
+                    (cx0, cx1, y_term),
+                    (t_start, dt_dx, mid_cov),
+                    (start_c, end_c),
+                );
+            }
+            for x in x0..cx0 {
+                let px: f32 = (x as f32) + 0.5 - cx;
+                let cov: f32 =
+                    gradient_rounded_pixel_coverage((px, py, half_w, half_h), radius, aa);
+                if cov > 0.0 {
+                    let nx: f32 = ((x as f32) - rect_x) * inv_w;
+                    let t: f32 = ((nx - 0.5) * dir_x + y_bias).clamp(0.0, 1.0);
+                    blend_gradient_row_pixel(row, x, y_term, start_c.lerp(end_c, t), cov);
+                    shaded += 1;
+                }
+            }
+            for x in cx1..x1 {
+                let px: f32 = (x as f32) + 0.5 - cx;
+                let cov: f32 =
+                    gradient_rounded_pixel_coverage((px, py, half_w, half_h), radius, aa);
+                if cov > 0.0 {
+                    let nx: f32 = ((x as f32) - rect_x) * inv_w;
+                    let t: f32 = ((nx - 0.5) * dir_x + y_bias).clamp(0.0, 1.0);
+                    blend_gradient_row_pixel(row, x, y_term, start_c.lerp(end_c, t), cov);
+                    shaded += 1;
+                }
+            }
+        }
+        for y in iy0..iy1 {
+            let Some(row) = band.row_slice_mut(y) else {
+                continue;
+            };
+            let ny: f32 = ((y as f32) - rect_y) * inv_h;
+            let y_bias: f32 = (ny - 0.5) * dir_y + 0.5;
+            let y_term: f32 = (y as f32) * 0.005_837_15;
+            if ix0 < ix1 {
+                let t_start: f32 = (((ix0 as f32) - rect_x) * inv_w - 0.5) * dir_x + y_bias;
+                shaded += Self::fill_angled_gradient_span(
+                    row,
+                    (ix0, ix1, y_term),
+                    (t_start, dt_dx, 1.0),
+                    (start_c, end_c),
+                );
+            }
+            for x in x0..ix0 {
+                let dist: f32 = ((x as f32) + 0.5 - cx).abs() - half_w;
+                if dist <= 0.85 {
+                    let cov: f32 = if dist < -0.85 {
+                        1.0
                     } else {
                         sdf_coverage(dist, aa)
+                    };
+                    if cov > 0.0 {
+                        let nx: f32 = ((x as f32) - rect_x) * inv_w;
+                        let t: f32 = ((nx - 0.5) * dir_x + y_bias).clamp(0.0, 1.0);
+                        blend_gradient_row_pixel(row, x, y_term, start_c.lerp(end_c, t), cov);
+                        shaded += 1;
                     }
-                };
-                if cov <= 0.0 {
-                    continue;
                 }
-                let nx: f32 = ((x as f32) - rect.get_x()) * inv_w;
-                let t: f32 = ((nx - 0.5) * dir_x + (ny - 0.5) * dir_y + 0.5).clamp(0.0, 1.0);
-                let base_sample: Color =
-                    gradient.get_start_color().lerp(gradient.get_end_color(), t);
-                let alpha_f: f32 = ((base_sample.get_a() as f32) * (1.0 / 255.0)) * cov;
-                let dither: f32 = interleaved_gradient_noise(x, y);
-                band.blend_pixel_f32_dithered(x, y, base_sample, alpha_f, dither);
-                shaded += 1;
+            }
+            for x in ix1..x1 {
+                let dist: f32 = ((x as f32) + 0.5 - cx).abs() - half_w;
+                if dist <= 0.85 {
+                    let cov: f32 = if dist < -0.85 {
+                        1.0
+                    } else {
+                        sdf_coverage(dist, aa)
+                    };
+                    if cov > 0.0 {
+                        let nx: f32 = ((x as f32) - rect_x) * inv_w;
+                        let t: f32 = ((nx - 0.5) * dir_x + y_bias).clamp(0.0, 1.0);
+                        blend_gradient_row_pixel(row, x, y_term, start_c.lerp(end_c, t), cov);
+                        shaded += 1;
+                    }
+                }
+            }
+        }
+        for y in iy1..y1 {
+            let Some(row) = band.row_slice_mut(y) else {
+                continue;
+            };
+            let py: f32 = (y as f32) + 0.5 - cy;
+            let ny: f32 = ((y as f32) - rect_y) * inv_h;
+            let y_bias: f32 = (ny - 0.5) * dir_y + 0.5;
+            let y_term: f32 = (y as f32) * 0.005_837_15;
+            let dist_y: f32 = py.abs() - half_h;
+            let mid_cov: f32 = if dist_y > 0.85 {
+                0.0
+            } else if dist_y < -0.85 {
+                1.0
+            } else {
+                sdf_coverage(dist_y, aa)
+            };
+            if cx0 < cx1 && mid_cov > 0.0 {
+                let t_start: f32 = (((cx0 as f32) - rect_x) * inv_w - 0.5) * dir_x + y_bias;
+                shaded += Self::fill_angled_gradient_span(
+                    row,
+                    (cx0, cx1, y_term),
+                    (t_start, dt_dx, mid_cov),
+                    (start_c, end_c),
+                );
+            }
+            for x in x0..cx0 {
+                let px: f32 = (x as f32) + 0.5 - cx;
+                let cov: f32 =
+                    gradient_rounded_pixel_coverage((px, py, half_w, half_h), radius, aa);
+                if cov > 0.0 {
+                    let nx: f32 = ((x as f32) - rect_x) * inv_w;
+                    let t: f32 = ((nx - 0.5) * dir_x + y_bias).clamp(0.0, 1.0);
+                    blend_gradient_row_pixel(row, x, y_term, start_c.lerp(end_c, t), cov);
+                    shaded += 1;
+                }
+            }
+            for x in cx1..x1 {
+                let px: f32 = (x as f32) + 0.5 - cx;
+                let cov: f32 =
+                    gradient_rounded_pixel_coverage((px, py, half_w, half_h), radius, aa);
+                if cov > 0.0 {
+                    let nx: f32 = ((x as f32) - rect_x) * inv_w;
+                    let t: f32 = ((nx - 0.5) * dir_x + y_bias).clamp(0.0, 1.0);
+                    blend_gradient_row_pixel(row, x, y_term, start_c.lerp(end_c, t), cov);
+                    shaded += 1;
+                }
             }
         }
         shaded
