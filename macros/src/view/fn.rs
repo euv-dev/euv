@@ -630,17 +630,22 @@ fn expand_component_element(elem: &ViewElement) -> proc_macro2::TokenStream {
         .map(|ch: char| ch.is_ascii_uppercase())
         .unwrap_or(false);
     let args: &[Expr] = elem.args.as_deref().unwrap_or(&[]);
-    let mut builder_expr: proc_macro2::TokenStream = if is_type_ctor {
+    let init_expr: proc_macro2::TokenStream = if is_type_ctor {
         quote! { <#path as ::euv::ComponentProps>::init_props() }
     } else {
         quote! { #path(#(#args),*) }
     };
+    let comp_ident: Ident = Ident::new(IDENT_COMP, Span::call_site());
     let mut seen_props: HashSet<String> = HashSet::new();
     let mut node_ref_expr: Option<&Expr> = None;
+    let mut builder_stmts: Vec<proc_macro2::TokenStream> =
+        Vec::with_capacity(elem.flags.len() + elem.props.len());
     for flag in elem.flags.iter() {
         let fname: &Ident = &flag.name;
         let fargs: &[Expr] = &flag.args;
-        builder_expr = quote! { (#builder_expr).#fname(#(#fargs),*) };
+        builder_stmts.push(quote! {
+            #comp_ident = #comp_ident.#fname(#(#fargs),*);
+        });
     }
     for prop in elem.props.iter() {
         let pname_str: String = prop.name.to_string();
@@ -666,7 +671,9 @@ fn expand_component_element(elem: &ViewElement) -> proc_macro2::TokenStream {
         }
         let pname: &Ident = &prop.name;
         let val: &Expr = &prop.value;
-        builder_expr = quote! { (#builder_expr).#pname(#val) };
+        builder_stmts.push(quote! {
+            #comp_ident = #comp_ident.#pname(#val);
+        });
     }
     let child_method_name: &str = match last_name.as_str() {
         COMP_EUV_PAGE => METHOD_SECTION,
@@ -676,32 +683,37 @@ fn expand_component_element(elem: &ViewElement) -> proc_macro2::TokenStream {
         _ => METHOD_CHILD,
     };
     let child_method: Ident = Ident::new(child_method_name, Span::call_site());
-    let mount_expr: proc_macro2::TokenStream = if elem.children.is_empty() {
-        quote! { ::euv::Component::mount(#builder_expr) }
-    } else if elem.children.iter().all(is_single_node_expr) {
-        let mut chained: proc_macro2::TokenStream = builder_expr;
-        for child in elem.children.iter() {
-            let child_expr: proc_macro2::TokenStream = expand_single_node(child);
-            chained = quote! { (#chained).#child_method(#child_expr) };
-        }
-        quote! { ::euv::Component::mount(#chained) }
+    let has_mutations: bool = !builder_stmts.is_empty() || !elem.children.is_empty();
+    if !has_mutations {
+        return match node_ref_expr {
+            Some(ref_target) => quote! {{
+                let __euv_mounted: ::euv::NodeId = ::euv::Component::mount(#init_expr);
+                ::euv::NodeRefTarget::bind_node_ref(&mut (#ref_target), __euv_mounted);
+                __euv_mounted
+            }},
+            None => quote! { ::euv::Component::mount(#init_expr) },
+        };
+    }
+    let child_stmts: proc_macro2::TokenStream = if elem.children.is_empty() {
+        quote! {}
     } else {
-        let comp_ident: Ident = Ident::new(IDENT_COMP, Span::call_site());
-        let child_stmts: proc_macro2::TokenStream =
-            expand_component_children_into(&comp_ident, &child_method, &elem.children);
-        quote! {{
-            let mut #comp_ident = #builder_expr;
-            #child_stmts
-            ::euv::Component::mount(#comp_ident)
-        }}
+        expand_component_children_into(&comp_ident, &child_method, &elem.children)
     };
     match node_ref_expr {
         Some(ref_target) => quote! {{
-            let __euv_mounted: ::euv::NodeId = #mount_expr;
+            let mut #comp_ident = #init_expr;
+            #(#builder_stmts)*
+            #child_stmts
+            let __euv_mounted: ::euv::NodeId = ::euv::Component::mount(#comp_ident);
             ::euv::NodeRefTarget::bind_node_ref(&mut (#ref_target), __euv_mounted);
             __euv_mounted
         }},
-        None => mount_expr,
+        None => quote! {{
+            let mut #comp_ident = #init_expr;
+            #(#builder_stmts)*
+            #child_stmts
+            ::euv::Component::mount(#comp_ident)
+        }},
     }
 }
 
