@@ -27,74 +27,65 @@ locales:
       - { text: GitHub, link: https://github.com/euv-dev/euv }
 ---
 
-<center>
+<div align="center">
 
-## euv-docs
+# euv-docs
 
-<img src="https://docs.ltpp.vip/img/euv-docs.png" alt="" height="160">
+<img src="https://docs.ltpp.vip/img/euv-docs.png" alt="euv-docs logo" height="160">
 
-[![](https://img.shields.io/crates/v/euv-docs.svg)](https://crates.io/crates/euv-docs)
-[![](https://img.shields.io/crates/d/euv-docs.svg)](https://img.shields.io/crates/d/euv-docs.svg)
-[![](https://docs.rs/euv-docs/badge.svg)](https://docs.rs/euv-docs)
-[![](https://github.com/euv-dev/euv/workflows/Rust/badge.svg)](https://github.com/euv-dev/euv/actions?query=workflow=Rust)
-[![](https://img.shields.io/crates/l/euv-docs.svg)](./LICENSE)
+**Zero-JS Static Documentation Site Generator Powered by euv + euv-ui**
 
-</center>
+[![Crates.io Version](https://img.shields.io/crates/v/euv-docs.svg?style=flat-square)](https://crates.io/crates/euv-docs)
+[![Crates.io Downloads](https://img.shields.io/crates/d/euv-docs.svg?style=flat-square)](https://crates.io/crates/euv-docs)
+[![Docs.rs](https://img.shields.io/docsrs/euv-docs?style=flat-square)](https://docs.rs/euv-docs)
+[![CI Status](https://img.shields.io/github/actions/workflow/status/euv-dev/euv/rust.yml?style=flat-square&label=CI)](https://github.com/euv-dev/euv/actions)
+[![Rust 2024](https://img.shields.io/badge/edition-2024-orange.svg?style=flat-square)](https://www.rust-lang.org)
+[![License: MIT](https://img.shields.io/crates/l/euv-docs.svg?style=flat-square)](../LICENSE)
 
-[Api Docs](https://docs.rs/euv-docs/latest/)
+[Workspace Overview](../README.md) · [API Docs](https://docs.rs/euv-docs/latest/) · [Agent Engineering Rules](../AGENTS.md)
 
-> A documentation site generator powered by euv + euv-ui (Rust/WASM).
+</div>
 
-## Installation
+---
 
-To use this crate, you can run cmd:
+## Overview
 
-```shell
+Zero-JS static documentation site generator powered by `euv` + `euv-ui` (Rust/WASM), featuring YAML frontmatter site configuration, localized navigation, live client-side search, footer item declarations, and native VS Code Eva Bold syntax highlighting.
+
+## Responsibilities & Module Layout
+
+- `build.rs` — Reads YAML frontmatter from site `README.md` and compiles Markdown trees with zero guessing
+- `site` / `theme` — Responsive sidebar, table of contents, locale switcher, footer items (`footer_link`, `footer_items`), and live search
+- `docs/docs/en/` — Canonical framework guides, component catalog, and GFM + Eva Bold syntax verification pages
+
+## Footer Items
+
+The footer is one row: the locale's `footer` text, then the items the site declares. Every part of the content comes from the site configuration (`footer_link`, `footer_items` with `text`, `link`, optional `icon`, and `alt`). The row never wraps; an item that does not fit is cut with an ellipsis so filing notices remain legible and copyable.
+
+## Installation & Usage
+
+```sh
 cargo install euv-docs
+cargo run -p euv-docs -- --generate docs/docs/en target/docs-preview
 ```
 
-## Footer items
+## Verification
 
-The footer is one row: the locale's `footer` text, then the items the
-site declares. An item is a link with an optional image in front of its
-text — a filing notice and the official badge the filing authority
-publishes are the canonical use.
-
-Every part of the content comes from the site configuration. The build
-script reads the items as they are written and invents nothing: no
-default link, no derived record code, no default badge path.
-
-```yaml
-site:
-  footer_link: 'https://github.com/euv-dev/euv'
-  footer_items:
-    - text: '<the notice>'
-      link: 'https://…'
-      icon: '/img/…'
-      alt: '<the accessible name of the image>'
+```sh
+cargo run -p euv-cli -- fmt --check
+cargo clippy -p euv-docs --all-features --all-targets -- -D warnings
+cargo test -p euv-docs --all-features
 ```
 
-| Key            | Meaning                                                                        |
-| -------------- | ------------------------------------------------------------------------------ |
-| `footer_link`  | Where the footer text points — the license line opens the project's repository |
-| `footer_items` | The items of the row, in display order                                         |
-| `text`         | The link text — plain and selectable                                           |
-| `link`         | Where the item points                                                          |
-| `icon`         | An optional local image rendered before the text                               |
-| `alt`          | The accessible name of that image                                              |
+## Documentation & Governance
 
-The row never wraps: an item that does not fit is cut with an ellipsis
-instead of being broken across two lines, because a notice cut in half
-is a number nobody can read or copy.
+- Update this `README.md` alongside any public API, macro, component, CLI, or module-boundary change per [`../AGENTS.md`](../AGENTS.md#4-unified-documentation--skill-maintenance-policy).
+- Project standards and workflows live in [`../.agents/skills/euv/SKILL.md`](../.agents/skills/euv/SKILL.md).
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
-## Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request.
+This project is licensed under the MIT License. See the [LICENSE](../LICENSE) file for details.
 
 ## Contact
 
-For any inquiries, please reach out to the author at [root@devhub.vip](mailto:root@devhub.vip).
+For inquiries, please contact the author at [root@devhub.vip](mailto:root@devhub.vip).

@@ -4,30 +4,55 @@
 
 <img src="https://docs.ltpp.vip/img/euv-ui.png" alt="euv-ui logo" height="160">
 
+**60+ Adaptive Native Components, 17 Compiled Themes & Eva Bold Markdown Studio**
+
 [![Crates.io Version](https://img.shields.io/crates/v/euv-ui.svg?style=flat-square)](https://crates.io/crates/euv-ui)
 [![Crates.io Downloads](https://img.shields.io/crates/d/euv-ui.svg?style=flat-square)](https://crates.io/crates/euv-ui)
 [![Docs.rs](https://img.shields.io/docsrs/euv-ui?style=flat-square)](https://docs.rs/euv-ui)
-[![CI Status](https://img.shields.io/github/actions/workflow/status/euv-dev/euv/Rust.yml?style=flat-square&label=CI)](https://github.com/euv-dev/euv/actions)
+[![CI Status](https://img.shields.io/github/actions/workflow/status/euv-dev/euv/rust.yml?style=flat-square&label=CI)](https://github.com/euv-dev/euv/actions)
+[![Rust 2024](https://img.shields.io/badge/edition-2024-orange.svg?style=flat-square)](https://www.rust-lang.org)
 [![License: MIT](https://img.shields.io/crates/l/euv-ui.svg?style=flat-square)](../LICENSE)
 
-[API Docs](https://docs.rs/euv-ui/latest/) · [Component Catalog](../docs/docs/en/components/README.md) · [Workspace README](../README.md)
+[Workspace Overview](../README.md) · [API Docs](https://docs.rs/euv-ui/latest/) · [Agent Engineering Rules](../AGENTS.md)
 
 </div>
 
-> Adaptive native Rust UI component library featuring 60+ shadcn/ui-aligned components, 17 zero-CSS compiled Light & Dark design schemes, lazy `PageRetention::Freeze` routing, Twitter/X-style `EuvBottomNav` + swipe routing, live navbar FPS telemetry, gesture-draggable zero-overshoot `EuvDrawer` & `EuvSheet`, unified 1:1 width dropdowns, and native `EuvMarkdown` + VS Code Eva Light/Dark Bold `EuvCodeBlock`.
+---
 
-## Highlights
+## Overview
 
-- **17 Compiled Design Schemes**: Shadcn, Cupertino, Material, Fluent, AntDesign, Bootstrap, DaisyUI, Geist, HeroUI, Linear, Mantine, Monochrome, Notion, Park, Radix, Stripe, and Supabase — both Light & Dark modes.
-- **Responsive Shell & Gestures**: `EuvAppShell` supports persistent `EuvBottomNav`, horizontal left/right swipe route switching, live real-time FPS telemetry pill, and interactive grabber-handle drag-to-close / drag-to-expand on left/right drawers and bottom sheets.
-- **Markdown & VS Code Eva Bold Studio**: `EuvCodeBlock` and `EuvMarkdown` render exact VS Code `Eva Light Bold` (`#EBEEF5`) and `Eva Dark Bold` (`#282C34`) syntax tokens using native monospace/italic glyphs with preserved indentation and zero WebView.
+Adaptive native Rust UI component library featuring 60+ shadcn/ui-aligned components, 17 zero-CSS compiled Light & Dark design schemes, lazy `PageRetention::Freeze` routing, Twitter/X-style `EuvBottomNav` + horizontal swipe routing, live navbar FPS telemetry, gesture-draggable zero-overshoot `EuvDrawer` & `EuvSheet`, unified 1:1 width dropdowns, and native `EuvMarkdown` + VS Code Eva Light/Dark Bold `EuvCodeBlock`.
 
-## Installation
+## Responsibilities & Module Layout
 
-```shell
+- `theme` — 17 compile-time Light & Dark design token presets (Shadcn, Cupertino, Material, Fluent, AntDesign, Bootstrap, DaisyUI, Geist, HeroUI, Linear, Mantine, Monochrome, Notion, Park, Radix, Stripe, Supabase)
+- `component::layout` & `component::navigation` — `EuvAppShell`, `EuvBottomNav`, `EuvRouter` (`PageRetention::Freeze`), horizontal swipe routing, and live FPS pill
+- `component::overlay_extra` & `component::form_extra` — Zero-overshoot gesture-draggable `EuvDrawer` & `EuvSheet` and unified 1:1 width dropdowns (`EuvDropdown`, `EuvSelect`, `EuvCombobox`, `EuvNativeSelect`, `EuvDatePicker`)
+- `component::markdown` — Full GFM `EuvMarkdown` and VS Code `Eva Light Bold` (`#EBEEF5`) / `Eva Dark Bold` (`#282C34`) `EuvCodeBlock` using native monospace/italic glyphs
+
+## Installation & Usage
+
+```sh
 cargo add euv euv-ui
 ```
 
+## Verification
+
+```sh
+cargo run -p euv-cli -- fmt --check
+cargo clippy -p euv-ui --all-features --all-targets -- -D warnings
+cargo test -p euv-ui --all-features
+```
+
+## Documentation & Governance
+
+- Update this `README.md` alongside any public API, macro, component, CLI, or module-boundary change per [`../AGENTS.md`](../AGENTS.md#4-unified-documentation--skill-maintenance-policy).
+- Project standards and workflows live in [`../.agents/skills/euv/SKILL.md`](../.agents/skills/euv/SKILL.md).
+
 ## License
 
-Licensed under the MIT License. See [LICENSE](../LICENSE) for details.
+This project is licensed under the MIT License. See the [LICENSE](../LICENSE) file for details.
+
+## Contact
+
+For inquiries, please contact the author at [root@devhub.vip](mailto:root@devhub.vip).

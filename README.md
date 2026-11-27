@@ -11,7 +11,7 @@ _Zero WebView · Zero Virtual DOM · Direct OS APIs · 7 Target Platforms · Bit
 [![Crates.io Version](https://img.shields.io/crates/v/euv.svg?style=flat-square)](https://crates.io/crates/euv)
 [![Crates.io Downloads](https://img.shields.io/crates/d/euv.svg?style=flat-square)](https://crates.io/crates/euv)
 [![Docs.rs](https://img.shields.io/docsrs/euv?style=flat-square)](https://docs.rs/euv)
-[![CI Status](https://img.shields.io/github/actions/workflow/status/euv-dev/euv/Rust.yml?style=flat-square&label=CI)](https://github.com/euv-dev/euv/actions)
+[![CI Status](https://img.shields.io/github/actions/workflow/status/euv-dev/euv/rust.yml?style=flat-square&label=CI)](https://github.com/euv-dev/euv/actions)
 [![License: MIT](https://img.shields.io/crates/l/euv.svg?style=flat-square)](./LICENSE)
 [![Rust 2024](https://img.shields.io/badge/edition-2024-orange.svg?style=flat-square)](https://www.rust-lang.org)
 
@@ -152,7 +152,7 @@ Reproducible benchmarks live in [`euv-performance`](./performance/README.md) and
 | **`euv-ui`**          | [`ui/`](./ui/README.md)                   | 60+ adaptive components, 17 zero-CSS themes, Freeze router, gesture drawers, Eva Bold Markdown & code studio                  |
 | **`euv-cli`**         | [`cli/`](./cli/README.md)                 | `euv doctor`, `euv build`, `euv dev`, `euv docs`, `euv fmt`, `euv new`                                                        |
 | **`euv-docs`**        | [`docs/`](./docs/README.md)               | Zero-JS static documentation site generator with Eva Bold syntax highlighting & live search                                   |
-| **`euv-automation`**  | [`automation/`](./automation/)            | Headless UI automator & dev-only AI Schema v1 bridge (0 bytes in release)                                                     |
+| **`euv-automation`**  | [`automation/`](./automation/README.md)   | Headless UI automator & dev-only AI Schema v1 bridge (0 bytes in release)                                                     |
 | **`euv-performance`** | [`performance/`](./performance/README.md) | Reproducible CPU, layout, reactivity, list & 3D benchmark harness                                                             |
 | **`euv-example`**     | [`example/`](./example/README.md)         | Full 15-route cross-platform showcase app (Bottom Nav + Swipe Routing + 3D RT + Stress Lab + Markdown Studio)                 |
 
@@ -193,6 +193,7 @@ cargo run -p euv-performance
 - **[Native GPU Drivers & System Fonts](./docs/docs/en/guide/native-gpu-and-fonts.md)** — Metal/Vulkan/D3D12/WebGL2 and OS glyph rasterization.
 - **[Markdown Syntax & Eva Theme Showcase](./docs/docs/en/guide/markdown-syntax.md)** — Full GFM + VS Code Eva Light/Dark Bold verification page.
 - **[Workspace Engineering Guidelines](./AGENTS.md)** — Mandatory macro authoring, UI gesture/layout, formatting, and Rust module standards.
+- **[Project Agent Workflow Skill](./.agents/skills/euv/SKILL.md)** — Standards, verification gates, release cascade, and documentation triggers.
 - **[Scripts Directory](./scripts/README.md)** — Environment setup, cross-platform builds, theme variants, and E2E gates.
 
 ## Contributing

@@ -12,7 +12,7 @@ categories = ["gui", "rendering", "wasm"]
 exclude.workspace = true
 
 [workspace.package]
-version = "0.41.1"
+version = "0.42.0"
 readme = "README.md"
 edition = "2024"
 authors = ["root@devhub.vip"]
@@ -52,20 +52,20 @@ resolver = "3"
 crate-type = ["rlib"]
 
 [workspace.dependencies]
-euv = { path = ".", version = "0.41.1" }
-euv-ui = { path = "ui", version = "0.41.1" }
-euv-core = { path = "core", version = "0.41.1" }
-euv-docs = { path = "docs", version = "0.41.1" }
-euv-macros = { path = "macros", version = "0.41.1" }
-euv-automation = { path = "automation", version = "0.41.1" }
+euv = { path = ".", version = "0.42.0" }
+euv-ui = { path = "ui", version = "0.42.0" }
+euv-core = { path = "core", version = "0.42.0" }
+euv-docs = { path = "docs", version = "0.42.0" }
+euv-macros = { path = "macros", version = "0.42.0" }
+euv-automation = { path = "automation", version = "0.42.0" }
 
 quote = "1.0.47"
 chrono = "0.4.45"
 js-sys = "0.3.107"
-crate-cli = "10.7.0"
+crate-cli = "10.8.0"
 serde_yaml = "0.9.33"
 serde_json = "1.0.154"
-lombok-macros = "10.7.0"
+lombok-macros = "10.8.0"
 wasm-bindgen = "0.2.130"
 pulldown-cmark = "0.13.6"
 wasm-bindgen-futures = "0.4.80"

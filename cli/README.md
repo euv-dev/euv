@@ -41,35 +41,56 @@ locales:
 
 <img src="https://docs.ltpp.vip/img/euv-cli.png" alt="euv-cli logo" height="160">
 
+**7-Platform Build CLI, Dev Server & Layered Unified Formatter**
+
 [![Crates.io Version](https://img.shields.io/crates/v/euv-cli.svg?style=flat-square)](https://crates.io/crates/euv-cli)
 [![Crates.io Downloads](https://img.shields.io/crates/d/euv-cli.svg?style=flat-square)](https://crates.io/crates/euv-cli)
 [![Docs.rs](https://img.shields.io/docsrs/euv-cli?style=flat-square)](https://docs.rs/euv-cli)
-[![CI Status](https://img.shields.io/github/actions/workflow/status/euv-dev/euv/Rust.yml?style=flat-square&label=CI)](https://github.com/euv-dev/euv/actions)
+[![CI Status](https://img.shields.io/github/actions/workflow/status/euv-dev/euv/rust.yml?style=flat-square&label=CI)](https://github.com/euv-dev/euv/actions)
+[![Rust 2024](https://img.shields.io/badge/edition-2024-orange.svg?style=flat-square)](https://www.rust-lang.org)
 [![License: MIT](https://img.shields.io/crates/l/euv-cli.svg?style=flat-square)](../LICENSE)
 
-[API Docs](https://docs.rs/euv-cli/latest/) · [Workspace README](../README.md)
+[Workspace Overview](../README.md) · [API Docs](https://docs.rs/euv-cli/latest/) · [Agent Engineering Rules](../AGENTS.md)
 
 </div>
 
-> Official CLI for the `euv` native Rust UI framework: 7-platform build orchestration, live SSE hot-reload dev server, zero-JS WebAssembly & static docs bundling, project scaffolding, toolchain doctor, and deterministic `euv fmt` macro indentation formatting.
+---
 
-## Commands
+## Overview
 
-```shell
-euv doctor                          # Inspect all 7 target toolchains
-euv new my-app                      # Scaffold a cross-platform euv project
-euv dev --target web --port 8080    # Live SSE hot-reload & OTA dev server
-euv build --target all --release    # Build across Web, Android, iOS, macOS, Windows, Linux
-euv docs build ./docs --out ./dist  # Build zero-JS documentation site
-euv fmt --check                     # Format & verify Rust + view!/style!/tokens! macro blocks
-```
+Official CLI for the `euv` native Rust UI framework: 7-platform build orchestration, live SSE hot-reload dev server, zero-JS WebAssembly & static docs bundling, project scaffolding, toolchain doctor, and deterministic `euv fmt` (running `crate-cli` Prettier-aligned multi-format formatting first, then normalizing `view!`/`style!`/`tokens!` macro blocks and workspace `cargo fmt`).
 
-## Installation
+## Responsibilities & Module Layout
 
-```shell
+- `fmt` — Layered formatter invoking `crate_cli::execute_unified_fmt` (`.md`, `.yml`/`.yaml`, `.json`, `.toml`, derives, `cargo fmt`) followed by `euv` macro indentation normalization
+- `build` / `dev` / `docs` — 7-platform target orchestration, live SSE hot-reload server, and zero-JS static documentation bundling
+- `doctor` / `new` — Cross-platform toolchain verification and project scaffolding
+
+## Installation & Usage
+
+```sh
 cargo install euv-cli
+euv doctor
+euv fmt --check
 ```
+
+## Verification
+
+```sh
+cargo run -p euv-cli -- fmt --check
+cargo clippy -p euv-cli --all-features --all-targets -- -D warnings
+cargo test -p euv-cli --all-features
+```
+
+## Documentation & Governance
+
+- Update this `README.md` alongside any public API, macro, component, CLI, or module-boundary change per [`../AGENTS.md`](../AGENTS.md#4-unified-documentation--skill-maintenance-policy).
+- Project standards and workflows live in [`../.agents/skills/euv/SKILL.md`](../.agents/skills/euv/SKILL.md).
 
 ## License
 
-Licensed under the MIT License. See [LICENSE](../LICENSE) for details.
+This project is licensed under the MIT License. See the [LICENSE](../LICENSE) file for details.
+
+## Contact
+
+For inquiries, please contact the author at [root@devhub.vip](mailto:root@devhub.vip).
