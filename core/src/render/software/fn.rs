@@ -113,7 +113,11 @@ pub(crate) fn hash_text_layout_key(text: &str, style: TextStyle) -> u64 {
         style.get_font_size().to_bits(),
         style.get_line_height().to_bits(),
         style.get_letter_spacing().to_bits(),
-        (style.get_weight() as u32) | ((style.get_align() as u32) << 8),
+        (style.get_weight() as u32)
+            | ((style.get_align() as u32) << 8)
+            | ((style.get_family() as u32) << 16)
+            | ((style.get_overflow() as u32) << 20)
+            | (u32::from(style.get_italic()) << 24),
     ];
     for word in fields.into_iter() {
         hash ^= word as u64;

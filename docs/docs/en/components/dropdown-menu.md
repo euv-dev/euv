@@ -3,46 +3,30 @@ title: Dropdown Menu
 order: 25
 ---
 
-The menu that opens from a control.
+A full-width control dropdown menu (`EuvDropdown`) whose trigger matches standard `EuvSelect` / `EuvInput` control height, padding, border, and vector chevron, and whose popup list aligns 1:1 with the trigger width.
 
 ## Installation
 
 ```shell
-cargo add euv-ui
+cargo add euv euv-ui
 ```
 
-## Composition
+## Declarative Macro Usage
 
-```text
-DropdownMenu
-├── DropdownMenuTrigger
-├── DropdownMenuContent
-├── DropdownMenuGroup
-├── DropdownMenuLabel
-├── DropdownMenuItem
-├── DropdownMenuSeparator
-├── DropdownMenuCheckboxItem
-├── DropdownMenuRadioGroup
-├── DropdownMenuRadioItem
-├── DropdownMenuSub
-├── DropdownMenuSubTrigger
-├── DropdownMenuSubContent
+```rust
+view! {
+    EuvDropdown(
+        "Quick Actions".to_string(),
+        vec!["Export PNG".to_string(), "Copy DeepLink".to_string()],
+        tokens
+    ) {
+        open: dropdown_open
+        selected: dropdown_selected
+    }
+}
 ```
 
-## Parts
+## Layout Guarantees
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| DropdownMenu | `euv_dropdown` | `dropdown-menu` |
-| DropdownMenuCheckboxItem | `euv_dropdown_menu_checkbox_item` | `dropdown-menu-checkbox-item` |
-| DropdownMenuContent | `euv_dropdown` | `dropdown-menu-content` |
-| DropdownMenuGroup | `euv_dropdown_menu_group` | `dropdown-menu-group` |
-| DropdownMenuItem | `euv_dropdown` | `dropdown-menu-item` |
-| DropdownMenuLabel | `euv_dropdown_menu_label` | `dropdown-menu-label` |
-| DropdownMenuRadioGroup | `euv_dropdown_menu_radio_group` | `dropdown-menu-radio-group` |
-| DropdownMenuRadioItem | `euv_dropdown_menu_radio_item` | `dropdown-menu-radio-item` |
-| DropdownMenuSeparator | `euv_dropdown_menu_separator` | `dropdown-menu-separator` |
-| DropdownMenuSub | `euv_dropdown_menu_sub` | `dropdown-menu-sub` |
-| DropdownMenuSubContent | `euv_dropdown_menu_sub_content` | `dropdown-menu-sub-content` |
-| DropdownMenuSubTrigger | `euv_dropdown_menu_sub_trigger` | `dropdown-menu-sub-trigger` |
-| DropdownMenuTrigger | `euv_dropdown_trigger` | `dropdown-menu-trigger` |
+- **Unified Control Spec**: Trigger uses `height: g.get_control_md()`, `padding: Edges::symmetric(0.0, SPACE_MD)`, `background: p.get_background()`, `radius: g.get_radius_md()`, and crisp vector chevron parity with `EuvSelect`, `EuvCombobox`, `EuvNativeSelect`, and `EuvDatePicker`.
+- **1:1 Popup Width Parity**: Both the trigger bar and the dropdown menu span `width: Length::Percent(100.0)` inside their shared container so the list width always matches the trigger width exactly.

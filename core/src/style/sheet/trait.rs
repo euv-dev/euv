@@ -1,6 +1,6 @@
 use super::*;
 
-/// Type-directed property application trait enabling concise enum/value shorthand inside `style! { AlignItems::Center; Overflow::Hidden; }`.
+/// Type-directed property application trait enabling concise newline-separated enum/value shorthand inside `style!`.
 pub trait StyleApply {
     /// Applies this strongly-typed style property directly onto `style`.
     ///

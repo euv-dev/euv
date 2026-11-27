@@ -22,9 +22,9 @@ Tabs
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Tabs | `euv_tabs` | `tabs` |
-| TabsContent | `euv_tabs` | `tabs-content` |
-| TabsList | `euv_tabs` | `tabs-list` |
+| Part        | Component    | Slot           |
+| ----------- | ------------ | -------------- |
+| Tabs        | `euv_tabs`   | `tabs`         |
+| TabsContent | `euv_tabs`   | `tabs-content` |
+| TabsList    | `euv_tabs`   | `tabs-list`    |
 | TabsTrigger | `tab_button` | `tabs-trigger` |

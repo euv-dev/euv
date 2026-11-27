@@ -7,23 +7,23 @@ tokens! {
 
 style! {
     c_card {
-        direction: column;
-        padding: Edges::all(12.0);
-        gap: 8.0;
-        radius: 8.0;
-        align: AlignItems::Start;
-        justify: JustifyContent::Start;
-        background: TEST_BG;
-        border: (1.0, TEST_FG);
+        direction: column
+        padding: Edges::all(12.0)
+        gap: 8.0
+        radius: 8.0
+        align: AlignItems::Start
+        justify: JustifyContent::Start
+        background: TEST_BG
+        border: (1.0, TEST_FG)
     }
     c_panel {
-        direction: column;
-        padding: Edges::all(12.0);
-        gap: 8.0;
-        radius: 8.0;
-        overflow: Overflow::Hidden;
-        background: TEST_BG;
-        border: (1.0, TEST_FG);
+        direction: column
+        padding: Edges::all(12.0)
+        gap: 8.0
+        radius: 8.0
+        overflow: Overflow::Hidden
+        background: TEST_BG
+        border: (1.0, TEST_FG)
     }
 }
 
@@ -182,17 +182,17 @@ fn view_slot_and_page_slot_macros_support_live_component_and_page_updates() {
 
 style! {
     c_extended {
-        direction: row;
-        min_width: Length::Px(120.0);
-        min_height: Length::Px(40.0);
-        max_height: Length::Px(160.0);
-        flex_shrink: 0.0;
-        aspect_ratio: 2.0;
-        cursor: CursorIcon::Pointer;
-        text_align: TextAlign::Center;
-        font_family: FontFamily::Monospace;
-        gradient: LinearGradient::new(90.0, TEST_BG, TEST_FG);
-        shadow: Shadow::new(0.0, 2.0, 6.0, 0.0, Color::rgba(0, 0, 0, 40));
+        direction: row
+        min_width: Length::Px(120.0)
+        min_height: Length::Px(40.0)
+        max_height: Length::Px(160.0)
+        flex_shrink: 0.0
+        aspect_ratio: 2.0
+        cursor: CursorIcon::Pointer
+        text_align: TextAlign::Center
+        font_family: FontFamily::Monospace
+        gradient: LinearGradient::new(90.0, TEST_BG, TEST_FG)
+        shadow: Shadow::new(0.0, 2.0, 6.0, 0.0, Color::rgba(0, 0, 0, 40))
     }
 }
 
@@ -238,13 +238,13 @@ fn reactive_shorthand_and_extended_view_style_macros_work() {
 
 style! {
     c_param_pill(bg: Color, radius: f32) {
-        direction: row;
-        padding: Edges::symmetric(6.0, 12.0);
-        background: bg;
-        radius: radius;
-        pointer_events: PointerEvents::Auto;
-        stop_scroll_propagation: true;
-        stop_event_propagation: true;
+        direction: row
+        padding: Edges::symmetric(6.0, 12.0)
+        background: bg
+        radius: radius
+        pointer_events: PointerEvents::Auto
+        stop_scroll_propagation: true
+        stop_event_propagation: true
     }
 }
 
@@ -397,12 +397,12 @@ fn view_v2_control_flow_spread_components_fragments_and_parity_work() {
                         .get()
                         .into_iter()
                         .map(|label: &str| {
-                                view! {
-                                    text {
-                                        color: TEST_FG
-                                        { label }
-                                    }
+                            view! {
+                                text {
+                                    color: TEST_FG
+                                    { label }
                                 }
+                            }
                         })
                         .collect()
                     }
@@ -517,12 +517,12 @@ impl MacroFreezeCard {
 
     fn render(&self) -> NodeId {
         let card_style: Style = style! {
-            FlexDirection::Column;
-            AlignItems::Center;
-            Overflow::Hidden;
-            width: Length::Px(180.0);
-            padding: Edges::all(12.0);
-            background: TEST_BG;
+            FlexDirection::Column
+            AlignItems::Center
+            Overflow::Hidden
+            width: Length::Px(180.0)
+            padding: Edges::all(12.0)
+            background: TEST_BG
         };
         view! {
             view {
@@ -540,10 +540,10 @@ impl MacroFreezeCard {
 fn inline_style_event_global_local_state_and_component_macros_work_end_to_end() {
     reset_reactive_runtime();
     let inline_st: Style = style! {
-        AlignItems::Center;
-        Overflow::Hidden;
-        FlexDirection::Row;
-        width: Length::Px(120.0);
+        AlignItems::Center
+        Overflow::Hidden
+        FlexDirection::Row
+        width: Length::Px(120.0)
     };
     assert_eq!(inline_st.get_layout().get_align_items(), AlignItems::Center);
     assert_eq!(inline_st.get_layout().get_overflow(), Overflow::Hidden);

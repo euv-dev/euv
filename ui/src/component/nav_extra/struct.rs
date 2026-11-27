@@ -42,7 +42,7 @@ pub struct EuvSteps {
 }
 
 /// Single collapsible item inside `EuvAccordion`.
-#[derive(Clone, Debug, Getter, New, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, Getter, New, PartialEq)]
 pub struct EuvAccordionItem {
     /// Collapsible section title.
     pub(crate) title: String,

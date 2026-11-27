@@ -21,8 +21,8 @@ Progress
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Progress | `euv_progress` | `progress` |
+| Part          | Component      | Slot             |
+| ------------- | -------------- | ---------------- |
+| Progress      | `euv_progress` | `progress`       |
 | ProgressLabel | `euv_progress` | `progress-label` |
 | ProgressValue | `euv_progress` | `progress-value` |

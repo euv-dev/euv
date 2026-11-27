@@ -29,9 +29,9 @@ Unicode headings generate clean, linkable fragment anchors (`#中文与-unicode-
 
 ## Inline Typography & Rich Elements
 
-Standard prose supports **bold emphasis**, *italic emphasis*, ***bold italic combined***, ~~strikethrough edits~~, `inline_code_token()`, <mark>highlighted markers</mark>, keyboard shortcuts like <kbd>Cmd</kbd>+<kbd>K</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, chemical subscripts H<sub>2</sub>O, exponents E = mc<sup>2</sup> / 2<sup>16</sup>, and escaped punctuation such as \*not italic\* and \`not code\`.
+Standard prose supports **bold emphasis**, _italic emphasis_, ***bold italic combined***, ~~strikethrough edits~~, `inline_code_token()`, <mark>highlighted markers</mark>, keyboard shortcuts like <kbd>Cmd</kbd>+<kbd>K</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, chemical subscripts H<sub>2</sub>O, exponents E = mc<sup>2</sup> / 2<sup>16</sup>, and escaped punctuation such as \*not italic\* and \`not code\`.
 
-Line breaks support both soft wrapping and explicit hard line breaks:  
+Line breaks support both soft wrapping and explicit hard line breaks:
 This line starts directly beneath the previous sentence via a trailing two-space hard break.
 
 Hyperlinks work for [internal relative docs](./getting-started.md), [same-page anchors](#custom-anchor), [external links with hover titles](https://www.rust-lang.org "The Rust Programming Language"), automatic URLs like <https://euv.ltpp.vip>, and inline footnotes[^euv-arch].
@@ -63,9 +63,10 @@ Hyperlinks work for [internal relative docs](./getting-started.md), [same-page a
 ### Interactive GFM Task List
 
 - [x] Standalone `Lifecycle` + `Component` traits and `#[component(retention = Freeze)]`
-- [x] Strict `style! { AlignItems::Center; Overflow::Hidden; }` trailing-semicolon validation
-- [x] Workspace-wide macro formatter in `euv fmt`
+- [x] Newline-separated `style!` rules (one rule per line, zero semicolons) with IDE Go-to-Definition
+- [x] Workspace-wide macro formatter in `euv fmt` with exact compound closure indentation
 - [x] Root-page double-back-to-exit bottom toast confirmation
+- [x] Zero-overshoot gesture-draggable drawers & bottom sheets
 - [ ] Optional user custom theme overrides
 
 ---
@@ -92,7 +93,7 @@ Hyperlinks work for [internal relative docs](./getting-started.md), [same-page a
 > Essential architecture rule: inactive pages default to `PageRetention::Freeze`, suspending reactive effects and 3D engines until resumed.
 
 > [!WARNING]
-> Always terminate every declaration inside `style! { AlignItems::Center; Overflow::Hidden; }` with `;` — missing semicolons produce a compile-time error.
+> Always place each declaration inside `style! { ... }` on its own line without trailing semicolons — multiple rules on one line produce a compile-time error.
 
 > [!CAUTION]
 > Legacy `Mountable` and `Style::empty()` APIs have been removed; migrate all code to `Component`, `Lifecycle`, and `Style::default()`.
@@ -127,6 +128,7 @@ Inside a `::: details` block you can nest **rich Markdown**, lists, and highligh
 ```rust
 let banner: Signal<String> = global_state!(String = "Ready".to_string());
 ```
+
 :::
 
 <details>
@@ -160,14 +162,15 @@ impl DemoPage {
     fn render(&self) -> NodeId {
         let count: LocalState<i32> = local_state!(42);
         let card_style: Style = style! {
-            AlignItems::Center;
-            Overflow::Hidden;
-            width: Length::Percent(100.0);
+            AlignItems::Center
+            Overflow::Hidden
+            width: Length::Percent(100.0)
         };
+        let label_text = move || -> String { format!("Count: {}", count.get()) };
         view! {
             column {
                 style: card_style
-                text { { move || format!("Count: {}", count.get()) } }
+                text { { label_text } }
             }
         }
     }
@@ -207,7 +210,10 @@ export function createPipeline(fps: number): RenderPipeline {
 ```diff
 @@ -1,4 +1,5 @@
 -let style = Style::empty().align(AlignItems::Center).overflow(Overflow::Hidden);
-+let style = style! { AlignItems::Center; Overflow::Hidden; };
++let style = style! {
++    AlignItems::Center
++    Overflow::Hidden
++};
 -impl Mountable for MyPage { fn mount(self, ctx: &mut BuildContext) -> NodeId { ... } }
 +#[component(retention = Freeze)]
 +impl MyPage { fn render(&self) -> NodeId { view! { ... } } }
@@ -231,12 +237,12 @@ site:
 
 ## GFM Aligned Tables
 
-| Feature | Alignment & Code | Status | Target Latency |
-| :--- | :---: | :---: | ---: |
-| **Fine-Grained Signals** | `Signal<T>` / `Memo<T>` | Stable | `0.30 ms` |
-| **Virtual 100k List** | `EuvVirtualList` | Stable | `0.14 ms` |
-| **240Hz Hit-Test** | Flat `SceneTree` | Stable | `0.08 ms` |
-| **3D BVH Ray Tracing** | `FullPathTracedGi` | Max Quality | `60+ FPS` |
+| Feature                  |    Alignment & Code     |   Status    | Target Latency |
+| :----------------------- | :---------------------: | :---------: | -------------: |
+| **Fine-Grained Signals** | `Signal<T>` / `Memo<T>` |   Stable    |      `0.30 ms` |
+| **Virtual 100k List**    |    `EuvVirtualList`     |   Stable    |      `0.14 ms` |
+| **240Hz Hit-Test**       |    Flat `SceneTree`     |   Stable    |      `0.08 ms` |
+| **3D BVH Ray Tracing**   |   `FullPathTracedGi`    | Max Quality |      `60+ FPS` |
 
 ---
 

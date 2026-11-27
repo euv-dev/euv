@@ -272,7 +272,7 @@ impl EuvRadioGroup {
                                 .radius(9.0)
                                 .border(g.get_border_width(), p.get_primary())
                                 .background(if active {
-                                        p.get_primary()
+                                    p.get_primary()
                                     } else {
                                         p.get_background()
                                 })
@@ -335,31 +335,31 @@ impl EuvSlider {
                         let track_w: f32 = (bounds.get_width() - pad_x * 2.0).max(8.0);
                         let track_x: f32 = bounds.get_x() + pad_x;
                         dl.push(DrawCommand::FillRoundedRect {
-                                rect: Rect::new(track_x, track_y, track_w, track_h),
-                                color: p.get_secondary(),
-                                radius: CornerRadius::all(3.0),
-                                border: Border::default(),
+                            rect: Rect::new(track_x, track_y, track_w, track_h),
+                            color: p.get_secondary(),
+                            radius: CornerRadius::all(3.0),
+                            border: Border::default(),
                         });
                         let fill_w: f32 = (track_w * pct).max(0.0);
                         if fill_w > 0.5 {
                             dl.push(DrawCommand::FillRoundedRect {
-                                    rect: Rect::new(track_x, track_y, fill_w, track_h),
-                                    color: p.get_primary(),
-                                    radius: CornerRadius::all(3.0),
-                                    border: Border::default(),
+                                rect: Rect::new(track_x, track_y, fill_w, track_h),
+                                color: p.get_primary(),
+                                radius: CornerRadius::all(3.0),
+                                border: Border::default(),
                             });
                         }
                         let thumb_cx: f32 = track_x + fill_w;
                         let thumb_cy: f32 = bounds.get_y() + bounds.get_height() * 0.5;
                         dl.push(DrawCommand::Circle {
-                                center: Point::new(thumb_cx, thumb_cy),
-                                radius: 9.0,
-                                color: p.get_primary(),
+                            center: Point::new(thumb_cx, thumb_cy),
+                            radius: 9.0,
+                            color: p.get_primary(),
                         });
                         dl.push(DrawCommand::Circle {
-                                center: Point::new(thumb_cx, thumb_cy),
-                                radius: 6.5,
-                                color: p.get_background(),
+                            center: Point::new(thumb_cx, thumb_cy),
+                            radius: 6.5,
+                            color: p.get_background(),
                         });
                     }
                 }
@@ -453,6 +453,59 @@ impl EuvSelect {
         let opts_for_label: Vec<String> = options.clone();
         let init_open: bool = open.get_untracked();
         let mut menu: NodeId = NodeId::default();
+        let chevron_color: Color = p.get_muted_foreground();
+        let on_toggle = move |_: &UiEvent| {
+            let _: bool = open.update(|v: &mut bool| *v = !*v);
+        };
+        let selected_text = move || -> String {
+            let idx: usize = selected.get();
+            opts_for_label.get(idx).cloned().unwrap_or_default()
+        };
+        let paint_chevron = move |bounds: Rect, dl: &mut DisplayList| {
+            let cx: f32 = bounds.get_x() + bounds.get_width() * 0.5;
+            let cy: f32 = bounds.get_y() + bounds.get_height() * 0.5;
+            dl.push(DrawCommand::Line {
+                from: Point::new(cx - 4.0, cy - 2.0),
+                to: Point::new(cx, cy + 2.5),
+                color: chevron_color,
+                width: 1.6,
+            });
+            dl.push(DrawCommand::Line {
+                from: Point::new(cx, cy + 2.5),
+                to: Point::new(cx + 4.0, cy - 2.0),
+                color: chevron_color,
+                width: 1.6,
+            });
+        };
+        let option_rows: Vec<NodeId> = options
+            .into_iter()
+            .enumerate()
+            .map(|(idx, opt): (usize, String)| {
+                let on_pick = move |_: &UiEvent| {
+                    let _: bool = selected.set_if_changed(idx);
+                    let _: bool = open.set_if_changed(false);
+                };
+                view! {
+                    row {
+                        width: Length::Percent(100.0)
+                        height: Length::Px(g.get_control_sm())
+                        padding: Edges::symmetric(0.0, SPACE_MD)
+                        align: AlignItems::Center
+                        radius: g.get_radius_sm()
+                        overflow: Overflow::Hidden
+                        cursor: CursorIcon::Pointer
+                        on_click: on_pick
+                        text {
+                            width: Length::Percent(100.0)
+                            font_size: 13.0
+                            color: p.get_foreground()
+                            text_overflow: TextOverflow::Ellipsis
+                            { opt }
+                        }
+                    }
+                }
+            })
+            .collect();
         let wrapper: NodeId = view! {
             column {
                 width: Length::Percent(100.0)
@@ -460,43 +513,30 @@ impl EuvSelect {
                 row {
                     width: Length::Percent(100.0)
                     height: Length::Px(g.get_control_md())
-                    padding: Edges::symmetric(SPACE_SM, SPACE_MD)
+                    padding: Edges::symmetric(0.0, SPACE_MD)
                     justify: JustifyContent::SpaceBetween
                     align: AlignItems::Center
+                    gap: SPACE_SM
                     background: p.get_background()
                     border: (g.get_border_width(), p.get_border())
                     radius: g.get_radius_md()
+                    overflow: Overflow::Hidden
                     cursor: CursorIcon::Pointer
-                    on_click: move |_: &UiEvent| {
-                        let _: bool = open.update(|v: &mut bool| *v = !*v);
-                    }
+                    on_click: on_toggle
                     text {
+                        flex_grow: 1.0
+                        flex_shrink: 1.0
+                        min_width: Length::Px(0.0)
                         font_size: 14.0
                         color: p.get_foreground()
-                        { move || {
-                                let idx: usize = selected.get();
-                                opts_for_label.get(idx).cloned().unwrap_or_default()
-                        } }
+                        text_overflow: TextOverflow::Ellipsis
+                        { selected_text }
                     }
                     canvas {
                         width: Length::Px(12.0)
                         height: Length::Px(12.0)
-                        painter: move |bounds: Rect, dl: &mut DisplayList| {
-                            let cx: f32 = bounds.get_x() + bounds.get_width() * 0.5;
-                            let cy: f32 = bounds.get_y() + bounds.get_height() * 0.5;
-                            dl.push(DrawCommand::Line {
-                                    from: Point::new(cx - 4.0, cy - 2.0),
-                                    to: Point::new(cx, cy + 2.5),
-                                    color: p.get_muted_foreground(),
-                                    width: 1.6,
-                            });
-                            dl.push(DrawCommand::Line {
-                                    from: Point::new(cx, cy + 2.5),
-                                    to: Point::new(cx + 4.0, cy - 2.0),
-                                    color: p.get_muted_foreground(),
-                                    width: 1.6,
-                            });
-                        }
+                        flex_shrink: 0.0
+                        painter: paint_chevron
                     }
                 }
                 column {
@@ -509,23 +549,9 @@ impl EuvSelect {
                     border: (g.get_border_width(), p.get_border())
                     radius: g.get_radius_md()
                     shadow: g.get_shadow_md()
+                    overflow: Overflow::Hidden
                     z_index: Z_INDEX_FLOATING
-                    for (idx, opt) in options.into_iter().enumerate() {
-                        row {
-                            width: Length::Percent(100.0)
-                            padding: Edges::symmetric(SPACE_SM, SPACE_MD)
-                            cursor: CursorIcon::Pointer
-                            on_click: move |_: &UiEvent| {
-                                let _: bool = selected.set_if_changed(idx);
-                                let _: bool = open.set_if_changed(false);
-                            }
-                            text {
-                                font_size: 13.0
-                                color: p.get_foreground()
-                                { opt }
-                            }
-                        }
-                    }
+                    ..option_rows
                 }
             }
         };
@@ -636,10 +662,10 @@ impl EuvRating {
                                     let (s0, c0): (f32, f32) = a0.sin_cos();
                                     let (s1, c1): (f32, f32) = a1.sin_cos();
                                     dl.push(DrawCommand::Triangle {
-                                            p0: center,
-                                            p1: Point::new(cx + c0 * r0, cy + s0 * r0),
-                                            p2: Point::new(cx + c1 * r1, cy + s1 * r1),
-                                            color: col,
+                                        p0: center,
+                                        p1: Point::new(cx + c0 * r0, cy + s0 * r0),
+                                        p2: Point::new(cx + c1 * r1, cy + s1 * r1),
+                                        color: col,
                                     });
                                 }
                             }
@@ -755,8 +781,8 @@ impl EuvColorPicker {
                         font_weight: FontWeight::Medium
                         color: p.get_foreground()
                         { move || {
-                                let c: Color = sig.get();
-                                format!("#{:02X}{:02X}{:02X}", c.get_r(), c.get_g(), c.get_b())
+                            let c: Color = sig.get();
+                            format!("#{:02X}{:02X}{:02X}", c.get_r(), c.get_g(), c.get_b())
                         } }
                     }
                 }
@@ -830,7 +856,7 @@ impl EuvTimePicker {
                         sm()
                         on_click: move |_: &UiEvent| {
                             let _: bool = sig.update(|v: &mut (u8, u8)| {
-                                    v.0 = if v.0 == 0 { 23 } else { v.0 - 1 };
+                                v.0 = if v.0 == 0 { 23 } else { v.0 - 1 };
                             });
                         }
                     }
@@ -839,7 +865,7 @@ impl EuvTimePicker {
                         sm()
                         on_click: move |_: &UiEvent| {
                             let _: bool = sig.update(|v: &mut (u8, u8)| {
-                                    v.0 = (v.0 + 1) % 24;
+                                v.0 = (v.0 + 1) % 24;
                             });
                         }
                     }
@@ -858,8 +884,8 @@ impl EuvTimePicker {
                             color: p.get_foreground()
                             text_align: TextAlign::Center
                             { move || {
-                                    let (hh, mm): (u8, u8) = sig.get();
-                                    format!("{:02}:{:02}", hh % 24, mm % 60)
+                                let (hh, mm): (u8, u8) = sig.get();
+                                format!("{:02}:{:02}", hh % 24, mm % 60)
                             } }
                         }
                     }
@@ -868,7 +894,7 @@ impl EuvTimePicker {
                         sm()
                         on_click: move |_: &UiEvent| {
                             let _: bool = sig.update(|v: &mut (u8, u8)| {
-                                    v.1 = (v.1 + 55) % 60;
+                                v.1 = (v.1 + 55) % 60;
                             });
                         }
                     }
@@ -877,7 +903,7 @@ impl EuvTimePicker {
                         sm()
                         on_click: move |_: &UiEvent| {
                             let _: bool = sig.update(|v: &mut (u8, u8)| {
-                                    v.1 = (v.1 + 5) % 60;
+                                v.1 = (v.1 + 5) % 60;
                             });
                         }
                     }
@@ -967,32 +993,32 @@ impl EuvTagInput {
                         .into_iter()
                         .enumerate()
                         .map(|(idx, tag): (usize, String)| {
-                                view! {
-                                    row {
-                                        justify: JustifyContent::Center
-                                        align: AlignItems::Center
-                                        padding: Edges::symmetric(4.0, SPACE_SM)
-                                        gap: 6.0
-                                        background: p.get_secondary()
-                                        border: (g.get_border_width(), p.get_border())
-                                        radius: 999.0
-                                        cursor: CursorIcon::Pointer
-                                        on_click: move |_: &UiEvent| {
-                                            let _: bool = tags_sig.update(|list: &mut Vec<String>| {
-                                                    if idx < list.len() {
-                                                        let _: String = list.remove(idx);
-                                                    }
-                                            });
-                                        }
-                                        text {
-                                            font_size: 12.0
-                                            font_weight: FontWeight::Medium
-                                            color: p.get_secondary_foreground()
-                                            text_align: TextAlign::Center
-                                            { format!("{tag}  x") }
-                                        }
+                            view! {
+                                row {
+                                    justify: JustifyContent::Center
+                                    align: AlignItems::Center
+                                    padding: Edges::symmetric(4.0, SPACE_SM)
+                                    gap: 6.0
+                                    background: p.get_secondary()
+                                    border: (g.get_border_width(), p.get_border())
+                                    radius: 999.0
+                                    cursor: CursorIcon::Pointer
+                                    on_click: move |_: &UiEvent| {
+                                        let _: bool = tags_sig.update(|list: &mut Vec<String>| {
+                                            if idx < list.len() {
+                                                let _: String = list.remove(idx);
+                                            }
+                                        });
+                                    }
+                                    text {
+                                        font_size: 12.0
+                                        font_weight: FontWeight::Medium
+                                        color: p.get_secondary_foreground()
+                                        text_align: TextAlign::Center
+                                        { format!("{tag}  x") }
                                     }
                                 }
+                            }
                         })
                         .collect()
                     }
@@ -1012,9 +1038,9 @@ impl EuvTagInput {
                             let raw: String = draft.get_untracked().trim().to_string();
                             if !raw.is_empty() {
                                 let _: bool = tags_sig.update(|list: &mut Vec<String>| {
-                                        if !list.iter().any(|existing: &String| existing == &raw) {
-                                            list.push(raw.clone());
-                                        }
+                                    if !list.iter().any(|existing: &String| existing == &raw) {
+                                        list.push(raw.clone());
+                                    }
                                 });
                                 let _: bool = draft.set_if_changed(String::new());
                             }

@@ -16,12 +16,12 @@ order: -1
 
 ## 目录映射
 
-| 源文件 | 路由 |
-| --- | --- |
-| `docs/README.md` | `/` |
-| `docs/guide/README.md` | `/guide/` |
+| 源文件                          | 路由                          |
+| ------------------------------- | ----------------------------- |
+| `docs/README.md`                | `/`                           |
+| `docs/guide/README.md`          | `/guide/`                     |
 | `docs/guide/getting-started.md` | `/guide/getting-started.html` |
-| `docs/zh/README.md` | `/zh/` |
+| `docs/zh/README.md`             | `/zh/`                        |
 
 ## 下一步
 

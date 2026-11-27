@@ -21,6 +21,20 @@ Every platform compiles the same `euv-core` runtime, layout engine, glyph raster
 Switch rendering backends at initialization or runtime with `app.set_render_mode(...)`:
 
 - `RenderMode::Auto`: Selects hardware GPU when available and falls back seamlessly to software CPU rasterization.
-- `RenderMode::Software`: Analytical SDF tile rasterizer with dirty-rectangle damage tracking and deterministic pixel hashing.
+- `RenderMode::Software`: Analytical SDF tile rasterizer with dirty-rectangle damage tracking, padding-box child clipping, exact `GlyphAtlas` caret alignment (`DrawCommand::TextCaret`), and deterministic pixel hashing.
 - `RenderMode::Hardware`: Instanced quad/glyph/border batching emitting native WGSL, MSL, GLSL, or HLSL shaders.
 - `RenderMode::Hybrid`: CPU vector rasterizer composited with GPU texture upload batches.
+
+## Declarative Macros & IDE Navigation
+
+`euv-macros` compiles `view!`, `style!`, `tokens!`, `watch!`, `computed!`, and `event!` directly to static Rust without a virtual DOM:
+
+- **Go-to-Definition Schemas**: Primitive `view!` tags/properties resolve to `euv::view_elements` and `style!` keys resolve to `euv::style_props`. Custom component invocations expand as `<ComponentPath>::new(...)`, so IDE jump-to-definition lands directly on the component struct definition rather than the `Component` trait.
+- **Clean `style!` Syntax**: One style rule per line with zero trailing semicolons; the compiler rejects stray `;` tokens or multiple rules packed on a single line.
+- **Sibling Closure Discipline**: Keep multi-statement handlers and reactive text builders in sibling `let` bindings or outer helper `fn`s, then pass identifiers into `view!` (`text { { summary_text } }`, `on_click: on_save`).
+
+## Route Lifecycle, Swipes & Interactive Overlays
+
+- **Active / Frozen / Destroyed Route Lifecycle**: Routes only execute reactive work while active; inactive routes freeze or destroy cleanly based on their lifecycle policy, with cross-route state updates safely propagated via `GlobalState` and `event!`.
+- **Twitter/X-Style Bottom Navigation & Horizontal Swipe Routing**: `EuvAppShell` pairs a persistent `EuvBottomNav`, live navbar FPS readout, and full-surface horizontal swipe routing across routes.
+- **Zero-Overshoot Bidirectional Drag Drawers & Sheets**: `EuvAppShell` left drawers, `EuvDrawer` right drawers, and `EuvSheet` bottom sheets animate with strictly monotonic easing (`EaseOutQuint` / `EaseOutCubic`) and include floating grabber handles supporting drag-to-close and drag-to-expand.

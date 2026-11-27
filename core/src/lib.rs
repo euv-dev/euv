@@ -50,6 +50,7 @@ use std::ptr::copy_nonoverlapping;
 use std::ptr::null;
 use std::{
     any::{Any, TypeId},
+    borrow::Cow,
     cell::{Cell, Ref, RefCell, RefMut},
     collections::{HashMap, HashSet},
     error::Error,

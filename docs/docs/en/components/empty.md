@@ -24,11 +24,11 @@ Empty
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Empty | `euv_empty` | `empty` |
-| EmptyContent | `euv_empty_content` | `empty-content` |
+| Part             | Component               | Slot                |
+| ---------------- | ----------------------- | ------------------- |
+| Empty            | `euv_empty`             | `empty`             |
+| EmptyContent     | `euv_empty_content`     | `empty-content`     |
 | EmptyDescription | `euv_empty_description` | `empty-description` |
-| EmptyHeader | `euv_empty_header` | `empty-header` |
-| EmptyMedia | `euv_empty_media` | `empty-media` |
-| EmptyTitle | `euv_empty_title` | `empty-title` |
+| EmptyHeader      | `euv_empty_header`      | `empty-header`      |
+| EmptyMedia       | `euv_empty_media`       | `empty-media`       |
+| EmptyTitle       | `euv_empty_title`       | `empty-title`       |

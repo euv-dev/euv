@@ -13,6 +13,6 @@ cargo add euv-ui
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Checkbox | `euv_checkbox` | — |
+| Part     | Component      | Slot |
+| -------- | -------------- | ---- |
+| Checkbox | `euv_checkbox` | —    |

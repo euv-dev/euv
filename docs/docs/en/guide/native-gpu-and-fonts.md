@@ -14,19 +14,19 @@ tagline: Physical Metal/D3D12/Vulkan/WebGL2 GPU drivers, CoreText/GDI/FreeType U
 - **Linux and Android (`libvulkan.so.1` / `libvulkan.so`)**: Runtime `dlopen` Vulkan loader probing with automatic software fallback on headless containers.
 - **Web (`WebGl2RenderingContext`)**: Compiles and links `GLSL_ES3_UI_VERTEX_SHADER` + `GLSL_ES3_UI_FRAGMENT_SHADER` into a live `WebGlProgram`.
 
-## System Fonts & CJK Shaping
+## System Fonts, Monospace & CJK Shaping
 
-`NativeSystemFont::system()` dispatches glyph rasterization to native OS text engines:
+`NativeSystemFont::system()` dispatches glyph rasterization to native OS text engines with distinct proportional, monospace, bold, and italic variants:
 
-- **Apple CoreText + CoreGraphics**: Automatic `CTFontCreateForString` font cascade supporting Latin (`SF Pro`) and CJK (`PingFang SC`) anti-aliased glyphs.
-- **Windows Win32 GDI**: `GetGlyphOutlineW` (`GGO_GRAY8_BITMAP`) smooth coverage extraction.
-- **Linux / Android FreeType & Web Canvas**: Runtime system font discovery with deterministic Unicode/CJK stroke fallback.
-- **Packed GPU Glyph Atlas**: `GlyphAtlas::pack_rgba_atlas()` shelf-packs cached glyphs into a single RGBA8 texture ready for GPU upload.
+- **Apple CoreText + CoreGraphics**: Automatic `CTFontCreateForString` font cascade supporting Latin (`SF Pro`), native monospace (`SF Mono` / `Menlo`), bold/italic traits, and CJK (`PingFang SC`) anti-aliased glyphs.
+- **Windows Win32 GDI**: `GetGlyphOutlineW` (`GGO_GRAY8_BITMAP`) smooth coverage extraction with monospace, bold, and italic face selection.
+- **Linux / Android FreeType & JNI + Web Canvas**: Native font discovery (`Android` JNI `(IFI)[B` font style flags, FreeType bold/italic/mono faces, Web Canvas2D) with deterministic Unicode/CJK stroke fallback.
+- **Packed GPU Glyph Atlas & Zero-Drift Caret**: `GlyphAtlas::pack_rgba_atlas()` shelf-packs cached glyphs into a single RGBA8 texture ready for GPU upload, and `DrawCommand::TextCaret` computes caret X positions from the exact `GlyphAtlas` glyph advances used during text painting.
 
-## Complete `euv-ui` Component Library (59 Components)
+## Complete `euv-ui` Component Library (60+ Components)
 
-- **Layout & Surface**: `EuvAppShell`, `EuvPageContainer`, `EuvPanel`, `EuvSpace`, `EuvGrid`, `EuvScrollArea`, `EuvSplitter`, `EuvNavbar`, `EuvFooter`, `EuvDivider`, `EuvButtonGroup`, `EuvToggle`.
-- **Display & Data**: `EuvHeader`, `EuvCard`, `EuvStatCard`, `EuvBadge`, `EuvTag`, `EuvAvatar`, `EuvIcon`, `EuvKbd`, `EuvTypography`, `EuvEmpty`, `EuvSkeleton`, `EuvSpinner`, `EuvProgress`, `EuvCodeBlock`, `EuvTimeline`, `EuvList`, `EuvTable`, `EuvVirtualList`, `EuvTree`, `EuvAlert`.
-- **Forms**: `EuvButton`, `EuvInput`, `EuvTextarea`, `EuvNumberInput`, `EuvField`, `EuvForm`, `EuvLabel`, `EuvSwitch`, `EuvCheckbox`, `EuvRadioGroup`, `EuvSlider`, `EuvSelect`, `EuvRating`, `EuvSegmented`.
-- **Navigation**: `EuvSidebarNav`, `EuvTabs`, `EuvBreadcrumb`, `EuvPagination`, `EuvSteps`, `EuvAccordion`, `EuvToc`.
-- **Overlays & Hooks**: `EuvModal`, `EuvDrawer`, `EuvSheet`, `EuvPopover`, `EuvTooltip`, `EuvDropdown`, `EuvToast`, `EuvNotification`, `EuvLoading`, plus `use_theme`, `use_i18n`, `use_breakpoint`, `use_router`, `use_gesture`, and `use_window`.
+- **Layout & Surface**: `EuvAppShell` (bottom nav, live FPS badge, drag-to-close/expand left drawer), `EuvPageContainer`, `EuvPanel`, `EuvSpace`, `EuvGrid`, `EuvScrollArea`, `EuvSplitter`, `EuvNavbar`, `EuvBottomNav`, `EuvFooter`, `EuvDivider`, `EuvButtonGroup`, `EuvToggle`.
+- **Display, Markdown & Data**: `EuvHeader`, `EuvCard`, `EuvStatCard`, `EuvBadge`, `EuvTag`, `EuvAvatar`, `EuvIcon`, `EuvKbd`, `EuvTypography`, `EuvEmpty`, `EuvSkeleton`, `EuvSpinner`, `EuvProgress`, `EuvCodeBlock` (VS Code Eva Light/Dark Bold themes), `EuvMarkdown`, `EuvTimeline`, `EuvList`, `EuvTable`, `EuvVirtualList`, `EuvTree`, `EuvAlert`, `EuvBubble`.
+- **Forms & Unified Controls**: `EuvButton`, `EuvInput`, `EuvTextarea`, `EuvNumberInput`, `EuvField`, `EuvForm`, `EuvLabel`, `EuvSwitch`, `EuvCheckbox`, `EuvRadioGroup`, `EuvSlider`, `EuvSelect`, `EuvCombobox`, `EuvNativeSelect`, `EuvDatePicker`, `EuvRating`, `EuvSegmented`.
+- **Navigation**: `EuvBottomNav`, `EuvSidebarNav`, `EuvTabs`, `EuvBreadcrumb`, `EuvPagination`, `EuvSteps`, `EuvAccordion`, `EuvToc`.
+- **Overlays & Hooks**: `EuvModal`, `EuvDrawer` (left-edge drag grabber), `EuvSheet` (top drag grabber), `EuvPopover`, `EuvTooltip`, `EuvDropdown` (1:1 full-width trigger & menu), `EuvToast`, `EuvNotification`, `EuvLoading`, plus `use_theme`, `use_i18n`, `use_breakpoint`, `use_router`, `use_gesture`, and `use_window`.

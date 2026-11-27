@@ -1130,12 +1130,12 @@ pub fn mount_stress_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         outline()
                         on_click: move |_: &UiEvent| {
                             batch(|| {
-                                    let _: bool = st_reset
-                                    .get_stress_results()
-                                    .set(default_stress_results());
-                                    let _: bool = st_reset
-                                    .get_stress_summary()
-                                    .set_if_changed(STRESS_SUMMARY_READY.to_string());
+                                let _: bool = st_reset
+                                .get_stress_results()
+                                .set(default_stress_results());
+                                let _: bool = st_reset
+                                .get_stress_summary()
+                                .set_if_changed(STRESS_SUMMARY_READY.to_string());
                             });
                         }
                     }

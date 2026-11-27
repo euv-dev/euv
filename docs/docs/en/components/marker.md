@@ -21,8 +21,8 @@ Marker
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Marker | `euv_marker` | `marker` |
+| Part          | Component            | Slot             |
+| ------------- | -------------------- | ---------------- |
+| Marker        | `euv_marker`         | `marker`         |
 | MarkerContent | `euv_marker_content` | `marker-content` |
-| MarkerIcon | `euv_marker_icon` | `marker-icon` |
+| MarkerIcon    | `euv_marker_icon`    | `marker-icon`    |

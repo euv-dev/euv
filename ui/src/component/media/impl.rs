@@ -411,7 +411,9 @@ impl EuvLivePhoto {
                     let live_buf: ImageBuffer = live.active_image();
                     let live_aspect: f32 = (live_buf.get_width().max(1) as f32)
                     / (live_buf.get_height().max(1) as f32);
-                    let live_fit_w: f32 = (h_px * live_aspect).round().max(48.0);
+                    let border_pad: f32 = 2.0;
+                    let inner_h: f32 = (h_px - border_pad * 2.0).max(48.0);
+                    let live_fit_w: f32 = (inner_h * live_aspect).round().max(48.0);
                     vec![
                         view! {
                             row {
@@ -441,6 +443,7 @@ impl EuvLivePhoto {
                             row {
                                 width: Length::Percent(100.0)
                                 height: Length::Px(h_px)
+                                padding: Edges::all(border_pad)
                                 justify: JustifyContent::Center
                                 align: AlignItems::Center
                                 background: p.get_media_surface()
@@ -466,7 +469,8 @@ impl EuvLivePhoto {
                                     source: live_buf
                                     width: Length::Px(live_fit_w)
                                     max_width: Length::Percent(100.0)
-                                    height: Length::Px(h_px)
+                                    height: Length::Px(inner_h)
+                                    radius: (g.get_radius_md() - border_pad).max(0.0)
                                 }
                             }
                         },
@@ -827,10 +831,10 @@ impl EuvAudioPlayer {
                                 border: (g.get_border_width(), p.get_border())
                                 painter: move |bounds: Rect, list: &mut DisplayList| {
                                     list.push(DrawCommand::FillRoundedRect {
-                                            rect: bounds,
-                                            color: wave_bg,
-                                            radius: CornerRadius::all(6.0),
-                                            border: Border::default(),
+                                        rect: bounds,
+                                        color: wave_bg,
+                                        radius: CornerRadius::all(6.0),
+                                        border: Border::default(),
                                     });
                                     let bar_count: usize = peaks.len().max(1);
                                     let pad_x: f32 = 8.0;
@@ -844,14 +848,14 @@ impl EuvAudioPlayer {
                                         let bx: f32 = bounds.get_x() + pad_x + (idx as f32) * slot_w;
                                         let by: f32 = bounds.get_y() + (bounds.get_height() - bh) * 0.5;
                                         list.push(DrawCommand::FillRoundedRect {
-                                                rect: Rect::new(bx, by, bar_w, bh),
-                                                color: if idx <= played_idx {
-                                                    wave_active
-                                                } else {
-                                                    wave_idle
-                                                },
-                                                radius: CornerRadius::all(2.0),
-                                                border: Border::default(),
+                                            rect: Rect::new(bx, by, bar_w, bh),
+                                            color: if idx <= played_idx {
+                                                wave_active
+                                            } else {
+                                                wave_idle
+                                            },
+                                            radius: CornerRadius::all(2.0),
+                                            border: Border::default(),
                                         });
                                     }
                                 }
@@ -862,12 +866,12 @@ impl EuvAudioPlayer {
                                 font_size: 12.0
                                 color: p.get_muted_foreground()
                                 { format!(
-                                        "{:02}:{:02} / {:02}:{:02} · {} samples",
-                                        (cur as u32) / 60,
-                                        (cur as u32) % 60,
-                                        (dur as u32) / 60,
-                                        (dur as u32) % 60,
-                                        track.get_samples().len()
+                                    "{:02}:{:02} / {:02}:{:02} · {} samples",
+                                    (cur as u32) / 60,
+                                    (cur as u32) % 60,
+                                    (dur as u32) / 60,
+                                    (dur as u32) % 60,
+                                    track.get_samples().len()
                                 ) }
                             }
                         },
@@ -1208,6 +1212,7 @@ impl EuvHtmlView {
                 background: p.get_card()
                 border: (g.get_border_width(), p.get_border())
                 radius: g.get_radius_lg()
+                overflow: Overflow::Hidden
                 row {
                     flex_wrap: FlexWrap::Wrap
                     width: Length::Percent(100.0)
@@ -1215,6 +1220,8 @@ impl EuvHtmlView {
                     align: AlignItems::Center
                     gap: SPACE_SM
                     text {
+                        flex_shrink: 1.0
+                        min_width: Length::Px(0.0)
                         font_size: g.get_font_body()
                         font_weight: FontWeight::SemiBold
                         color: p.get_card_foreground()
@@ -1233,6 +1240,7 @@ impl EuvHtmlView {
                 for block in document.get_blocks().iter() {
                     match block.get_kind() {
                         HtmlNodeKind::Heading(level) => text {
+                            width: Length::Percent(100.0)
                             font_size: if level <= 1 {
                                 18.0
                             } else if level == 2 {
@@ -1245,6 +1253,7 @@ impl EuvHtmlView {
                             { block.get_text().clone() }
                         },
                         HtmlNodeKind::Paragraph => text {
+                            width: Length::Percent(100.0)
                             font_size: g.get_font_body()
                             color: p.get_muted_foreground()
                             { block.get_text().clone() }
@@ -1255,7 +1264,9 @@ impl EuvHtmlView {
                             background: p.get_muted()
                             border: (g.get_border_width(), p.get_primary())
                             radius: g.get_radius_md()
+                            overflow: Overflow::Hidden
                             text {
+                                width: Length::Percent(100.0)
                                 font_size: g.get_font_body()
                                 color: p.get_foreground()
                                 { block.get_text().clone() }
@@ -1267,13 +1278,16 @@ impl EuvHtmlView {
                             background: p.get_muted()
                             border: (g.get_border_width(), p.get_border())
                             radius: g.get_radius_sm()
+                            overflow: Overflow::Hidden
                             text {
+                                width: Length::Percent(100.0)
                                 font_size: 12.5
                                 color: p.get_primary()
                                 { block.get_text().clone() }
                             }
                         },
                         HtmlNodeKind::ListItem => text {
+                            width: Length::Percent(100.0)
                             font_size: g.get_font_body()
                             color: p.get_card_foreground()
                             { format!("• {}", block.get_text()) }

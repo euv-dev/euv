@@ -20,7 +20,7 @@ Kbd
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Kbd | `euv_kbd` | `kbd` |
+| Part     | Component       | Slot        |
+| -------- | --------------- | ----------- |
+| Kbd      | `euv_kbd`       | `kbd`       |
 | KbdGroup | `euv_kbd_group` | `kbd-group` |

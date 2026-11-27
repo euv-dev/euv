@@ -4,7 +4,7 @@ description: 'Canonical UI design system and engineering specification for euv a
 license: MIT
 metadata:
   euv:
-    version: "0.39.1"
+    version: '0.39.1'
     applies_to:
       - ui
       - example
@@ -21,16 +21,17 @@ This skill is the single source of truth for building consistent, refined, multi
 
 All surfaces and controls snap to a strict **4px spatial grid**:
 
-| Token | Value | Usage |
-| --- | ---: | --- |
-| `SPACE_XS` | `4px` | Label-to-control gap, inline icon gap, tight segmented inner padding |
-| `SPACE_SM` | `8px` | Horizontal action-row gap, checkbox/radio/switch label gap, compact card inner gap |
-| `SPACE_MD` | `12px` | Form field spacing, card header-to-body gap, default control horizontal padding |
-| `SPACE_LG` | `16px` | Standard card padding (`16px`), page section rhythm (`16px`–`20px`) |
-| `SPACE_XL` | `20px` | Modal/drawer/sheet padding, desktop page vertical section gap |
-| `SPACE_2XL` | `24px` | Expanded desktop main-canvas padding, empty-state vertical breathing room |
+| Token       |  Value | Usage                                                                              |
+| ----------- | -----: | ---------------------------------------------------------------------------------- |
+| `SPACE_XS`  |  `4px` | Label-to-control gap, inline icon gap, tight segmented inner padding               |
+| `SPACE_SM`  |  `8px` | Horizontal action-row gap, checkbox/radio/switch label gap, compact card inner gap |
+| `SPACE_MD`  | `12px` | Form field spacing, card header-to-body gap, default control horizontal padding    |
+| `SPACE_LG`  | `16px` | Standard card padding (`16px`), page section rhythm (`16px`–`20px`)                |
+| `SPACE_XL`  | `20px` | Modal/drawer/sheet padding, desktop page vertical section gap                      |
+| `SPACE_2XL` | `24px` | Expanded desktop main-canvas padding, empty-state vertical breathing room          |
 
 ### Breakpoints & App Shell
+
 - **Compact (`< 640px`, phones)**:
   - Fixed top chrome bar (`56px` height) with brand title + `Menu` trigger; respects OS safe-area insets.
   - Slide-in left navigation drawer (`82%` width, `max-width: 280px`) over dimmed scrim (`z-index: 201`) with smooth horizontal slide + fade animation.
@@ -48,13 +49,14 @@ All surfaces and controls snap to a strict **4px spatial grid**:
 
 **Every interactive control MUST align on one unified 3-tier height ramp** derived from `ThemeGeometry`:
 
-| Tier | Token | Default (Shadcn) | Font Size | Horizontal Padding | Radius |
-| --- | --- | ---: | ---: | ---: | --- |
-| **Small (`Sm`)** | `control_sm` | `30px` | `12px` | `12px` | `radius_sm` |
-| **Medium (`Md`, default)** | `control_md` | `36px` | `13px` | `16px` | `radius_md` |
-| **Large (`Lg`)** | `control_lg` | `44px` | `14px` | `20px` | `radius_md` |
+| Tier                       | Token        | Default (Shadcn) | Font Size | Horizontal Padding | Radius      |
+| -------------------------- | ------------ | ---------------: | --------: | -----------------: | ----------- |
+| **Small (`Sm`)**           | `control_sm` |           `30px` |    `12px` |             `12px` | `radius_sm` |
+| **Medium (`Md`, default)** | `control_md` |           `36px` |    `13px` |             `16px` | `radius_md` |
+| **Large (`Lg`)**           | `control_lg` |           `44px` |    `14px` |             `20px` | `radius_md` |
 
 ### Component Geometry Invariants
+
 - **Buttons (`EuvButton`)**: Exact `control_sm` / `control_md` / `control_lg` height; `Icon` button is a square `control_md × control_md`; text strictly single-line centered (`TextAlign::Center`, `TextOverflow::Clip`).
 - **Text Inputs (`EuvInput`) & Selects (`EuvSelect`)**: Exact `control_md` height, `1px` hairline `border`, `radius_md`, `0 12px` horizontal padding, left-aligned `13px` text, `2px` focus ring on focus.
 - **Number Stepper (`EuvNumberInput`)**: `-` button, numeric display box (`72px` wide), and `+` button MUST all share the exact same `control_sm` height and `AlignItems::Center`.
@@ -85,6 +87,7 @@ All surfaces and controls snap to a strict **4px spatial grid**:
 ## 4. Color Roles & Multi-Theme Architecture (17 Schemes × Light/Dark)
 
 **Zero hardcoded color literals in business pages.** Every color MUST come from `ThemeTokens` (`ThemePalette`):
+
 - **Surfaces**: `background` (app canvas), `card` (elevated surfaces & inputs), `muted` (subtle wells, tabs/segmented tracks, table headers), `overlay` (modal/drawer scrim).
 - **Text**: `foreground`, `card_foreground`, `muted_foreground`.
 - **Interactive & Brand**: `primary` / `primary_foreground`, `secondary` / `secondary_foreground`, `accent` (active nav item & hover surface).
@@ -97,6 +100,7 @@ All surfaces and controls snap to a strict **4px spatial grid**:
 ## 5. Corner Radius Hierarchy
 
 All radii derive strictly from the active scheme's `ThemeGeometry`:
+
 - `radius_sm` — Checkboxes, tags, kbd caps, segmented/tab active pills, table headers, scrollbar thumbs.
 - `radius_md` — Buttons, inputs, textareas, selects, dropdown menus, popovers, toasts, virtual lists, panels.
 - `radius_lg` — Cards, stat cards, alerts, empty states, notifications.
@@ -108,6 +112,7 @@ All radii derive strictly from the active scheme's `ThemeGeometry`:
 ## 6. Interaction Logic & Motion Specification
 
 ### Interactive Contracts
+
 - **Hover**: Paint-only tint (`interactive_tint` / `hover_paint`); never mutate layout geometry on hover so hover redraws remain confined to the single control's dirty rect.
 - **Pressed**: Subtle `0.5px` downward micro-press feedback + deeper tint; pointer capture routes `PointerMove` / `PointerUp` to the pressed control even if the cursor leaves its bounding box.
 - **Slider Dragging**: `PointerDown` seeks immediately to click X coordinate and captures pointer; `PointerMove` updates `Signal<f32>` continuously at frame rate; `PointerUp` releases capture.
@@ -117,23 +122,25 @@ All radii derive strictly from the active scheme's `ThemeGeometry`:
 - **Overlay Dismiss**: Clicking the dimmed backdrop scrim of a Modal, Drawer, Sheet, or Mobile Nav Drawer closes it cleanly (clicks inside the dialog/panel do not dismiss).
 
 ### Standard Motion & Transition Timings
+
 All transitions animate **paint/transform properties only** (`opacity`, `translate_x`, `translate_y`, `scale_x`, `scale_y`) inside the core animation ticker so layout is never recomputed mid-animation and CPU drops to `0%` once settled:
 
-| Surface | Enter Transition | Exit Transition | Duration & Curve |
-| --- | --- | --- | --- |
-| **Route Switch (`DynamicPageOutlet`)** | `opacity: 0 -> 1`, `translate_y: +12px -> 0` | Immediate swap into entering page | `220ms EaseOutCubic` |
-| **Modal (`EuvModal`)** | Scrim `opacity: 0 -> 1`; dialog `opacity: 0 -> 1`, `scale: 0.95 -> 1.0`, `translate_y: +12px -> 0` | Reverse + `Display::None` on complete | `200ms EaseOutCubic` |
-| **Right Drawer (`EuvDrawer`)** | Scrim `opacity: 0 -> 1`; panel `translate_x: +360px -> 0` | Slide out `+360px` + fade scrim | `240ms EaseOutCubic` |
-| **Mobile Left Drawer (`EuvAppShell`)** | Scrim `opacity: 0 -> 1`; panel `translate_x: -280px -> 0` | Slide out `-280px` + fade scrim | `240ms EaseOutCubic` |
-| **Bottom Sheet (`EuvSheet`)** | Scrim `opacity: 0 -> 1`; panel `translate_y: +240px -> 0` | Slide down `+240px` + fade scrim | `240ms EaseOutCubic` |
-| **Popover / Dropdown / Select Menu** | `opacity: 0 -> 1`, `translate_y: -6px -> 0` | Fade out + `Display::None` | `160ms EaseOutCubic` |
-| **Toast / Notification** | `opacity: 0 -> 1`, `translate_y: +16px -> 0` (or `translate_x: +24px -> 0`) | Slide/fade out + `Display::None` | `200ms EaseOutCubic` |
+| Surface                                | Enter Transition                                                                                   | Exit Transition                       | Duration & Curve     |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------- | -------------------- |
+| **Route Switch (`DynamicPageOutlet`)** | `opacity: 0 -> 1`, `translate_y: +12px -> 0`                                                       | Immediate swap into entering page     | `220ms EaseOutCubic` |
+| **Modal (`EuvModal`)**                 | Scrim `opacity: 0 -> 1`; dialog `opacity: 0 -> 1`, `scale: 0.95 -> 1.0`, `translate_y: +12px -> 0` | Reverse + `Display::None` on complete | `200ms EaseOutCubic` |
+| **Right Drawer (`EuvDrawer`)**         | Scrim `opacity: 0 -> 1`; panel `translate_x: +360px -> 0`                                          | Slide out `+360px` + fade scrim       | `240ms EaseOutCubic` |
+| **Mobile Left Drawer (`EuvAppShell`)** | Scrim `opacity: 0 -> 1`; panel `translate_x: -280px -> 0`                                          | Slide out `-280px` + fade scrim       | `240ms EaseOutCubic` |
+| **Bottom Sheet (`EuvSheet`)**          | Scrim `opacity: 0 -> 1`; panel `translate_y: +240px -> 0`                                          | Slide down `+240px` + fade scrim      | `240ms EaseOutCubic` |
+| **Popover / Dropdown / Select Menu**   | `opacity: 0 -> 1`, `translate_y: -6px -> 0`                                                        | Fade out + `Display::None`            | `160ms EaseOutCubic` |
+| **Toast / Notification**               | `opacity: 0 -> 1`, `translate_y: +16px -> 0` (or `translate_x: +24px -> 0`)                        | Slide/fade out + `Display::None`      | `200ms EaseOutCubic` |
 
 ---
 
 ## 7. Zero-Boilerplate Business Page Development
 
 Business pages MUST compose built-in multi-theme `euv-ui` primitives instead of hand-writing raw `Style::empty()` layout boilerplate:
+
 1. Wrap pages with `EuvPage::new(title, subtitle, tokens)` (automatic `EuvHeader` + uniform `SPACE_LG` vertical rhythm).
 2. Use `EuvActionRow::new()` for horizontal button/control bars (automatic wrap, `AlignItems::Center`, `SPACE_SM` gap).
 3. Use `EuvStatGrid::responsive(tokens)` for adaptive 1/2/3-column KPI stat cards.

@@ -34,6 +34,17 @@ pub struct EuvAppShell {
     #[new(skip)]
     #[get(skip)]
     pub(crate) breadcrumb: Option<Signal<String>>,
+    /// Optional persistent bottom navigation bar activating Twitter/X-style bottom-tab shell layout.
+    #[new(skip)]
+    #[get(skip)]
+    pub(crate) bottom_nav: Option<NodeId>,
+    /// Ordered route paths cycled directly by horizontal left/right swipes across the viewport.
+    #[new(skip)]
+    pub(crate) swipe_routes: Vec<String>,
+    /// Whether the top navigation bar renders a live real-time FPS telemetry pill.
+    #[new(skip)]
+    #[get(type(copy))]
+    pub(crate) show_fps: bool,
 }
 
 /// Hairline horizontal or vertical structural divider.

@@ -23,10 +23,10 @@ Carousel
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Carousel | `euv_carousel` | `carousel` |
-| CarouselContent | `euv_carousel_content` | `carousel-content` |
-| CarouselItem | `euv_carousel` | `carousel-item` |
-| CarouselNext | `euv_carousel_next` | `carousel-next` |
+| Part             | Component               | Slot                |
+| ---------------- | ----------------------- | ------------------- |
+| Carousel         | `euv_carousel`          | `carousel`          |
+| CarouselContent  | `euv_carousel_content`  | `carousel-content`  |
+| CarouselItem     | `euv_carousel`          | `carousel-item`     |
+| CarouselNext     | `euv_carousel_next`     | `carousel-next`     |
 | CarouselPrevious | `euv_carousel_previous` | `carousel-previous` |

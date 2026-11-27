@@ -25,12 +25,12 @@ Command
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Command | `euv_command` | `command` |
-| CommandEmpty | `euv_command_empty` | `command-empty` |
-| CommandGroup | `euv_command_group` | `command-group` |
-| CommandInput | `euv_command_input` | `command-input` |
-| CommandItem | `euv_command_item` | `command-item` |
-| CommandList | `euv_command_list` | `command-list` |
+| Part             | Component               | Slot                |
+| ---------------- | ----------------------- | ------------------- |
+| Command          | `euv_command`           | `command`           |
+| CommandEmpty     | `euv_command_empty`     | `command-empty`     |
+| CommandGroup     | `euv_command_group`     | `command-group`     |
+| CommandInput     | `euv_command_input`     | `command-input`     |
+| CommandItem      | `euv_command_item`      | `command-item`      |
+| CommandList      | `euv_command_list`      | `command-list`      |
 | CommandSeparator | `euv_command_separator` | `command-separator` |

@@ -642,6 +642,22 @@ impl Style {
         self
     }
 
+    /// Sets italic font slant.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source style.
+    /// - `bool` - Whether italic slant is active.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated style.
+    #[must_use]
+    pub fn italic(mut self, italic: bool) -> Self {
+        self.get_mut_text().set_italic(italic);
+        self
+    }
+
     /// Sets horizontal text alignment.
     ///
     /// # Arguments
@@ -1008,7 +1024,7 @@ impl StyleApply for CornerRadius {
     }
 }
 
-/// `StyleApply` implementation for `Style` allowing base-style merging inside `style! { base_style; ... }`.
+/// `StyleApply` implementation for `Style` allowing base-style merging inside newline-separated `style!` blocks.
 impl StyleApply for Style {
     /// Replaces `style` with `self` as a base preset inside `style!`.
     ///

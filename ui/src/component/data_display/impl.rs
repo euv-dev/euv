@@ -142,6 +142,7 @@ impl EuvKbd {
                     font_size: 11.0
                     color: p.get_foreground()
                     text_align: TextAlign::Center
+                    text_overflow: TextOverflow::Clip
                     { key }
                 }
             }
@@ -306,10 +307,10 @@ impl EuvSpinner {
                         let (sin_a, cos_a): (f32, f32) = angle.sin_cos();
                         let alpha: f32 = 0.22 + 0.78 * ((i + 1) as f32 / (spokes as f32));
                         dl.push(DrawCommand::Line {
-                                from: Point::new(cx + cos_a * inner_r, cy + sin_a * inner_r),
-                                to: Point::new(cx + cos_a * outer_r, cy + sin_a * outer_r),
-                                color: p.get_primary().multiply_alpha(alpha),
-                                width: stroke_w,
+                            from: Point::new(cx + cos_a * inner_r, cy + sin_a * inner_r),
+                            to: Point::new(cx + cos_a * outer_r, cy + sin_a * outer_r),
+                            color: p.get_primary().multiply_alpha(alpha),
+                            width: stroke_w,
                         });
                     }
                 }
@@ -482,12 +483,12 @@ impl EuvTree {
                             font_weight: FontWeight::Medium
                             color: palette.get_foreground()
                             { move || {
-                                    let pfx: &str = if expanded.get() {
-                                        TREE_EXPAND_PREFIX
-                                    } else {
-                                        TREE_COLLAPSED_PREFIX
-                                    };
-                                    format!("{pfx}{lbl_for_txt}")
+                                let pfx: &str = if expanded.get() {
+                                    TREE_EXPAND_PREFIX
+                                } else {
+                                    TREE_COLLAPSED_PREFIX
+                                };
+                                format!("{pfx}{lbl_for_txt}")
                             } }
                         }
                     } else {
@@ -526,7 +527,7 @@ impl EuvTree {
                             Style::default()
                             .column()
                             .display(if expanded.get() {
-                                    Display::Flex
+                                Display::Flex
                                 } else {
                                     Display::None
                             })

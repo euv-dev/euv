@@ -2,7 +2,7 @@ use super::*;
 
 /// Cross-component custom event emitted via `#[event]` / `emit!` and received via `on_event!` across showcase pages.
 #[event]
-#[derive(Debug, Data)]
+#[derive(Data, Debug)]
 pub struct ShowcasePulseEvent {
     /// Source page or control emitting the pulse.
     pub(crate) source: String,
@@ -13,7 +13,7 @@ pub struct ShowcasePulseEvent {
 
 /// App-wide reactive global state store registered via `#[global_state_store]` and observed with `watch!(global ...)`.
 #[global_state_store]
-#[derive(Debug, Default, PartialEq, Data)]
+#[derive(Data, Debug, Default, PartialEq)]
 pub struct ShowcaseGlobalBanner {
     /// Total cross-component pulses received globally.
     #[get(type(copy))]

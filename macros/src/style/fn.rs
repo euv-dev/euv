@@ -36,7 +36,7 @@ pub(crate) fn is_named_style_def(input: ParseStream<'_>) -> bool {
     parse_named_style_header_probe(input).unwrap_or(false)
 }
 
-/// Parses zero or more semicolon-terminated `StyleStmt` entries (`key: value;` or `expr;`), rejecting missing semicolons.
+/// Parses zero or more newline-separated `StyleStmt` entries (`key: value` or `expr`), rejecting semicolons and multiple rules on the same line.
 ///
 /// # Arguments
 ///
@@ -44,27 +44,42 @@ pub(crate) fn is_named_style_def(input: ParseStream<'_>) -> bool {
 ///
 /// # Returns
 ///
-/// - `Result<Vec<StyleStmt>>` - Parsed statements or compile error on missing `;`.
+/// - `Result<Vec<StyleStmt>>` - Parsed statements or compile error on `;` or same-line rules.
 pub(crate) fn parse_style_stmts(body: ParseStream<'_>) -> Result<Vec<StyleStmt>> {
     let mut stmts: Vec<StyleStmt> = Vec::new();
+    let mut prev_end_line: Option<usize> = None;
     while !body.is_empty() {
-        if body.peek(Ident) && body.peek2(Token![:]) && !body.peek2(Token![::]) {
-            let key: Ident = body.parse()?;
-            let _: Token![:] = body.parse()?;
-            let value: Expr = body.parse()?;
-            if !body.peek(Token![;]) {
-                return Err(Error::new(value.span(), ERR_STYLE_MISSING_SEMI));
-            }
-            let _: Token![;] = body.parse()?;
-            stmts.push(StyleStmt::KeyValue { key, value });
-        } else {
-            let expr: Expr = body.parse()?;
-            if !body.peek(Token![;]) {
-                return Err(Error::new(expr.span(), ERR_STYLE_MISSING_SEMI));
-            }
-            let _: Token![;] = body.parse()?;
-            stmts.push(StyleStmt::PropExpr(expr));
+        if body.peek(Token![;]) {
+            let semi: Token![;] = body.parse()?;
+            return Err(Error::new(semi.span(), ERR_STYLE_UNEXPECTED_SEMI));
         }
+        let (stmt, start_line, start_span, end_line): (StyleStmt, usize, Span, usize) =
+            if body.peek(Ident) && body.peek2(Token![:]) && !body.peek2(Token![::]) {
+                let key: Ident = body.parse()?;
+                let kspan: Span = key.span();
+                let _: Token![:] = body.parse()?;
+                let value: Expr = body.parse()?;
+                let s_line: usize = kspan.start().line;
+                let e_line: usize = value.span().end().line;
+                (StyleStmt::KeyValue { key, value }, s_line, kspan, e_line)
+            } else {
+                let expr: Expr = body.parse()?;
+                let espan: Span = expr.span();
+                let s_line: usize = espan.start().line;
+                let e_line: usize = espan.end().line;
+                (StyleStmt::PropExpr(expr), s_line, espan, e_line)
+            };
+        if let Some(prev_line) = prev_end_line
+            && start_line <= prev_line
+        {
+            return Err(Error::new(start_span, ERR_STYLE_NEWLINE_REQUIRED));
+        }
+        if body.peek(Token![;]) {
+            let semi: Token![;] = body.parse()?;
+            return Err(Error::new(semi.span(), ERR_STYLE_UNEXPECTED_SEMI));
+        }
+        prev_end_line = Some(end_line);
+        stmts.push(stmt);
     }
     Ok(stmts)
 }
@@ -100,27 +115,23 @@ fn expand_style_body(stmts: &[StyleStmt], scope_label: &str) -> Result<proc_macr
                         format!("{ERR_STYLE_DUPLICATE_KEY} `{key_str}` in style! `{scope_label}`");
                     return Err(Error::new(kspan, msg));
                 }
-                match key_str.as_str() {
+                let prop_op: proc_macro2::TokenStream = match key_str.as_str() {
                     STYLE_KEY_DIRECTION => {
                         let dir_str: String = quote!(#value).to_string();
                         let trimmed: &str = dir_str.trim();
                         if trimmed == STYLE_VAL_ROW {
-                            ops.push(quote_spanned! {kspan=> __s = __s.row(); });
+                            quote! { __s = __s.row(); }
                         } else if trimmed == STYLE_VAL_COLUMN {
-                            ops.push(quote_spanned! {kspan=> __s = __s.column(); });
+                            quote! { __s = __s.column(); }
                         } else {
-                            ops.push(quote_spanned! {kspan=> __s = __s.direction(#value); });
+                            quote! { __s = __s.direction(#value); }
                         }
                     }
-                    STYLE_KEY_DISPLAY => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.display(#value); });
-                    }
-                    STYLE_KEY_POSITION => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.position(#value); });
-                    }
+                    STYLE_KEY_DISPLAY => quote! { __s = __s.display(#value); },
+                    STYLE_KEY_POSITION => quote! { __s = __s.position(#value); },
                     STYLE_KEY_INSET => {
                         needs_mut_binding = true;
-                        ops.push(quote_spanned! {value.span()=>
+                        quote_spanned! {value.span()=>
                             let (__it, __ir, __ib, __il): (
                                 ::core::option::Option<f32>,
                                 ::core::option::Option<f32>,
@@ -128,126 +139,63 @@ fn expand_style_body(stmts: &[StyleStmt], scope_label: &str) -> Result<proc_macr
                                 ::core::option::Option<f32>,
                             ) = #value;
                             __s = __s.inset(__it, __ir, __ib, __il);
-                        });
+                        }
                     }
-                    STYLE_KEY_WIDTH => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.width(#value); });
-                    }
-                    STYLE_KEY_HEIGHT => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.height(#value); });
-                    }
-                    STYLE_KEY_MIN_WIDTH => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.min_width(#value); });
-                    }
-                    STYLE_KEY_MIN_HEIGHT => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.min_height(#value); });
-                    }
-                    STYLE_KEY_MAX_WIDTH => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.max_width(#value); });
-                    }
-                    STYLE_KEY_MAX_HEIGHT => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.max_height(#value); });
-                    }
-                    STYLE_KEY_ASPECT_RATIO => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.aspect_ratio(#value); });
-                    }
-                    STYLE_KEY_PADDING => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.padding(#value); });
-                    }
-                    STYLE_KEY_MARGIN => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.margin(#value); });
-                    }
-                    STYLE_KEY_GAP => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.gap(#value); });
-                    }
-                    STYLE_KEY_BACKGROUND => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.background(#value); });
-                    }
-                    STYLE_KEY_GRADIENT => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.gradient(#value); });
-                    }
-                    STYLE_KEY_SHADOW => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.shadow(#value); });
-                    }
-                    STYLE_KEY_FOCUS_RING => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.focus_ring(#value); });
-                    }
-                    STYLE_KEY_CURSOR => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.cursor(#value); });
-                    }
-                    STYLE_KEY_POINTER_EVENTS => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.pointer_events(#value); });
-                    }
+                    STYLE_KEY_WIDTH => quote! { __s = __s.width(#value); },
+                    STYLE_KEY_HEIGHT => quote! { __s = __s.height(#value); },
+                    STYLE_KEY_MIN_WIDTH => quote! { __s = __s.min_width(#value); },
+                    STYLE_KEY_MIN_HEIGHT => quote! { __s = __s.min_height(#value); },
+                    STYLE_KEY_MAX_WIDTH => quote! { __s = __s.max_width(#value); },
+                    STYLE_KEY_MAX_HEIGHT => quote! { __s = __s.max_height(#value); },
+                    STYLE_KEY_ASPECT_RATIO => quote! { __s = __s.aspect_ratio(#value); },
+                    STYLE_KEY_PADDING => quote! { __s = __s.padding(#value); },
+                    STYLE_KEY_MARGIN => quote! { __s = __s.margin(#value); },
+                    STYLE_KEY_GAP => quote! { __s = __s.gap(#value); },
+                    STYLE_KEY_BACKGROUND => quote! { __s = __s.background(#value); },
+                    STYLE_KEY_GRADIENT => quote! { __s = __s.gradient(#value); },
+                    STYLE_KEY_SHADOW => quote! { __s = __s.shadow(#value); },
+                    STYLE_KEY_FOCUS_RING => quote! { __s = __s.focus_ring(#value); },
+                    STYLE_KEY_CURSOR => quote! { __s = __s.cursor(#value); },
+                    STYLE_KEY_POINTER_EVENTS => quote! { __s = __s.pointer_events(#value); },
                     STYLE_KEY_STOP_SCROLL_PROPAGATION => {
-                        ops.push(
-                            quote_spanned! {kspan=> __s = __s.stop_scroll_propagation(#value); },
-                        );
+                        quote! { __s = __s.stop_scroll_propagation(#value); }
                     }
                     STYLE_KEY_STOP_EVENT_PROPAGATION => {
-                        ops.push(
-                            quote_spanned! {kspan=> __s = __s.stop_event_propagation(#value); },
-                        );
+                        quote! { __s = __s.stop_event_propagation(#value); }
                     }
-                    STYLE_KEY_COLOR => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.color(#value); });
-                    }
-                    STYLE_KEY_RADIUS => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.radius(#value); });
-                    }
-                    STYLE_KEY_ALIGN => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.align(#value); });
-                    }
-                    STYLE_KEY_JUSTIFY => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.justify(#value); });
-                    }
-                    STYLE_KEY_FLEX_GROW => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.flex_grow(#value); });
-                    }
-                    STYLE_KEY_FLEX_SHRINK => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.flex_shrink(#value); });
-                    }
-                    STYLE_KEY_FLEX_WRAP => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.wrap(#value); });
-                    }
-                    STYLE_KEY_OVERFLOW => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.overflow(#value); });
-                    }
-                    STYLE_KEY_FONT_SIZE => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.font_size(#value); });
-                    }
-                    STYLE_KEY_FONT_WEIGHT => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.font_weight(#value); });
-                    }
-                    STYLE_KEY_FONT_FAMILY => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.font_family(#value); });
-                    }
-                    STYLE_KEY_TEXT_ALIGN => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.text_align(#value); });
-                    }
-                    STYLE_KEY_TEXT_OVERFLOW => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.text_overflow(#value); });
-                    }
-                    STYLE_KEY_OPACITY => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.opacity(#value); });
-                    }
-                    STYLE_KEY_Z_INDEX => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.z_index(#value); });
-                    }
-                    STYLE_KEY_GRID | STYLE_KEY_COLUMNS => {
-                        ops.push(quote_spanned! {kspan=> __s = __s.grid(#value); });
-                    }
+                    STYLE_KEY_COLOR => quote! { __s = __s.color(#value); },
+                    STYLE_KEY_RADIUS => quote! { __s = __s.radius(#value); },
+                    STYLE_KEY_ALIGN => quote! { __s = __s.align(#value); },
+                    STYLE_KEY_JUSTIFY => quote! { __s = __s.justify(#value); },
+                    STYLE_KEY_FLEX_GROW => quote! { __s = __s.flex_grow(#value); },
+                    STYLE_KEY_FLEX_SHRINK => quote! { __s = __s.flex_shrink(#value); },
+                    STYLE_KEY_FLEX_WRAP => quote! { __s = __s.wrap(#value); },
+                    STYLE_KEY_OVERFLOW => quote! { __s = __s.overflow(#value); },
+                    STYLE_KEY_FONT_SIZE => quote! { __s = __s.font_size(#value); },
+                    STYLE_KEY_FONT_WEIGHT => quote! { __s = __s.font_weight(#value); },
+                    STYLE_KEY_FONT_FAMILY => quote! { __s = __s.font_family(#value); },
+                    STYLE_KEY_ITALIC => quote! { __s = __s.italic(#value); },
+                    STYLE_KEY_TEXT_ALIGN => quote! { __s = __s.text_align(#value); },
+                    STYLE_KEY_TEXT_OVERFLOW => quote! { __s = __s.text_overflow(#value); },
+                    STYLE_KEY_OPACITY => quote! { __s = __s.opacity(#value); },
+                    STYLE_KEY_Z_INDEX => quote! { __s = __s.z_index(#value); },
+                    STYLE_KEY_GRID | STYLE_KEY_COLUMNS => quote! { __s = __s.grid(#value); },
                     STYLE_KEY_BORDER => {
                         needs_mut_binding = true;
-                        ops.push(quote_spanned! {value.span()=>
+                        quote_spanned! {value.span()=>
                             let (__bw, __bc): (f32, ::euv::Color) = #value;
                             __s = __s.border(__bw, __bc);
-                        });
+                        }
                     }
                     _ => {
                         let scope: String = format!("style! `{scope_label}`");
                         return Err(unknown_prop_error(key, &scope, KNOWN_STYLE_PROPS));
                     }
-                }
+                };
+                ops.push(quote! {
+                    const _: fn() = ::euv::style_props::#key;
+                    #prop_op
+                });
             }
         }
     }

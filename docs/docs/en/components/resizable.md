@@ -21,8 +21,8 @@ ResizablePanelGroup
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| ResizableHandle | `euv_resizable_handle` | `resizable-handle` |
-| ResizablePanel | `euv_resizable_panel` | `resizable-panel` |
+| Part                | Component                   | Slot                    |
+| ------------------- | --------------------------- | ----------------------- |
+| ResizableHandle     | `euv_resizable_handle`      | `resizable-handle`      |
+| ResizablePanel      | `euv_resizable_panel`       | `resizable-panel`       |
 | ResizablePanelGroup | `euv_resizable_panel_group` | `resizable-panel-group` |

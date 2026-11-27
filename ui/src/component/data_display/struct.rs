@@ -100,7 +100,7 @@ pub struct EuvSpinner {
 }
 
 /// Single chronological milestone entry inside `EuvTimeline`.
-#[derive(Clone, Debug, Getter, New, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, Getter, New, PartialEq)]
 pub struct EuvTimelineItem {
     /// Milestone title.
     pub(crate) title: String,
@@ -131,7 +131,7 @@ pub struct EuvList {
 }
 
 /// Hierarchical node entry inside `EuvTree`.
-#[derive(Clone, Debug, Getter, New, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, Getter, New, PartialEq)]
 pub struct EuvTreeNode {
     /// Visible node label.
     pub(crate) label: String,

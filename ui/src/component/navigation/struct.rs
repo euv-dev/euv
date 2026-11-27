@@ -37,3 +37,16 @@ pub struct EuvTabs {
     #[get(type(copy))]
     pub(crate) tokens: ThemeTokens,
 }
+
+/// Twitter/X-style persistent bottom navigation bar highlighting the active route reactively.
+#[derive(Clone, Data, Debug, New)]
+pub struct EuvBottomNav {
+    /// Ordered primary bottom-tab items (uses `section` as compact icon glyph when provided).
+    pub(crate) items: Vec<EuvNavItem>,
+    /// Reactive current route signal.
+    #[get(type(copy))]
+    pub(crate) active_route: Signal<String>,
+    /// Active theme tokens.
+    #[get(type(copy))]
+    pub(crate) tokens: ThemeTokens,
+}

@@ -247,11 +247,11 @@ impl EuvCollapsible {
                         font_weight: FontWeight::Medium
                         color: p.get_muted_foreground()
                         { move || {
-                                if open.get() {
-                                    COLLAPSIBLE_HIDE_LABEL.to_string()
-                                } else {
-                                    COLLAPSIBLE_SHOW_LABEL.to_string()
-                                }
+                            if open.get() {
+                                COLLAPSIBLE_HIDE_LABEL.to_string()
+                            } else {
+                                COLLAPSIBLE_SHOW_LABEL.to_string()
+                            }
                         } }
                     }
                 }
@@ -316,7 +316,7 @@ impl EuvToggleGroup {
                                 if on { p.get_primary() } else { p.get_border() },
                             )
                             .background(if on {
-                                    p.get_accent()
+                                p.get_accent()
                                 } else {
                                     p.get_background()
                             })
@@ -375,17 +375,17 @@ impl EuvInputOtp {
                         cursor: CursorIcon::Pointer
                         on_click: move |_: &UiEvent| {
                             let _: bool = value.update(|s: &mut String| {
-                                    let mut chars: Vec<char> = s.chars().collect();
-                                    while chars.len() <= slot_idx {
-                                        chars.push('0');
-                                    }
-                                    let next_digit: u32 = chars[slot_idx]
-                                    .to_digit(10)
-                                    .map(|d: u32| (d + 1) % 10)
-                                    .unwrap_or(1);
-                                    chars[slot_idx] = char::from_digit(next_digit, 10).unwrap_or('0');
-                                    chars.truncate(slots);
-                                    *s = chars.into_iter().collect();
+                                let mut chars: Vec<char> = s.chars().collect();
+                                while chars.len() <= slot_idx {
+                                    chars.push('0');
+                                }
+                                let next_digit: u32 = chars[slot_idx]
+                                .to_digit(10)
+                                .map(|d: u32| (d + 1) % 10)
+                                .unwrap_or(1);
+                                chars[slot_idx] = char::from_digit(next_digit, 10).unwrap_or('0');
+                                chars.truncate(slots);
+                                *s = chars.into_iter().collect();
                             });
                         }
                         text {
@@ -395,11 +395,11 @@ impl EuvInputOtp {
                             color: p.get_foreground()
                             text_align: TextAlign::Center
                             { move || {
-                                    let cur: String = value.get();
-                                    cur.chars()
-                                    .nth(slot_idx)
-                                    .map(|c: char| c.to_string())
-                                    .unwrap_or_else(|| OTP_EMPTY_SLOT.to_string())
+                                let cur: String = value.get();
+                                cur.chars()
+                                .nth(slot_idx)
+                                .map(|c: char| c.to_string())
+                                .unwrap_or_else(|| OTP_EMPTY_SLOT.to_string())
                             } }
                         }
                     }
@@ -530,11 +530,11 @@ impl EuvCommand {
                         }
                         if nodes.is_empty() {
                             nodes.push(view! {
-                                    text {
-                                        font_size: 12.0
-                                        color: p.get_muted_foreground()
-                                        { COMMAND_EMPTY_LABEL }
-                                    }
+                                text {
+                                    font_size: 12.0
+                                    color: p.get_muted_foreground()
+                                    { COMMAND_EMPTY_LABEL }
+                                }
                             });
                         }
                         nodes
@@ -701,7 +701,6 @@ impl EuvCalendar {
         view! {
             column {
                 width: Length::Percent(100.0)
-                max_width: Length::Px(320.0)
                 padding: Edges::all(SPACE_MD)
                 gap: SPACE_SM
                 background: p.get_card()
@@ -749,7 +748,7 @@ impl EuvCalendar {
                                 .align(AlignItems::Center)
                                 .radius(g.get_radius_sm())
                                 .background(if is_sel {
-                                        p.get_accent()
+                                    p.get_accent()
                                     } else {
                                         COLOR_TRANSPARENT
                                 })
@@ -855,7 +854,7 @@ impl EuvMenubar {
                             .overflow(Overflow::Hidden)
                             .radius(g.get_radius_sm())
                             .background(if is_open {
-                                    p.get_accent()
+                                p.get_accent()
                                 } else {
                                     COLOR_TRANSPARENT
                             })
@@ -863,7 +862,7 @@ impl EuvMenubar {
                         }
                         on_click: move |_: &UiEvent| {
                             let _: bool = active_menu.update(|cur: &mut Option<usize>| {
-                                    *cur = if *cur == Some(idx) { None } else { Some(idx) };
+                                *cur = if *cur == Some(idx) { None } else { Some(idx) };
                             });
                         }
                         text {
@@ -921,12 +920,12 @@ impl EuvCarousel {
                         color: p.get_foreground()
                         text_align: TextAlign::Center
                         { move || {
-                                if total == 0 {
-                                    CAROUSEL_EMPTY_LABEL.to_string()
-                                } else {
-                                    let idx: usize = active.get() % total;
-                                    slides_for_text[idx].clone()
-                                }
+                            if total == 0 {
+                                CAROUSEL_EMPTY_LABEL.to_string()
+                            } else {
+                                let idx: usize = active.get() % total;
+                                slides_for_text[idx].clone()
+                            }
                         } }
                     }
                 }
@@ -942,7 +941,7 @@ impl EuvCarousel {
                         on_click: move |_: &UiEvent| {
                             if total > 0 {
                                 let _: bool = active.update(|v: &mut usize| {
-                                        *v = if *v == 0 { total - 1 } else { *v - 1 };
+                                    *v = if *v == 0 { total - 1 } else { *v - 1 };
                                 });
                             }
                         }
@@ -951,11 +950,11 @@ impl EuvCarousel {
                         font_size: 12.0
                         color: p.get_muted_foreground()
                         { move || {
-                                if total == 0 {
-                                    CAROUSEL_ZERO_COUNTER.to_string()
-                                } else {
-                                    format!("{} / {total}", (active.get() % total) + 1)
-                                }
+                            if total == 0 {
+                                CAROUSEL_ZERO_COUNTER.to_string()
+                            } else {
+                                format!("{} / {total}", (active.get() % total) + 1)
+                            }
                         } }
                     }
                     EuvButton(PAGE_NEXT_LABEL.to_string(), tokens) {

@@ -2,7 +2,7 @@
 title: Getting Started
 order: 1
 section: guide
-tagline: Install euv, build a reactive native UI with zero-ctx macros, and target all 7 platforms from one Rust codebase.
+tagline: Install euv, compose zero-context reactive UIs with view! and newline-separated style!, and target all 7 platforms from one Rust codebase.
 ---
 
 ## Install
@@ -12,6 +12,8 @@ cargo add euv euv-ui
 ```
 
 ## Minimal Cross-Platform App
+
+Define event handlers and reactive text closures as sibling `let` bindings (or outer helper functions) before `view!`, and place each rule inside `style!` on its own line without semicolons:
 
 ```rust
 use {euv::*, euv_ui::*};
@@ -28,18 +30,32 @@ pub fn run() -> Result<(), PlatformError> {
     let count: Signal<i32> = Signal::new(0);
     let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
     let _: NodeId = app.mount(move || {
+        let p: ThemePalette = tokens.get_palette();
+        let container_style: Style = style! {
+            FlexDirection::Column
+            Overflow::Hidden
+            width: Length::Percent(100.0)
+            padding: Edges::all(SPACE_LG)
+            gap: SPACE_MD
+            background: p.get_background()
+        };
+        let count_text = move || -> String { format!("Count: {}", count.get()) };
+        let on_increment = move |_: &UiEvent| {
+            let _: bool = count.update(|v: &mut i32| *v += 1);
+        };
         view! {
-            column {
-                width: Length::Percent(100.0)
-                padding: Edges::all(SPACE_LG)
-                gap: SPACE_MD
+            view {
+                style: container_style
                 text {
+                    width: Length::Percent(100.0)
                     font_size: 18.0
-                    { move || format!("Count: {}", count.get()) }
+                    font_weight: FontWeight::SemiBold
+                    color: p.get_foreground()
+                    { count_text }
                 }
-                { EuvButton::new("Increment".to_string(), tokens).on_click(move |_: &UiEvent| {
-                    let _: bool = count.update(|v: &mut i32| *v += 1);
-                }) }
+                EuvButton("Increment".to_string(), tokens) {
+                    on_click: on_increment
+                }
             }
         }
     });
@@ -47,3 +63,8 @@ pub fn run() -> Result<(), PlatformError> {
     Ok(())
 }
 ```
+
+## IDE Go-to-Definition & Formatting
+
+- **`Cmd+Click` / `F12` in `view!` & `style!`**: Built-in element tags (`column`, `row`, `text`, `input`, `canvas`, etc.) and properties jump directly to their schema docs in `euv::view_elements` / `euv::style_props`. Custom component names (`EuvButton`, `EuvCard`, etc.) jump directly to the component struct definition.
+- **Formatting**: Run `cargo run -p euv-cli -- fmt` followed by `cargo fmt --all` to normalize both Rust code and all `view!` / `style!` / `tokens!` macro blocks idempotently.

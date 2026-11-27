@@ -20,7 +20,7 @@ ScrollArea
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
+| Part       | Component         | Slot          |
+| ---------- | ----------------- | ------------- |
 | ScrollArea | `euv_scroll_area` | `scroll-area` |
-| ScrollBar | `euv_scroll_bar` | `scroll-bar` |
+| ScrollBar  | `euv_scroll_bar`  | `scroll-bar`  |

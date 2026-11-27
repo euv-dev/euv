@@ -26,24 +26,33 @@ pub struct CodeThemePalette {
     /// Comment token color.
     #[get(type(copy))]
     pub(crate) comment: Color,
-    /// Keyword / storage / operator token color.
+    /// Storage keyword / modifier token color.
     #[get(type(copy))]
     pub(crate) keyword: Color,
+    /// Control-flow keyword token color.
+    #[get(type(copy))]
+    pub(crate) control: Color,
+    /// Operator token color.
+    #[get(type(copy))]
+    pub(crate) operator: Color,
     /// String literal token color.
     #[get(type(copy))]
     pub(crate) string: Color,
     /// Numeric literal token color.
     #[get(type(copy))]
     pub(crate) number: Color,
-    /// Constant / variable / tag token color.
+    /// Language constant / boolean token color.
     #[get(type(copy))]
     pub(crate) constant: Color,
     /// Function / macro / attribute token color.
     #[get(type(copy))]
     pub(crate) function: Color,
-    /// Type / trait / struct token color.
+    /// User type / trait / struct token color.
     #[get(type(copy))]
     pub(crate) ty: Color,
+    /// Built-in primitive / numeric type token color.
+    #[get(type(copy))]
+    pub(crate) primitive: Color,
     /// Property / heading token color.
     #[get(type(copy))]
     pub(crate) property: Color,

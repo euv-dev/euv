@@ -132,17 +132,17 @@ fn full_production_component_suite_and_hooks_mount_and_render_cleanly() {
             EuvScrollArea(240.0, tokens) {
                 EuvTimeline(
                     vec![EuvTimelineItem::new(
-                            "Boot".to_string(),
-                            "00:01".to_string(),
-                            "Metal ready".to_string(),
+                        "Boot".to_string(),
+                        "00:01".to_string(),
+                        "Metal ready".to_string(),
                     )],
                     tokens
                 )
                 EuvList(vec!["Item A".to_string(), "Item B".to_string()], tokens)
                 EuvTree(
                     vec![EuvTreeNode::new(
-                            "Workspace".to_string(),
-                            vec![EuvTreeNode::new("core".to_string(), Vec::new())],
+                        "Workspace".to_string(),
+                        vec![EuvTreeNode::new("core".to_string(), Vec::new())],
                     )],
                     tokens
                 )
@@ -194,8 +194,8 @@ fn full_production_component_suite_and_hooks_mount_and_render_cleanly() {
                         )
                         EuvAccordion(
                             vec![EuvAccordionItem::new(
-                                    "FAQ".to_string(),
-                                    "Zero WebView".to_string(),
+                                "FAQ".to_string(),
+                                "Zero WebView".to_string(),
                             )],
                             acc_sig,
                             tokens
@@ -685,8 +685,8 @@ fn color_picker_time_picker_tag_input_interactive_tree_and_breadcrumb_work() {
                 }
                 EuvTree(
                     vec![EuvTreeNode::new(
-                            "Root".to_string(),
-                            vec![EuvTreeNode::new("Child".to_string(), Vec::new())],
+                        "Root".to_string(),
+                        vec![EuvTreeNode::new("Child".to_string(), Vec::new())],
                     )],
                     tokens
                 ) {

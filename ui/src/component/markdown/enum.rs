@@ -6,23 +6,29 @@ pub enum CodeTokenKind {
     /// Default editor foreground text.
     #[default]
     Plain,
-    /// Language keyword, storage modifier, or control flow (`#7C4DFF` / `#A78CFA` bold).
+    /// Storage keyword or modifier (`fn`, `let`, `mut`, `pub`, `struct`; `#7C4DFF` / `#A78CFA` bold).
     Keyword,
-    /// Type, struct, enum, or trait identifier (`#7C4DFF` / `#A78CFA` bold).
+    /// Control-flow or module keyword (`if`, `match`, `return`, `use`, `where`; `#C838C6` / `#CF68E1` bold).
+    Control,
+    /// Symbolic operator (`=`, `->`, `=>`, `&`, `+`, `-`; `#00BEC4` / `#56B7C3`).
+    Operator,
+    /// User type, struct, enum, or trait identifier (`#00BEC4` / `#56B7C3`).
     Type,
+    /// Built-in primitive or numeric type (`u32`, `f32`, `bool`, `str`; `#EF8ED8` / `#FF6AB3`).
+    PrimitiveType,
     /// Function or method name (`#437AED` / `#6495EE` bold).
     Function,
-    /// Macro invocation or attribute annotation (`#437AED` / `#6495EE` bold).
+    /// Macro invocation, attribute, or lifetime (`#437AED` / `#6495EE` bold).
     Macro,
-    /// Quoted string or character literal (`#437AED` / `#6495EE`).
+    /// Quoted string or character literal (`#53A053` / `#98C379`).
     String,
     /// Numeric literal (`#FF6D12` / `#FF9070`).
     Number,
-    /// Language constant (`true`, `false`, `None`, `Some`) or tag (`#00BEC4` / `#56B7C3`).
+    /// Language constant (`true`, `false`, `None`, `Some`; `#C838C6` / `#CF68E1` bold).
     Constant,
-    /// Line or block comment (`#A0A1A7` / `#79859D`).
+    /// Line or block comment (`#A9A9AA` / `#676E95` italic).
     Comment,
-    /// Object/JSON/TOML property key (`#CD6069` / `#E06C75`).
+    /// Property key, field, or `Result`/`Option` type (`#CD6069` / `#E06C75`).
     Property,
     /// Punctuation or delimiter (`#A0A1A7` / `#79859D`).
     Punctuation,

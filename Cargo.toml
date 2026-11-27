@@ -12,7 +12,7 @@ categories = ["gui", "rendering", "wasm"]
 exclude.workspace = true
 
 [workspace.package]
-version = "0.40.0"
+version = "0.41.0"
 readme = "README.md"
 edition = "2024"
 authors = ["root@devhub.vip"]
@@ -52,28 +52,30 @@ resolver = "3"
 crate-type = ["rlib"]
 
 [workspace.dependencies]
-euv = { path = ".", version = "0.40.0" }
-euv-ui = { path = "ui", version = "0.40.0" }
-euv-core = { path = "core", version = "0.40.0" }
-euv-docs = { path = "docs", version = "0.40.0" }
-euv-macros = { path = "macros", version = "0.40.0" }
-euv-automation = { path = "automation", version = "0.40.0" }
+euv = { path = ".", version = "0.41.0" }
+euv-ui = { path = "ui", version = "0.41.0" }
+euv-core = { path = "core", version = "0.41.0" }
+euv-docs = { path = "docs", version = "0.41.0" }
+euv-macros = { path = "macros", version = "0.41.0" }
+euv-automation = { path = "automation", version = "0.41.0" }
 
 quote = "1.0.47"
 chrono = "0.4.45"
-js-sys = "0.3.106"
-serde_yaml = "0.9"
+js-sys = "0.3.107"
+crate-cli = "10.6.0"
+serde_yaml = "0.9.33"
 serde_json = "1.0.154"
-pulldown-cmark = "0.12"
-lombok-macros = "10.3.0"
-wasm-bindgen = "0.2.129"
-wasm-bindgen-futures = "0.4.79"
+lombok-macros = "10.6.0"
+wasm-bindgen = "0.2.130"
+pulldown-cmark = "0.13.6"
+wasm-bindgen-futures = "0.4.80"
 console_error_panic_hook = "0.1.7"
-clap = { version = "4.6.7", features = ["derive"] }
+tokio = { version = "1.53.3", features = ["rt"] }
+clap = { version = "4.6.10", features = ["derive"] }
 serde = { version = "1.0.229", features = ["derive"] }
 proc-macro2 = { version = "1.0.107", features = ["span-locations"] }
-syn = { version = "3.0.9", features = ["full", "visit", "extra-traits"] }
-web-sys = { version = "0.3.106", features = [
+syn = { version = "3.0.10", features = ["full", "visit", "extra-traits"] }
+web-sys = { version = "0.3.107", features = [
     "Gpu",
     "Event",
     "Window",

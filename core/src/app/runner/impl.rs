@@ -2176,7 +2176,7 @@ impl App {
     fn handle_pointer_up_event(&mut self, ptr: PointerEvent) {
         let pos: Point = ptr.get_position();
         let pid: u64 = ptr.get_pointer_id();
-        let _: Option<Point> = self.get_mut_active_pointers().remove(&pid);
+        let had_active_pointer: bool = self.get_mut_active_pointers().remove(&pid).is_some();
         let _: Option<PointerDevice> = self.get_mut_active_pointer_devices().remove(&pid);
         self.publish_active_touches();
         if !self.get_active_pointers().is_empty() {
@@ -2297,7 +2297,7 @@ impl App {
                     {
                         out.push((h, UiEvent::new(target_id, UiEventKind::PointerUp(pos))));
                     }
-                    if !suppress_click {
+                    if !suppress_click && (had_active_pointer || pressed.is_some()) {
                         let mut bubble: Option<NodeId> = Some(target_id);
                         while let Some(id) = bubble {
                             if let Some(node) = tree.get_node(id) {

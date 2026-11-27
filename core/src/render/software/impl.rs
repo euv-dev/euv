@@ -693,7 +693,56 @@ impl SoftwareRenderer {
                         for ch in line.get_text().chars() {
                             if ch != ' ' {
                                 let key: GlyphKey =
-                                    GlyphKey::from_style(ch, phys_font_size, style.get_weight());
+                                    GlyphKey::from_text_style(ch, phys_font_size, *style);
+                                let _: &RasterizedGlyph =
+                                    glyph_atlas.get_or_rasterize_with(key, font_provider);
+                            }
+                        }
+                    }
+                    let layout_idx: u32 = text_layouts.len() as u32;
+                    text_layouts.push(layout);
+                    prepped.push(PreppedCommand {
+                        cmd_index,
+                        active_clip,
+                        y0,
+                        y1,
+                        opaque_cutout_h: Rect::default(),
+                        opaque_cutout_v: Rect::default(),
+                        text_layout_idx: layout_idx,
+                    });
+                }
+                DrawCommand::TextCaret {
+                    content_rect,
+                    text,
+                    style,
+                    color,
+                    multiline,
+                    ..
+                } => {
+                    if color.get_a() == 0 {
+                        continue;
+                    }
+                    let phys_content: Rect = Self::scale_rect(*content_rect, scale);
+                    let Some(vis) = phys_content.intersect(active_clip) else {
+                        continue;
+                    };
+                    let y0: u32 = (vis.get_y().floor().max(0.0) as u32).min(phys_h);
+                    let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).min(phys_h);
+                    if y0 >= y1 {
+                        continue;
+                    }
+                    let max_w: Option<f32> = if *multiline {
+                        Some(content_rect.get_width().max(1.0))
+                    } else {
+                        None
+                    };
+                    let layout: TextLayoutResult = measurer.measure(text, *style, max_w);
+                    let phys_font_size: f32 = style.get_font_size() * scale;
+                    for line in layout.get_lines().iter() {
+                        for ch in line.get_text().chars() {
+                            if ch != ' ' {
+                                let key: GlyphKey =
+                                    GlyphKey::from_text_style(ch, phys_font_size, *style);
                                 let _: &RasterizedGlyph =
                                     glyph_atlas.get_or_rasterize_with(key, font_provider);
                             }
@@ -983,6 +1032,91 @@ impl SoftwareRenderer {
                     } else {
                         0
                     }
+                }
+                DrawCommand::TextCaret {
+                    text_rect,
+                    content_rect,
+                    style,
+                    caret_height,
+                    color,
+                    multiline,
+                    ..
+                } => {
+                    let lidx: usize = item.get_text_layout_idx() as usize;
+                    let phys_font_size: f32 = style.get_font_size() * scale;
+                    let letter_sp: f32 = style.get_letter_spacing() * scale;
+                    let space_adv: f32 = measure_char_advance(' ', *style) * scale;
+                    let glyphs: &HashMap<GlyphKey, RasterizedGlyph> = glyph_atlas.get_glyphs();
+                    let (last_w_phys, line_idx, line_h_phys): (f32, usize, f32) =
+                        if let Some(layout) = text_layouts.get(lidx) {
+                            let lh: f32 = layout.get_line_height_px() * scale;
+                            let idx: usize = layout.get_lines().len().saturating_sub(1);
+                            let w_phys: f32 = layout
+                                .get_lines()
+                                .last()
+                                .map(|line: &TextLine| {
+                                    let mut acc: f32 = 0.0;
+                                    for ch in line.get_text().chars() {
+                                        if ch == ' ' {
+                                            acc += space_adv + letter_sp;
+                                        } else {
+                                            let key: GlyphKey = GlyphKey::from_text_style(
+                                                ch,
+                                                phys_font_size,
+                                                *style,
+                                            );
+                                            let adv: f32 = glyphs
+                                                .get(&key)
+                                                .map(|g: &RasterizedGlyph| {
+                                                    (g.get_advance() as f32).max(1.0)
+                                                })
+                                                .unwrap_or(space_adv);
+                                            acc += adv + letter_sp;
+                                        }
+                                    }
+                                    acc
+                                })
+                                .unwrap_or(0.0);
+                            (w_phys, idx, lh)
+                        } else {
+                            (
+                                0.0,
+                                0,
+                                (style.get_font_size() * style.get_line_height()).max(1.0) * scale,
+                            )
+                        };
+                    let caret_h_phys: f32 = (caret_height * scale).max(2.0);
+                    let caret_w_phys: f32 = (1.5 * scale).max(1.5);
+                    let max_x: f32 = (content_rect.right() * scale - caret_w_phys - 1.0)
+                        .max(content_rect.get_x() * scale);
+                    let caret_x_phys: f32 =
+                        (text_rect.get_x() * scale + last_w_phys + 1.5 * scale).min(max_x);
+                    let caret_y_phys: f32 = if *multiline {
+                        let raw_y: f32 = content_rect.get_y() * scale
+                            + (line_idx as f32) * line_h_phys
+                            + ((line_h_phys - caret_h_phys) * 0.5).max(0.0);
+                        raw_y
+                            .min(content_rect.bottom() * scale - caret_h_phys)
+                            .max(content_rect.get_y() * scale)
+                    } else {
+                        content_rect.get_y() * scale
+                            + ((content_rect.get_height() * scale - caret_h_phys) * 0.5).max(0.0)
+                    };
+                    let caret_rect: Rect = Rect::new(
+                        caret_x_phys.round(),
+                        caret_y_phys.round(),
+                        caret_w_phys.round().max(1.0),
+                        caret_h_phys.round().max(2.0),
+                    );
+                    Self::raster_rounded_rect(
+                        band,
+                        caret_rect,
+                        *color,
+                        CornerRadius::all(0.5 * scale),
+                        Border::default(),
+                        active_clip,
+                        aa,
+                    )
                 }
                 DrawCommand::Image {
                     rect,
@@ -1771,7 +1905,7 @@ impl SoftwareRenderer {
                             line_w_phys += space_adv + letter_sp;
                         } else {
                             let key: GlyphKey =
-                                GlyphKey::from_style(ch, phys_font_size, style.get_weight());
+                                GlyphKey::from_text_style(ch, phys_font_size, style);
                             let adv: f32 = glyphs
                                 .get(&key)
                                 .map(|g: &RasterizedGlyph| (g.get_advance() as f32).max(1.0))
@@ -1795,7 +1929,7 @@ impl SoftwareRenderer {
                 if pen_x > (clip_x1 as f32) {
                     break;
                 }
-                let key: GlyphKey = GlyphKey::from_style(ch, phys_font_size, style.get_weight());
+                let key: GlyphKey = GlyphKey::from_text_style(ch, phys_font_size, style);
                 let Some(glyph) = glyphs.get(&key) else {
                     pen_x += space_adv + letter_sp;
                     continue;

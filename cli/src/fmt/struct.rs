@@ -1,6 +1,6 @@
 use super::*;
 
-/// Structured summary produced by `euv fmt` across workspace Rust sources and macro invocations.
+/// Structured summary produced by `euv fmt` across workspace text files, Rust sources, and macro invocations.
 #[derive(Clone, Data, Debug, Default, Deserialize, Eq, New, PartialEq, Serialize)]
 pub struct FmtReport {
     /// Total `.rs` files scanned across the target workspace or directory.
@@ -12,9 +12,15 @@ pub struct FmtReport {
     /// Total `euv` macro blocks (`view!`, `style!`, etc.) normalized.
     #[get(type(copy))]
     pub(crate) macros_formatted: usize,
+    /// Total non-Rust text files (`.md`, `.yml`, `.yaml`, `.json`, `.toml`, etc.) scanned via `crate-cli`.
+    #[get(type(copy))]
+    pub(crate) text_files_scanned: usize,
+    /// Number of non-Rust text files normalized via `crate-cli`.
+    #[get(type(copy))]
+    pub(crate) text_files_formatted: usize,
     /// Whether `--check` dry-run verification mode was active.
     #[get(type(copy))]
     pub(crate) check_only: bool,
-    /// Relative or display paths of files needing or receiving macro formatting.
+    /// Relative or display paths of files needing or receiving formatting.
     pub(crate) changed_files: Vec<String>,
 }

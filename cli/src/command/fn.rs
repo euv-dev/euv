@@ -169,16 +169,31 @@ pub fn execute_cli(cli: &Cli) -> io::Result<String> {
                 Some(p) => p.clone(),
                 None => env::current_dir()?,
             };
+            let mut text_report: UnifiedFmtReport = UnifiedFmtReport::default();
+            let has_cargo_manifest: bool = if target_root.is_dir() {
+                target_root.join(CARGO_TOML_NAME).exists()
+            } else {
+                target_root.file_name().and_then(OsStr::to_str) == Some(CARGO_TOML_NAME)
+            };
             if !*macros_only {
-                let mut args: Vec<String> = vec![ARG_FMT.to_string(), ARG_FMT_ALL.to_string()];
-                if *check {
-                    args.push(ARG_DOUBLE_DASH.to_string());
-                    args.push(ARG_FMT_CHECK.to_string());
+                text_report = run_unified_base_fmt(&target_root, *check)?;
+                if has_cargo_manifest {
+                    let mut args: Vec<String> = vec![ARG_FMT.to_string(), ARG_FMT_ALL.to_string()];
+                    if *check {
+                        args.push(ARG_DOUBLE_DASH.to_string());
+                        args.push(ARG_FMT_CHECK.to_string());
+                    }
+                    run_external_command(BIN_CARGO, &args)?;
                 }
-                run_external_command(BIN_CARGO, &args)?;
             }
-            let report: FmtReport = format_workspace_macros(&target_root, *check)?;
-            if !*macros_only && !*check && report.get_files_formatted() > 0 {
+            let mut report: FmtReport = format_workspace_macros(&target_root, *check)?;
+            report
+                .set_text_files_scanned(text_report.get_files_scanned())
+                .set_text_files_formatted(text_report.get_files_formatted());
+            for changed in text_report.get_changed_files().iter() {
+                report.get_mut_changed_files().push(changed.clone());
+            }
+            if !*macros_only && !*check && has_cargo_manifest && report.get_files_formatted() > 0 {
                 let args: Vec<String> = vec![ARG_FMT.to_string(), ARG_FMT_ALL.to_string()];
                 run_external_command(BIN_CARGO, &args)?;
             }

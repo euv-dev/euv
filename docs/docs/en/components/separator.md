@@ -13,6 +13,6 @@ cargo add euv-ui
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Separator | `euv_separator` | — |
+| Part      | Component       | Slot |
+| --------- | --------------- | ---- |
+| Separator | `euv_separator` | —    |

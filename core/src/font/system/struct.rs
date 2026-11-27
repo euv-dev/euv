@@ -254,6 +254,8 @@ pub(crate) struct FtFaceRec {
 pub(crate) struct FreeTypeRuntime {
     pub(crate) regular_face: *mut FtFaceRec,
     pub(crate) bold_face: *mut FtFaceRec,
+    pub(crate) mono_face: *mut FtFaceRec,
+    pub(crate) mono_bold_face: *mut FtFaceRec,
     pub(crate) cjk_face: *mut FtFaceRec,
     pub(crate) set_pixel_sizes: FtSetPixelSizesFn,
     pub(crate) get_char_index: FtGetCharIndexFn,

@@ -22,9 +22,9 @@ ButtonGroup
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Button | `euv_button_group_button` | `button` |
-| ButtonGroup | `euv_button_group` | `button-group` |
+| Part                 | Component                    | Slot                     |
+| -------------------- | ---------------------------- | ------------------------ |
+| Button               | `euv_button_group_button`    | `button`                 |
+| ButtonGroup          | `euv_button_group`           | `button-group`           |
 | ButtonGroupSeparator | `euv_button_group_separator` | `button-group-separator` |
-| ButtonGroupText | `euv_button_group_text` | `button-group-text` |
+| ButtonGroupText      | `euv_button_group_text`      | `button-group-text`      |

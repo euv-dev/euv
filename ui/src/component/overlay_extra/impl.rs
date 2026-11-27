@@ -17,11 +17,18 @@ impl EuvDrawer {
         let mut ctx: Context = current_context();
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let vp_sig: Signal<Size> = ctx.get_viewport_size();
         let open: Signal<bool> = self.get_open();
         let body: NodeId = self.get_body();
         let Self { title, .. } = self.clone();
         let init_open: bool = open.get_untracked();
+        let expanded: Signal<bool> = Signal::new(false);
+        let drag_active: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+        let drag_start_x: Rc<Cell<f32>> = Rc::new(Cell::new(0.0));
+        let drag_base_w: Rc<Cell<f32>> = Rc::new(Cell::new(340.0));
+        let drag_moved: Rc<Cell<bool>> = Rc::new(Cell::new(false));
         let mut panel: NodeId = NodeId::default();
+        let mut grabber: NodeId = NodeId::default();
         let scrim: NodeId = view! {
             portal {
                 style: Style::default().row()
@@ -34,35 +41,192 @@ impl EuvDrawer {
                 background: p.get_overlay()
                 stop_scroll_propagation: true
                 z_index: Z_INDEX_DRAWER
-                column {
+                row {
                     node_ref: panel
-                    width: Length::Percent(85.0)
-                    max_width: Length::Px(360.0)
+                    width: Length::Px(340.0)
+                    max_width: Length::Percent(94.0)
                     height: Length::Percent(100.0)
-                    padding: Edges::all(SPACE_XL)
-                    gap: SPACE_MD
                     background: p.get_card()
                     border: (g.get_border_width(), p.get_border())
+                    shadow: g.get_shadow_lg()
                     overflow: Overflow::Hidden
-                    text {
-                        font_size: g.get_font_heading()
-                        font_weight: FontWeight::Bold
-                        color: p.get_card_foreground()
-                        { title }
+                    row {
+                        node_ref: grabber
+                        width: Length::Px(22.0)
+                        height: Length::Percent(100.0)
+                        flex_shrink: 0.0
+                        justify: JustifyContent::Center
+                        align: AlignItems::Center
+                        cursor: CursorIcon::EwResize
+                        stop_scroll_propagation: true
+                        stop_event_propagation: true
+                        view {
+                            width: Length::Px(4.0)
+                            height: Length::Px(46.0)
+                            radius: 99.0
+                            background: p.get_muted_foreground().with_alpha(128)
+                        }
                     }
-                    { body }
+                    scroll {
+                        style: Style::default().column()
+                        flex_grow: 1.0
+                        flex_shrink: 1.0
+                        min_width: Length::Px(0.0)
+                        height: Length::Percent(100.0)
+                        padding: Edges::new(SPACE_XL, SPACE_XL, SPACE_XL, SPACE_SM)
+                        gap: SPACE_MD
+                        stop_scroll_propagation: true
+                        text {
+                            width: Length::Percent(100.0)
+                            font_size: g.get_font_heading()
+                            font_weight: FontWeight::Bold
+                            color: p.get_card_foreground()
+                            { title }
+                        }
+                        { body }
+                    }
                 }
             }
         };
+        let drag_down_active: Rc<Cell<bool>> = drag_active.clone();
+        let drag_down_x: Rc<Cell<f32>> = drag_start_x.clone();
+        let drag_down_w: Rc<Cell<f32>> = drag_base_w.clone();
+        let drag_down_moved: Rc<Cell<bool>> = drag_moved.clone();
+        let handle_down: SceneHandle = ctx.get_scene().clone();
+        ctx.on_pointer_down(grabber, move |ev: &UiEvent| {
+            if let UiEventKind::PointerDown(pt) = ev.get_kind() {
+                let vp_w: f32 = vp_sig.get_untracked().get_width().max(320.0);
+                let def_w: f32 = (vp_w * 0.80).clamp(240.0, 340.0);
+                let cur_w: f32 = handle_down
+                    .node_screen_bounds(panel)
+                    .map(|r: Rect| r.get_width())
+                    .filter(|w: &f32| *w > 40.0)
+                    .unwrap_or(def_w);
+                drag_down_active.set(true);
+                drag_down_x.set(pt.get_x());
+                drag_down_w.set(cur_w);
+                drag_down_moved.set(false);
+            }
+        });
+        for target_node in [grabber, panel, scrim].into_iter() {
+            let h_move: SceneHandle = ctx.get_scene().clone();
+            let da_move: Rc<Cell<bool>> = drag_active.clone();
+            let sx_move: Rc<Cell<f32>> = drag_start_x.clone();
+            let bw_move: Rc<Cell<f32>> = drag_base_w.clone();
+            let dm_move: Rc<Cell<bool>> = drag_moved.clone();
+            ctx.on_pointer_move(target_node, move |ev: &UiEvent| {
+                if !da_move.get() {
+                    return;
+                }
+                if let UiEventKind::PointerMove(pt) = ev.get_kind() {
+                    let dx: f32 = pt.get_x() - sx_move.get();
+                    if dx.abs() > 4.0 {
+                        dm_move.set(true);
+                    }
+                    let vp_w: f32 = vp_sig.get_untracked().get_width().max(320.0);
+                    let def_w: f32 = (vp_w * 0.80).clamp(240.0, 340.0);
+                    let max_w: f32 = (vp_w * 0.92).clamp(def_w + 40.0, 560.0);
+                    let raw_w: f32 = bw_move.get() - dx;
+                    let (next_w, tx): (f32, f32) = if raw_w >= def_w {
+                        (raw_w.min(max_w), 0.0)
+                    } else {
+                        (def_w, (def_w - raw_w).max(0.0))
+                    };
+                    h_move.with_write(
+                        |tree: &mut SceneTree| {
+                            if let Some(n) = tree.get_node_mut(panel) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_layout().set_width(Length::Px(next_w));
+                                st.get_mut_paint()
+                                    .set_transform(Transform2D::new(tx, 0.0, 1.0, 1.0, 0.0));
+                                n.set_style(st);
+                                let layout_dirty: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                                tree.mark_dirty(panel, layout_dirty | DIRTY_PAINT);
+                            }
+                        },
+                        (),
+                    );
+                }
+            });
+            let h_up: SceneHandle = ctx.get_scene().clone();
+            let da_up: Rc<Cell<bool>> = drag_active.clone();
+            let sx_up: Rc<Cell<f32>> = drag_start_x.clone();
+            ctx.on_pointer_up(target_node, move |ev: &UiEvent| {
+                if !da_up.replace(false) {
+                    return;
+                }
+                let dx: f32 = match ev.get_kind() {
+                    UiEventKind::PointerUp(pt) => pt.get_x() - sx_up.get(),
+                    _ => 0.0,
+                };
+                let vp_w: f32 = vp_sig.get_untracked().get_width().max(320.0);
+                let def_w: f32 = (vp_w * 0.80).clamp(240.0, 340.0);
+                let max_w: f32 = (vp_w * 0.92).clamp(def_w + 40.0, 560.0);
+                let is_exp: bool = expanded.get_untracked();
+                if dx > 52.0 {
+                    if is_exp && dx < 150.0 {
+                        let _: bool = expanded.set_if_changed(false);
+                    } else {
+                        let _: bool = expanded.set_if_changed(false);
+                        let _: bool = open.set_if_changed(false);
+                        return;
+                    }
+                } else if dx < -40.0 {
+                    let _: bool = expanded.set_if_changed(true);
+                }
+                let target_w: f32 = if expanded.get_untracked() {
+                    max_w
+                } else {
+                    def_w
+                };
+                h_up.with_write(
+                    |tree: &mut SceneTree| {
+                        if let Some(n) = tree.get_node_mut(panel) {
+                            let mut st: Style = n.get_style();
+                            st.get_mut_layout().set_width(Length::Px(target_w));
+                            st.get_mut_paint().set_transform(Transform2D::default());
+                            n.set_style(st);
+                            let layout_dirty: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(panel, layout_dirty | DIRTY_PAINT);
+                        }
+                    },
+                    (),
+                );
+            });
+        }
+        let click_moved: Rc<Cell<bool>> = drag_moved.clone();
         ctx.on_click(scrim, move |ev: &UiEvent| {
+            if click_moved.replace(false) {
+                return;
+            }
             if ev.get_target() == scrim {
                 let _: bool = open.set_if_changed(false);
             }
         });
         let handle: SceneHandle = ctx.get_scene().clone();
+        let handle_dim: SceneHandle = handle.clone();
         let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(init_open));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
             let _: Effect = EuvOverlayStack::bind_signal(open, DRAWER_OVERLAY_NAME, Z_INDEX_DRAWER);
+            let _: Effect = Effect::new(move || {
+                let vp_w: f32 = vp_sig.get().get_width().max(320.0);
+                let is_exp: bool = expanded.get();
+                let def_w: f32 = (vp_w * 0.80).clamp(240.0, 340.0);
+                let max_w: f32 = (vp_w * 0.92).clamp(def_w + 40.0, 560.0);
+                let target_w: f32 = if is_exp { max_w } else { def_w };
+                handle_dim.with_write(
+                    |tree: &mut SceneTree| {
+                        if let Some(n) = tree.get_node_mut(panel) {
+                            let mut st: Style = n.get_style();
+                            st.get_mut_layout().set_width(Length::Px(target_w));
+                            n.set_style(st);
+                            let layout_dirty: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(panel, layout_dirty | DIRTY_PAINT);
+                        }
+                    },
+                    (),
+                );
+            });
             Effect::new(move || {
                 let is_open: bool = open.get();
                 let was_open: bool = prev_open.replace(is_open);
@@ -70,6 +234,9 @@ impl EuvDrawer {
                     return;
                 }
                 if is_open {
+                    let _: bool = expanded.set_if_changed(false);
+                    let vp_w: f32 = vp_sig.get_untracked().get_width().max(320.0);
+                    let def_w: f32 = (vp_w * 0.80).clamp(240.0, 340.0);
                     handle.with_write(
                         |tree: &mut SceneTree| {
                             if let Some(n) = tree.get_node_mut(scrim) {
@@ -77,27 +244,35 @@ impl EuvDrawer {
                                 st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
                                 n.set_style(st);
                             }
+                            if let Some(n) = tree.get_node_mut(panel) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_layout().set_width(Length::Px(def_w));
+                                st.get_mut_paint().set_transform(Transform2D::default());
+                                n.set_style(st);
+                            }
                         },
                         (),
                     );
                     handle.start_transition(
-                        NodeTransition::fade(scrim, 0.0, 1.0, 0.24, false)
-                            .with_easing(Easing::EaseOutQuint),
+                        NodeTransition::fade(scrim, 0.0, 1.0, 0.22, false)
+                            .with_easing(Easing::EaseOutCubic),
                     );
                     handle.start_transition(
                         NodeTransition::slide_fade(
                             panel,
-                            Point::new(360.0, 0.0),
+                            Point::new(def_w, 0.0),
                             Point::new(0.0, 0.0),
-                            0.92,
                             1.0,
-                            0.34,
+                            1.0,
+                            0.26,
                             false,
                         )
-                        .with_scale(0.97, 1.0)
-                        .with_easing(Easing::SpringGentle),
+                        .with_easing(Easing::EaseOutQuint),
                     );
                 } else {
+                    let _: bool = expanded.set_if_changed(false);
+                    let vp_w: f32 = vp_sig.get_untracked().get_width().max(320.0);
+                    let slide_w: f32 = (vp_w * 0.92).clamp(340.0, 560.0);
                     handle.with_write(
                         |tree: &mut SceneTree| {
                             if let Some(n) = tree.get_node_mut(scrim) {
@@ -112,7 +287,7 @@ impl EuvDrawer {
                         NodeTransition::slide_fade(
                             panel,
                             Point::new(0.0, 0.0),
-                            Point::new(360.0, 0.0),
+                            Point::new(slide_w, 0.0),
                             1.0,
                             1.0,
                             0.20,
@@ -154,11 +329,18 @@ impl EuvSheet {
         let mut ctx: Context = current_context();
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let vp_sig: Signal<Size> = ctx.get_viewport_size();
         let open: Signal<bool> = self.get_open();
         let body: NodeId = self.get_body();
         let Self { title, .. } = self.clone();
         let init_open: bool = open.get_untracked();
+        let expanded: Signal<bool> = Signal::new(false);
+        let drag_active: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+        let drag_start_y: Rc<Cell<f32>> = Rc::new(Cell::new(0.0));
+        let drag_base_h: Rc<Cell<f32>> = Rc::new(Cell::new(300.0));
+        let drag_moved: Rc<Cell<bool>> = Rc::new(Cell::new(false));
         let mut panel: NodeId = NodeId::default();
+        let mut grabber: NodeId = NodeId::default();
         let scrim: NodeId = view! {
             portal {
                 style: Style::default().column()
@@ -174,40 +356,188 @@ impl EuvSheet {
                 column {
                     node_ref: panel
                     width: Length::Percent(100.0)
-                    padding: Edges::all(SPACE_XL)
-                    gap: SPACE_MD
+                    height: Length::Px(300.0)
+                    max_height: Length::Percent(90.0)
                     background: p.get_card()
                     border: (g.get_border_width(), p.get_border())
                     radius: g.get_radius_xl()
+                    shadow: g.get_shadow_lg()
+                    overflow: Overflow::Hidden
                     row {
+                        node_ref: grabber
                         width: Length::Percent(100.0)
+                        height: Length::Px(28.0)
+                        flex_shrink: 0.0
                         justify: JustifyContent::Center
+                        align: AlignItems::Center
+                        cursor: CursorIcon::NsResize
+                        stop_scroll_propagation: true
+                        stop_event_propagation: true
                         view {
-                            width: Length::Px(38.0)
-                            height: Length::Px(4.0)
+                            width: Length::Px(46.0)
+                            height: Length::Px(5.0)
                             radius: 99.0
-                            background: p.get_border()
+                            background: p.get_muted_foreground().with_alpha(128)
                         }
                     }
-                    text {
-                        font_size: g.get_font_heading()
-                        font_weight: FontWeight::Bold
-                        color: p.get_card_foreground()
-                        { title }
+                    scroll {
+                        style: Style::default().column()
+                        flex_grow: 1.0
+                        width: Length::Percent(100.0)
+                        padding: Edges::new(SPACE_XS, SPACE_XL, SPACE_XL, SPACE_XL)
+                        gap: SPACE_MD
+                        stop_scroll_propagation: true
+                        text {
+                            width: Length::Percent(100.0)
+                            font_size: g.get_font_heading()
+                            font_weight: FontWeight::Bold
+                            color: p.get_card_foreground()
+                            { title }
+                        }
+                        { body }
                     }
-                    { body }
                 }
             }
         };
+        let drag_down_active: Rc<Cell<bool>> = drag_active.clone();
+        let drag_down_y: Rc<Cell<f32>> = drag_start_y.clone();
+        let drag_down_h: Rc<Cell<f32>> = drag_base_h.clone();
+        let drag_down_moved: Rc<Cell<bool>> = drag_moved.clone();
+        let handle_down: SceneHandle = ctx.get_scene().clone();
+        ctx.on_pointer_down(grabber, move |ev: &UiEvent| {
+            if let UiEventKind::PointerDown(pt) = ev.get_kind() {
+                let vp_h: f32 = vp_sig.get_untracked().get_height().max(320.0);
+                let def_h: f32 = (vp_h * 0.44).clamp(240.0, 360.0);
+                let cur_h: f32 = handle_down
+                    .node_screen_bounds(panel)
+                    .map(|r: Rect| r.get_height())
+                    .filter(|h: &f32| *h > 40.0)
+                    .unwrap_or(def_h);
+                drag_down_active.set(true);
+                drag_down_y.set(pt.get_y());
+                drag_down_h.set(cur_h);
+                drag_down_moved.set(false);
+            }
+        });
+        for target_node in [grabber, panel, scrim].into_iter() {
+            let h_move: SceneHandle = ctx.get_scene().clone();
+            let da_move: Rc<Cell<bool>> = drag_active.clone();
+            let sy_move: Rc<Cell<f32>> = drag_start_y.clone();
+            let bh_move: Rc<Cell<f32>> = drag_base_h.clone();
+            let dm_move: Rc<Cell<bool>> = drag_moved.clone();
+            ctx.on_pointer_move(target_node, move |ev: &UiEvent| {
+                if !da_move.get() {
+                    return;
+                }
+                if let UiEventKind::PointerMove(pt) = ev.get_kind() {
+                    let dy: f32 = pt.get_y() - sy_move.get();
+                    if dy.abs() > 4.0 {
+                        dm_move.set(true);
+                    }
+                    let vp_h: f32 = vp_sig.get_untracked().get_height().max(320.0);
+                    let def_h: f32 = (vp_h * 0.44).clamp(240.0, 360.0);
+                    let max_h: f32 = (vp_h * 0.86).clamp(def_h + 60.0, 760.0);
+                    let raw_h: f32 = bh_move.get() - dy;
+                    let (next_h, ty): (f32, f32) = if raw_h >= def_h {
+                        (raw_h.min(max_h), 0.0)
+                    } else {
+                        (def_h, (def_h - raw_h).max(0.0))
+                    };
+                    h_move.with_write(
+                        |tree: &mut SceneTree| {
+                            if let Some(n) = tree.get_node_mut(panel) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_layout().set_height(Length::Px(next_h));
+                                st.get_mut_paint()
+                                    .set_transform(Transform2D::new(0.0, ty, 1.0, 1.0, 0.0));
+                                n.set_style(st);
+                                let layout_dirty: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                                tree.mark_dirty(panel, layout_dirty | DIRTY_PAINT);
+                            }
+                        },
+                        (),
+                    );
+                }
+            });
+            let h_up: SceneHandle = ctx.get_scene().clone();
+            let da_up: Rc<Cell<bool>> = drag_active.clone();
+            let sy_up: Rc<Cell<f32>> = drag_start_y.clone();
+            ctx.on_pointer_up(target_node, move |ev: &UiEvent| {
+                if !da_up.replace(false) {
+                    return;
+                }
+                let dy: f32 = match ev.get_kind() {
+                    UiEventKind::PointerUp(pt) => pt.get_y() - sy_up.get(),
+                    _ => 0.0,
+                };
+                let vp_h: f32 = vp_sig.get_untracked().get_height().max(320.0);
+                let def_h: f32 = (vp_h * 0.44).clamp(240.0, 360.0);
+                let max_h: f32 = (vp_h * 0.86).clamp(def_h + 60.0, 760.0);
+                let is_exp: bool = expanded.get_untracked();
+                if dy > 52.0 {
+                    if is_exp && dy < 150.0 {
+                        let _: bool = expanded.set_if_changed(false);
+                    } else {
+                        let _: bool = expanded.set_if_changed(false);
+                        let _: bool = open.set_if_changed(false);
+                        return;
+                    }
+                } else if dy < -40.0 {
+                    let _: bool = expanded.set_if_changed(true);
+                }
+                let target_h: f32 = if expanded.get_untracked() {
+                    max_h
+                } else {
+                    def_h
+                };
+                h_up.with_write(
+                    |tree: &mut SceneTree| {
+                        if let Some(n) = tree.get_node_mut(panel) {
+                            let mut st: Style = n.get_style();
+                            st.get_mut_layout().set_height(Length::Px(target_h));
+                            st.get_mut_paint().set_transform(Transform2D::default());
+                            n.set_style(st);
+                            let layout_dirty: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(panel, layout_dirty | DIRTY_PAINT);
+                        }
+                    },
+                    (),
+                );
+            });
+        }
+        let click_moved: Rc<Cell<bool>> = drag_moved.clone();
         ctx.on_click(scrim, move |ev: &UiEvent| {
+            if click_moved.replace(false) {
+                return;
+            }
             if ev.get_target() == scrim {
                 let _: bool = open.set_if_changed(false);
             }
         });
         let handle: SceneHandle = ctx.get_scene().clone();
+        let handle_dim: SceneHandle = handle.clone();
         let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(init_open));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
             let _: Effect = EuvOverlayStack::bind_signal(open, SHEET_OVERLAY_NAME, Z_INDEX_DRAWER);
+            let _: Effect = Effect::new(move || {
+                let vp_h: f32 = vp_sig.get().get_height().max(320.0);
+                let is_exp: bool = expanded.get();
+                let def_h: f32 = (vp_h * 0.44).clamp(240.0, 360.0);
+                let max_h: f32 = (vp_h * 0.86).clamp(def_h + 60.0, 760.0);
+                let target_h: f32 = if is_exp { max_h } else { def_h };
+                handle_dim.with_write(
+                    |tree: &mut SceneTree| {
+                        if let Some(n) = tree.get_node_mut(panel) {
+                            let mut st: Style = n.get_style();
+                            st.get_mut_layout().set_height(Length::Px(target_h));
+                            n.set_style(st);
+                            let layout_dirty: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(panel, layout_dirty | DIRTY_PAINT);
+                        }
+                    },
+                    (),
+                );
+            });
             Effect::new(move || {
                 let is_open: bool = open.get();
                 let was_open: bool = prev_open.replace(is_open);
@@ -215,6 +545,9 @@ impl EuvSheet {
                     return;
                 }
                 if is_open {
+                    let _: bool = expanded.set_if_changed(false);
+                    let vp_h: f32 = vp_sig.get_untracked().get_height().max(320.0);
+                    let def_h: f32 = (vp_h * 0.44).clamp(240.0, 360.0);
                     handle.with_write(
                         |tree: &mut SceneTree| {
                             if let Some(n) = tree.get_node_mut(scrim) {
@@ -222,27 +555,35 @@ impl EuvSheet {
                                 st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
                                 n.set_style(st);
                             }
+                            if let Some(n) = tree.get_node_mut(panel) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_layout().set_height(Length::Px(def_h));
+                                st.get_mut_paint().set_transform(Transform2D::default());
+                                n.set_style(st);
+                            }
                         },
                         (),
                     );
                     handle.start_transition(
-                        NodeTransition::fade(scrim, 0.0, 1.0, 0.24, false)
-                            .with_easing(Easing::EaseOutQuint),
+                        NodeTransition::fade(scrim, 0.0, 1.0, 0.22, false)
+                            .with_easing(Easing::EaseOutCubic),
                     );
                     handle.start_transition(
                         NodeTransition::slide_fade(
                             panel,
-                            Point::new(0.0, 240.0),
+                            Point::new(0.0, def_h),
                             Point::new(0.0, 0.0),
-                            0.92,
                             1.0,
-                            0.34,
+                            1.0,
+                            0.26,
                             false,
                         )
-                        .with_scale(0.97, 1.0)
-                        .with_easing(Easing::SpringGentle),
+                        .with_easing(Easing::EaseOutQuint),
                     );
                 } else {
+                    let _: bool = expanded.set_if_changed(false);
+                    let vp_h: f32 = vp_sig.get_untracked().get_height().max(320.0);
+                    let slide_h: f32 = (vp_h * 0.86).clamp(300.0, 760.0);
                     handle.with_write(
                         |tree: &mut SceneTree| {
                             if let Some(n) = tree.get_node_mut(scrim) {
@@ -257,7 +598,7 @@ impl EuvSheet {
                         NodeTransition::slide_fade(
                             panel,
                             Point::new(0.0, 0.0),
-                            Point::new(0.0, 240.0),
+                            Point::new(0.0, slide_h),
                             1.0,
                             1.0,
                             0.20,
@@ -532,15 +873,91 @@ impl EuvDropdown {
         let last_selected: Signal<Option<usize>> = sel_opt.unwrap_or_else(|| Signal::new(None));
         let init_open: bool = open.get_untracked();
         let mut menu: NodeId = NodeId::default();
+        let chevron_color: Color = p.get_muted_foreground();
+        let on_toggle = move |_: &UiEvent| {
+            let _: bool = open.update(|v: &mut bool| *v = !*v);
+        };
+        let paint_chevron = move |bounds: Rect, dl: &mut DisplayList| {
+            let cx: f32 = bounds.get_x() + bounds.get_width() * 0.5;
+            let cy: f32 = bounds.get_y() + bounds.get_height() * 0.5;
+            dl.push(DrawCommand::Line {
+                from: Point::new(cx - 4.0, cy - 2.0),
+                to: Point::new(cx, cy + 2.5),
+                color: chevron_color,
+                width: 1.6,
+            });
+            dl.push(DrawCommand::Line {
+                from: Point::new(cx, cy + 2.5),
+                to: Point::new(cx + 4.0, cy - 2.0),
+                color: chevron_color,
+                width: 1.6,
+            });
+        };
+        let menu_items: Vec<NodeId> = items
+            .into_iter()
+            .enumerate()
+            .map(|(idx, item_label): (usize, String)| {
+                let on_pick = move |_: &UiEvent| {
+                    let _: bool = last_selected.set_if_changed(Some(idx));
+                    let _: bool = open.set_if_changed(false);
+                };
+                view! {
+                    row {
+                        width: Length::Percent(100.0)
+                        height: Length::Px(g.get_control_sm())
+                        padding: Edges::symmetric(0.0, SPACE_MD)
+                        align: AlignItems::Center
+                        radius: g.get_radius_sm()
+                        overflow: Overflow::Hidden
+                        cursor: CursorIcon::Pointer
+                        role: A11yRole::MenuItem
+                        a11y_label: item_label.clone()
+                        on_click: on_pick
+                        text {
+                            width: Length::Percent(100.0)
+                            font_size: 13.0
+                            color: p.get_foreground()
+                            text_overflow: TextOverflow::Ellipsis
+                            { item_label }
+                        }
+                    }
+                }
+            })
+            .collect();
         let wrap: NodeId = view! {
             column {
                 width: Length::Percent(100.0)
-                max_width: Length::Px(280.0)
                 gap: SPACE_XS
-                EuvButton(label, tokens) {
-                    outline()
-                    on_click: move |_: &UiEvent| {
-                        let _: bool = open.update(|v: &mut bool| *v = !*v);
+                row {
+                    width: Length::Percent(100.0)
+                    height: Length::Px(g.get_control_md())
+                    padding: Edges::symmetric(0.0, SPACE_MD)
+                    justify: JustifyContent::SpaceBetween
+                    align: AlignItems::Center
+                    gap: SPACE_SM
+                    background: p.get_background()
+                    border: (g.get_border_width(), p.get_border())
+                    radius: g.get_radius_md()
+                    overflow: Overflow::Hidden
+                    cursor: CursorIcon::Pointer
+                    role: A11yRole::Button
+                    a11y_label: label.clone()
+                    on_click: on_toggle
+                    text {
+                        flex_grow: 1.0
+                        flex_shrink: 1.0
+                        min_width: Length::Px(0.0)
+                        font_size: 14.0
+                        font_weight: FontWeight::Medium
+                        color: p.get_foreground()
+                        text_overflow: TextOverflow::Ellipsis
+                        { label }
+                    }
+                    canvas {
+                        width: Length::Px(12.0)
+                        height: Length::Px(12.0)
+                        flex_shrink: 0.0
+                        painter: paint_chevron
                     }
                 }
                 column {
@@ -553,27 +970,10 @@ impl EuvDropdown {
                     border: (g.get_border_width(), p.get_border())
                     radius: g.get_radius_md()
                     shadow: g.get_shadow_md()
+                    overflow: Overflow::Hidden
                     z_index: Z_INDEX_FLOATING
                     role: A11yRole::Menu
-                    for (idx, item_label) in items.into_iter().enumerate() {
-                        row {
-                            width: Length::Percent(100.0)
-                            padding: Edges::symmetric(SPACE_SM, SPACE_MD)
-                            radius: g.get_radius_sm()
-                            cursor: CursorIcon::Pointer
-                            role: A11yRole::MenuItem
-                            a11y_label: item_label.clone()
-                            on_click: move |_: &UiEvent| {
-                                let _: bool = last_selected.set_if_changed(Some(idx));
-                                let _: bool = open.set_if_changed(false);
-                            }
-                            text {
-                                font_size: 13.0
-                                color: p.get_foreground()
-                                { item_label }
-                            }
-                        }
-                    }
+                    ..menu_items
                 }
             }
         };

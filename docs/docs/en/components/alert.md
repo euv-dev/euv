@@ -23,10 +23,10 @@ Alert
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Alert | `euv_alert` | `alert` |
-| AlertAction | `euv_alert_action` | `alert-action` |
+| Part             | Component               | Slot                |
+| ---------------- | ----------------------- | ------------------- |
+| Alert            | `euv_alert`             | `alert`             |
+| AlertAction      | `euv_alert_action`      | `alert-action`      |
 | AlertDescription | `euv_alert_description` | `alert-description` |
-| AlertTitle | `euv_alert_title` | `alert-title` |
-| Icon | `euv_alert_icon` | `icon` |
+| AlertTitle       | `euv_alert_title`       | `alert-title`       |
+| Icon             | `euv_alert_icon`        | `icon`              |

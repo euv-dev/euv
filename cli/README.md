@@ -35,27 +35,36 @@ locales:
       - { text: GitHub, link: https://github.com/euv-dev/euv }
 ---
 
-<center>
+<div align="center">
 
-## euv-cli
+# euv-cli
 
-<img src="https://docs.ltpp.vip/img/euv-cli.png" alt="" height="160">
+<img src="https://docs.ltpp.vip/img/euv-cli.png" alt="euv-cli logo" height="160">
 
-[![](https://img.shields.io/crates/v/euv-cli.svg)](https://crates.io/crates/euv-cli)
-[![](https://img.shields.io/crates/d/euv-cli.svg)](https://img.shields.io/crates/d/euv-cli.svg)
-[![](https://docs.rs/euv-cli/badge.svg)](https://docs.rs/euv-cli)
-[![](https://github.com/euv-dev/euv/workflows/Rust/badge.svg)](https://github.com/euv-dev/euv/actions?query=workflow=Rust)
-[![](https://img.shields.io/crates/l/euv-cli.svg)](./LICENSE)
+[![Crates.io Version](https://img.shields.io/crates/v/euv-cli.svg?style=flat-square)](https://crates.io/crates/euv-cli)
+[![Crates.io Downloads](https://img.shields.io/crates/d/euv-cli.svg?style=flat-square)](https://crates.io/crates/euv-cli)
+[![Docs.rs](https://img.shields.io/docsrs/euv-cli?style=flat-square)](https://docs.rs/euv-cli)
+[![CI Status](https://img.shields.io/github/actions/workflow/status/euv-dev/euv/Rust.yml?style=flat-square&label=CI)](https://github.com/euv-dev/euv/actions)
+[![License: MIT](https://img.shields.io/crates/l/euv-cli.svg?style=flat-square)](../LICENSE)
 
-</center>
+[API Docs](https://docs.rs/euv-cli/latest/) · [Workspace README](../README.md)
 
-[Api Docs](https://docs.rs/euv-cli/latest/)
+</div>
 
-> The official CLI tool for the euv UI framework, providing dev/release profiles with run/build modes, hot reload, and wasm-pack integration.
+> Official CLI for the `euv` native Rust UI framework: 7-platform build orchestration, live SSE hot-reload dev server, zero-JS WebAssembly & static docs bundling, project scaffolding, toolchain doctor, and deterministic `euv fmt` macro indentation formatting.
+
+## Commands
+
+```shell
+euv doctor                          # Inspect all 7 target toolchains
+euv new my-app                      # Scaffold a cross-platform euv project
+euv dev --target web --port 8080    # Live SSE hot-reload & OTA dev server
+euv build --target all --release    # Build across Web, Android, iOS, macOS, Windows, Linux
+euv docs build ./docs --out ./dist  # Build zero-JS documentation site
+euv fmt --check                     # Format & verify Rust + view!/style!/tokens! macro blocks
+```
 
 ## Installation
-
-To use this crate, you can run cmd:
 
 ```shell
 cargo install euv-cli
@@ -63,12 +72,4 @@ cargo install euv-cli
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
-## Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request.
-
-## Contact
-
-For any inquiries, please reach out to the author at [root@devhub.vip](mailto:root@devhub.vip).
+Licensed under the MIT License. See [LICENSE](../LICENSE) for details.

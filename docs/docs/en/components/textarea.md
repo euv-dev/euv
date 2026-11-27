@@ -13,6 +13,6 @@ cargo add euv-ui
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Textarea | `euv_textarea` | — |
+| Part     | Component      | Slot |
+| -------- | -------------- | ---- |
+| Textarea | `euv_textarea` | —    |

@@ -366,7 +366,19 @@ jobs:
           echo "published=true" >> "$GITHUB_OUTPUT"
 
   release:
-    needs: [setup, check, tests, clippy, build, publish, package-android, package-native, package-web-wasm, package-ios-sim]
+    needs:
+      [
+        setup,
+        check,
+        tests,
+        clippy,
+        build,
+        publish,
+        package-android,
+        package-native,
+        package-web-wasm,
+        package-ios-sim,
+      ]
     permissions:
       contents: write
       packages: write

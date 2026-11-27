@@ -23,10 +23,10 @@ Field
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Field | `euv_field` | `field` |
+| Part             | Component               | Slot                |
+| ---------------- | ----------------------- | ------------------- |
+| Field            | `euv_field`             | `field`             |
 | FieldDescription | `euv_field_description` | `field-description` |
-| FieldError | `euv_field_error` | `field-error` |
-| FieldLabel | `euv_field_label` | `field-label` |
-| Input | `euv_field` | `input` |
+| FieldError       | `euv_field_error`       | `field-error`       |
+| FieldLabel       | `euv_field_label`       | `field-label`       |
+| Input            | `euv_field`             | `input`             |

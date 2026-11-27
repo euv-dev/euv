@@ -56,10 +56,10 @@ impl EuvChart {
                         for step in 0..=3 {
                             let gy: f32 = bounds.get_y() + pad_top + plot_h * (step as f32) / 3.0;
                             dl.push(DrawCommand::Line {
-                                    from: Point::new(bounds.get_x() + pad_x, gy),
-                                    to: Point::new(bounds.get_x() + pad_x + plot_w, gy),
-                                    color: grid_color.multiply_alpha(0.6),
-                                    width: 1.0,
+                                from: Point::new(bounds.get_x() + pad_x, gy),
+                                to: Point::new(bounds.get_x() + pad_x + plot_w, gy),
+                                color: grid_color.multiply_alpha(0.6),
+                                width: 1.0,
                             });
                         }
                         let count: usize = plot_data.len();
@@ -75,10 +75,10 @@ impl EuvChart {
                                     let bw: f32 = (slot_w * 0.56).clamp(6.0, 36.0);
                                     let bh: f32 = (base_y - cy).max(3.0);
                                     dl.push(DrawCommand::FillRoundedRect {
-                                            rect: Rect::new(cx - bw * 0.5, cy, bw, bh),
-                                            color: bar_color,
-                                            radius: CornerRadius::new(radius_sm, radius_sm, 0.0, 0.0),
-                                            border: Border::default(),
+                                        rect: Rect::new(cx - bw * 0.5, cy, bw, bh),
+                                        color: bar_color,
+                                        radius: CornerRadius::new(radius_sm, radius_sm, 0.0, 0.0),
+                                        border: Border::default(),
                                     });
                                 }
                                 EuvChartKind::Line | EuvChartKind::Area => {
@@ -87,29 +87,29 @@ impl EuvChart {
                                         if kind == EuvChartKind::Area {
                                             let area_col: Color = bar_color.multiply_alpha(0.22);
                                             dl.push(DrawCommand::Triangle {
-                                                    p0: prev,
-                                                    p1: cur,
-                                                    p2: Point::new(cur.get_x(), base_y),
-                                                    color: area_col,
+                                                p0: prev,
+                                                p1: cur,
+                                                p2: Point::new(cur.get_x(), base_y),
+                                                color: area_col,
                                             });
                                             dl.push(DrawCommand::Triangle {
-                                                    p0: prev,
-                                                    p1: Point::new(cur.get_x(), base_y),
-                                                    p2: Point::new(prev.get_x(), base_y),
-                                                    color: area_col,
+                                                p0: prev,
+                                                p1: Point::new(cur.get_x(), base_y),
+                                                p2: Point::new(prev.get_x(), base_y),
+                                                color: area_col,
                                             });
                                         }
                                         dl.push(DrawCommand::Line {
-                                                from: prev,
-                                                to: cur,
-                                                color: bar_color,
-                                                width: 2.5,
+                                            from: prev,
+                                            to: cur,
+                                            color: bar_color,
+                                            width: 2.5,
                                         });
                                     }
                                     dl.push(DrawCommand::Circle {
-                                            center: cur,
-                                            radius: 3.5,
-                                            color: bar_color,
+                                        center: cur,
+                                        radius: 3.5,
+                                        color: bar_color,
                                     });
                                     prev_pt = Some(cur);
                                 }
@@ -117,14 +117,14 @@ impl EuvChart {
                             let mut lbl_st: TextStyle = TextStyle::default();
                             lbl_st.set_font_size(10.0).set_color(label_color);
                             dl.push(DrawCommand::TextRun {
-                                    rect: Rect::new(
-                                        cx - slot_w * 0.45,
-                                        base_y + 6.0,
-                                        slot_w * 0.9,
-                                        14.0,
-                                    ),
-                                    text: pt.get_label().clone(),
-                                    style: lbl_st,
+                                rect: Rect::new(
+                                    cx - slot_w * 0.45,
+                                    base_y + 6.0,
+                                    slot_w * 0.9,
+                                    14.0,
+                                ),
+                                text: pt.get_label().clone(),
+                                style: lbl_st,
                             });
                         }
                     }
@@ -207,6 +207,96 @@ impl EuvCombobox {
         let opts_trigger: Vec<String> = options.clone();
         let opts_filter: Vec<String> = options;
         let mut panel: NodeId = NodeId::default();
+        let chevron_color: Color = p.get_muted_foreground();
+        let on_toggle = move |_: &UiEvent| {
+            let _: bool = open.update(|v: &mut bool| *v = !*v);
+        };
+        let trigger_text = move || -> String {
+            let idx: usize = selected.get();
+            opts_trigger
+                .get(idx)
+                .cloned()
+                .unwrap_or_else(|| COMBOBOX_EMPTY_SELECTION.to_string())
+        };
+        let paint_chevron = move |bounds: Rect, dl: &mut DisplayList| {
+            let cx: f32 = bounds.get_x() + bounds.get_width() * 0.5;
+            let cy: f32 = bounds.get_y() + bounds.get_height() * 0.5;
+            dl.push(DrawCommand::Line {
+                from: Point::new(cx - 4.0, cy - 2.0),
+                to: Point::new(cx, cy + 2.5),
+                color: chevron_color,
+                width: 1.6,
+            });
+            dl.push(DrawCommand::Line {
+                from: Point::new(cx, cy + 2.5),
+                to: Point::new(cx + 4.0, cy - 2.0),
+                color: chevron_color,
+                width: 1.6,
+            });
+        };
+        let panel_style = move || -> Style {
+            Style::default()
+                .column()
+                .display(if open.get() {
+                    Display::Flex
+                } else {
+                    Display::None
+                })
+                .width(Length::Percent(100.0))
+                .padding(Edges::all(SPACE_SM))
+                .gap(SPACE_XS)
+                .background(p.get_card())
+                .border(g.get_border_width(), p.get_border())
+                .radius(g.get_radius_md())
+                .shadow(g.get_shadow_md())
+                .overflow(Overflow::Hidden)
+                .stop_scroll_propagation(true)
+        };
+        let build_filtered = move || -> Vec<NodeId> {
+            let q: String = query.get().to_ascii_lowercase();
+            let cur_sel: usize = selected.get();
+            let mut nodes: Vec<NodeId> = Vec::new();
+            for (idx, opt) in opts_filter.iter().enumerate() {
+                if !q.is_empty() && !opt.to_ascii_lowercase().contains(&q) {
+                    continue;
+                }
+                let is_sel: bool = idx == cur_sel;
+                let row_label: String = if is_sel {
+                    format!("* {opt}")
+                } else {
+                    opt.clone()
+                };
+                let on_pick = move |_: &UiEvent| {
+                    let _: bool = selected.set_if_changed(idx);
+                    let _: bool = open.set_if_changed(false);
+                };
+                nodes.push(view! {
+                    row {
+                        width: Length::Percent(100.0)
+                        height: Length::Px(g.get_control_sm())
+                        padding: Edges::symmetric(0.0, SPACE_SM)
+                        align: AlignItems::Center
+                        radius: g.get_radius_sm()
+                        overflow: Overflow::Hidden
+                        background: if is_sel {
+                            p.get_accent()
+                        } else {
+                            COLOR_TRANSPARENT
+                        }
+                        cursor: CursorIcon::Pointer
+                        on_click: on_pick
+                        text {
+                            width: Length::Percent(100.0)
+                            font_size: 13.0
+                            color: p.get_foreground()
+                            text_overflow: TextOverflow::Ellipsis
+                            { row_label }
+                        }
+                    }
+                });
+            }
+            nodes
+        };
         let wrap: NodeId = view! {
             column {
                 width: Length::Percent(100.0)
@@ -217,89 +307,37 @@ impl EuvCombobox {
                     padding: Edges::symmetric(0.0, SPACE_MD)
                     justify: JustifyContent::SpaceBetween
                     align: AlignItems::Center
-                    background: p.get_card()
+                    gap: SPACE_SM
+                    background: p.get_background()
                     border: (g.get_border_width(), p.get_border())
                     radius: g.get_radius_md()
+                    overflow: Overflow::Hidden
                     cursor: CursorIcon::Pointer
-                    on_click: move |_: &UiEvent| {
-                        let _: bool = open.update(|v: &mut bool| *v = !*v);
-                    }
+                    on_click: on_toggle
                     text {
-                        font_size: 13.0
+                        flex_grow: 1.0
+                        flex_shrink: 1.0
+                        min_width: Length::Px(0.0)
+                        font_size: 14.0
                         color: p.get_foreground()
-                        { move || {
-                                let idx: usize = selected.get();
-                                let lbl: String = opts_trigger
-                                .get(idx)
-                                .cloned()
-                                .unwrap_or_else(|| COMBOBOX_EMPTY_SELECTION.to_string());
-                                format!("{lbl}  v")
-                        } }
+                        text_overflow: TextOverflow::Ellipsis
+                        { trigger_text }
+                    }
+                    canvas {
+                        width: Length::Px(12.0)
+                        height: Length::Px(12.0)
+                        flex_shrink: 0.0
+                        painter: paint_chevron
                     }
                 }
                 column {
                     node_ref: panel
-                    bind_style: move || {
-                        Style::default()
-                        .column()
-                        .display(if open.get() {
-                                Display::Flex
-                            } else {
-                                Display::None
-                        })
-                        .width(Length::Percent(100.0))
-                        .padding(Edges::all(SPACE_SM))
-                        .gap(SPACE_XS)
-                        .background(p.get_card())
-                        .border(g.get_border_width(), p.get_border())
-                        .radius(g.get_radius_md())
-                        .shadow(g.get_shadow_md())
-                        .stop_scroll_propagation(true)
-                    }
+                    bind_style: panel_style
                     EuvInput(query, resolved_ph, tokens)
                     column {
                         width: Length::Percent(100.0)
                         gap: 2.0
-                        bind_children: move || {
-                            let q: String = query.get().to_ascii_lowercase();
-                            let cur_sel: usize = selected.get();
-                            let mut nodes: Vec<NodeId> = Vec::new();
-                            for (idx, opt) in opts_filter.iter().enumerate() {
-                                if !q.is_empty() && !opt.to_ascii_lowercase().contains(&q) {
-                                    continue;
-                                }
-                                let is_sel: bool = idx == cur_sel;
-                                nodes.push(view! {
-                                        row {
-                                            width: Length::Percent(100.0)
-                                            height: Length::Px(g.get_control_sm())
-                                            padding: Edges::symmetric(0.0, SPACE_SM)
-                                            align: AlignItems::Center
-                                            radius: g.get_radius_sm()
-                                            background: if is_sel {
-                                                p.get_accent()
-                                            } else {
-                                                COLOR_TRANSPARENT
-                                            }
-                                            cursor: CursorIcon::Pointer
-                                            on_click: move |_: &UiEvent| {
-                                                let _: bool = selected.set_if_changed(idx);
-                                                let _: bool = open.set_if_changed(false);
-                                            }
-                                            text {
-                                                font_size: 13.0
-                                                color: p.get_foreground()
-                                                { if is_sel {
-                                                        format!("* {opt}")
-                                                    } else {
-                                                        opt.clone()
-                                                } }
-                                            }
-                                        }
-                                });
-                            }
-                            nodes
-                        }
+                        bind_children: build_filtered
                     }
                 }
             }
@@ -431,70 +469,70 @@ impl EuvDataTable {
                         .iter()
                         .enumerate()
                         .filter(|(_, r): &(usize, &Vec<String>)| {
-                                q.is_empty()
-                                || r.iter()
-                                .any(|cell: &String| cell.to_ascii_lowercase().contains(&q))
+                            q.is_empty()
+                            || r.iter()
+                            .any(|cell: &String| cell.to_ascii_lowercase().contains(&q))
                         })
                         .map(|(i, r): (usize, &Vec<String>)| (i, r.clone()))
                         .collect();
                         filtered.sort_by(|a: &(usize, Vec<String>), b: &(usize, Vec<String>)| {
-                                let ka: &str = a.1.first().map(String::as_str).unwrap_or("");
-                                let kb: &str = b.1.first().map(String::as_str).unwrap_or("");
-                                if asc { ka.cmp(kb) } else { kb.cmp(ka) }
+                            let ka: &str = a.1.first().map(String::as_str).unwrap_or("");
+                            let kb: &str = b.1.first().map(String::as_str).unwrap_or("");
+                            if asc { ka.cmp(kb) } else { kb.cmp(ka) }
                         });
                         let mut out: Vec<NodeId> = Vec::with_capacity(filtered.len() + 1);
                         out.push(view! {
+                            row {
+                                width: Length::Percent(100.0)
+                                padding: Edges::symmetric(SPACE_SM, SPACE_MD)
+                                background: p.get_muted()
+                                gap: SPACE_SM
+                                overflow: Overflow::Hidden
+                                for h in headers.iter() {
+                                    view {
+                                        flex_grow: 1.0
+                                        min_width: Length::Px(0.0)
+                                        overflow: Overflow::Hidden
+                                        text {
+                                            width: Length::Percent(100.0)
+                                            font_size: 12.0
+                                            font_weight: FontWeight::SemiBold
+                                            color: p.get_muted_foreground()
+                                            text_overflow: TextOverflow::Ellipsis
+                                            { h.clone() }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                        for (orig_idx, r) in filtered.into_iter() {
+                            let is_sel: bool = active_sel == Some(orig_idx);
+                            out.push(view! {
                                 row {
                                     width: Length::Percent(100.0)
                                     padding: Edges::symmetric(SPACE_SM, SPACE_MD)
-                                    background: p.get_muted()
+                                    background: if is_sel { p.get_accent() } else { p.get_card() }
                                     gap: SPACE_SM
                                     overflow: Overflow::Hidden
-                                    for h in headers.iter() {
+                                    cursor: CursorIcon::Pointer
+                                    on_click: move |_: &UiEvent| {
+                                        let _: bool = sel_row.set_if_changed(Some(orig_idx));
+                                    }
+                                    for cell_txt in r.into_iter() {
                                         view {
                                             flex_grow: 1.0
                                             min_width: Length::Px(0.0)
                                             overflow: Overflow::Hidden
                                             text {
                                                 width: Length::Percent(100.0)
-                                                font_size: 12.0
-                                                font_weight: FontWeight::SemiBold
-                                                color: p.get_muted_foreground()
+                                                font_size: 13.0
+                                                color: p.get_foreground()
                                                 text_overflow: TextOverflow::Ellipsis
-                                                { h.clone() }
+                                                { cell_txt }
                                             }
                                         }
                                     }
                                 }
-                        });
-                        for (orig_idx, r) in filtered.into_iter() {
-                            let is_sel: bool = active_sel == Some(orig_idx);
-                            out.push(view! {
-                                    row {
-                                        width: Length::Percent(100.0)
-                                        padding: Edges::symmetric(SPACE_SM, SPACE_MD)
-                                        background: if is_sel { p.get_accent() } else { p.get_card() }
-                                        gap: SPACE_SM
-                                        overflow: Overflow::Hidden
-                                        cursor: CursorIcon::Pointer
-                                        on_click: move |_: &UiEvent| {
-                                            let _: bool = sel_row.set_if_changed(Some(orig_idx));
-                                        }
-                                        for cell_txt in r.into_iter() {
-                                            view {
-                                                flex_grow: 1.0
-                                                min_width: Length::Px(0.0)
-                                                overflow: Overflow::Hidden
-                                                text {
-                                                    width: Length::Percent(100.0)
-                                                    font_size: 13.0
-                                                    color: p.get_foreground()
-                                                    text_overflow: TextOverflow::Ellipsis
-                                                    { cell_txt }
-                                                }
-                                            }
-                                        }
-                                    }
                             });
                         }
                         out
@@ -532,39 +570,86 @@ impl EuvDatePicker {
     fn render(&self) -> NodeId {
         let ctx: Context = current_context();
         let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
         let selected_day: Signal<u32> = self.get_selected_day();
         let open: Signal<bool> = self.get_open();
         let Self { month_label, .. } = self.clone();
         let lbl_clone: String = month_label.clone();
         let mut cal_wrap: NodeId = NodeId::default();
+        let chevron_color: Color = p.get_muted_foreground();
+        let on_toggle = move |_: &UiEvent| {
+            let _: bool = open.update(|v: &mut bool| *v = !*v);
+        };
+        let trigger_text = move || -> String {
+            format!(
+                "{DATEPICKER_TRIGGER_LABEL} · {lbl_clone} {}",
+                selected_day.get()
+            )
+        };
+        let paint_chevron = move |bounds: Rect, dl: &mut DisplayList| {
+            let cx: f32 = bounds.get_x() + bounds.get_width() * 0.5;
+            let cy: f32 = bounds.get_y() + bounds.get_height() * 0.5;
+            dl.push(DrawCommand::Line {
+                from: Point::new(cx - 4.0, cy - 2.0),
+                to: Point::new(cx, cy + 2.5),
+                color: chevron_color,
+                width: 1.6,
+            });
+            dl.push(DrawCommand::Line {
+                from: Point::new(cx, cy + 2.5),
+                to: Point::new(cx + 4.0, cy - 2.0),
+                color: chevron_color,
+                width: 1.6,
+            });
+        };
+        let cal_wrap_style = move || -> Style {
+            Style::default()
+                .width(Length::Percent(100.0))
+                .display(if open.get() {
+                    Display::Flex
+                } else {
+                    Display::None
+                })
+        };
         let wrap: NodeId = view! {
             column {
                 width: Length::Percent(100.0)
-                max_width: Length::Px(320.0)
                 gap: SPACE_XS
-                EuvButton(DATEPICKER_TRIGGER_LABEL.to_string(), tokens) {
-                    outline()
-                    sm()
-                    on_click: move |_: &UiEvent| {
-                        let _: bool = open.update(|v: &mut bool| *v = !*v);
+                row {
+                    width: Length::Percent(100.0)
+                    height: Length::Px(g.get_control_md())
+                    padding: Edges::symmetric(0.0, SPACE_MD)
+                    justify: JustifyContent::SpaceBetween
+                    align: AlignItems::Center
+                    gap: SPACE_SM
+                    background: p.get_background()
+                    border: (g.get_border_width(), p.get_border())
+                    radius: g.get_radius_md()
+                    overflow: Overflow::Hidden
+                    cursor: CursorIcon::Pointer
+                    role: A11yRole::Button
+                    a11y_label: DATEPICKER_TRIGGER_LABEL.to_string()
+                    on_click: on_toggle
+                    text {
+                        flex_grow: 1.0
+                        flex_shrink: 1.0
+                        min_width: Length::Px(0.0)
+                        font_size: 14.0
+                        color: p.get_foreground()
+                        text_overflow: TextOverflow::Ellipsis
+                        { trigger_text }
                     }
-                }
-                text {
-                    font_size: 12.0
-                    color: tokens.get_palette().get_muted_foreground()
-                    { move || format!("Selected date: {lbl_clone} {}", selected_day.get()) }
+                    canvas {
+                        width: Length::Px(12.0)
+                        height: Length::Px(12.0)
+                        flex_shrink: 0.0
+                        painter: paint_chevron
+                    }
                 }
                 view {
                     node_ref: cal_wrap
-                    bind_style: move || {
-                        Style::default()
-                        .width(Length::Percent(100.0))
-                        .display(if open.get() {
-                                Display::Flex
-                            } else {
-                                Display::None
-                        })
-                    }
+                    bind_style: cal_wrap_style
                     EuvCalendar(month_label, 30, selected_day, tokens)
                 }
             }
@@ -904,29 +989,73 @@ impl EuvNativeSelect {
         let selected: Signal<usize> = self.get_selected();
         let Self { options, .. } = self.clone();
         let total: usize = options.len().max(1);
+        let chevron_color: Color = p.get_muted_foreground();
+        let on_cycle = move |_: &UiEvent| {
+            let _: bool = selected.update(|v: &mut usize| *v = (*v + 1) % total);
+        };
+        let label_text = move || -> String {
+            let idx: usize = selected.get() % total;
+            options
+                .get(idx)
+                .cloned()
+                .unwrap_or_else(|| NATIVE_SELECT_DEFAULT_LABEL.to_string())
+        };
+        let paint_chevrons = move |bounds: Rect, dl: &mut DisplayList| {
+            let cx: f32 = bounds.get_x() + bounds.get_width() * 0.5;
+            let cy: f32 = bounds.get_y() + bounds.get_height() * 0.5;
+            dl.push(DrawCommand::Line {
+                from: Point::new(cx - 3.5, cy - 2.0),
+                to: Point::new(cx, cy - 5.0),
+                color: chevron_color,
+                width: 1.5,
+            });
+            dl.push(DrawCommand::Line {
+                from: Point::new(cx, cy - 5.0),
+                to: Point::new(cx + 3.5, cy - 2.0),
+                color: chevron_color,
+                width: 1.5,
+            });
+            dl.push(DrawCommand::Line {
+                from: Point::new(cx - 3.5, cy + 2.0),
+                to: Point::new(cx, cy + 5.0),
+                color: chevron_color,
+                width: 1.5,
+            });
+            dl.push(DrawCommand::Line {
+                from: Point::new(cx, cy + 5.0),
+                to: Point::new(cx + 3.5, cy + 2.0),
+                color: chevron_color,
+                width: 1.5,
+            });
+        };
         view! {
             row {
+                width: Length::Percent(100.0)
                 height: Length::Px(g.get_control_md())
                 padding: Edges::symmetric(0.0, SPACE_MD)
+                justify: JustifyContent::SpaceBetween
                 align: AlignItems::Center
-                background: p.get_card()
+                gap: SPACE_SM
+                background: p.get_background()
                 border: (g.get_border_width(), p.get_border())
                 radius: g.get_radius_md()
+                overflow: Overflow::Hidden
                 cursor: CursorIcon::Pointer
-                on_click: move |_: &UiEvent| {
-                    let _: bool = selected.update(|v: &mut usize| *v = (*v + 1) % total);
-                }
+                on_click: on_cycle
                 text {
-                    font_size: 13.0
+                    flex_grow: 1.0
+                    flex_shrink: 1.0
+                    min_width: Length::Px(0.0)
+                    font_size: 14.0
                     color: p.get_foreground()
-                    { move || {
-                            let idx: usize = selected.get() % total;
-                            let lbl: String = options
-                            .get(idx)
-                            .cloned()
-                            .unwrap_or_else(|| NATIVE_SELECT_DEFAULT_LABEL.to_string());
-                            format!("{lbl}  <>")
-                    } }
+                    text_overflow: TextOverflow::Ellipsis
+                    { label_text }
+                }
+                canvas {
+                    width: Length::Px(12.0)
+                    height: Length::Px(14.0)
+                    flex_shrink: 0.0
+                    painter: paint_chevrons
                 }
             }
         }
@@ -981,7 +1110,7 @@ impl EuvNavigationMenu {
                         Style::default()
                         .column()
                         .display(if active.get().is_some() {
-                                Display::Flex
+                            Display::Flex
                             } else {
                                 Display::None
                         })
@@ -990,15 +1119,17 @@ impl EuvNavigationMenu {
                         .background(p.get_card())
                         .border(g.get_border_width(), p.get_border())
                         .radius(g.get_radius_md())
+                        .overflow(Overflow::Hidden)
                     }
                     text {
+                        width: Length::Percent(100.0)
                         font_size: 13.0
                         color: p.get_muted_foreground()
                         { move || {
-                                active
-                                .get()
-                                .and_then(|i: usize| summaries.get(i).cloned())
-                                .unwrap_or_default()
+                            active
+                            .get()
+                            .and_then(|i: usize| summaries.get(i).cloned())
+                            .unwrap_or_default()
                         } }
                     }
                 }
@@ -1178,50 +1309,50 @@ impl EuvSonner {
                     .into_iter()
                     .enumerate()
                     .map(|(idx, (title, desc)): (usize, (String, String))| {
-                            view! {
-                                row {
-                                    width: Length::Percent(100.0)
-                                    padding: Edges::symmetric(SPACE_SM, SPACE_MD)
-                                    justify: JustifyContent::SpaceBetween
-                                    align: AlignItems::Center
-                                    gap: SPACE_SM
-                                    background: p.get_card()
-                                    border: (g.get_border_width(), p.get_border())
-                                    radius: g.get_radius_md()
-                                    shadow: g.get_shadow_md()
+                        view! {
+                            row {
+                                width: Length::Percent(100.0)
+                                padding: Edges::symmetric(SPACE_SM, SPACE_MD)
+                                justify: JustifyContent::SpaceBetween
+                                align: AlignItems::Center
+                                gap: SPACE_SM
+                                background: p.get_card()
+                                border: (g.get_border_width(), p.get_border())
+                                radius: g.get_radius_md()
+                                shadow: g.get_shadow_md()
+                                overflow: Overflow::Hidden
+                                column {
+                                    flex_grow: 1.0
+                                    gap: 2.0
                                     overflow: Overflow::Hidden
-                                    column {
-                                        flex_grow: 1.0
-                                        gap: 2.0
-                                        overflow: Overflow::Hidden
-                                        text {
-                                            width: Length::Percent(100.0)
-                                            font_size: 13.0
-                                            font_weight: FontWeight::SemiBold
-                                            color: p.get_card_foreground()
-                                            { title }
-                                        }
-                                        text {
-                                            width: Length::Percent(100.0)
-                                            font_size: 12.0
-                                            color: p.get_muted_foreground()
-                                            { desc }
-                                        }
+                                    text {
+                                        width: Length::Percent(100.0)
+                                        font_size: 13.0
+                                        font_weight: FontWeight::SemiBold
+                                        color: p.get_card_foreground()
+                                        { title }
                                     }
-                                    EuvButton(SONNER_DISMISS_LABEL.to_string(), tokens) {
-                                        ghost()
-                                        sm()
-                                        on_click: move |_: &UiEvent| {
-                                            let _: bool =
-                                            messages.update(|v: &mut Vec<(String, String)>| {
-                                                    if idx < v.len() {
-                                                        let _: (String, String) = v.remove(idx);
-                                                    }
-                                            });
-                                        }
+                                    text {
+                                        width: Length::Percent(100.0)
+                                        font_size: 12.0
+                                        color: p.get_muted_foreground()
+                                        { desc }
+                                    }
+                                }
+                                EuvButton(SONNER_DISMISS_LABEL.to_string(), tokens) {
+                                    ghost()
+                                    sm()
+                                    on_click: move |_: &UiEvent| {
+                                        let _: bool =
+                                        messages.update(|v: &mut Vec<(String, String)>| {
+                                            if idx < v.len() {
+                                                let _: (String, String) = v.remove(idx);
+                                            }
+                                        });
                                     }
                                 }
                             }
+                        }
                     })
                     .collect()
                 }
@@ -1379,7 +1510,7 @@ impl EuvAttachment {
                     Style::default()
                     .row()
                     .display(if visible.get() {
-                            Display::Flex
+                        Display::Flex
                         } else {
                             Display::None
                     })
@@ -1394,14 +1525,19 @@ impl EuvAttachment {
                 }
                 column {
                     flex_grow: 1.0
+                    flex_shrink: 1.0
+                    min_width: Length::Px(0.0)
                     gap: 2.0
+                    overflow: Overflow::Hidden
                     text {
+                        width: Length::Percent(100.0)
                         font_size: 13.0
                         font_weight: FontWeight::Medium
                         color: p.get_foreground()
                         { filename }
                     }
                     text {
+                        width: Length::Percent(100.0)
                         font_size: 11.5
                         color: p.get_muted_foreground()
                         { meta }
@@ -1499,8 +1635,11 @@ impl EuvBubble {
             row {
                 width: Length::Percent(100.0)
                 justify: if outgoing { JustifyContent::End } else { JustifyContent::Start }
+                overflow: Overflow::Hidden
                 column {
-                    max_width: Length::Percent(86.0)
+                    width: Length::Percent(86.0)
+                    min_width: Length::Px(0.0)
+                    flex_shrink: 1.0
                     padding: Edges::symmetric(SPACE_SM, SPACE_MD)
                     gap: 4.0
                     background: if outgoing { p.get_primary() } else { p.get_muted() }
@@ -1509,13 +1648,16 @@ impl EuvBubble {
                         p.get_border(),
                     )
                     radius: g.get_radius_lg()
+                    overflow: Overflow::Hidden
                     text {
+                        width: Length::Percent(100.0)
                         font_size: 11.0
                         font_weight: FontWeight::SemiBold
                         color: meta_fg
                         { header_line }
                     }
                     text {
+                        width: Length::Percent(100.0)
                         font_size: 13.0
                         color: fg
                         { content }
@@ -1606,7 +1748,9 @@ impl EuvQuestionnaire {
                 background: p.get_card()
                 border: (g.get_border_width(), p.get_border())
                 radius: g.get_radius_md()
+                overflow: Overflow::Hidden
                 text {
+                    width: Length::Percent(100.0)
                     font_size: 13.5
                     font_weight: FontWeight::SemiBold
                     color: p.get_foreground()
@@ -1621,8 +1765,9 @@ impl EuvQuestionnaire {
                             .width(Length::Percent(100.0))
                             .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
                             .align(AlignItems::Center)
+                            .overflow(Overflow::Hidden)
                             .background(if is_sel {
-                                    p.get_accent()
+                                p.get_accent()
                                 } else {
                                     p.get_background()
                             })
@@ -1641,6 +1786,7 @@ impl EuvQuestionnaire {
                             let _: bool = selected.set_if_changed(Some(idx));
                         }
                         text {
+                            width: Length::Percent(100.0)
                             font_size: 13.0
                             font_weight: FontWeight::Medium
                             color: p.get_foreground()

@@ -30,7 +30,8 @@ Setext h1
 =========
 
 Setext h2
----------
+
+---
 
 ### Custom heading id {#custom-heading-id}
 
@@ -40,16 +41,16 @@ becomes the element id and the anchor permalink
 
 ## Inline formatting
 
-**Bold**, *italic*, ~~strikethrough~~, and `inline code` are supported.
+**Bold**, _italic_, ~~strikethrough~~, and `inline code` are supported.
 
 Bold and italic can nest: ***bold italic***, **bold with `inline code` inside**, and
-*a mix of `code` and emphasis*.
+_a mix of `code` and emphasis_.
 
 Underscores work for italic too: _italic_, __bold__, and
 *combined with asterisks like **this***.
 
 Inline formatting can also nest with strikethrough:
-**~~bold strikethrough~~**, *~~italic strikethrough~~*, and
+**~~bold strikethrough~~**, _~~italic strikethrough~~_, and
 ***~~bold italic strikethrough~~***.
 
 Inline code spans can contain a backtick when wrapped in a longer
@@ -60,7 +61,7 @@ A footnote reference renders inline as `[^example]` — it shows as plain
 
 ## Hard break vs soft break
 
-This paragraph ends with two trailing spaces, so the next line  
+This paragraph ends with two trailing spaces, so the next line
 starts a new line in the same paragraph (hard break, `<br>`).
 
 This paragraph ends with no trailing whitespace, so the next line
@@ -88,20 +89,21 @@ space).
 Mixing an ordered list with a task sublist:
 
 1. Plan
-   - [x] Outline
-   - [ ] Draft
+  - [x] Outline
+  - [ ] Draft
+
 2. Review
-   - [x] Self-review
-   - [ ] Peer review
+  - [x] Self-review
+  - [ ] Peer review
 
 ## Tables
 
-| Feature | VuePress | euv-docs | Notes |
-| :--- | :---: | ---: | --- |
-| Frontmatter | ✅ | ✅ | parsed at build time |
-| Custom containers | ✅ | ✅ | `::: tip / warning / danger / note` |
-| Anchor TOC | ✅ | ✅ | h2 + h3 only |
-| Table alignment | ✅ | ✅ | left / center / right |
+| Feature           | VuePress | euv-docs | Notes                               |
+| :---------------- | :------: | -------: | ----------------------------------- |
+| Frontmatter       |    ✅     |        ✅ | parsed at build time                |
+| Custom containers |    ✅     |        ✅ | `::: tip / warning / danger / note` |
+| Anchor TOC        |    ✅     |        ✅ | h2 + h3 only                        |
+| Table alignment   |    ✅     |        ✅ | left / center / right               |
 
 Use a backslash to escape a literal pipe inside a cell: `col \| with pipe`
 renders as `col | with pipe`.
@@ -186,6 +188,7 @@ This container holds **two paragraphs** and a list.
 
 - First inner item
 - Second inner item
+
 :::
 
 Containers do not nest — a second `:::` inside a container is rendered
@@ -201,6 +204,7 @@ fn main() {
     println!("inside details");
 }
 ```
+
 :::
 
 ## Blockquotes
@@ -232,9 +236,9 @@ Three or more of `-`, `_`, or `*` on a line:
 
 ---
 
-***
+---
 
-___
+---
 
 ## Links
 
@@ -272,7 +276,7 @@ prefixed with the id, and the reference shows the literal `[^name]`.
 
     A second paragraph inside the same footnote is supported.
 
-    > Blockquotes work inside footnotes too.
+> Blockquotes work inside footnotes too.
 
 ## Images
 
@@ -305,7 +309,9 @@ native `<mark>` element.
 A block of raw HTML passes through verbatim:
 
 <div style="border: 1px dashed currentColor; padding: 8px 12px;">
+
   This block is rendered as raw HTML, not markdown.
+
 </div>
 
 <details>

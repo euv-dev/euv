@@ -20,9 +20,9 @@ NativeSelect
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| NativeSelect | `euv_native_select` | `native-select` |
+| Part               | Component                  | Slot                   |
+| ------------------ | -------------------------- | ---------------------- |
+| NativeSelect       | `euv_native_select`        | `native-select`        |
 | NativeSelectOption | `euv_native_select_option` | `native-select-option` |
 
 ## Disabled Options

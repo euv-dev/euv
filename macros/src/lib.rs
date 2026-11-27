@@ -51,15 +51,25 @@ pub fn view(input: TokenStream) -> TokenStream {
     expand_view(parsed).into()
 }
 
-/// Compile-time style macro compiling declarative rules directly into typed `Style` constructor functions or inline `Style` expressions.
+/// Compile-time style macro compiling declarative newline-separated rules directly into typed `Style` constructor functions or inline `Style` expressions.
 ///
-/// Every statement inside `style! { ... }` must end with `;`. Omitting a trailing semicolon is a compile-time error:
+/// Every statement inside `style! { ... }` must occupy its own line without semicolons. Placing two rules on one line is a compile-time error:
 ///
 /// ```compile_fail
 /// use euv::*;
 ///
 /// let _bad: Style = style! {
-///     AlignItems::Center
+///     AlignItems::Center Overflow::Hidden
+/// };
+/// ```
+///
+/// Trailing semicolons are also rejected in favor of clean newline separation:
+///
+/// ```compile_fail
+/// use euv::*;
+///
+/// let _bad: Style = style! {
+///     AlignItems::Center;
 ///     Overflow::Hidden;
 /// };
 /// ```

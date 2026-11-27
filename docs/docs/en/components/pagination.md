@@ -25,12 +25,12 @@ Pagination
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Pagination | `euv_pagination` | `pagination` |
-| PaginationContent | `euv_pagination` | `pagination-content` |
+| Part               | Component                 | Slot                  |
+| ------------------ | ------------------------- | --------------------- |
+| Pagination         | `euv_pagination`          | `pagination`          |
+| PaginationContent  | `euv_pagination`          | `pagination-content`  |
 | PaginationEllipsis | `euv_pagination_ellipsis` | `pagination-ellipsis` |
-| PaginationItem | `euv_pagination_item` | `pagination-item` |
-| PaginationLink | `euv_pagination_link` | `pagination-link` |
-| PaginationNext | `euv_pagination` | `pagination-next` |
-| PaginationPrevious | `euv_pagination` | `pagination-previous` |
+| PaginationItem     | `euv_pagination_item`     | `pagination-item`     |
+| PaginationLink     | `euv_pagination_link`     | `pagination-link`     |
+| PaginationNext     | `euv_pagination`          | `pagination-next`     |
+| PaginationPrevious | `euv_pagination`          | `pagination-previous` |

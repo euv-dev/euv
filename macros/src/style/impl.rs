@@ -2,7 +2,7 @@ use super::*;
 
 /// Parser for `StyleBlockInput`.
 impl Parse for StyleBlockInput {
-    /// Parses either named `vis name[(params...)] { stmt; ... }` definitions or an inline `style! { stmt; ... }` expression.
+    /// Parses either named `vis name[(params...)] { stmt\n ... }` definitions or an inline `style! { stmt\n ... }` expression.
     ///
     /// # Arguments
     ///
@@ -10,7 +10,7 @@ impl Parse for StyleBlockInput {
     ///
     /// # Returns
     ///
-    /// - `Result<Self>` - Parsed style block with mandatory semicolons enforced.
+    /// - `Result<Self>` - Parsed style block with one-rule-per-line syntax enforced (no semicolons).
     fn parse(input: ParseStream<'_>) -> Result<Self> {
         if input.is_empty() {
             return Ok(Self::Inline(Vec::new()));

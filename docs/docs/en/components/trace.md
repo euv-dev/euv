@@ -23,10 +23,10 @@ Trace
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Trace | `euv_trace` | `trace` |
+| Part             | Component               | Slot                |
+| ---------------- | ----------------------- | ------------------- |
+| Trace            | `euv_trace`             | `trace`             |
 | TraceDescription | `euv_trace_description` | `trace-description` |
-| TraceIcon | `euv_trace_icon` | `trace-icon` |
-| TraceLine | `euv_trace_line` | `trace-line` |
-| TraceTitle | `euv_trace_title` | `trace-title` |
+| TraceIcon        | `euv_trace_icon`        | `trace-icon`        |
+| TraceLine        | `euv_trace_line`        | `trace-line`        |
+| TraceTitle       | `euv_trace_title`       | `trace-title`       |

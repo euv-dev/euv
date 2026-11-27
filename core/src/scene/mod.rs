@@ -1,4 +1,5 @@
 mod animation;
+mod dsl;
 mod event;
 mod flags;
 mod focus;
@@ -9,7 +10,8 @@ mod node;
 mod tree;
 
 pub use {
-    animation::*, event::*, flags::*, focus::*, id::*, kind::*, lifecycle::*, node::*, tree::*,
+    animation::*, dsl::*, event::*, flags::*, focus::*, id::*, kind::*, lifecycle::*, node::*,
+    tree::*,
 };
 
 use super::*;

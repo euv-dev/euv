@@ -17,6 +17,7 @@ impl Default for TextStyle {
             align: TextAlign::Left,
             overflow: TextOverflow::Wrap,
             color: COLOR_BLACK,
+            italic: false,
             underline: false,
             strikethrough: false,
         }

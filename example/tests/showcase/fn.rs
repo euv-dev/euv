@@ -99,6 +99,23 @@ fn scroll_and_click_label(app: &mut App, label: &str) -> FrameStats {
     click_at(app, pt)
 }
 
+fn open_nav_and_click(app: &mut App, label: &str) -> FrameStats {
+    let _: FrameStats = click_label(app, "E");
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let pt: Point = find_text_center(app, label);
+    assert!(
+        pt.get_x() >= 0.0,
+        "expected drawer navigation label `{label}`"
+    );
+    let stats: FrameStats = click_at(app, pt);
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    stats
+}
+
 #[test]
 fn real_interactive_e2e_clicking_navigates_all_nine_routes_and_exercises_every_feature() {
     reset_reactive_runtime();
@@ -106,7 +123,7 @@ fn real_interactive_e2e_clicking_navigates_all_nine_routes_and_exercises_every_f
         create_showcase_app(true, RenderMode::Software).unwrap();
     let frame_overview: FrameStats = app.step_frame().unwrap();
     assert_ne!(frame_overview.get_frame_hash(), 0);
-    let f_reactive_0: FrameStats = click_label(&mut app, "Reactivity");
+    let f_reactive_0: FrameStats = open_nav_and_click(&mut app, "Reactivity");
     assert_eq!(state.get_route().get_untracked(), ROUTE_REACTIVE);
     assert_ne!(
         f_reactive_0.get_frame_hash(),
@@ -122,12 +139,12 @@ fn real_interactive_e2e_clicking_navigates_all_nine_routes_and_exercises_every_f
     assert_ne!(f_batch.get_frame_hash(), f_inc.get_frame_hash());
     let _: FrameStats = click_label(&mut app, "Reset");
     assert_eq!(state.get_counter().get_untracked(), 0);
-    let f_render_0: FrameStats = click_label(&mut app, "Rendering");
+    let f_render_0: FrameStats = open_nav_and_click(&mut app, "Rendering");
     assert_eq!(state.get_route().get_untracked(), ROUTE_RENDER);
     let f_render_hw: FrameStats = click_label(&mut app, "Hardware");
     assert_eq!(state.get_render_mode_index().get_untracked(), 2);
     assert_ne!(f_render_hw.get_frame_hash(), f_render_0.get_frame_hash());
-    let f_win_0: FrameStats = click_label(&mut app, "Window & OS");
+    let f_win_0: FrameStats = open_nav_and_click(&mut app, "Window & OS");
     assert_eq!(state.get_route().get_untracked(), ROUTE_WINDOW);
     let f_island: FrameStats = click_label(&mut app, "Toggle Dynamic Island");
     assert!(state.get_island_active().get_untracked());
@@ -152,7 +169,7 @@ fn real_interactive_e2e_clicking_navigates_all_nine_routes_and_exercises_every_f
     assert_eq!(state.get_haptic_pulses().get_untracked(), 1);
     let a11y: A11yTree = app.a11y_tree();
     assert!(a11y.get_nodes().len() >= 10);
-    let f_forms_0: FrameStats = click_label(&mut app, "Forms");
+    let f_forms_0: FrameStats = open_nav_and_click(&mut app, "Forms");
     assert_eq!(state.get_route().get_untracked(), ROUTE_FORMS);
     let inp_pt: Point = find_input_center_by_placeholder(&app, PLACEHOLDER_USERNAME);
     let _: FrameStats = click_at(&mut app, inp_pt);
@@ -176,7 +193,7 @@ fn real_interactive_e2e_clicking_navigates_all_nine_routes_and_exercises_every_f
     assert!(!state.get_hardware_accel().get_untracked());
     let _: FrameStats = click_label(&mut app, "Enable deterministic frame telemetry");
     assert!(!state.get_agree_terms().get_untracked());
-    let f_themes_0: FrameStats = click_label(&mut app, "Themes (17)");
+    let f_themes_0: FrameStats = open_nav_and_click(&mut app, "Themes (17)");
     assert_eq!(state.get_route().get_untracked(), ROUTE_THEMES);
     let initial_scheme: DesignScheme = state.get_theme().get_scheme().get_untracked();
     let f_scheme: FrameStats = click_label(&mut app, "Cycle Design Scheme");
@@ -191,7 +208,7 @@ fn real_interactive_e2e_clicking_navigates_all_nine_routes_and_exercises_every_f
         ThemeMode::Dark
     );
     assert_ne!(f_dark.get_frame_hash(), f_scheme.get_frame_hash());
-    let f_data_0: FrameStats = click_label(&mut app, "Scroll List");
+    let f_data_0: FrameStats = open_nav_and_click(&mut app, "Scroll List");
     assert_eq!(state.get_route().get_untracked(), ROUTE_DATA);
     let prev_scroll: f32 = state.get_list_scroll_y().get_untracked();
     let f_scroll: FrameStats = click_label(&mut app, "Scroll Down (+160px)");
@@ -199,11 +216,11 @@ fn real_interactive_e2e_clicking_navigates_all_nine_routes_and_exercises_every_f
     assert_ne!(f_scroll.get_frame_hash(), f_data_0.get_frame_hash());
     let _: FrameStats = click_label(&mut app, "Back to Top");
     assert!(state.get_list_scroll_y().get_untracked().abs() < 0.01);
-    let f_game_0: FrameStats = click_label(&mut app, "Game Engine");
+    let f_game_0: FrameStats = open_nav_and_click(&mut app, "Game Engine");
     assert_eq!(state.get_route().get_untracked(), ROUTE_GAME);
     let f_game_1: FrameStats = click_label(&mut app, "Step Physics (+3 Frames)");
     assert_ne!(f_game_1.get_frame_hash(), f_game_0.get_frame_hash());
-    let f_ov_0: FrameStats = click_label(&mut app, "Overlays");
+    let f_ov_0: FrameStats = open_nav_and_click(&mut app, "Overlays");
     assert_eq!(state.get_route().get_untracked(), ROUTE_OVERLAYS);
     let f_modal: FrameStats = click_label(&mut app, "Open Dialog Modal");
     assert!(state.get_modal_open().get_untracked());
@@ -227,7 +244,7 @@ fn real_interactive_e2e_clicking_navigates_all_nine_routes_and_exercises_every_f
     assert!(state.get_alert_dialog_confirmed().get_untracked());
     let _: FrameStats = click_label(&mut app, "@euv-dev");
     assert!(state.get_hover_card_open().get_untracked());
-    let f_dyn_0: FrameStats = click_label(&mut app, "Dynamic WASM");
+    let f_dyn_0: FrameStats = open_nav_and_click(&mut app, "Dynamic WASM");
     assert_eq!(state.get_route().get_untracked(), ROUTE_DYNAMIC);
     let _: FrameStats = scroll_and_click_label(&mut app, "Download Partial WASM v1");
     assert_eq!(
@@ -291,7 +308,7 @@ fn real_interactive_e2e_clicking_navigates_all_nine_routes_and_exercises_every_f
     assert_ne!(f_promo.get_frame_hash(), f_dyn_page_v1.get_frame_hash());
     let _: FrameStats = click_label(&mut app, "Return to Dynamic OTA");
     assert_eq!(state.get_route().get_untracked(), ROUTE_DYNAMIC);
-    let _: FrameStats = click_label(&mut app, "Overview");
+    let _: FrameStats = click_label(&mut app, "Home");
     assert_eq!(state.get_route().get_untracked(), ROUTE_OVERVIEW);
 }
 
@@ -348,8 +365,11 @@ fn instant_responsive_resize_adapts_shell_and_all_ten_pages_without_horizontal_o
         Breakpoint::Compact
     );
     assert_ne!(f_mob.get_frame_hash(), f_tab.get_frame_hash());
-    let f_menu_open: FrameStats = click_label(&mut app, "Menu");
+    let f_menu_open: FrameStats = click_label(&mut app, "E");
     assert_ne!(f_menu_open.get_frame_hash(), f_mob.get_frame_hash());
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
     let _: FrameStats = click_label(&mut app, "Reactivity");
     assert_eq!(state.get_route().get_untracked(), ROUTE_REACTIVE);
     let routes: [&str; 15] = [
@@ -423,9 +443,8 @@ fn fast_wheel_scroll_scrollbar_slider_drag_animations_touch_scroll_and_game_keys
         create_showcase_app(true, RenderMode::Software).unwrap();
     let wid: WindowId = app.get_window_state().get_id();
     let _: FrameStats = app.step_frame().unwrap();
-    let _: FrameStats = click_label(&mut app, "Scroll List");
+    let _: FrameStats = open_nav_and_click(&mut app, "Scroll List");
     assert_eq!(state.get_route().get_untracked(), ROUTE_DATA);
-    assert!(app.has_active_animations());
     for _ in 0..18 {
         let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
     }
@@ -497,7 +516,7 @@ fn fast_wheel_scroll_scrollbar_slider_drag_animations_touch_scroll_and_game_keys
         mid_scroll > 140_000.0 && mid_scroll < 180_000.0,
         "virtual scrollbar mid-track click expected ~160k, got {mid_scroll}"
     );
-    let _: FrameStats = click_label(&mut app, "Forms");
+    let _: FrameStats = open_nav_and_click(&mut app, "Forms");
     for _ in 0..18 {
         let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
     }
@@ -544,7 +563,7 @@ fn fast_wheel_scroll_scrollbar_slider_drag_animations_touch_scroll_and_game_keys
         val_after_down < 25.0 && val_after_drag > 80.0,
         "slider drag failed: down={val_after_down} drag={val_after_drag}"
     );
-    let _: FrameStats = click_label(&mut app, "Overlays");
+    let _: FrameStats = open_nav_and_click(&mut app, "Overlays");
     for _ in 0..18 {
         let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
     }
@@ -571,7 +590,7 @@ fn fast_wheel_scroll_scrollbar_slider_drag_animations_touch_scroll_and_game_keys
     for _ in 0..18 {
         let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
     }
-    let _: FrameStats = click_label(&mut app, "Game Engine");
+    let _: FrameStats = open_nav_and_click(&mut app, "Game Engine");
     for _ in 0..18 {
         let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
     }
@@ -593,11 +612,7 @@ fn fast_wheel_scroll_scrollbar_slider_drag_animations_touch_scroll_and_game_keys
         SafeAreaInsets::new(59.0, 0.0, 34.0, 0.0),
     ));
     let _: FrameStats = app.step_frame().unwrap();
-    let _: FrameStats = click_label(&mut app, "Menu");
-    for _ in 0..18 {
-        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
-    }
-    let _: FrameStats = click_label(&mut app, "Forms");
+    let _: FrameStats = open_nav_and_click(&mut app, "Forms");
     assert_eq!(state.get_route().get_untracked(), ROUTE_FORMS);
     for _ in 0..18 {
         let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
@@ -630,7 +645,7 @@ fn fast_wheel_scroll_scrollbar_slider_drag_animations_touch_scroll_and_game_keys
     app.queue_window_command(WindowCommand::SetSize(wid, 1280, 800));
     app.dispatch_window_event(WindowEvent::Resized(wid, 1280, 800, 1.0));
     let _: FrameStats = app.step_frame().unwrap();
-    let _: FrameStats = click_label(&mut app, "3D Engine (RT)");
+    let _: FrameStats = open_nav_and_click(&mut app, "3D Engine (RT)");
     assert_eq!(state.get_route().get_untracked(), ROUTE_GAME_3D);
     for _ in 0..18 {
         let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
@@ -678,7 +693,7 @@ fn fast_wheel_scroll_scrollbar_slider_drag_animations_touch_scroll_and_game_keys
         RayTracingMode::FullPathTracedGi
     );
     assert_ne!(f3d_before.get_frame_hash(), f3d_after.get_frame_hash());
-    let _: FrameStats = click_label(&mut app, "Media Studio");
+    let _: FrameStats = open_nav_and_click(&mut app, "Media Studio");
     assert_eq!(state.get_route().get_untracked(), ROUTE_MEDIA);
     for _ in 0..18 {
         let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
@@ -735,12 +750,12 @@ fn fast_wheel_scroll_scrollbar_slider_drag_animations_touch_scroll_and_game_keys
             .get_untracked()
             .contains("euv://docs/media-engine")
     );
-    let _: FrameStats = click_label(&mut app, "UI & Edge Lab");
+    let _: FrameStats = open_nav_and_click(&mut app, "UI & Edge Lab");
     assert_eq!(state.get_route().get_untracked(), ROUTE_LAB);
     for _ in 0..18 {
         let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
     }
-    let _: FrameStats = click_label(&mut app, "Window & OS");
+    let _: FrameStats = open_nav_and_click(&mut app, "Window & OS");
     assert_eq!(state.get_route().get_untracked(), ROUTE_WINDOW);
     let stuck_hover_count: usize = app.get_scene().with_read(
         |tree: &SceneTree| {
@@ -765,7 +780,7 @@ fn fast_wheel_scroll_scrollbar_slider_drag_animations_touch_scroll_and_game_keys
     ));
     let _: FrameStats = app.step_frame().unwrap();
     assert_eq!(state.get_route().get_untracked(), ROUTE_LAB);
-    let _: FrameStats = click_label(&mut app, "Overlays");
+    let _: FrameStats = open_nav_and_click(&mut app, "Overlays");
     for _ in 0..18 {
         let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
     }
@@ -788,7 +803,7 @@ fn fast_wheel_scroll_scrollbar_slider_drag_animations_touch_scroll_and_game_keys
         ROUTE_OVERLAYS,
         "System Back consumed by modal must not pop the active route"
     );
-    let _: FrameStats = click_label(&mut app, "UI & Edge Lab");
+    let _: FrameStats = open_nav_and_click(&mut app, "UI & Edge Lab");
     let _: FrameStats = scroll_and_click_label(&mut app, "Increment Preserved Counter");
     let preserved_before: u32 = state.get_lab_resize_preserve_count().get_untracked();
     app.queue_window_command(WindowCommand::SetSize(wid, 390, 844));
@@ -807,7 +822,7 @@ fn global_wasm_takeover_responds_to_clicks_and_restores_native_shell() {
     let (mut app, state): (App, ShowcaseState) =
         create_showcase_app(true, RenderMode::Software).unwrap();
     let _: FrameStats = app.step_frame().unwrap();
-    let _: FrameStats = click_label(&mut app, "Dynamic WASM");
+    let _: FrameStats = open_nav_and_click(&mut app, "Dynamic WASM");
     assert_eq!(state.get_route().get_untracked(), ROUTE_DYNAMIC);
     let _: FrameStats = scroll_and_click_label(&mut app, "Download Global WASM v1");
     assert_eq!(
@@ -1125,7 +1140,7 @@ fn interactive_stress_lab_buttons_execute_live_benchmarks_and_update_telemetry()
     let (mut app, state): (App, ShowcaseState) =
         create_showcase_app(true, RenderMode::Software).unwrap();
     let _: FrameStats = app.step_frame().unwrap();
-    let _: FrameStats = click_label(&mut app, "Stress Lab");
+    let _: FrameStats = open_nav_and_click(&mut app, "Stress Lab");
     assert_eq!(state.get_route().get_untracked(), ROUTE_STRESS);
     assert_eq!(state.get_stress_results().get_untracked().len(), 10);
     let _: FrameStats = scroll_and_click_label(&mut app, "Run 100k List");
@@ -1199,4 +1214,149 @@ fn showcase_freeze_lifecycle_markdown_studio_3d_max_defaults_and_double_back_exi
     ));
     assert!(app.get_context().get_exit_requested().get_untracked());
     assert!(!app.get_running());
+}
+
+#[test]
+fn twitter_bottom_nav_swipe_routing_live_fps_drawer_drag_and_dropdown_width_work() {
+    reset_reactive_runtime();
+    let (mut app, state): (App, ShowcaseState) =
+        create_showcase_app(true, RenderMode::Software).unwrap();
+    let wid: WindowId = app.get_window_state().get_id();
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    let has_fps_badge: bool = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes().iter().any(|n: &SceneNode| {
+                n.get_alive() && matches!(n.get_kind(), NodeKind::Text(t) if t.contains("FPS"))
+            })
+        },
+        false,
+    );
+    assert!(has_fps_badge);
+    let has_home_dir: bool = find_text_center(&app, HOME_DIR_TITLE).get_x() >= 0.0;
+    assert!(has_home_dir);
+    let _: FrameStats = click_label(&mut app, BNAV_DOCS_LABEL);
+    assert_eq!(state.get_route().get_untracked(), ROUTE_MARKDOWN);
+    let _: FrameStats = click_label(&mut app, BNAV_HOME_LABEL);
+    assert_eq!(state.get_route().get_untracked(), ROUTE_OVERVIEW);
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(77, 900.0, 400.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::touch(77, 420.0, 400.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::touch(77, 420.0, 400.0),
+    ));
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    assert_eq!(state.get_route().get_untracked(), ROUTE_MARKDOWN);
+    let _: FrameStats = open_nav_and_click(&mut app, "Overlays");
+    assert_eq!(state.get_route().get_untracked(), ROUTE_OVERLAYS);
+    let _: FrameStats = click_label(&mut app, "Quick Actions");
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert!(state.get_dropdown_open().get_untracked());
+    let (trigger_w, menu_w): (f32, f32) = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let mut trig: f32 = 0.0;
+            let mut menu: f32 = 0.0;
+            for node in tree.get_nodes().iter() {
+                if !node.get_alive() || node.get_style().get_layout().get_display() == Display::None
+                {
+                    continue;
+                }
+                if let Some(a11y) = node.a11y_props() {
+                    if a11y.get_label() == "Quick Actions" {
+                        trig = node.get_layout_box().get_bounds().get_width();
+                    } else if a11y.get_role() == A11yRole::Menu && menu == 0.0 {
+                        menu = node.get_layout_box().get_bounds().get_width();
+                    }
+                }
+            }
+            (trig, menu)
+        },
+        (0.0, 0.0),
+    );
+    assert!(trigger_w > 300.0);
+    assert!((trigger_w - menu_w).abs() < 1.0);
+    let _: FrameStats = click_label(&mut app, "Toggle Sheet");
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert!(state.get_sheet_open().get_untracked());
+    let sheet_grab_pt: Point = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            for (idx, node) in tree.get_nodes().iter().enumerate() {
+                if node.get_alive()
+                    && node.get_style().get_paint().get_cursor() == CursorIcon::NsResize
+                {
+                    let nid: NodeId = NodeId::new(idx as u32, node.get_generation());
+                    if let Some(b) = tree.node_screen_bounds(nid)
+                        && b.get_width() > 20.0
+                    {
+                        return Point::new(
+                            b.get_x() + b.get_width() * 0.5,
+                            b.get_y() + b.get_height() * 0.5,
+                        );
+                    }
+                }
+            }
+            Point::new(-1.0, -1.0)
+        },
+        Point::new(-1.0, -1.0),
+    );
+    assert!(sheet_grab_pt.get_x() >= 0.0);
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::mouse(sheet_grab_pt.get_x(), sheet_grab_pt.get_y()),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::mouse(sheet_grab_pt.get_x(), sheet_grab_pt.get_y() - 120.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::mouse(sheet_grab_pt.get_x(), sheet_grab_pt.get_y() - 120.0),
+    ));
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    assert!(state.get_sheet_open().get_untracked());
+    let expanded_grab_pt: Point = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            for (idx, node) in tree.get_nodes().iter().enumerate() {
+                if node.get_alive()
+                    && node.get_style().get_paint().get_cursor() == CursorIcon::NsResize
+                {
+                    let nid: NodeId = NodeId::new(idx as u32, node.get_generation());
+                    if let Some(b) = tree.node_screen_bounds(nid)
+                        && b.get_width() > 20.0
+                    {
+                        return Point::new(
+                            b.get_x() + b.get_width() * 0.5,
+                            b.get_y() + b.get_height() * 0.5,
+                        );
+                    }
+                }
+            }
+            Point::new(-1.0, -1.0)
+        },
+        Point::new(-1.0, -1.0),
+    );
+    assert!(expanded_grab_pt.get_y() < sheet_grab_pt.get_y() - 60.0);
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::mouse(expanded_grab_pt.get_x(), expanded_grab_pt.get_y()),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::mouse(expanded_grab_pt.get_x(), expanded_grab_pt.get_y() + 260.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::mouse(expanded_grab_pt.get_x(), expanded_grab_pt.get_y() + 260.0),
+    ));
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    assert!(!state.get_sheet_open().get_untracked());
 }

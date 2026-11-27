@@ -13,6 +13,6 @@ cargo add euv-ui
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Spinner | `euv_spinner` | — |
+| Part    | Component     | Slot |
+| ------- | ------------- | ---- |
+| Spinner | `euv_spinner` | —    |

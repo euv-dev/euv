@@ -31,10 +31,13 @@ pub fn glyph_bitmap_rows(ch: char) -> [u8; BITMAP_GLYPH_HEIGHT] {
 /// - `f32` - Advance width in logical pixels.
 #[must_use]
 pub fn measure_char_advance(ch: char, style: TextStyle) -> f32 {
-    let bold_factor: f32 = if style.get_weight().is_bold() {
-        1.10
+    let is_mono: bool = style.get_family() == FontFamily::Monospace;
+    let bold_factor: f32 = if is_mono {
+        1.0
+    } else if style.get_weight().is_bold() {
+        1.04
     } else if matches!(style.get_weight(), FontWeight::Medium) {
-        1.05
+        1.02
     } else {
         1.0
     };
@@ -50,21 +53,21 @@ pub fn measure_char_advance(ch: char, style: TextStyle) -> f32 {
             if is_wide_unicode(ch) {
                 1.04
             } else if (ch as u32) > 0x7F {
-                0.80
+                0.76
             } else {
                 match ch {
-                    'i' | 'l' | 'j' | '!' | '.' | ',' | ':' | ';' | '|' | '\'' => 0.33,
-                    'I' | 'f' | 'r' | 't' | '(' | ')' | '[' | ']' | '/' => 0.42,
-                    ' ' => 0.32,
-                    '-' | '"' => 0.45,
-                    'J' | 'L' | 's' | 'c' | 'z' | 'v' | 'x' => 0.58,
-                    'm' | 'w' => 0.90,
-                    'M' | 'W' => 0.96,
+                    'i' | 'l' | 'j' | '!' | '.' | ',' | ':' | ';' | '|' | '\'' => 0.29,
+                    'I' | 'f' | 'r' | 't' | '(' | ')' | '[' | ']' | '/' => 0.37,
+                    ' ' => 0.30,
+                    '-' | '"' => 0.40,
+                    'J' | 'L' | 's' | 'c' | 'z' | 'v' | 'x' => 0.52,
+                    'm' | 'w' => 0.84,
+                    'M' | 'W' => 0.90,
                     'O' | 'Q' | 'G' | 'D' | 'H' | 'N' | 'U' | 'A' | 'B' | 'C' | 'K' | 'R' | 'V'
-                    | 'X' | 'Y' => 0.77,
-                    'E' | 'F' | 'P' | 'S' | 'T' | 'Z' => 0.69,
-                    '0'..='9' => 0.66,
-                    _ => PROPORTIONAL_ADVANCE_RATIO + 0.04,
+                    | 'X' | 'Y' => 0.72,
+                    'E' | 'F' | 'P' | 'S' | 'T' | 'Z' => 0.64,
+                    '0'..='9' => 0.58,
+                    _ => PROPORTIONAL_ADVANCE_RATIO,
                 }
             }
         }
@@ -91,6 +94,11 @@ pub fn rasterize_glyph(key: GlyphKey) -> RasterizedGlyph {
     let mut prop_style: TextStyle = TextStyle::default();
     prop_style
         .set_font_size(size_px)
+        .set_family(if key.get_monospace() {
+            FontFamily::Monospace
+        } else {
+            FontFamily::Sans
+        })
         .set_weight(if key.get_bold() {
             FontWeight::Bold
         } else {
@@ -102,6 +110,7 @@ pub fn rasterize_glyph(key: GlyphKey) -> RasterizedGlyph {
     let out_w: u32 = (target_adv * 0.86).round().max(3.0).min(advance as f32) as u32;
     let rows: [u8; BITMAP_GLYPH_HEIGHT] = glyph_bitmap_rows(key.get_codepoint());
     let bold: bool = key.get_bold();
+    let italic: bool = key.get_italic();
     let total_pixels: usize = (out_w as usize) * (out_h as usize);
     let mut coverage: Vec<u8> = vec![0; total_pixels];
     let src_w: f32 = BITMAP_GLYPH_WIDTH as f32;
@@ -111,11 +120,17 @@ pub fn rasterize_glyph(key: GlyphKey) -> RasterizedGlyph {
     let sub_offsets: [(f32, f32); 4] = [(0.25, 0.25), (0.75, 0.25), (0.25, 0.75), (0.75, 0.75)];
     for py in 0..out_h {
         let row_off: usize = (py as usize) * (out_w as usize);
+        let italic_shift: f32 = if italic {
+            (0.5 - (py as f32) / dst_h.max(1.0)) * 0.85
+        } else {
+            0.0
+        };
         for px in 0..out_w {
             let mut hits: u16 = 0;
             for (ox, oy) in sub_offsets.into_iter() {
                 let sy: f32 = ((py as f32) + oy) * src_h / dst_h;
-                let sx: f32 = ((px as f32) + ox) * src_w / dst_w;
+                let sx: f32 =
+                    (((px as f32) + ox) * src_w / dst_w - italic_shift).clamp(0.0, src_w - 0.01);
                 let row_idx: usize = (sy.floor() as usize).min(BITMAP_GLYPH_HEIGHT - 1);
                 let col_idx: usize = (sx.floor() as usize).min(BITMAP_GLYPH_WIDTH - 1);
                 let row_bits: u8 = rows[row_idx];

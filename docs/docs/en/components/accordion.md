@@ -22,9 +22,9 @@ Accordion
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Accordion | `euv_accordion` | `accordion` |
+| Part             | Component           | Slot                |
+| ---------------- | ------------------- | ------------------- |
+| Accordion        | `euv_accordion`     | `accordion`         |
 | AccordionContent | `accordion_section` | `accordion-content` |
-| AccordionItem | `accordion_section` | `accordion-item` |
+| AccordionItem    | `accordion_section` | `accordion-item`    |
 | AccordionTrigger | `accordion_section` | `accordion-trigger` |

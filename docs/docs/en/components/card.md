@@ -25,12 +25,12 @@ Card
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Card | `euv_card` | `card` |
-| CardAction | `euv_card_action` | `card-action` |
-| CardContent | `euv_card_content` | `card-content` |
+| Part            | Component              | Slot               |
+| --------------- | ---------------------- | ------------------ |
+| Card            | `euv_card`             | `card`             |
+| CardAction      | `euv_card_action`      | `card-action`      |
+| CardContent     | `euv_card_content`     | `card-content`     |
 | CardDescription | `euv_card_description` | `card-description` |
-| CardFooter | `euv_card_footer` | `card-footer` |
-| CardHeader | `euv_card_header` | `card-header` |
-| CardTitle | `euv_card_title` | `card-title` |
+| CardFooter      | `euv_card_footer`      | `card-footer`      |
+| CardHeader      | `euv_card_header`      | `card-header`      |
+| CardTitle       | `euv_card_title`       | `card-title`       |

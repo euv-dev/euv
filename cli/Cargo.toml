@@ -25,5 +25,7 @@ euv-docs = { workspace = true }
 
 clap = { workspace = true }
 serde = { workspace = true }
+tokio = { workspace = true }
+crate-cli = { workspace = true }
 serde_json = { workspace = true }
 lombok-macros = { workspace = true }
