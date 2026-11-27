@@ -504,6 +504,32 @@ pub(crate) fn draw_code_fullscreen_icon(bounds: Rect, dl: &mut DisplayList, col:
     }
 }
 
+/// Compares an ASCII-lowercase table key against a candidate slice case-insensitively without heap allocation.
+///
+/// # Arguments
+///
+/// - `&str` - ASCII-lowercase lookup table key.
+/// - `&str` - Candidate input slice.
+///
+/// # Returns
+///
+/// - `Ordering` - Lexicographical ASCII case-insensitive ordering.
+#[inline(always)]
+fn cmp_lower_with_ascii_ignore_case(lower_key: &str, candidate: &str) -> Ordering {
+    let kb: &[u8] = lower_key.as_bytes();
+    let cb: &[u8] = candidate.as_bytes();
+    let min_len: usize = kb.len().min(cb.len());
+    let mut i: usize = 0;
+    while i < min_len {
+        let c: u8 = cb[i].to_ascii_lowercase();
+        if kb[i] != c {
+            return kb[i].cmp(&c);
+        }
+        i += 1;
+    }
+    kb.len().cmp(&cb.len())
+}
+
 /// Resolves an emoji shortcode (without surrounding `:`) into its Unicode emoji glyph.
 ///
 /// # Arguments
@@ -515,12 +541,13 @@ pub(crate) fn draw_code_fullscreen_icon(bounds: Rect, dl: &mut DisplayList, col:
 /// - `Option<&'static str>` - Matching emoji glyph when recognized.
 #[must_use]
 pub fn resolve_emoji_shortcode(code: &str) -> Option<&'static str> {
-    for &(key, glyph) in MD_EMOJI_TABLE {
-        if key.eq_ignore_ascii_case(code) {
-            return Some(glyph);
-        }
+    if code.is_empty() || code.len() > MD_EMOJI_MAX_LEN {
+        return None;
     }
-    None
+    MD_EMOJI_TABLE
+        .binary_search_by(|&(key, _): &(&str, &str)| cmp_lower_with_ascii_ignore_case(key, code))
+        .ok()
+        .map(|idx: usize| MD_EMOJI_TABLE[idx].1)
 }
 
 /// Maps a single ASCII character to its Unicode superscript equivalent when available.
@@ -592,7 +619,7 @@ fn to_unicode_sub(ch: char) -> Option<char> {
     }
 }
 
-/// Reads a brace-delimited LaTeX argument `{...}` (supporting nested braces) or single token from `rest`.
+/// Reads a brace-delimited LaTeX argument `{...}` (supporting nested braces) or single token from `rest` without heap allocation.
 ///
 /// # Arguments
 ///
@@ -600,8 +627,9 @@ fn to_unicode_sub(ch: char) -> Option<char> {
 ///
 /// # Returns
 ///
-/// - `(String, &str)` - Extracted argument body and remaining source slice.
-fn read_latex_arg(rest: &str) -> (String, &str) {
+/// - `(&str, &str)` - Borrowed argument body slice and remaining source slice.
+#[inline(always)]
+fn read_latex_arg(rest: &str) -> (&str, &str) {
     let trimmed: &str = rest.trim_start();
     if let Some(after_open) = trimmed.strip_prefix('{') {
         let mut depth: usize = 1;
@@ -617,14 +645,15 @@ fn read_latex_arg(rest: &str) -> (String, &str) {
                 }
             }
         }
-        let body: String = after_open[..end_idx].to_string();
+        let body: &str = &after_open[..end_idx];
         let next_start: usize = (end_idx + 1).min(after_open.len());
         return (body, &after_open[next_start..]);
     }
     if let Some(ch) = trimmed.chars().next() {
-        return (ch.to_string(), &trimmed[ch.len_utf8()..]);
+        let ch_len: usize = ch.len_utf8();
+        return (&trimmed[..ch_len], &trimmed[ch_len..]);
     }
-    (String::new(), trimmed)
+    ("", trimmed)
 }
 
 /// Formats a LaTeX math expression into rich Unicode mathematical typography.
@@ -662,26 +691,34 @@ pub fn format_latex_math(raw: &str) -> String {
             let cmd: &str = &after_bs[..cmd_len];
             rest = &after_bs[cmd_len..];
             if cmd == MD_LATEX_FRAC {
-                let (num_raw, r1): (String, &str) = read_latex_arg(rest);
-                let (den_raw, r2): (String, &str) = read_latex_arg(r1);
-                let num: String = format_latex_math(&num_raw);
-                let den: String = format_latex_math(&den_raw);
+                let (num_raw, r1): (&str, &str) = read_latex_arg(rest);
+                let (den_raw, r2): (&str, &str) = read_latex_arg(r1);
+                let num: String = format_latex_math(num_raw);
+                let den: String = format_latex_math(den_raw);
                 if num.chars().count() <= 2 && den.chars().count() <= 2 {
-                    out.push_str(&format!("{num}/{den}"));
+                    out.push_str(&num);
+                    out.push('/');
+                    out.push_str(&den);
                 } else {
-                    out.push_str(&format!("({num}) / ({den})"));
+                    out.push('(');
+                    out.push_str(&num);
+                    out.push_str(") / (");
+                    out.push_str(&den);
+                    out.push(')');
                 }
                 rest = r2;
                 continue;
             }
             if cmd == MD_LATEX_SQRT {
-                let (arg_raw, r1): (String, &str) = read_latex_arg(rest);
-                let inner: String = format_latex_math(&arg_raw);
+                let (arg_raw, r1): (&str, &str) = read_latex_arg(rest);
+                let inner: String = format_latex_math(arg_raw);
                 if inner.chars().count() <= 1 {
                     out.push('√');
                     out.push_str(&inner);
                 } else {
-                    out.push_str(&format!("√({inner})"));
+                    out.push_str("√(");
+                    out.push_str(&inner);
+                    out.push(')');
                 }
                 rest = r1;
                 continue;
@@ -691,48 +728,53 @@ pub fn format_latex_math(raw: &str) -> String {
                 || cmd == MD_LATEX_MATHBF
                 || cmd == MD_LATEX_MATHIT
             {
-                let (arg_raw, r1): (String, &str) = read_latex_arg(rest);
-                out.push_str(&arg_raw);
+                let (arg_raw, r1): (&str, &str) = read_latex_arg(rest);
+                out.push_str(arg_raw);
                 rest = r1;
                 continue;
             }
             if cmd == MD_LATEX_LEFT || cmd == MD_LATEX_RIGHT {
                 continue;
             }
-            let mut found: Option<&'static str> = None;
-            for &(sym_k, sym_v) in MD_LATEX_SYMBOLS {
-                if sym_k == cmd {
-                    found = Some(sym_v);
-                    break;
-                }
-            }
-            if let Some(glyph) = found {
-                out.push_str(glyph);
+            if let Ok(sym_idx) =
+                MD_LATEX_SYMBOLS.binary_search_by_key(&cmd, |&(sym_k, _): &(&str, &str)| sym_k)
+            {
+                out.push_str(MD_LATEX_SYMBOLS[sym_idx].1);
             } else {
                 out.push_str(cmd);
             }
             continue;
         }
         if let Some(after_caret) = rest.strip_prefix('^') {
-            let (arg_raw, r1): (String, &str) = read_latex_arg(after_caret);
-            let inner: String = format_latex_math(&arg_raw);
-            let mapped: Option<String> = inner.chars().map(to_unicode_sup).collect();
-            if let Some(sup_s) = mapped {
-                out.push_str(&sup_s);
+            let (arg_raw, r1): (&str, &str) = read_latex_arg(after_caret);
+            let inner: String = format_latex_math(arg_raw);
+            if inner.chars().all(|c: char| to_unicode_sup(c).is_some()) {
+                for c in inner.chars() {
+                    if let Some(sup_ch) = to_unicode_sup(c) {
+                        out.push(sup_ch);
+                    }
+                }
             } else {
-                out.push_str(&format!("^({inner})"));
+                out.push_str("^(");
+                out.push_str(&inner);
+                out.push(')');
             }
             rest = r1;
             continue;
         }
         if let Some(after_sub) = rest.strip_prefix('_') {
-            let (arg_raw, r1): (String, &str) = read_latex_arg(after_sub);
-            let inner: String = format_latex_math(&arg_raw);
-            let mapped: Option<String> = inner.chars().map(to_unicode_sub).collect();
-            if let Some(sub_s) = mapped {
-                out.push_str(&sub_s);
+            let (arg_raw, r1): (&str, &str) = read_latex_arg(after_sub);
+            let inner: String = format_latex_math(arg_raw);
+            if inner.chars().all(|c: char| to_unicode_sub(c).is_some()) {
+                for c in inner.chars() {
+                    if let Some(sub_ch) = to_unicode_sub(c) {
+                        out.push(sub_ch);
+                    }
+                }
             } else {
-                out.push_str(&format!("_({inner})"));
+                out.push_str("_(");
+                out.push_str(&inner);
+                out.push(')');
             }
             rest = r1;
             continue;
@@ -749,12 +791,48 @@ pub fn format_latex_math(raw: &str) -> String {
     out
 }
 
-/// Parses rich inline Markdown formatting using a pre-scanned reference link table.
+/// Finds the byte index of the next Markdown inline trigger delimiter at or after `from`.
+///
+/// # Arguments
+///
+/// - `&[u8]` - Source UTF-8 bytes.
+/// - `usize` - Starting byte offset.
+///
+/// # Returns
+///
+/// - `usize` - Byte index of the next trigger delimiter, or `bytes.len()` when none remains.
+#[inline(always)]
+fn next_inline_trigger(bytes: &[u8], from: usize) -> usize {
+    let mut idx: usize = from;
+    while idx < bytes.len() {
+        if MD_INLINE_TRIGGER_LUT[bytes[idx] as usize] {
+            return idx;
+        }
+        idx += 1;
+    }
+    bytes.len()
+}
+
+/// Returns whether an ASCII byte can be backslash-escaped in inline Markdown text.
+///
+/// # Arguments
+///
+/// - `u8` - Candidate byte immediately following `\`.
+///
+/// # Returns
+///
+/// - `bool` - `true` when the byte is an escapable Markdown punctuation character.
+#[inline(always)]
+fn is_md_escapable_byte(b: u8) -> bool {
+    MD_ESCAPABLE_BYTE_LUT[b as usize]
+}
+
+/// Parses rich inline Markdown formatting using an optional pre-scanned reference link table.
 ///
 /// # Arguments
 ///
 /// - `&str` - Raw single-line or paragraph Markdown string.
-/// - `&HashMap<String, String>` - Lowercase link-reference URL map.
+/// - `Option<&HashMap<String, String>>` - Optional lowercase link-reference URL map.
 ///
 /// # Returns
 ///
@@ -762,304 +840,303 @@ pub fn format_latex_math(raw: &str) -> String {
 #[must_use]
 pub(crate) fn parse_markdown_inlines_with_refs(
     text: &str,
-    refs: &HashMap<String, String>,
+    refs: Option<&HashMap<String, String>>,
 ) -> Vec<EuvMarkdownInline> {
-    let mut out: Vec<EuvMarkdownInline> = Vec::new();
-    let mut rest: &str = text;
+    if text.is_empty() {
+        return Vec::new();
+    }
+    let bytes: &[u8] = text.as_bytes();
+    let len: usize = bytes.len();
+    let first_trigger: usize = next_inline_trigger(bytes, 0);
+    if first_trigger == len {
+        return vec![EuvMarkdownInline::Text(text.to_string())];
+    }
+    let mut out: Vec<EuvMarkdownInline> = Vec::with_capacity(4);
     let mut plain_buf: String = String::new();
-    while !rest.is_empty() {
-        if let Some(after_bs) = rest.strip_prefix('\\')
-            && let Some(esc_ch) = after_bs.chars().next()
-            && matches!(
-                esc_ch,
-                '\\' | '`'
-                    | '*'
-                    | '_'
-                    | '{'
-                    | '}'
-                    | '['
-                    | ']'
-                    | '('
-                    | ')'
-                    | '#'
-                    | '+'
-                    | '-'
-                    | '.'
-                    | '!'
-                    | '~'
-                    | '^'
-                    | '='
-                    | '$'
-                    | ':'
-                    | '<'
-                    | '>'
-            )
-        {
-            plain_buf.push(esc_ch);
-            rest = &after_bs[esc_ch.len_utf8()..];
-            continue;
-        }
-        if let Some(after_nl) = rest.strip_prefix('\n') {
-            flush_plain(&mut plain_buf, &mut out);
-            out.push(EuvMarkdownInline::HardBreak);
-            rest = after_nl;
-            continue;
-        }
-        if let Some(after) = rest.strip_prefix("``")
-            && let Some(end) = after.find("``")
-        {
-            flush_plain(&mut plain_buf, &mut out);
-            out.push(EuvMarkdownInline::Code(after[..end].trim().to_string()));
-            rest = &after[end + 2..];
-            continue;
-        }
-        if let Some(after) = rest.strip_prefix('`')
-            && let Some(end) = after.find('`')
-        {
-            flush_plain(&mut plain_buf, &mut out);
-            out.push(EuvMarkdownInline::Code(after[..end].to_string()));
-            rest = &after[end + 1..];
-            continue;
-        }
-        if let Some(after) = rest.strip_prefix('$')
-            && !after.starts_with('$')
-            && !after.starts_with(' ')
-            && let Some(end) = after.find('$')
-            && end > 0
-            && !after[..end].ends_with(' ')
-        {
-            flush_plain(&mut plain_buf, &mut out);
-            out.push(EuvMarkdownInline::Math(format_latex_math(&after[..end])));
-            rest = &after[end + 1..];
-            continue;
-        }
-        if let Some(after) = rest.strip_prefix("***")
-            && let Some(end) = after.find("***")
-            && end > 0
-        {
-            flush_plain(&mut plain_buf, &mut out);
-            out.push(EuvMarkdownInline::BoldItalic(after[..end].to_string()));
-            rest = &after[end + 3..];
-            continue;
-        }
-        if let Some(after) = rest.strip_prefix("**")
-            && let Some(end) = after.find("**")
-            && end > 0
-        {
-            flush_plain(&mut plain_buf, &mut out);
-            out.push(EuvMarkdownInline::Bold(after[..end].to_string()));
-            rest = &after[end + 2..];
-            continue;
-        }
-        if let Some(after) = rest.strip_prefix("__")
-            && let Some(end) = after.find("__")
-            && end > 0
-        {
-            flush_plain(&mut plain_buf, &mut out);
-            out.push(EuvMarkdownInline::Bold(after[..end].to_string()));
-            rest = &after[end + 2..];
-            continue;
-        }
-        if let Some(after) = rest.strip_prefix("~~")
-            && let Some(end) = after.find("~~")
-            && end > 0
-        {
-            flush_plain(&mut plain_buf, &mut out);
-            out.push(EuvMarkdownInline::Strike(after[..end].to_string()));
-            rest = &after[end + 2..];
-            continue;
-        }
-        if let Some(after) = rest.strip_prefix("==")
-            && let Some(end) = after.find("==")
-            && end > 0
-        {
-            flush_plain(&mut plain_buf, &mut out);
-            out.push(EuvMarkdownInline::Highlight(after[..end].to_string()));
-            rest = &after[end + 2..];
-            continue;
-        }
-        if let Some(after) = rest.strip_prefix(MD_MARK_OPEN)
-            && let Some(end) = after.find(MD_MARK_CLOSE)
-        {
-            flush_plain(&mut plain_buf, &mut out);
-            out.push(EuvMarkdownInline::Highlight(after[..end].to_string()));
-            rest = &after[end + MD_MARK_CLOSE.len()..];
-            continue;
-        }
-        if let Some(after) = rest.strip_prefix(MD_KBD_OPEN)
-            && let Some(end) = after.find(MD_KBD_CLOSE)
-        {
-            flush_plain(&mut plain_buf, &mut out);
-            out.push(EuvMarkdownInline::Kbd(after[..end].to_string()));
-            rest = &after[end + MD_KBD_CLOSE.len()..];
-            continue;
-        }
-        if let Some(after) = rest.strip_prefix(MD_SUP_OPEN)
-            && let Some(end) = after.find(MD_SUP_CLOSE)
-        {
-            flush_plain(&mut plain_buf, &mut out);
-            out.push(EuvMarkdownInline::Superscript(after[..end].to_string()));
-            rest = &after[end + MD_SUP_CLOSE.len()..];
-            continue;
-        }
-        if let Some(after) = rest.strip_prefix(MD_SUB_OPEN)
-            && let Some(end) = after.find(MD_SUB_CLOSE)
-        {
-            flush_plain(&mut plain_buf, &mut out);
-            out.push(EuvMarkdownInline::Subscript(after[..end].to_string()));
-            rest = &after[end + MD_SUB_CLOSE.len()..];
-            continue;
-        }
-        if let Some(after) = rest.strip_prefix('^')
-            && !after.starts_with(' ')
-            && let Some(end) = after.find('^')
-            && end > 0
-            && !after[..end].contains(' ')
-        {
-            flush_plain(&mut plain_buf, &mut out);
-            out.push(EuvMarkdownInline::Superscript(after[..end].to_string()));
-            rest = &after[end + 1..];
-            continue;
-        }
-        if let Some(after) = rest.strip_prefix('~')
-            && !after.starts_with('~')
-            && !after.starts_with(' ')
-            && let Some(end) = after.find('~')
-            && end > 0
-            && !after[..end].contains(' ')
-        {
-            flush_plain(&mut plain_buf, &mut out);
-            out.push(EuvMarkdownInline::Subscript(after[..end].to_string()));
-            rest = &after[end + 1..];
-            continue;
-        }
-        if let Some(after) = rest.strip_prefix('*')
-            && !after.starts_with('*')
-            && !after.starts_with(' ')
-            && let Some(end) = after.find('*')
-            && end > 0
-        {
-            flush_plain(&mut plain_buf, &mut out);
-            out.push(EuvMarkdownInline::Italic(after[..end].to_string()));
-            rest = &after[end + 1..];
-            continue;
-        }
-        if let Some(after) = rest.strip_prefix('_')
-            && !after.starts_with('_')
-            && !after.starts_with(' ')
-            && plain_buf
-                .chars()
-                .last()
-                .map(|c: char| !c.is_alphanumeric())
-                .unwrap_or(true)
-            && let Some(end) = after.find('_')
-            && end > 0
-            && after[end + 1..]
-                .chars()
-                .next()
-                .map(|c: char| !c.is_alphanumeric())
-                .unwrap_or(true)
-        {
-            flush_plain(&mut plain_buf, &mut out);
-            out.push(EuvMarkdownInline::Italic(after[..end].to_string()));
-            rest = &after[end + 1..];
-            continue;
-        }
-        if let Some(after_bang) = rest.strip_prefix("![")
-            && let Some(rb) = after_bang.find("](")
-            && let Some(rp) = after_bang[rb + 2..].find(')')
-        {
-            flush_plain(&mut plain_buf, &mut out);
-            out.push(EuvMarkdownInline::Image {
-                alt: after_bang[..rb].to_string(),
-                url: after_bang[rb + 2..rb + 2 + rp].to_string(),
-            });
-            rest = &after_bang[rb + 2 + rp + 1..];
-            continue;
-        }
-        if let Some(after_fn) = rest.strip_prefix("[^")
-            && let Some(rb) = after_fn.find(']')
-            && rb > 0
-            && !after_fn[..rb].contains(' ')
-        {
-            flush_plain(&mut plain_buf, &mut out);
-            out.push(EuvMarkdownInline::FootnoteRef(after_fn[..rb].to_string()));
-            rest = &after_fn[rb + 1..];
-            continue;
-        }
-        if let Some(after_lb) = rest.strip_prefix('[') {
-            if let Some(rb) = after_lb.find("](")
-                && !after_lb[..rb].contains(']')
-                && let Some(rp) = after_lb[rb + 2..].find(')')
-            {
-                flush_plain(&mut plain_buf, &mut out);
-                let label: String = after_lb[..rb].to_string();
-                let url: String = after_lb[rb + 2..rb + 2 + rp].to_string();
-                out.push(EuvMarkdownInline::Link { label, url });
-                rest = &after_lb[rb + 2 + rp + 1..];
-                continue;
-            }
-            if let Some(rb) = after_lb.find("][")
-                && !after_lb[..rb].contains(']')
-                && let Some(rb2) = after_lb[rb + 2..].find(']')
-            {
-                let label: &str = &after_lb[..rb];
-                let raw_key: &str = &after_lb[rb + 2..rb + 2 + rb2];
-                let lookup: String = if raw_key.is_empty() {
-                    label.to_ascii_lowercase()
-                } else {
-                    raw_key.to_ascii_lowercase()
-                };
-                if let Some(url) = refs.get(&lookup) {
-                    flush_plain(&mut plain_buf, &mut out);
-                    out.push(EuvMarkdownInline::Link {
-                        label: label.to_string(),
-                        url: url.clone(),
-                    });
-                    rest = &after_lb[rb + 2 + rb2 + 1..];
-                    continue;
+    let mut pos: usize = first_trigger;
+    if first_trigger > 0 {
+        plain_buf.push_str(&text[..first_trigger]);
+    }
+    while pos < len {
+        let rest: &str = &text[pos..];
+        let ch_byte: u8 = bytes[pos];
+        let mut advanced: usize = 0;
+        match ch_byte {
+            CODE_BYTE_BACKSLASH => {
+                if pos + 1 < len && is_md_escapable_byte(bytes[pos + 1]) {
+                    plain_buf.push(bytes[pos + 1] as char);
+                    advanced = 2;
                 }
             }
-        }
-        if let Some(after_lt) = rest.strip_prefix('<')
-            && let Some(gt) = after_lt.find('>')
-        {
-            let inner: &str = &after_lt[..gt];
-            if inner.starts_with(MD_SCHEME_HTTPS)
-                || inner.starts_with(MD_SCHEME_HTTP)
-                || inner.starts_with(MD_SCHEME_MAILTO)
-            {
+            MD_BYTE_NEWLINE => {
                 flush_plain(&mut plain_buf, &mut out);
-                let label: String = inner
-                    .strip_prefix(MD_SCHEME_MAILTO)
-                    .unwrap_or(inner)
-                    .to_string();
-                out.push(EuvMarkdownInline::Link {
-                    label,
-                    url: inner.to_string(),
-                });
-                rest = &after_lt[gt + 1..];
-                continue;
+                out.push(EuvMarkdownInline::HardBreak);
+                advanced = 1;
             }
+            CODE_BYTE_BACKTICK => {
+                if let Some(after) = rest.strip_prefix("``")
+                    && let Some(end) = after.find("``")
+                {
+                    flush_plain(&mut plain_buf, &mut out);
+                    out.push(EuvMarkdownInline::Code(after[..end].trim().to_string()));
+                    advanced = 4 + end;
+                } else if let Some(after) = rest.strip_prefix('`')
+                    && let Some(end) = after.find('`')
+                {
+                    flush_plain(&mut plain_buf, &mut out);
+                    out.push(EuvMarkdownInline::Code(after[..end].to_string()));
+                    advanced = 2 + end;
+                }
+            }
+            MD_BYTE_DOLLAR => {
+                let after: &str = &rest[1..];
+                if !after.starts_with('$')
+                    && !after.starts_with(' ')
+                    && let Some(end) = after.find('$')
+                    && end > 0
+                    && !after[..end].ends_with(' ')
+                {
+                    flush_plain(&mut plain_buf, &mut out);
+                    out.push(EuvMarkdownInline::Math(format_latex_math(&after[..end])));
+                    advanced = 2 + end;
+                }
+            }
+            MD_BYTE_STAR => {
+                if let Some(after) = rest.strip_prefix("***")
+                    && let Some(end) = after.find("***")
+                    && end > 0
+                {
+                    flush_plain(&mut plain_buf, &mut out);
+                    out.push(EuvMarkdownInline::BoldItalic(after[..end].to_string()));
+                    advanced = 6 + end;
+                } else if let Some(after) = rest.strip_prefix("**")
+                    && let Some(end) = after.find("**")
+                    && end > 0
+                {
+                    flush_plain(&mut plain_buf, &mut out);
+                    out.push(EuvMarkdownInline::Bold(after[..end].to_string()));
+                    advanced = 4 + end;
+                } else {
+                    let after: &str = &rest[1..];
+                    if !after.starts_with('*')
+                        && !after.starts_with(' ')
+                        && let Some(end) = after.find('*')
+                        && end > 0
+                    {
+                        flush_plain(&mut plain_buf, &mut out);
+                        out.push(EuvMarkdownInline::Italic(after[..end].to_string()));
+                        advanced = 2 + end;
+                    }
+                }
+            }
+            CODE_BYTE_UNDERSCORE => {
+                if let Some(after) = rest.strip_prefix("__")
+                    && let Some(end) = after.find("__")
+                    && end > 0
+                {
+                    flush_plain(&mut plain_buf, &mut out);
+                    out.push(EuvMarkdownInline::Bold(after[..end].to_string()));
+                    advanced = 4 + end;
+                } else {
+                    let after: &str = &rest[1..];
+                    if !after.starts_with('_')
+                        && !after.starts_with(' ')
+                        && plain_buf
+                            .chars()
+                            .last()
+                            .map(|c: char| !c.is_alphanumeric())
+                            .unwrap_or(true)
+                        && let Some(end) = after.find('_')
+                        && end > 0
+                        && after[end + 1..]
+                            .chars()
+                            .next()
+                            .map(|c: char| !c.is_alphanumeric())
+                            .unwrap_or(true)
+                    {
+                        flush_plain(&mut plain_buf, &mut out);
+                        out.push(EuvMarkdownInline::Italic(after[..end].to_string()));
+                        advanced = 2 + end;
+                    }
+                }
+            }
+            CODE_BYTE_TILDE => {
+                if let Some(after) = rest.strip_prefix("~~")
+                    && let Some(end) = after.find("~~")
+                    && end > 0
+                {
+                    flush_plain(&mut plain_buf, &mut out);
+                    out.push(EuvMarkdownInline::Strike(after[..end].to_string()));
+                    advanced = 4 + end;
+                } else {
+                    let after: &str = &rest[1..];
+                    if !after.starts_with('~')
+                        && !after.starts_with(' ')
+                        && let Some(end) = after.find('~')
+                        && end > 0
+                        && !after[..end].contains(' ')
+                    {
+                        flush_plain(&mut plain_buf, &mut out);
+                        out.push(EuvMarkdownInline::Subscript(after[..end].to_string()));
+                        advanced = 2 + end;
+                    }
+                }
+            }
+            MD_BYTE_EQ => {
+                if let Some(after) = rest.strip_prefix("==")
+                    && let Some(end) = after.find("==")
+                    && end > 0
+                {
+                    flush_plain(&mut plain_buf, &mut out);
+                    out.push(EuvMarkdownInline::Highlight(after[..end].to_string()));
+                    advanced = 4 + end;
+                }
+            }
+            MD_BYTE_LT => {
+                if let Some(after) = rest.strip_prefix(MD_MARK_OPEN)
+                    && let Some(end) = after.find(MD_MARK_CLOSE)
+                {
+                    flush_plain(&mut plain_buf, &mut out);
+                    out.push(EuvMarkdownInline::Highlight(after[..end].to_string()));
+                    advanced = MD_MARK_OPEN.len() + end + MD_MARK_CLOSE.len();
+                } else if let Some(after) = rest.strip_prefix(MD_KBD_OPEN)
+                    && let Some(end) = after.find(MD_KBD_CLOSE)
+                {
+                    flush_plain(&mut plain_buf, &mut out);
+                    out.push(EuvMarkdownInline::Kbd(after[..end].to_string()));
+                    advanced = MD_KBD_OPEN.len() + end + MD_KBD_CLOSE.len();
+                } else if let Some(after) = rest.strip_prefix(MD_SUP_OPEN)
+                    && let Some(end) = after.find(MD_SUP_CLOSE)
+                {
+                    flush_plain(&mut plain_buf, &mut out);
+                    out.push(EuvMarkdownInline::Superscript(after[..end].to_string()));
+                    advanced = MD_SUP_OPEN.len() + end + MD_SUP_CLOSE.len();
+                } else if let Some(after) = rest.strip_prefix(MD_SUB_OPEN)
+                    && let Some(end) = after.find(MD_SUB_CLOSE)
+                {
+                    flush_plain(&mut plain_buf, &mut out);
+                    out.push(EuvMarkdownInline::Subscript(after[..end].to_string()));
+                    advanced = MD_SUB_OPEN.len() + end + MD_SUB_CLOSE.len();
+                } else {
+                    let after_lt: &str = &rest[1..];
+                    if let Some(gt) = after_lt.find('>') {
+                        let inner: &str = &after_lt[..gt];
+                        if inner.starts_with(MD_SCHEME_HTTPS)
+                            || inner.starts_with(MD_SCHEME_HTTP)
+                            || inner.starts_with(MD_SCHEME_MAILTO)
+                        {
+                            flush_plain(&mut plain_buf, &mut out);
+                            let label: String = inner
+                                .strip_prefix(MD_SCHEME_MAILTO)
+                                .unwrap_or(inner)
+                                .to_string();
+                            out.push(EuvMarkdownInline::Link {
+                                label,
+                                url: inner.to_string(),
+                            });
+                            advanced = 2 + gt;
+                        }
+                    }
+                }
+            }
+            MD_BYTE_CARET => {
+                let after: &str = &rest[1..];
+                if !after.starts_with(' ')
+                    && let Some(end) = after.find('^')
+                    && end > 0
+                    && !after[..end].contains(' ')
+                {
+                    flush_plain(&mut plain_buf, &mut out);
+                    out.push(EuvMarkdownInline::Superscript(after[..end].to_string()));
+                    advanced = 2 + end;
+                }
+            }
+            CODE_BYTE_BANG => {
+                if let Some(after_bang) = rest.strip_prefix("![")
+                    && let Some(rb) = after_bang.find("](")
+                    && let Some(rp) = after_bang[rb + 2..].find(')')
+                {
+                    flush_plain(&mut plain_buf, &mut out);
+                    out.push(EuvMarkdownInline::Image {
+                        alt: after_bang[..rb].to_string(),
+                        url: after_bang[rb + 2..rb + 2 + rp].to_string(),
+                    });
+                    advanced = 2 + rb + 2 + rp + 1;
+                }
+            }
+            MD_BYTE_LBRACKET => {
+                if let Some(after_fn) = rest.strip_prefix("[^")
+                    && let Some(rb) = after_fn.find(']')
+                    && rb > 0
+                    && !after_fn[..rb].contains(' ')
+                {
+                    flush_plain(&mut plain_buf, &mut out);
+                    out.push(EuvMarkdownInline::FootnoteRef(after_fn[..rb].to_string()));
+                    advanced = 2 + rb + 1;
+                } else {
+                    let after_lb: &str = &rest[1..];
+                    if let Some(rb) = after_lb.find("](")
+                        && !after_lb[..rb].contains(']')
+                        && let Some(rp) = after_lb[rb + 2..].find(')')
+                    {
+                        flush_plain(&mut plain_buf, &mut out);
+                        let label: String = after_lb[..rb].to_string();
+                        let url: String = after_lb[rb + 2..rb + 2 + rp].to_string();
+                        out.push(EuvMarkdownInline::Link { label, url });
+                        advanced = 1 + rb + 2 + rp + 1;
+                    } else if let Some(ref_map) = refs
+                        && !ref_map.is_empty()
+                        && let Some(rb) = after_lb.find("][")
+                        && !after_lb[..rb].contains(']')
+                        && let Some(rb2) = after_lb[rb + 2..].find(']')
+                    {
+                        let label: &str = &after_lb[..rb];
+                        let raw_key: &str = &after_lb[rb + 2..rb + 2 + rb2];
+                        let lookup: String = if raw_key.is_empty() {
+                            label.to_ascii_lowercase()
+                        } else {
+                            raw_key.to_ascii_lowercase()
+                        };
+                        if let Some(url) = ref_map.get(&lookup) {
+                            flush_plain(&mut plain_buf, &mut out);
+                            out.push(EuvMarkdownInline::Link {
+                                label: label.to_string(),
+                                url: url.clone(),
+                            });
+                            advanced = 1 + rb + 2 + rb2 + 1;
+                        }
+                    }
+                }
+            }
+            CODE_BYTE_COLON => {
+                let after_col: &str = &rest[1..];
+                if let Some(end) = after_col.find(':')
+                    && end > 0
+                    && end <= MD_EMOJI_MAX_LEN
+                    && after_col[..end].bytes().all(|b: u8| {
+                        b.is_ascii_alphanumeric()
+                            || b == CODE_BYTE_UNDERSCORE
+                            || b == MD_BYTE_PLUS
+                            || b == MD_BYTE_DASH
+                    })
+                    && let Some(glyph) = resolve_emoji_shortcode(&after_col[..end])
+                {
+                    plain_buf.push_str(glyph);
+                    advanced = 2 + end;
+                }
+            }
+            _ => {}
         }
-        if let Some(after_col) = rest.strip_prefix(':')
-            && let Some(end) = after_col.find(':')
-            && end > 0
-            && end <= 24
-            && after_col[..end]
-                .bytes()
-                .all(|b: u8| b.is_ascii_alphanumeric() || b == b'_' || b == b'+' || b == b'-')
-            && let Some(glyph) = resolve_emoji_shortcode(&after_col[..end])
-        {
-            plain_buf.push_str(glyph);
-            rest = &after_col[end + 1..];
-            continue;
-        }
-        if let Some(ch) = rest.chars().next() {
-            plain_buf.push(ch);
-            rest = &rest[ch.len_utf8()..];
+        if advanced > 0 {
+            pos += advanced;
         } else {
-            break;
+            plain_buf.push(ch_byte as char);
+            pos += 1;
+        }
+        let next_pos: usize = next_inline_trigger(bytes, pos);
+        if next_pos > pos {
+            plain_buf.push_str(&text[pos..next_pos]);
+            pos = next_pos;
         }
     }
     flush_plain(&mut plain_buf, &mut out);
@@ -1077,8 +1154,7 @@ pub(crate) fn parse_markdown_inlines_with_refs(
 /// - `Vec<EuvMarkdownInline>` - Ordered inline spans.
 #[must_use]
 pub fn parse_markdown_inlines(text: &str) -> Vec<EuvMarkdownInline> {
-    let empty_refs: HashMap<String, String> = HashMap::new();
-    parse_markdown_inlines_with_refs(text, &empty_refs)
+    parse_markdown_inlines_with_refs(text, None)
 }
 
 /// Flushes accumulated plain text into `out` if non-empty.
@@ -1171,7 +1247,7 @@ fn parse_footnote_def(trimmed: &str) -> Option<(String, String)> {
     Some((id.to_string(), body.to_string()))
 }
 
-/// Checks whether a trimmed line opens a fenced code block (`` ``` `` or `~~~`).
+/// Checks whether a trimmed line opens a fenced code block (`` ``` `` or `~~~`) without heap allocation.
 ///
 /// # Arguments
 ///
@@ -1179,8 +1255,9 @@ fn parse_footnote_def(trimmed: &str) -> Option<(String, String)> {
 ///
 /// # Returns
 ///
-/// - `Option<(u8, usize, String)>` - `(fence_byte, fence_len, language_tag)`.
-fn parse_code_fence_open(trimmed: &str) -> Option<(u8, usize, String)> {
+/// - `Option<(u8, usize, &str)>` - `(fence_byte, fence_len, borrowed_language_tag)`.
+#[inline(always)]
+fn parse_code_fence_open(trimmed: &str) -> Option<(u8, usize, &str)> {
     let first: u8 = *trimmed.as_bytes().first()?;
     if first != CODE_BYTE_BACKTICK && first != CODE_BYTE_TILDE {
         return None;
@@ -1190,10 +1267,10 @@ fn parse_code_fence_open(trimmed: &str) -> Option<(u8, usize, String)> {
         return None;
     }
     let info: &str = trimmed[count..].trim();
-    if first == CODE_BYTE_BACKTICK && info.contains('`') {
+    if first == CODE_BYTE_BACKTICK && info.as_bytes().contains(&CODE_BYTE_BACKTICK) {
         return None;
     }
-    let lang: String = info.split_whitespace().next().unwrap_or("").to_string();
+    let lang: &str = info.split_whitespace().next().unwrap_or("");
     Some((first, count, lang))
 }
 
@@ -1208,6 +1285,7 @@ fn parse_code_fence_open(trimmed: &str) -> Option<(u8, usize, String)> {
 /// # Returns
 ///
 /// - `bool` - `true` when the line closes the fence.
+#[inline(always)]
 fn is_code_fence_close(trimmed: &str, fence_byte: u8, min_len: usize) -> bool {
     let count: usize = trimmed
         .bytes()
@@ -1216,7 +1294,7 @@ fn is_code_fence_close(trimmed: &str, fence_byte: u8, min_len: usize) -> bool {
     count >= min_len && trimmed[count..].trim().is_empty()
 }
 
-/// Checks whether a trimmed line is a thematic horizontal rule (`---`, `***`, `___`).
+/// Checks whether a trimmed line is a thematic horizontal rule (`---`, `***`, `___`) without heap allocation.
 ///
 /// # Arguments
 ///
@@ -1225,16 +1303,33 @@ fn is_code_fence_close(trimmed: &str, fence_byte: u8, min_len: usize) -> bool {
 /// # Returns
 ///
 /// - `bool` - `true` when the line is a valid Markdown horizontal rule.
+#[inline(always)]
 fn is_horizontal_rule(trimmed: &str) -> bool {
-    let compact: String = trimmed
-        .chars()
-        .filter(|c: &char| !c.is_whitespace())
-        .collect();
-    if compact.len() < 3 {
-        return false;
+    let bytes: &[u8] = trimmed.as_bytes();
+    let first: u8 = match bytes.first() {
+        Some(&b) if b == MD_BYTE_DASH || b == MD_BYTE_STAR || b == CODE_BYTE_UNDERSCORE => b,
+        _ => return false,
+    };
+    let mut count: usize = 0;
+    if trimmed.is_ascii() {
+        for &b in bytes {
+            if b == first {
+                count += 1;
+            } else if !b.is_ascii_whitespace() {
+                return false;
+            }
+        }
+    } else {
+        let first_ch: char = first as char;
+        for ch in trimmed.chars() {
+            if ch == first_ch {
+                count += 1;
+            } else if !ch.is_whitespace() {
+                return false;
+            }
+        }
     }
-    let first: char = compact.chars().next().unwrap_or(' ');
-    matches!(first, '-' | '*' | '_') && compact.chars().all(|c: char| c == first)
+    count >= 3
 }
 
 /// Parses a VuePress/container callout opening line (`::: tip`, `::: warning`, etc.).
@@ -1269,6 +1364,36 @@ fn parse_container_callout_open(trimmed: &str) -> Option<EuvMarkdownAlertKind> {
     }
 }
 
+/// Checks in zero allocations whether `body_lines[idx]` starts a new block construct that terminates a paragraph.
+///
+/// # Arguments
+///
+/// - `&[&str]` - Filtered document body lines.
+/// - `usize` - Candidate continuation line index.
+///
+/// # Returns
+///
+/// - `bool` - `true` when line `idx` must terminate the current paragraph.
+#[inline(always)]
+fn is_paragraph_terminator(body_lines: &[&str], idx: usize) -> bool {
+    let cur_raw: &str = body_lines[idx];
+    let cur: &str = cur_raw.trim();
+    cur.is_empty()
+        || parse_code_fence_open(cur).is_some()
+        || cur.starts_with("$$")
+        || parse_container_callout_open(cur).is_some()
+        || parse_heading_line(cur).is_some()
+        || cur.starts_with('>')
+        || (cur.as_bytes().contains(&MD_BYTE_PIPE)
+            && idx + 1 < body_lines.len()
+            && is_table_separator(body_lines[idx + 1].trim()))
+        || (cur.starts_with("![") && cur.ends_with(')'))
+        || cur.starts_with(MD_DETAILS_OPEN_TAG)
+        || is_horizontal_rule(cur)
+        || is_list_line(cur_raw)
+        || (idx + 1 < body_lines.len() && body_lines[idx + 1].trim_start().starts_with(": "))
+}
+
 /// Parses a complete GitHub-Flavored & Extended Markdown document into structured `EuvMarkdownBlock` nodes.
 ///
 /// # Arguments
@@ -1283,51 +1408,75 @@ pub fn parse_markdown_blocks(source: &str) -> Vec<EuvMarkdownBlock> {
     let raw_lines: Vec<&str> = source.lines().collect();
     let mut refs: HashMap<String, String> = HashMap::new();
     let mut footnotes: Vec<EuvMarkdownFootnote> = Vec::new();
-    let mut body_lines: Vec<&str> = Vec::with_capacity(raw_lines.len());
-    let mut scan_idx: usize = 0;
-    let mut in_fence: Option<(u8, usize)> = None;
-    while scan_idx < raw_lines.len() {
-        let line: &str = raw_lines[scan_idx];
-        let trimmed: &str = line.trim();
-        if let Some((fb, fl)) = in_fence {
-            if is_code_fence_close(trimmed, fb, fl) {
-                in_fence = None;
-            }
-            body_lines.push(line);
-            scan_idx += 1;
-            continue;
-        }
-        if let Some((fb, fl, _)) = parse_code_fence_open(trimmed) {
-            in_fence = Some((fb, fl));
-            body_lines.push(line);
-            scan_idx += 1;
-            continue;
-        }
-        if let Some((fn_id, mut fn_body)) = parse_footnote_def(trimmed) {
-            scan_idx += 1;
-            while scan_idx < raw_lines.len()
-                && (raw_lines[scan_idx].starts_with("  ") || raw_lines[scan_idx].starts_with('\t'))
-            {
-                let cont: &str = raw_lines[scan_idx].trim();
-                if !cont.is_empty() {
-                    if !fn_body.is_empty() {
-                        fn_body.push(' ');
-                    }
-                    fn_body.push_str(cont);
+    let mut filtered_lines: Option<Vec<&str>> = None;
+    if source.contains("]:") {
+        let mut scan_idx: usize = 0;
+        let mut in_fence: Option<(u8, usize)> = None;
+        while scan_idx < raw_lines.len() {
+            let line: &str = raw_lines[scan_idx];
+            let trimmed: &str = line.trim();
+            if let Some((fb, fl)) = in_fence {
+                if is_code_fence_close(trimmed, fb, fl) {
+                    in_fence = None;
+                }
+                if let Some(ref mut buf) = filtered_lines {
+                    buf.push(line);
                 }
                 scan_idx += 1;
+                continue;
             }
-            footnotes.push(EuvMarkdownFootnote::new(fn_id, fn_body));
-            continue;
-        }
-        if let Some((key, url)) = parse_link_ref_def(trimmed) {
-            let _: Option<String> = refs.insert(key, url);
+            if let Some((fb, fl, _)) = parse_code_fence_open(trimmed) {
+                in_fence = Some((fb, fl));
+                if let Some(ref mut buf) = filtered_lines {
+                    buf.push(line);
+                }
+                scan_idx += 1;
+                continue;
+            }
+            if trimmed.starts_with('[') {
+                if let Some((fn_id, mut fn_body)) = parse_footnote_def(trimmed) {
+                    if filtered_lines.is_none() {
+                        let mut buf: Vec<&str> = Vec::with_capacity(raw_lines.len());
+                        buf.extend_from_slice(&raw_lines[..scan_idx]);
+                        filtered_lines = Some(buf);
+                    }
+                    scan_idx += 1;
+                    while scan_idx < raw_lines.len()
+                        && (raw_lines[scan_idx].starts_with("  ")
+                            || raw_lines[scan_idx].starts_with('\t'))
+                    {
+                        let cont: &str = raw_lines[scan_idx].trim();
+                        if !cont.is_empty() {
+                            if !fn_body.is_empty() {
+                                fn_body.push(' ');
+                            }
+                            fn_body.push_str(cont);
+                        }
+                        scan_idx += 1;
+                    }
+                    footnotes.push(EuvMarkdownFootnote::new(fn_id, fn_body));
+                    continue;
+                }
+                if let Some((key, url)) = parse_link_ref_def(trimmed) {
+                    if filtered_lines.is_none() {
+                        let mut buf: Vec<&str> = Vec::with_capacity(raw_lines.len());
+                        buf.extend_from_slice(&raw_lines[..scan_idx]);
+                        filtered_lines = Some(buf);
+                    }
+                    let _: Option<String> = refs.insert(key, url);
+                    scan_idx += 1;
+                    continue;
+                }
+            }
+            if let Some(ref mut buf) = filtered_lines {
+                buf.push(line);
+            }
             scan_idx += 1;
-            continue;
         }
-        body_lines.push(line);
-        scan_idx += 1;
     }
+    let body_lines: &[&str] = filtered_lines.as_deref().unwrap_or(&raw_lines);
+    let refs_opt: Option<&HashMap<String, String>> =
+        if refs.is_empty() { None } else { Some(&refs) };
     let total: usize = body_lines.len();
     let mut idx: usize = 0;
     let mut blocks: Vec<EuvMarkdownBlock> = Vec::new();
@@ -1340,15 +1489,14 @@ pub fn parse_markdown_blocks(source: &str) -> Vec<EuvMarkdownBlock> {
         }
         if let Some((fb, fl, lang)) = parse_code_fence_open(trimmed) {
             idx += 1;
-            let mut code_lines: Vec<&str> = Vec::new();
+            let code_start: usize = idx;
             while idx < total && !is_code_fence_close(body_lines[idx].trim(), fb, fl) {
-                code_lines.push(body_lines[idx]);
                 idx += 1;
             }
+            let joined: String = body_lines[code_start..idx].join("\n");
             if idx < total {
                 idx += 1;
             }
-            let joined: String = code_lines.join("\n");
             if lang.eq_ignore_ascii_case(CODE_LANG_MERMAID) {
                 blocks.push(EuvMarkdownBlock::Mermaid { source: joined });
             } else if lang.eq_ignore_ascii_case(CODE_LANG_MATH)
@@ -1360,7 +1508,7 @@ pub fn parse_markdown_blocks(source: &str) -> Vec<EuvMarkdownBlock> {
                     language: if lang.is_empty() {
                         CODE_DEFAULT_LANG.to_string()
                     } else {
-                        lang
+                        lang.to_string()
                     },
                     code: joined,
                 });
@@ -1450,7 +1598,7 @@ pub fn parse_markdown_blocks(source: &str) -> Vec<EuvMarkdownBlock> {
         if let Some((level, heading_txt)) = parse_heading_line(trimmed) {
             blocks.push(EuvMarkdownBlock::Heading {
                 level,
-                text: heading_txt,
+                text: heading_txt.to_string(),
             });
             idx += 1;
             continue;
@@ -1487,18 +1635,16 @@ pub fn parse_markdown_blocks(source: &str) -> Vec<EuvMarkdownBlock> {
             });
             continue;
         }
-        if trimmed.contains('|')
+        if trimmed.as_bytes().contains(&MD_BYTE_PIPE)
             && idx + 1 < total
-            && is_table_separator(body_lines[idx + 1].trim())
+            && let Some(alignments) = try_parse_table_alignments(body_lines[idx + 1].trim())
         {
             let headers: Vec<String> = split_table_row(trimmed);
-            let alignments: Vec<EuvMarkdownAlign> =
-                parse_table_alignments(body_lines[idx + 1].trim());
             idx += 2;
             let mut rows: Vec<Vec<String>> = Vec::new();
             while idx < total {
                 let row_t: &str = body_lines[idx].trim();
-                if row_t.is_empty() || !row_t.contains('|') {
+                if row_t.is_empty() || !row_t.as_bytes().contains(&MD_BYTE_PIPE) {
                     break;
                 }
                 rows.push(split_table_row(row_t));
@@ -1558,46 +1704,47 @@ pub fn parse_markdown_blocks(source: &str) -> Vec<EuvMarkdownBlock> {
             blocks.push(EuvMarkdownBlock::DefinitionList(def_items));
             continue;
         }
-        let mut para_buf: String = String::new();
-        while idx < total {
-            let cur_raw: &str = body_lines[idx];
-            let cur: &str = cur_raw.trim();
-            if cur.is_empty()
-                || parse_code_fence_open(cur).is_some()
-                || cur.starts_with("$$")
-                || parse_container_callout_open(cur).is_some()
-                || parse_heading_line(cur).is_some()
-                || cur.starts_with('>')
-                || (cur.contains('|')
-                    && idx + 1 < total
-                    && is_table_separator(body_lines[idx + 1].trim()))
-                || (cur.starts_with("![") && cur.ends_with(')'))
-                || cur.starts_with(MD_DETAILS_OPEN_TAG)
-                || is_horizontal_rule(cur)
-                || parse_list_line(cur_raw).is_some()
-                || (idx + 1 < total && body_lines[idx + 1].trim_start().starts_with(": "))
-            {
-                break;
-            }
-            let hard_break: bool = cur_raw.ends_with("  ") || cur.ends_with('\\');
-            let clean_seg: &str = if cur.ends_with('\\') {
-                cur.strip_suffix('\\').unwrap_or(cur).trim_end()
-            } else {
-                cur
-            };
-            if !para_buf.is_empty() && !para_buf.ends_with('\n') {
-                para_buf.push(' ');
-            }
-            para_buf.push_str(clean_seg);
-            if hard_break {
-                para_buf.push('\n');
-            }
+        let para_start: usize = idx;
+        idx += 1;
+        while idx < total && !is_paragraph_terminator(body_lines, idx) {
             idx += 1;
         }
-        let trimmed_para: &str = para_buf.trim_end_matches('\n');
-        blocks.push(EuvMarkdownBlock::Paragraph(
-            parse_markdown_inlines_with_refs(trimmed_para, &refs),
-        ));
+        if idx == para_start + 1 {
+            let single_seg: &str = if trimmed.ends_with('\\') {
+                trimmed.strip_suffix('\\').unwrap_or(trimmed).trim_end()
+            } else {
+                trimmed
+            };
+            blocks.push(EuvMarkdownBlock::Paragraph(
+                parse_markdown_inlines_with_refs(single_seg, refs_opt),
+            ));
+        } else {
+            let mut para_cap: usize = idx - para_start;
+            for line_ref in &body_lines[para_start..idx] {
+                para_cap += line_ref.len();
+            }
+            let mut para_buf: String = String::with_capacity(para_cap);
+            for &cur_raw in &body_lines[para_start..idx] {
+                let cur: &str = cur_raw.trim();
+                let hard_break: bool = cur_raw.ends_with("  ") || cur.ends_with('\\');
+                let clean_seg: &str = if cur.ends_with('\\') {
+                    cur.strip_suffix('\\').unwrap_or(cur).trim_end()
+                } else {
+                    cur
+                };
+                if !para_buf.is_empty() && !para_buf.ends_with('\n') {
+                    para_buf.push(' ');
+                }
+                para_buf.push_str(clean_seg);
+                if hard_break {
+                    para_buf.push('\n');
+                }
+            }
+            let trimmed_para: &str = para_buf.trim_end_matches('\n');
+            blocks.push(EuvMarkdownBlock::Paragraph(
+                parse_markdown_inlines_with_refs(trimmed_para, refs_opt),
+            ));
+        }
     }
     if !footnotes.is_empty() {
         blocks.push(EuvMarkdownBlock::Footnotes(footnotes));
@@ -1605,7 +1752,7 @@ pub fn parse_markdown_blocks(source: &str) -> Vec<EuvMarkdownBlock> {
     blocks
 }
 
-/// Parses an ATX heading line (`# Title` .. `###### Title`), stripping optional `{#custom-anchor}` suffixes.
+/// Parses an ATX heading line (`# Title` .. `###### Title`) without heap allocation, stripping optional `{#custom-anchor}` suffixes.
 ///
 /// # Arguments
 ///
@@ -1613,8 +1760,12 @@ pub fn parse_markdown_blocks(source: &str) -> Vec<EuvMarkdownBlock> {
 ///
 /// # Returns
 ///
-/// - `Option<(u8, String)>` - Heading level and trimmed text if valid.
-fn parse_heading_line(trimmed: &str) -> Option<(u8, String)> {
+/// - `Option<(u8, &str)>` - Heading level and borrowed trimmed heading text if valid.
+#[inline(always)]
+fn parse_heading_line(trimmed: &str) -> Option<(u8, &str)> {
+    if !trimmed.starts_with('#') {
+        return None;
+    }
     let hashes: usize = trimmed
         .bytes()
         .take_while(|b: &u8| *b == CODE_BYTE_HASH)
@@ -1631,10 +1782,10 @@ fn parse_heading_line(trimmed: &str) -> Option<(u8, String)> {
     } else {
         no_closing
     };
-    Some((hashes as u8, clean.to_string()))
+    Some((hashes as u8, clean))
 }
 
-/// Classifies a blockquote block into a plain quote or GitHub Alert variant (`[!NOTE]`, `[!TIP]`, etc.).
+/// Classifies a blockquote block into a plain quote or GitHub Alert variant (`[!NOTE]`, `[!TIP]`, etc.) without heap allocation.
 ///
 /// # Arguments
 ///
@@ -1644,25 +1795,43 @@ fn parse_heading_line(trimmed: &str) -> Option<(u8, String)> {
 ///
 /// - `(EuvMarkdownAlertKind, Vec<String>)` - Resolved alert kind and body lines.
 pub(crate) fn classify_quote_alert(mut lines: Vec<String>) -> (EuvMarkdownAlertKind, Vec<String>) {
-    let Some(first) = lines
-        .first()
-        .map(|s: &String| s.trim().to_ascii_uppercase())
-    else {
-        return (EuvMarkdownAlertKind::Quote, lines);
+    let first_trimmed: &str = match lines.first() {
+        Some(s) => s.trim(),
+        None => return (EuvMarkdownAlertKind::Quote, lines),
     };
-    let kind: EuvMarkdownAlertKind = match first.as_str() {
-        MD_ALERT_TAG_NOTE => EuvMarkdownAlertKind::Note,
-        MD_ALERT_TAG_TIP => EuvMarkdownAlertKind::Tip,
-        MD_ALERT_TAG_IMPORTANT => EuvMarkdownAlertKind::Important,
-        MD_ALERT_TAG_WARNING => EuvMarkdownAlertKind::Warning,
-        MD_ALERT_TAG_CAUTION => EuvMarkdownAlertKind::Caution,
-        _ => return (EuvMarkdownAlertKind::Quote, lines),
+    let kind: EuvMarkdownAlertKind = if first_trimmed.eq_ignore_ascii_case(MD_ALERT_TAG_NOTE) {
+        EuvMarkdownAlertKind::Note
+    } else if first_trimmed.eq_ignore_ascii_case(MD_ALERT_TAG_TIP) {
+        EuvMarkdownAlertKind::Tip
+    } else if first_trimmed.eq_ignore_ascii_case(MD_ALERT_TAG_IMPORTANT) {
+        EuvMarkdownAlertKind::Important
+    } else if first_trimmed.eq_ignore_ascii_case(MD_ALERT_TAG_WARNING) {
+        EuvMarkdownAlertKind::Warning
+    } else if first_trimmed.eq_ignore_ascii_case(MD_ALERT_TAG_CAUTION) {
+        EuvMarkdownAlertKind::Caution
+    } else {
+        return (EuvMarkdownAlertKind::Quote, lines);
     };
     let _: String = lines.remove(0);
     (kind, lines)
 }
 
-/// Checks whether a Markdown line is a GFM table alignment separator row (`| --- | :---: |`).
+/// Strips optional outer leading and trailing pipe delimiters from a trimmed table row.
+///
+/// # Arguments
+///
+/// - `&str` - Trimmed Markdown table row line.
+///
+/// # Returns
+///
+/// - `&str` - Inner pipe-delimited cell slice.
+#[inline(always)]
+fn table_row_inner(trimmed: &str) -> &str {
+    let without_lead: &str = trimmed.strip_prefix('|').unwrap_or(trimmed);
+    without_lead.strip_suffix('|').unwrap_or(without_lead)
+}
+
+/// Checks whether a Markdown line is a GFM table alignment separator row (`| --- | :---: |`) without heap allocation.
 ///
 /// # Arguments
 ///
@@ -1671,16 +1840,57 @@ pub(crate) fn classify_quote_alert(mut lines: Vec<String>) -> (EuvMarkdownAlertK
 /// # Returns
 ///
 /// - `bool` - `true` when the row is a valid table separator.
+#[inline(always)]
 fn is_table_separator(trimmed: &str) -> bool {
-    if !trimmed.contains('|') && !trimmed.contains('-') {
+    if !trimmed.as_bytes().contains(&MD_BYTE_DASH) {
         return false;
     }
-    let cells: Vec<String> = split_table_row(trimmed);
-    !cells.is_empty()
-        && cells.iter().all(|c: &String| {
-            let t: &str = c.trim();
-            !t.is_empty() && t.contains('-') && t.chars().all(|ch: char| ch == '-' || ch == ':')
-        })
+    let inner: &str = table_row_inner(trimmed);
+    let mut has_any: bool = false;
+    for cell in inner.split('|') {
+        has_any = true;
+        let t: &str = cell.trim();
+        if t.is_empty()
+            || !t.as_bytes().contains(&MD_BYTE_DASH)
+            || !t
+                .bytes()
+                .all(|b: u8| b == MD_BYTE_DASH || b == CODE_BYTE_COLON)
+        {
+            return false;
+        }
+    }
+    has_any
+}
+
+/// Validates and parses column alignments from a GFM table separator row in a single pass with zero intermediate string allocations.
+///
+/// # Arguments
+///
+/// - `&str` - Trimmed candidate separator row line.
+///
+/// # Returns
+///
+/// - `Option<Vec<EuvMarkdownAlign>>` - Parsed column alignments when valid, or `None`.
+fn try_parse_table_alignments(trimmed: &str) -> Option<Vec<EuvMarkdownAlign>> {
+    if !is_table_separator(trimmed) {
+        return None;
+    }
+    let inner: &str = table_row_inner(trimmed);
+    let mut alignments: Vec<EuvMarkdownAlign> = Vec::with_capacity(4);
+    for cell in inner.split('|') {
+        let t: &str = cell.trim();
+        let left: bool = t.starts_with(':');
+        let right: bool = t.ends_with(':');
+        let align: EuvMarkdownAlign = if left && right {
+            EuvMarkdownAlign::Center
+        } else if right {
+            EuvMarkdownAlign::Right
+        } else {
+            EuvMarkdownAlign::Left
+        };
+        alignments.push(align);
+    }
+    Some(alignments)
 }
 
 /// Splits a pipe-delimited Markdown table row into trimmed cell strings.
@@ -1693,38 +1903,48 @@ fn is_table_separator(trimmed: &str) -> bool {
 ///
 /// - `Vec<String>` - Cell strings.
 fn split_table_row(trimmed: &str) -> Vec<String> {
-    let without_lead: &str = trimmed.strip_prefix('|').unwrap_or(trimmed);
-    let inner: &str = without_lead.strip_suffix('|').unwrap_or(without_lead);
-    inner
+    table_row_inner(trimmed)
         .split('|')
         .map(|cell: &str| cell.trim().to_string())
         .collect()
 }
 
-/// Parses column alignments from a GFM table separator row.
+/// Checks whether a raw line starts an unordered, ordered, or task list item without heap allocation.
 ///
 /// # Arguments
 ///
-/// - `&str` - Trimmed separator row line.
+/// - `&str` - Raw input line.
 ///
 /// # Returns
 ///
-/// - `Vec<EuvMarkdownAlign>` - Parsed column alignments.
-fn parse_table_alignments(trimmed: &str) -> Vec<EuvMarkdownAlign> {
-    split_table_row(trimmed)
-        .into_iter()
-        .map(|cell: String| {
-            let left: bool = cell.starts_with(':');
-            let right: bool = cell.ends_with(':');
-            if left && right {
-                EuvMarkdownAlign::Center
-            } else if right {
-                EuvMarkdownAlign::Right
-            } else {
-                EuvMarkdownAlign::Left
-            }
-        })
-        .collect()
+/// - `bool` - `true` when the line matches a Markdown list item prefix.
+#[inline(always)]
+fn is_list_line(raw: &str) -> bool {
+    let bytes: &[u8] = raw.as_bytes();
+    let mut leading: usize = 0;
+    while leading < bytes.len() && bytes[leading] == CODE_BYTE_SPACE {
+        leading += 1;
+    }
+    let trimmed: &str = raw[leading..].trim_end();
+    let tb: &[u8] = trimmed.as_bytes();
+    let first: u8 = match tb.first() {
+        Some(&b) => b,
+        None => return false,
+    };
+    if (first == MD_BYTE_DASH || first == MD_BYTE_STAR || first == MD_BYTE_PLUS)
+        && tb.len() >= 2
+        && tb[1] == CODE_BYTE_SPACE
+    {
+        return true;
+    }
+    if !first.is_ascii_digit() {
+        return false;
+    }
+    let mut d: usize = 1;
+    while d < tb.len() && tb[d].is_ascii_digit() {
+        d += 1;
+    }
+    d + 1 < tb.len() && tb[d] == CODE_BYTE_DOT && tb[d + 1] == CODE_BYTE_SPACE
 }
 
 /// Parses an unordered (`- `, `* `, `+ `), ordered (`1. `), or GFM task (`- [x] `) list line.
@@ -1737,17 +1957,16 @@ fn parse_table_alignments(trimmed: &str) -> Vec<EuvMarkdownAlign> {
 ///
 /// - `Option<(bool, usize, EuvMarkdownListItem)>` - `(ordered, ordinal_start, parsed_item)` when the line is a list item.
 fn parse_list_line(raw: &str) -> Option<(bool, usize, EuvMarkdownListItem)> {
-    let leading_spaces: usize = raw
-        .bytes()
-        .take_while(|b: &u8| *b == CODE_BYTE_SPACE)
-        .count();
-    let depth: usize = leading_spaces / 2;
+    let bytes: &[u8] = raw.as_bytes();
+    let mut leading_spaces: usize = 0;
+    while leading_spaces < bytes.len() && bytes[leading_spaces] == CODE_BYTE_SPACE {
+        leading_spaces += 1;
+    }
     let trimmed: &str = raw[leading_spaces..].trim_end();
-    if let Some(after) = trimmed
-        .strip_prefix("- ")
-        .or_else(|| trimmed.strip_prefix("* "))
-        .or_else(|| trimmed.strip_prefix("+ "))
-    {
+    let first: u8 = *trimmed.as_bytes().first()?;
+    if first == MD_BYTE_DASH || first == MD_BYTE_STAR || first == MD_BYTE_PLUS {
+        let after: &str = trimmed[1..].strip_prefix(' ')?;
+        let depth: usize = leading_spaces / 2;
         let (checked, body): (Option<bool>, &str) = if let Some(rest) = after
             .strip_prefix("[x] ")
             .or_else(|| after.strip_prefix("[X] "))
@@ -1764,13 +1983,15 @@ fn parse_list_line(raw: &str) -> Option<(bool, usize, EuvMarkdownListItem)> {
             EuvMarkdownListItem::new(body.trim().to_string(), depth, checked),
         ));
     }
+    if !first.is_ascii_digit() {
+        return None;
+    }
     let digit_len: usize = trimmed
         .bytes()
         .take_while(|b: &u8| b.is_ascii_digit())
         .count();
-    if digit_len > 0
-        && let Some(after_dot) = trimmed[digit_len..].strip_prefix(". ")
-    {
+    if let Some(after_dot) = trimmed[digit_len..].strip_prefix(". ") {
+        let depth: usize = leading_spaces / 2;
         let start_num: usize = trimmed[..digit_len].parse::<usize>().unwrap_or(1);
         return Some((
             true,

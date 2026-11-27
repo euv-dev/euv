@@ -188,135 +188,137 @@ pub(crate) const MD_HIGHLIGHT_DARK_BG: u32 = 0x854D0E;
 pub(crate) const MD_HIGHLIGHT_LIGHT_FG: u32 = 0x1E293B;
 pub(crate) const MD_HIGHLIGHT_DARK_FG: u32 = 0xFEF9C3;
 
+pub(crate) const MD_EMOJI_MAX_LEN: usize = 18;
+
 pub(crate) const MD_EMOJI_TABLE: &[(&str, &str)] = &[
-    ("rocket", "🚀"),
-    ("sparkles", "✨"),
-    ("check", "✅"),
-    ("white_check_mark", "✅"),
-    ("warning", "⚠️"),
+    ("+1", "👍"),
+    ("100", "💯"),
+    ("art", "🎨"),
+    ("book", "📖"),
+    ("bug", "🐛"),
     ("bulb", "💡"),
+    ("chart", "📊"),
+    ("check", "✅"),
+    ("clock", "⏱️"),
     ("fire", "🔥"),
+    ("gear", "⚙️"),
+    ("globe", "🌐"),
+    ("heart", "❤️"),
     ("info", "ℹ️"),
     ("information_source", "ℹ️"),
-    ("zap", "⚡"),
-    ("star", "⭐"),
-    ("heart", "❤️"),
-    ("bug", "🐛"),
-    ("wrench", "🔧"),
-    ("memo", "📝"),
-    ("lock", "🔒"),
-    ("package", "📦"),
-    ("tada", "🎉"),
-    ("x", "❌"),
-    ("thumbsup", "👍"),
-    ("+1", "👍"),
-    ("gear", "⚙️"),
-    ("art", "🎨"),
-    ("shield", "🛡️"),
-    ("globe", "🌐"),
-    ("100", "💯"),
-    ("chart", "📊"),
-    ("book", "📖"),
     ("link", "🔗"),
-    ("clock", "⏱️"),
+    ("lock", "🔒"),
+    ("memo", "📝"),
+    ("package", "📦"),
+    ("rocket", "🚀"),
+    ("shield", "🛡️"),
+    ("sparkles", "✨"),
+    ("star", "⭐"),
+    ("tada", "🎉"),
+    ("thumbsup", "👍"),
+    ("warning", "⚠️"),
+    ("white_check_mark", "✅"),
+    ("wrench", "🔧"),
+    ("x", "❌"),
+    ("zap", "⚡"),
 ];
 
 pub(crate) const MD_LATEX_SYMBOLS: &[(&str, &str)] = &[
+    ("Delta", "Δ"),
+    ("Gamma", "Γ"),
+    ("Lambda", "Λ"),
+    ("Leftarrow", "⇐"),
+    ("Leftrightarrow", "⇔"),
+    ("Omega", "Ω"),
+    ("Phi", "Φ"),
+    ("Pi", "Π"),
+    ("Psi", "Ψ"),
+    ("Rightarrow", "⇒"),
+    ("Sigma", "Σ"),
+    ("Theta", "Θ"),
+    ("Xi", "Ξ"),
     ("alpha", "α"),
+    ("angle", "∠"),
+    ("approx", "≈"),
     ("beta", "β"),
-    ("gamma", "γ"),
+    ("cap", "∩"),
+    ("cdot", "·"),
+    ("cdots", "⋯"),
+    ("chi", "χ"),
+    ("cup", "∪"),
+    ("degree", "°"),
     ("delta", "δ"),
+    ("div", "÷"),
+    ("dots", "…"),
+    ("emptyset", "∅"),
     ("epsilon", "ε"),
-    ("varepsilon", "ε"),
-    ("zeta", "ζ"),
+    ("equiv", "≡"),
     ("eta", "η"),
-    ("theta", "θ"),
+    ("exists", "∃"),
+    ("forall", "∀"),
+    ("gamma", "γ"),
+    ("ge", "≥"),
+    ("geq", "≥"),
+    ("iff", "⇔"),
+    ("iiint", "∭"),
+    ("iint", "∬"),
+    ("in", "∈"),
+    ("infty", "∞"),
+    ("int", "∫"),
     ("iota", "ι"),
     ("kappa", "κ"),
     ("lambda", "λ"),
-    ("mu", "μ"),
-    ("nu", "ν"),
-    ("xi", "ξ"),
-    ("pi", "π"),
-    ("rho", "ρ"),
-    ("sigma", "σ"),
-    ("tau", "τ"),
-    ("upsilon", "υ"),
-    ("phi", "φ"),
-    ("varphi", "ϕ"),
-    ("chi", "χ"),
-    ("psi", "ψ"),
-    ("omega", "ω"),
-    ("Gamma", "Γ"),
-    ("Delta", "Δ"),
-    ("Theta", "Θ"),
-    ("Lambda", "Λ"),
-    ("Xi", "Ξ"),
-    ("Pi", "Π"),
-    ("Sigma", "Σ"),
-    ("Phi", "Φ"),
-    ("Psi", "Ψ"),
-    ("Omega", "Ω"),
-    ("sum", "∑"),
-    ("prod", "∏"),
-    ("int", "∫"),
-    ("iint", "∬"),
-    ("iiint", "∭"),
-    ("oint", "∮"),
-    ("partial", "∂"),
-    ("nabla", "∇"),
-    ("infty", "∞"),
+    ("land", "∧"),
+    ("ldots", "…"),
     ("le", "≤"),
-    ("leq", "≤"),
-    ("ge", "≥"),
-    ("geq", "≥"),
-    ("ne", "≠"),
-    ("neq", "≠"),
-    ("approx", "≈"),
-    ("equiv", "≡"),
-    ("sim", "∼"),
-    ("simeq", "≃"),
-    ("propto", "∝"),
-    ("times", "×"),
-    ("cdot", "·"),
-    ("div", "÷"),
-    ("pm", "±"),
-    ("mp", "∓"),
-    ("to", "→"),
-    ("rightarrow", "→"),
     ("leftarrow", "←"),
     ("leftrightarrow", "↔"),
-    ("Rightarrow", "⇒"),
-    ("Leftarrow", "⇐"),
-    ("Leftrightarrow", "⇔"),
-    ("iff", "⇔"),
-    ("mapsto", "↦"),
-    ("forall", "∀"),
-    ("exists", "∃"),
-    ("in", "∈"),
-    ("notin", "∉"),
-    ("subset", "⊂"),
-    ("subseteq", "⊆"),
-    ("supset", "⊃"),
-    ("supseteq", "⊇"),
-    ("cup", "∪"),
-    ("cap", "∩"),
-    ("emptyset", "∅"),
-    ("varnothing", "∅"),
-    ("land", "∧"),
+    ("leq", "≤"),
     ("lor", "∨"),
+    ("mapsto", "↦"),
+    ("mp", "∓"),
+    ("mu", "μ"),
+    ("nabla", "∇"),
+    ("ne", "≠"),
     ("neg", "¬"),
+    ("neq", "≠"),
+    ("notin", "∉"),
+    ("nu", "ν"),
+    ("oint", "∮"),
+    ("omega", "ω"),
     ("oplus", "⊕"),
     ("otimes", "⊗"),
-    ("cdots", "⋯"),
-    ("ldots", "…"),
-    ("dots", "…"),
-    ("degree", "°"),
-    ("angle", "∠"),
-    ("perp", "⊥"),
     ("parallel", "∥"),
-    ("quad", "  "),
+    ("partial", "∂"),
+    ("perp", "⊥"),
+    ("phi", "φ"),
+    ("pi", "π"),
+    ("pm", "±"),
+    ("prod", "∏"),
+    ("propto", "∝"),
+    ("psi", "ψ"),
     ("qquad", "    "),
+    ("quad", "  "),
+    ("rho", "ρ"),
+    ("rightarrow", "→"),
+    ("sigma", "σ"),
+    ("sim", "∼"),
+    ("simeq", "≃"),
+    ("subset", "⊂"),
+    ("subseteq", "⊆"),
+    ("sum", "∑"),
+    ("supset", "⊃"),
+    ("supseteq", "⊇"),
+    ("tau", "τ"),
+    ("theta", "θ"),
+    ("times", "×"),
+    ("to", "→"),
+    ("upsilon", "υ"),
+    ("varepsilon", "ε"),
+    ("varnothing", "∅"),
+    ("varphi", "ϕ"),
+    ("xi", "ξ"),
+    ("zeta", "ζ"),
 ];
 
 pub(crate) const KW_FN: &str = "fn";
@@ -440,3 +442,58 @@ pub(crate) const CODE_BYTE_BANG: u8 = b'!';
 pub(crate) const CODE_BYTE_LPAREN: u8 = b'(';
 pub(crate) const CODE_BYTE_HASH: u8 = b'#';
 pub(crate) const CODE_BYTE_TILDE: u8 = b'~';
+pub(crate) const MD_BYTE_PIPE: u8 = b'|';
+pub(crate) const MD_BYTE_DASH: u8 = b'-';
+pub(crate) const MD_BYTE_STAR: u8 = b'*';
+pub(crate) const MD_BYTE_PLUS: u8 = b'+';
+pub(crate) const MD_BYTE_NEWLINE: u8 = b'\n';
+pub(crate) const MD_BYTE_DOLLAR: u8 = b'$';
+pub(crate) const MD_BYTE_EQ: u8 = b'=';
+pub(crate) const MD_BYTE_LT: u8 = b'<';
+pub(crate) const MD_BYTE_CARET: u8 = b'^';
+pub(crate) const MD_BYTE_LBRACKET: u8 = b'[';
+
+pub(crate) const MD_INLINE_TRIGGER_LUT: [bool; 256] = {
+    let mut lut: [bool; 256] = [false; 256];
+    lut[CODE_BYTE_BACKSLASH as usize] = true;
+    lut[MD_BYTE_NEWLINE as usize] = true;
+    lut[CODE_BYTE_BACKTICK as usize] = true;
+    lut[MD_BYTE_DOLLAR as usize] = true;
+    lut[MD_BYTE_STAR as usize] = true;
+    lut[CODE_BYTE_UNDERSCORE as usize] = true;
+    lut[CODE_BYTE_TILDE as usize] = true;
+    lut[MD_BYTE_EQ as usize] = true;
+    lut[MD_BYTE_LT as usize] = true;
+    lut[MD_BYTE_CARET as usize] = true;
+    lut[CODE_BYTE_BANG as usize] = true;
+    lut[MD_BYTE_LBRACKET as usize] = true;
+    lut[CODE_BYTE_COLON as usize] = true;
+    lut
+};
+
+pub(crate) const MD_ESCAPABLE_BYTE_LUT: [bool; 256] = {
+    let mut lut: [bool; 256] = [false; 256];
+    lut[b'\\' as usize] = true;
+    lut[b'`' as usize] = true;
+    lut[b'*' as usize] = true;
+    lut[b'_' as usize] = true;
+    lut[b'{' as usize] = true;
+    lut[b'}' as usize] = true;
+    lut[b'[' as usize] = true;
+    lut[b']' as usize] = true;
+    lut[b'(' as usize] = true;
+    lut[b')' as usize] = true;
+    lut[b'#' as usize] = true;
+    lut[b'+' as usize] = true;
+    lut[b'-' as usize] = true;
+    lut[b'.' as usize] = true;
+    lut[b'!' as usize] = true;
+    lut[b'~' as usize] = true;
+    lut[b'^' as usize] = true;
+    lut[b'=' as usize] = true;
+    lut[b'$' as usize] = true;
+    lut[b':' as usize] = true;
+    lut[b'<' as usize] = true;
+    lut[b'>' as usize] = true;
+    lut
+};
