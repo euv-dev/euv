@@ -10,6 +10,11 @@ pub struct SceneTree {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) free_list: Vec<u32>,
+    /// Incrementally maintained count of live nodes for O(1) `live_node_count()`.
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) live_count: usize,
     /// Root scene node handle.
     #[get(type(copy))]
     pub(crate) root: NodeId,

@@ -16,6 +16,7 @@ impl Default for SceneTree {
         Self {
             nodes: vec![root_node],
             free_list: Vec::new(),
+            live_count: 1,
             root: NodeId::new(0, 1),
             focus: FocusManager::default(),
             revision: 1,
@@ -108,6 +109,8 @@ impl SceneTree {
         if is_portal {
             self.get_mut_portal_nodes().push(id);
         }
+        let next_live: usize = self.get_live_count().saturating_add(1);
+        self.set_live_count(next_live);
         self.set_full_damage_pending(true);
         let next_rev: u64 = self.get_revision().wrapping_add(1);
         self.set_revision(next_rev);
@@ -272,7 +275,7 @@ impl SceneTree {
         }
     }
 
-    /// Returns total count of live scene nodes.
+    /// Returns total count of live scene nodes in O(1).
     ///
     /// # Arguments
     ///
@@ -282,11 +285,9 @@ impl SceneTree {
     ///
     /// - `usize` - Number of live nodes in the arena.
     #[must_use]
+    #[inline(always)]
     pub fn live_node_count(&self) -> usize {
-        self.get_nodes()
-            .iter()
-            .filter(|node: &&SceneNode| node.get_alive())
-            .count()
+        self.get_live_count()
     }
 
     /// Appends `child` to `parent` and marks layout and paint dirty upward.
@@ -322,7 +323,7 @@ impl SceneTree {
         self.mark_dirty(parent, DIRTY_CHILDREN_CHANGE_MASK);
     }
 
-    /// Appends multiple `children` to `parent` in a single dirty-marking pass with pre-reserved capacity.
+    /// Appends multiple `children` to `parent` in a single dirty-marking pass with zero-alloc fresh-orphan fast path.
     ///
     /// # Arguments
     ///
@@ -331,6 +332,24 @@ impl SceneTree {
     /// - `&[NodeId]` - Ordered child nodes to append.
     pub fn append_children(&mut self, parent: NodeId, children: &[NodeId]) {
         if children.is_empty() || self.get_node(parent).is_none() {
+            return;
+        }
+        let all_fresh_orphans: bool = children.iter().copied().all(|child: NodeId| {
+            child != parent
+                && self
+                    .get_node(child)
+                    .is_some_and(|node: &SceneNode| node.parent_id().is_none())
+        });
+        if all_fresh_orphans {
+            for child in children.iter().copied() {
+                if let Some(child_node) = self.get_node_mut(child) {
+                    child_node.set_parent(Some(parent));
+                }
+            }
+            if let Some(parent_node) = self.get_node_mut(parent) {
+                parent_node.get_mut_children().extend_from_slice(children);
+            }
+            self.mark_dirty(parent, DIRTY_CHILDREN_CHANGE_MASK);
             return;
         }
         let mut attached: Vec<NodeId> = Vec::with_capacity(children.len());
@@ -377,9 +396,22 @@ impl SceneTree {
             Some(node) => take(node.get_mut_children()),
             None => return,
         };
-        for old_child in old_children.into_iter() {
-            if !new_children.contains(&old_child) {
+        if new_children.is_empty() {
+            for old_child in old_children.into_iter() {
                 self.dispose_subtree(old_child);
+            }
+        } else if old_children.len() > 16 && new_children.len() > 16 {
+            let keep_set: HashSet<NodeId> = new_children.iter().copied().collect();
+            for old_child in old_children.into_iter() {
+                if !keep_set.contains(&old_child) {
+                    self.dispose_subtree(old_child);
+                }
+            }
+        } else {
+            for old_child in old_children.into_iter() {
+                if !new_children.contains(&old_child) {
+                    self.dispose_subtree(old_child);
+                }
             }
         }
         for child in new_children.iter().copied() {
@@ -681,35 +713,43 @@ impl SceneTree {
     ///
     /// - `bool` - Whether at least one transition ticked on this frame.
     pub fn tick_transitions(&mut self, dt_secs: f32) -> bool {
-        if self.get_transitions().is_empty() {
+        let len: usize = self.get_transitions().len();
+        if len == 0 {
             return false;
         }
         let step: f32 = dt_secs.clamp(0.001, 0.05);
-        let mut active: Vec<NodeTransition> = take(self.get_mut_transitions());
-        let mut remaining: Vec<NodeTransition> = Vec::with_capacity(active.len());
         let mut any_updated: bool = false;
-        for mut tr in active.drain(..) {
-            let target: NodeId = tr.get_node();
+        let mut write_idx: usize = 0;
+        for read_idx in 0..len {
+            let target: NodeId = self.get_transitions()[read_idx].get_node();
             if self.get_node(target).is_none() {
                 continue;
             }
-            let total_span: f32 = tr.get_delay() + tr.get_duration();
-            let prev_elapsed: f32 = tr.get_elapsed();
-            let next_elapsed: f32 = (prev_elapsed + step).min(total_span);
-            tr.set_elapsed(next_elapsed);
-            let done: bool = tr.is_complete();
-            let in_hold: bool = prev_elapsed > 0.0 && next_elapsed <= tr.get_delay() && !done;
-            if !in_hold {
-                let (opacity, transform): (f32, Transform2D) = tr.sample();
-                let hide: bool = done && tr.get_hide_on_complete();
+            let (done, sample_opt, hide): (bool, Option<(f32, Transform2D)>, bool) = {
+                let tr: &mut NodeTransition = &mut self.get_mut_transitions()[read_idx];
+                let total_span: f32 = tr.get_delay() + tr.get_duration();
+                let prev_elapsed: f32 = tr.get_elapsed();
+                let next_elapsed: f32 = (prev_elapsed + step).min(total_span);
+                tr.set_elapsed(next_elapsed);
+                let is_done: bool = tr.is_complete();
+                let in_hold: bool =
+                    prev_elapsed > 0.0 && next_elapsed <= tr.get_delay() && !is_done;
+                if in_hold {
+                    (is_done, None, false)
+                } else {
+                    let sampled: (f32, Transform2D) = tr.sample();
+                    let should_hide: bool = is_done && tr.get_hide_on_complete();
+                    (is_done, Some(sampled), should_hide)
+                }
+            };
+            if let Some((opacity, transform)) = sample_opt {
                 if let Some(node) = self.get_node_mut(target) {
-                    let mut style: Style = node.get_style();
+                    let style: &mut Style = node.get_mut_style();
                     style.get_mut_paint().set_opacity(opacity);
                     style.get_mut_paint().set_transform(transform);
                     if hide {
                         style.get_mut_layout().set_display(Display::None);
                     }
-                    node.set_style(style);
                 }
                 if hide {
                     self.clear_subtree_hover(target);
@@ -721,10 +761,13 @@ impl SceneTree {
                 any_updated = true;
             }
             if !done {
-                remaining.push(tr);
+                if write_idx != read_idx {
+                    self.get_mut_transitions().swap(write_idx, read_idx);
+                }
+                write_idx += 1;
             }
         }
-        self.set_transitions(remaining);
+        self.get_mut_transitions().truncate(write_idx);
         any_updated
     }
 
@@ -737,15 +780,21 @@ impl SceneTree {
     fn clear_subtree_hover(&mut self, root: NodeId) {
         let mut stack: Vec<NodeId> = vec![root];
         while let Some(id) = stack.pop() {
-            let children: Vec<NodeId> = match self.get_node_mut(id) {
+            let children_opt: Option<Vec<NodeId>> = match self.get_node_mut(id) {
                 Some(node) => {
                     node.get_mut_interaction().set_hovered(false);
                     node.get_mut_interaction().set_pressed(false);
-                    node.get_children().clone()
+                    if node.get_children().is_empty() {
+                        None
+                    } else {
+                        Some(node.get_children().clone())
+                    }
                 }
                 None => continue,
             };
-            stack.extend(children);
+            if let Some(children) = children_opt {
+                stack.extend(children);
+            }
         }
     }
 
@@ -1148,6 +1197,8 @@ impl SceneTree {
             let Some(children) = children_opt else {
                 continue;
             };
+            let next_live: usize = self.get_live_count().saturating_sub(1);
+            self.set_live_count(next_live);
             if !self.portal_nodes().is_empty() {
                 self.sync_portal_registration(current, false);
             }
@@ -1466,12 +1517,31 @@ impl SceneHandle {
                 };
                 let mut all_scopes: Vec<Scope> = Vec::new();
                 let mut all_obs: Vec<(NodeId, Rc<dyn Lifecycle>)> = Vec::new();
-                for old_child in old_children.into_iter() {
-                    if !new_children.contains(&old_child) {
+                if new_children.is_empty() {
+                    for old_child in old_children.into_iter() {
                         let (sc, ob): DisposedSubtreePayload =
                             tree.dispose_subtree_collect(old_child);
                         all_scopes.extend(sc);
                         all_obs.extend(ob);
+                    }
+                } else if old_children.len() > 16 && new_children.len() > 16 {
+                    let keep_set: HashSet<NodeId> = new_children.iter().copied().collect();
+                    for old_child in old_children.into_iter() {
+                        if !keep_set.contains(&old_child) {
+                            let (sc, ob): DisposedSubtreePayload =
+                                tree.dispose_subtree_collect(old_child);
+                            all_scopes.extend(sc);
+                            all_obs.extend(ob);
+                        }
+                    }
+                } else {
+                    for old_child in old_children.into_iter() {
+                        if !new_children.contains(&old_child) {
+                            let (sc, ob): DisposedSubtreePayload =
+                                tree.dispose_subtree_collect(old_child);
+                            all_scopes.extend(sc);
+                            all_obs.extend(ob);
+                        }
                     }
                 }
                 for child in new_children.iter().copied() {
