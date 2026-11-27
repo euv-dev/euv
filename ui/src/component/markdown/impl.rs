@@ -42,6 +42,7 @@ impl CodeThemePalette {
     /// # Returns
     ///
     /// - `Self` - Exact Eva theme color palette.
+    #[inline(always)]
     #[must_use]
     pub fn resolve(mode: ThemeMode) -> Self {
         match mode {
@@ -114,6 +115,7 @@ impl CodeThemePalette {
     /// # Returns
     ///
     /// - `(Color, FontWeight)` - Exact token color and font weight.
+    #[inline(always)]
     #[must_use]
     pub fn token_style(&self, kind: CodeTokenKind) -> (Color, FontWeight) {
         match kind {
@@ -309,43 +311,39 @@ impl EuvCodeBlock {
             selectable,
             on_copy,
             ..
-        } = self.clone();
+        } = self;
         let is_selectable: bool = selectable.unwrap_or(true);
-        let inline_max_h: f32 = if max_height > 0.0 {
-            max_height
+        let inline_max_h: f32 = if *max_height > 0.0 {
+            *max_height
         } else {
             CODE_DEFAULT_MAX_HEIGHT
         };
-        let resolved_lang: String = if language.trim().is_empty() {
-            infer_code_language(&code).to_string()
+        let raw_lang: &str = language.trim();
+        let resolved_lang: &str = if raw_lang.is_empty() {
+            infer_code_language(code)
         } else {
-            language.trim().to_string()
+            raw_lang
         };
-        let display_lang: String = resolved_lang.to_ascii_uppercase();
-        let code_lang: CodeLang = CodeLang::from_name(&resolved_lang);
-        let header_title: String = filename.unwrap_or_else(|| eva.get_theme_name().to_string());
+        let display_lang_rc: Rc<str> = Rc::from(resolved_lang.to_ascii_uppercase());
+        let code_lang: CodeLang = CodeLang::from_name(resolved_lang);
+        let header_title_str: &str = filename.as_deref().unwrap_or(eva.get_theme_name());
+        let filename_rc: Option<Rc<str>> = filename.as_deref().map(Rc::from);
         let copied_sig: Signal<bool> = Signal::new(false);
         let fs_open: Signal<bool> = Signal::new(false);
-        let code_for_copy: String = code.clone();
-        let raw_lines: Vec<&str> = code.lines().collect();
-        let lines_vec: Vec<String> = if raw_lines.is_empty() {
-            vec![String::new()]
-        } else {
-            raw_lines.into_iter().map(str::to_string).collect()
-        };
-        let line_count: usize = lines_vec.len();
-        let show_nums: bool = show_line_numbers || line_count > 1;
-        let (natural_w, line_nodes): (f32, Vec<NodeId>) = build_code_line_nodes(
-            &lines_vec,
+        let code_rc: Rc<str> = Rc::from(code.as_str());
+        let show_nums: bool = *show_line_numbers || code.lines().nth(1).is_some();
+        let (natural_w, line_count, line_nodes): (f32, usize, Vec<NodeId>) = build_code_line_nodes(
+            code,
             code_lang,
             eva,
             show_nums,
-            &highlight_lines,
+            highlight_lines,
             CODE_FONT_SIZE,
             is_selectable,
         );
         let ctx_copy: Context = ctx.clone();
         let on_copy_inline: Option<MarkdownStrCallback> = on_copy.clone();
+        let code_for_copy: Rc<str> = Rc::clone(&code_rc);
         let on_copy_click = move |_: &UiEvent| {
             let _: bool = ctx_copy.copy_to_clipboard(&code_for_copy);
             let _: bool = copied_sig.set(true);
@@ -368,12 +366,15 @@ impl EuvCodeBlock {
                 CodeThemePalette::resolve(live_tokens_untracked(tokens).get_mode());
             draw_code_fullscreen_icon(bounds, dl, live_eva.get_function());
         };
-        let modal_lines: Vec<String> = lines_vec;
-        let modal_hl: Vec<usize> = highlight_lines;
-        let modal_title: String = header_title.clone();
-        let modal_lang: String = display_lang.clone();
-        let modal_code_copy: String = code;
-        let modal_on_copy: Option<MarkdownStrCallback> = on_copy;
+        let modal_hl: Vec<usize> = if highlight_lines.is_empty() {
+            Vec::new()
+        } else {
+            highlight_lines.clone()
+        };
+        let modal_filename: Option<Rc<str>> = filename_rc;
+        let modal_lang: Rc<str> = Rc::clone(&display_lang_rc);
+        let modal_code_rc: Rc<str> = Rc::clone(&code_rc);
+        let modal_on_copy: Option<MarkdownStrCallback> = on_copy.clone();
         let ctx_modal_copy: Context = ctx.clone();
         let build_fs_children = move || -> Vec<NodeId> {
             if !fs_open.get() {
@@ -383,16 +384,17 @@ impl EuvCodeBlock {
             let live_p: ThemePalette = live_tok.get_palette();
             let live_g: ThemeGeometry = live_tok.get_geometry();
             let live_eva: CodeThemePalette = CodeThemePalette::resolve(live_tok.get_mode());
-            let (modal_nat_w, modal_line_nodes): (f32, Vec<NodeId>) = build_code_line_nodes(
-                &modal_lines,
-                code_lang,
-                live_eva,
-                show_nums,
-                &modal_hl,
-                CODE_MODAL_FONT_SIZE,
-                true,
-            );
-            let m_copy_str: String = modal_code_copy.clone();
+            let (modal_nat_w, _, modal_line_nodes): (f32, usize, Vec<NodeId>) =
+                build_code_line_nodes(
+                    &modal_code_rc,
+                    code_lang,
+                    live_eva,
+                    show_nums,
+                    &modal_hl,
+                    CODE_MODAL_FONT_SIZE,
+                    true,
+                );
+            let m_copy_str: Rc<str> = Rc::clone(&modal_code_rc);
             let m_copy_cb: Option<MarkdownStrCallback> = modal_on_copy.clone();
             let m_ctx: Context = ctx_modal_copy.clone();
             let on_modal_copy = move |_: &UiEvent| {
@@ -412,9 +414,16 @@ impl EuvCodeBlock {
             let on_close_btn = move |_: &UiEvent| {
                 let _: bool = fs_open.set_if_changed(false);
             };
-            let m_title: String = modal_title.clone();
-            let m_lang: String = modal_lang.clone();
+            let m_title: &str = modal_filename
+                .as_deref()
+                .unwrap_or(live_eva.get_theme_name());
+            let m_lang: &str = &modal_lang;
             let lines_badge: String = format!("{line_count} L");
+            let mut modal_scroll_st: Style = Style::default();
+            modal_scroll_st
+                .get_mut_layout()
+                .set_flex_direction(FlexDirection::Column)
+                .set_align_items(AlignItems::Start);
             let modal_card: NodeId = view! {
                 column {
                     width: Length::Percent(100.0)
@@ -544,7 +553,7 @@ impl EuvCodeBlock {
                         background: live_eva.get_border()
                     }
                     scroll {
-                        style: Style::default().column().align(AlignItems::Start)
+                        style: modal_scroll_st
                         flex_grow: 1.0
                         flex_shrink: 1.0
                         min_height: Length::Px(0.0)
@@ -566,6 +575,12 @@ impl EuvCodeBlock {
         let on_scrim_click = move |_: &UiEvent| {
             let _: bool = fs_open.set_if_changed(false);
         };
+        let inline_lang_str: &str = &display_lang_rc;
+        let mut inline_scroll_st: Style = Style::default();
+        inline_scroll_st
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Column)
+            .set_align_items(AlignItems::Start);
         let mut fs_portal: NodeId = NodeId::default();
         let root: NodeId = view! {
             column {
@@ -621,7 +636,7 @@ impl EuvCodeBlock {
                             font_size: 12.0
                             font_weight: FontWeight::SemiBold
                             color: eva.get_foreground()
-                            { header_title }
+                            { header_title_str }
                         }
                     }
                     row {
@@ -641,7 +656,7 @@ impl EuvCodeBlock {
                                 color: eva.get_keyword()
                                 text_align: TextAlign::Center
                                 text_overflow: TextOverflow::Clip
-                                { display_lang }
+                                { inline_lang_str }
                             }
                         }
                         row {
@@ -694,7 +709,7 @@ impl EuvCodeBlock {
                     background: eva.get_border()
                 }
                 scroll {
-                    style: Style::default().column().align(AlignItems::Start)
+                    style: inline_scroll_st
                     width: Length::Percent(100.0)
                     max_height: Length::Px(inline_max_h)
                     padding: Edges::symmetric(SPACE_SM, SPACE_XS)
@@ -825,9 +840,10 @@ impl EuvMarkdownHeading {
         };
         let Self {
             text, selectable, ..
-        } = self.clone();
+        } = self;
         let is_selectable: bool = selectable.unwrap_or(true);
         let show_rule: bool = lvl <= 2;
+        let text_str: &str = text.as_str();
         view! {
             column {
                 width: Length::Percent(100.0)
@@ -853,7 +869,7 @@ impl EuvMarkdownHeading {
                         font_weight: FontWeight::Bold
                         color: if lvl == 6 { p.get_muted_foreground() } else { p.get_foreground() }
                         selectable: is_selectable
-                        { text }
+                        { text_str }
                     }
                 }
                 if show_rule {
@@ -885,7 +901,7 @@ impl EuvMarkdownInlineCode {
         let tokens: ThemeTokens = self.get_tokens();
         let g: ThemeGeometry = tokens.get_geometry();
         let eva: CodeThemePalette = CodeThemePalette::resolve(tokens.get_mode());
-        let snippet: String = self.get_code().clone();
+        let snippet: &str = self.get_code().as_str();
         view! {
             row {
                 max_width: Length::Percent(100.0)
@@ -953,7 +969,7 @@ impl EuvMarkdownMath {
             expression,
             selectable,
             ..
-        } = self.clone();
+        } = self;
         let is_selectable: bool = selectable.unwrap_or(true);
         let formatted_lines: Vec<String> = expression
             .lines()
@@ -961,7 +977,7 @@ impl EuvMarkdownMath {
             .filter(|s: &String| !s.is_empty())
             .collect();
         let display_lines: Vec<String> = if formatted_lines.is_empty() {
-            vec![format_latex_math(&expression)]
+            vec![format_latex_math(expression)]
         } else {
             formatted_lines
         };
@@ -1050,6 +1066,271 @@ impl EuvMarkdownParagraph {
         self.set_on_link(Some(Rc::new(handler)));
         self
     }
+
+    /// Mounts a plain body text paragraph node directly without allocating an inline AST.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - Plain body text slice.
+    /// - `ThemePalette` - Resolved active theme palette.
+    /// - `bool` - Whether text selection is enabled.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Mounted body text node handle.
+    #[inline(always)]
+    pub(crate) fn mount_plain_text(text: &str, p: ThemePalette, is_selectable: bool) -> NodeId {
+        view! {
+            text {
+                width: Length::Percent(100.0)
+                font_size: 14.0
+                color: p.get_foreground()
+                selectable: is_selectable
+                { text }
+            }
+        }
+    }
+
+    /// Mounts a single parsed `EuvMarkdownInline` segment by reference without cloning the parent vector.
+    ///
+    /// # Arguments
+    ///
+    /// - `&EuvMarkdownInline` - Borrowed inline segment.
+    /// - `ThemeTokens` - Active theme tokens.
+    /// - `CodeThemePalette` - Resolved Eva palette.
+    /// - `(Color, Color)` - Highlight background and foreground colors.
+    /// - `bool` - Whether text is selectable.
+    /// - `Option<&MarkdownStrCallback>` - Optional link-click handler.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Mounted inline node handle.
+    fn render_inline_node(
+        seg: &EuvMarkdownInline,
+        tokens: ThemeTokens,
+        eva: CodeThemePalette,
+        hl_colors: (Color, Color),
+        is_selectable: bool,
+        on_link: Option<&MarkdownStrCallback>,
+    ) -> NodeId {
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
+        let (hl_bg, hl_fg): (Color, Color) = hl_colors;
+        match seg {
+            EuvMarkdownInline::Text(t) => view! {
+                text {
+                    max_width: Length::Percent(100.0)
+                    font_size: 14.0
+                    color: p.get_foreground()
+                    selectable: is_selectable
+                    { t.as_str() }
+                }
+            },
+            EuvMarkdownInline::Bold(t) => view! {
+                text {
+                    max_width: Length::Percent(100.0)
+                    font_size: 14.0
+                    font_weight: FontWeight::Bold
+                    color: p.get_foreground()
+                    selectable: is_selectable
+                    { t.as_str() }
+                }
+            },
+            EuvMarkdownInline::Italic(t) => view! {
+                text {
+                    max_width: Length::Percent(100.0)
+                    font_size: 14.0
+                    italic: true
+                    color: p.get_foreground()
+                    selectable: is_selectable
+                    { t.as_str() }
+                }
+            },
+            EuvMarkdownInline::BoldItalic(t) => view! {
+                text {
+                    max_width: Length::Percent(100.0)
+                    font_size: 14.0
+                    font_weight: FontWeight::Bold
+                    italic: true
+                    color: p.get_foreground()
+                    selectable: is_selectable
+                    { t.as_str() }
+                }
+            },
+            EuvMarkdownInline::Strike(t) => {
+                let mut strike_st: Style = Style::default();
+                strike_st
+                    .get_mut_layout()
+                    .set_max_width(Length::Percent(100.0));
+                strike_st
+                    .get_mut_text()
+                    .set_font_size(14.0)
+                    .set_color(p.get_muted_foreground())
+                    .set_strikethrough(true);
+                view! {
+                    text {
+                        style: strike_st
+                        selectable: is_selectable
+                        { t.as_str() }
+                    }
+                }
+            }
+            EuvMarkdownInline::Highlight(t) => view! {
+                row {
+                    max_width: Length::Percent(100.0)
+                    padding: Edges::symmetric(1.0, 5.0)
+                    radius: g.get_radius_sm().min(5.0)
+                    background: hl_bg
+                    overflow: Overflow::Hidden
+                    text {
+                        max_width: Length::Percent(100.0)
+                        font_size: 13.5
+                        font_weight: FontWeight::Medium
+                        color: hl_fg
+                        selectable: is_selectable
+                        { t.as_str() }
+                    }
+                }
+            },
+            EuvMarkdownInline::Superscript(t) => view! {
+                row {
+                    padding: Edges::new(0.0, 1.0, 6.0, 1.0)
+                    text {
+                        font_size: 10.5
+                        font_weight: FontWeight::SemiBold
+                        color: p.get_foreground()
+                        selectable: is_selectable
+                        { t.as_str() }
+                    }
+                }
+            },
+            EuvMarkdownInline::Subscript(t) => view! {
+                row {
+                    padding: Edges::new(6.0, 1.0, 0.0, 1.0)
+                    text {
+                        font_size: 10.5
+                        font_weight: FontWeight::SemiBold
+                        color: p.get_foreground()
+                        selectable: is_selectable
+                        { t.as_str() }
+                    }
+                }
+            },
+            EuvMarkdownInline::Code(code) => view! {
+                EuvMarkdownInlineCode {
+                    code: code.clone()
+                    tokens: tokens
+                }
+            },
+            EuvMarkdownInline::Math(expr) => view! {
+                row {
+                    max_width: Length::Percent(100.0)
+                    padding: Edges::symmetric(1.0, 6.0)
+                    radius: g.get_radius_sm().min(5.0)
+                    background: eva.get_inline_code_bg()
+                    border: (1.0, eva.get_border())
+                    overflow: Overflow::Hidden
+                    text {
+                        max_width: Length::Percent(100.0)
+                        font_size: 13.0
+                        font_family: FontFamily::Monospace
+                        color: eva.get_keyword()
+                        selectable: is_selectable
+                        { expr.as_str() }
+                    }
+                }
+            },
+            EuvMarkdownInline::FootnoteRef(id) => view! {
+                row {
+                    padding: Edges::new(0.0, 4.0, 5.0, 4.0)
+                    radius: g.get_radius_sm().min(4.0)
+                    background: p.get_primary().with_alpha(28)
+                    text {
+                        font_size: 10.0
+                        font_weight: FontWeight::Bold
+                        color: p.get_primary()
+                        { format!("[{id}]") }
+                    }
+                }
+            },
+            EuvMarkdownInline::Image { alt, url } => {
+                let caption: &str = if alt.is_empty() {
+                    url.as_str()
+                } else {
+                    alt.as_str()
+                };
+                view! {
+                    row {
+                        max_width: Length::Percent(100.0)
+                        padding: Edges::symmetric(2.0, 6.0)
+                        gap: 4.0
+                        radius: g.get_radius_sm()
+                        background: eva.get_header_bg()
+                        border: (1.0, eva.get_border())
+                        align: AlignItems::Center
+                        overflow: Overflow::Hidden
+                        text {
+                            font_size: 10.0
+                            font_weight: FontWeight::Bold
+                            color: eva.get_keyword()
+                            { MD_IMAGE_BADGE }
+                        }
+                        text {
+                            max_width: Length::Percent(100.0)
+                            font_size: 12.5
+                            color: p.get_foreground()
+                            { caption }
+                        }
+                    }
+                }
+            }
+            EuvMarkdownInline::Kbd(key) => view! {
+                EuvKbd {
+                    key: key.clone()
+                    tokens: tokens
+                }
+            },
+            EuvMarkdownInline::Link { label, url } => {
+                let cb_opt: Option<MarkdownStrCallback> = on_link.cloned();
+                let url_owned: String = url.clone();
+                let on_link_click = move |_: &UiEvent| {
+                    if let Some(cb) = cb_opt.as_ref() {
+                        cb(&url_owned);
+                    }
+                };
+                let mut link_st: Style = Style::default();
+                link_st
+                    .get_mut_layout()
+                    .set_max_width(Length::Percent(100.0));
+                link_st
+                    .get_mut_text()
+                    .set_font_size(14.0)
+                    .set_weight(FontWeight::SemiBold)
+                    .set_color(eva.get_link())
+                    .set_underline(true);
+                view! {
+                    row {
+                        max_width: Length::Percent(100.0)
+                        padding: Edges::symmetric(1.0, 3.0)
+                        radius: 4.0
+                        cursor: CursorIcon::Pointer
+                        on_click: on_link_click
+                        text {
+                            style: link_st
+                            selectable: is_selectable
+                            { label.as_str() }
+                        }
+                    }
+                }
+            }
+            EuvMarkdownInline::HardBreak => view! {
+                view {
+                    width: Length::Px(0.0)
+                    height: Length::Px(0.0)
+                }
+            },
+        }
+    }
 }
 
 /// Declarative `#[component]` implementation for `EuvMarkdownParagraph`.
@@ -1068,37 +1349,39 @@ impl EuvMarkdownParagraph {
     fn render(&self) -> NodeId {
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
-        let g: ThemeGeometry = tokens.get_geometry();
         let eva: CodeThemePalette = CodeThemePalette::resolve(tokens.get_mode());
         let Self {
             inlines,
             selectable,
             on_link,
             ..
-        } = self.clone();
+        } = self;
         let is_selectable: bool = selectable.unwrap_or(true);
+        if inlines.len() == 1
+            && let EuvMarkdownInline::Text(plain) = &inlines[0]
+        {
+            return Self::mount_plain_text(plain.as_str(), p, is_selectable);
+        }
         let has_rich: bool = inlines
             .iter()
             .any(|seg: &EuvMarkdownInline| !matches!(seg, EuvMarkdownInline::Text(_)));
         if !has_rich {
-            let plain: String = inlines
-                .into_iter()
-                .map(|seg: EuvMarkdownInline| match seg {
-                    EuvMarkdownInline::Text(s) => s,
-                    _ => String::new(),
+            let total_len: usize = inlines
+                .iter()
+                .map(|seg: &EuvMarkdownInline| match seg {
+                    EuvMarkdownInline::Text(s) => s.len(),
+                    _ => 0,
                 })
-                .collect();
-            return view! {
-                text {
-                    width: Length::Percent(100.0)
-                    font_size: 14.0
-                    color: p.get_foreground()
-                    selectable: is_selectable
-                    { plain }
+                .sum();
+            let mut plain: String = String::with_capacity(total_len);
+            for seg in inlines {
+                if let EuvMarkdownInline::Text(s) = seg {
+                    plain.push_str(s);
                 }
-            };
+            }
+            return Self::mount_plain_text(&plain, p, is_selectable);
         }
-        let (hl_bg, hl_fg): (Color, Color) = match tokens.get_mode() {
+        let hl_colors: (Color, Color) = match tokens.get_mode() {
             ThemeMode::Light => (
                 Color::hex(MD_HIGHLIGHT_LIGHT_BG),
                 Color::hex(MD_HIGHLIGHT_LIGHT_FG),
@@ -1108,218 +1391,52 @@ impl EuvMarkdownParagraph {
                 Color::hex(MD_HIGHLIGHT_DARK_FG),
             ),
         };
-        let mut lines: Vec<Vec<EuvMarkdownInline>> = vec![Vec::new()];
-        for seg in inlines.into_iter() {
-            if matches!(seg, EuvMarkdownInline::HardBreak) {
-                lines.push(Vec::new());
-            } else if let Some(cur_line) = lines.last_mut() {
-                cur_line.push(seg);
-            }
+        let on_link_ref: Option<&MarkdownStrCallback> = on_link.as_ref();
+        let has_hard_break: bool = inlines
+            .iter()
+            .any(|seg: &EuvMarkdownInline| matches!(seg, EuvMarkdownInline::HardBreak));
+        if !has_hard_break {
+            let nodes: Vec<NodeId> = inlines
+                .iter()
+                .map(|seg: &EuvMarkdownInline| {
+                    Self::render_inline_node(
+                        seg,
+                        tokens,
+                        eva,
+                        hl_colors,
+                        is_selectable,
+                        on_link_ref,
+                    )
+                })
+                .collect();
+            return view! {
+                row {
+                    width: Length::Percent(100.0)
+                    min_width: Length::Px(0.0)
+                    flex_wrap: FlexWrap::Wrap
+                    align: AlignItems::Center
+                    overflow: Overflow::Hidden
+                    selectable: is_selectable
+                    gap: 4.0
+                    ..nodes
+                }
+            };
         }
-        let mut line_rows: Vec<NodeId> = Vec::with_capacity(lines.len());
-        for line_segs in lines.into_iter() {
+        let mut line_rows: Vec<NodeId> = Vec::new();
+        for line_segs in
+            inlines.split(|seg: &EuvMarkdownInline| matches!(seg, EuvMarkdownInline::HardBreak))
+        {
             let nodes: Vec<NodeId> = line_segs
-                .into_iter()
-                .map(|seg: EuvMarkdownInline| match seg {
-                    EuvMarkdownInline::Text(t) => view! {
-                        text {
-                            max_width: Length::Percent(100.0)
-                            font_size: 14.0
-                            color: p.get_foreground()
-                            selectable: is_selectable
-                            { t }
-                        }
-                    },
-                    EuvMarkdownInline::Bold(t) => view! {
-                        text {
-                            max_width: Length::Percent(100.0)
-                            font_size: 14.0
-                            font_weight: FontWeight::Bold
-                            color: p.get_foreground()
-                            selectable: is_selectable
-                            { t }
-                        }
-                    },
-                    EuvMarkdownInline::Italic(t) => view! {
-                        text {
-                            max_width: Length::Percent(100.0)
-                            font_size: 14.0
-                            italic: true
-                            color: p.get_foreground()
-                            selectable: is_selectable
-                            { t }
-                        }
-                    },
-                    EuvMarkdownInline::BoldItalic(t) => view! {
-                        text {
-                            max_width: Length::Percent(100.0)
-                            font_size: 14.0
-                            font_weight: FontWeight::Bold
-                            italic: true
-                            color: p.get_foreground()
-                            selectable: is_selectable
-                            { t }
-                        }
-                    },
-                    EuvMarkdownInline::Strike(t) => {
-                        let mut strike_st: Style = Style::default()
-                            .max_width(Length::Percent(100.0))
-                            .font_size(14.0)
-                            .color(p.get_muted_foreground());
-                        strike_st.get_mut_text().set_strikethrough(true);
-                        view! {
-                            text {
-                                style: strike_st
-                                selectable: is_selectable
-                                { t }
-                            }
-                        }
-                    }
-                    EuvMarkdownInline::Highlight(t) => view! {
-                        row {
-                            max_width: Length::Percent(100.0)
-                            padding: Edges::symmetric(1.0, 5.0)
-                            radius: g.get_radius_sm().min(5.0)
-                            background: hl_bg
-                            overflow: Overflow::Hidden
-                            text {
-                                max_width: Length::Percent(100.0)
-                                font_size: 13.5
-                                font_weight: FontWeight::Medium
-                                color: hl_fg
-                                selectable: is_selectable
-                                { t }
-                            }
-                        }
-                    },
-                    EuvMarkdownInline::Superscript(t) => view! {
-                        row {
-                            padding: Edges::new(0.0, 1.0, 6.0, 1.0)
-                            text {
-                                font_size: 10.5
-                                font_weight: FontWeight::SemiBold
-                                color: p.get_foreground()
-                                selectable: is_selectable
-                                { t }
-                            }
-                        }
-                    },
-                    EuvMarkdownInline::Subscript(t) => view! {
-                        row {
-                            padding: Edges::new(6.0, 1.0, 0.0, 1.0)
-                            text {
-                                font_size: 10.5
-                                font_weight: FontWeight::SemiBold
-                                color: p.get_foreground()
-                                selectable: is_selectable
-                                { t }
-                            }
-                        }
-                    },
-                    EuvMarkdownInline::Code(code) => view! {
-                        EuvMarkdownInlineCode {
-                            code: code
-                            tokens: tokens
-                        }
-                    },
-                    EuvMarkdownInline::Math(expr) => view! {
-                        row {
-                            max_width: Length::Percent(100.0)
-                            padding: Edges::symmetric(1.0, 6.0)
-                            radius: g.get_radius_sm().min(5.0)
-                            background: eva.get_inline_code_bg()
-                            border: (1.0, eva.get_border())
-                            overflow: Overflow::Hidden
-                            text {
-                                max_width: Length::Percent(100.0)
-                                font_size: 13.0
-                                font_family: FontFamily::Monospace
-                                color: eva.get_keyword()
-                                selectable: is_selectable
-                                { expr }
-                            }
-                        }
-                    },
-                    EuvMarkdownInline::FootnoteRef(id) => view! {
-                        row {
-                            padding: Edges::new(0.0, 4.0, 5.0, 4.0)
-                            radius: g.get_radius_sm().min(4.0)
-                            background: p.get_primary().with_alpha(28)
-                            text {
-                                font_size: 10.0
-                                font_weight: FontWeight::Bold
-                                color: p.get_primary()
-                                { format!("[{id}]") }
-                            }
-                        }
-                    },
-                    EuvMarkdownInline::Image { alt, url } => {
-                        let caption: String = if alt.is_empty() { url } else { alt };
-                        view! {
-                            row {
-                                max_width: Length::Percent(100.0)
-                                padding: Edges::symmetric(2.0, 6.0)
-                                gap: 4.0
-                                radius: g.get_radius_sm()
-                                background: eva.get_header_bg()
-                                border: (1.0, eva.get_border())
-                                align: AlignItems::Center
-                                overflow: Overflow::Hidden
-                                text {
-                                    font_size: 10.0
-                                    font_weight: FontWeight::Bold
-                                    color: eva.get_keyword()
-                                    { MD_IMAGE_BADGE }
-                                }
-                                text {
-                                    max_width: Length::Percent(100.0)
-                                    font_size: 12.5
-                                    color: p.get_foreground()
-                                    { caption }
-                                }
-                            }
-                        }
-                    }
-                    EuvMarkdownInline::Kbd(key) => view! {
-                        EuvKbd {
-                            key: key
-                            tokens: tokens
-                        }
-                    },
-                    EuvMarkdownInline::Link { label, url } => {
-                        let cb_opt: Option<MarkdownStrCallback> = on_link.clone();
-                        let on_link_click = move |_: &UiEvent| {
-                            if let Some(cb) = cb_opt.as_ref() {
-                                cb(&url);
-                            }
-                        };
-                        let mut link_st: Style = Style::default()
-                            .max_width(Length::Percent(100.0))
-                            .font_size(14.0)
-                            .font_weight(FontWeight::SemiBold)
-                            .color(eva.get_link());
-                        link_st.get_mut_text().set_underline(true);
-                        view! {
-                            row {
-                                max_width: Length::Percent(100.0)
-                                padding: Edges::symmetric(1.0, 3.0)
-                                radius: 4.0
-                                cursor: CursorIcon::Pointer
-                                on_click: on_link_click
-                                text {
-                                    style: link_st
-                                    selectable: is_selectable
-                                    { label }
-                                }
-                            }
-                        }
-                    }
-                    EuvMarkdownInline::HardBreak => view! {
-                        view {
-                            width: Length::Px(0.0)
-                            height: Length::Px(0.0)
-                        }
-                    },
+                .iter()
+                .map(|seg: &EuvMarkdownInline| {
+                    Self::render_inline_node(
+                        seg,
+                        tokens,
+                        eva,
+                        hl_colors,
+                        is_selectable,
+                        on_link_ref,
+                    )
                 })
                 .collect();
             line_rows.push(view! {
@@ -1411,7 +1528,7 @@ impl EuvMarkdownQuote {
             selectable,
             on_link,
             ..
-        } = self.clone();
+        } = self;
         let is_selectable: bool = selectable.unwrap_or(true);
         let (accent, badge_opt): (Color, Option<&str>) = match kind {
             EuvMarkdownAlertKind::Quote => (eva.get_quote_border(), None),
@@ -1426,9 +1543,9 @@ impl EuvMarkdownQuote {
         } else {
             accent.with_alpha(26)
         };
-        let mut body_nodes: Vec<NodeId> = Vec::new();
+        let mut body_nodes: Vec<NodeId> = Vec::with_capacity(lines.len());
         let mut nested_buf: Vec<String> = Vec::new();
-        for line in lines.into_iter() {
+        for line in lines {
             if let Some(after_gt) = line.trim_start().strip_prefix('>') {
                 nested_buf.push(after_gt.trim_start().to_string());
             } else {
@@ -1445,13 +1562,21 @@ impl EuvMarkdownQuote {
                     body_nodes.push(nested.mount());
                 }
                 if !line.trim().is_empty() {
-                    let mut para: EuvMarkdownParagraph =
-                        EuvMarkdownParagraph::new(parse_markdown_inlines(&line), tokens)
-                            .selectable(is_selectable);
-                    if let Some(cb) = on_link.clone() {
-                        para.set_on_link(Some(cb));
+                    if !has_inline_markdown_trigger(line) {
+                        body_nodes.push(EuvMarkdownParagraph::mount_plain_text(
+                            line,
+                            p,
+                            is_selectable,
+                        ));
+                    } else {
+                        let mut para: EuvMarkdownParagraph =
+                            EuvMarkdownParagraph::new(parse_markdown_inlines(line), tokens)
+                                .selectable(is_selectable);
+                        if let Some(cb) = on_link.clone() {
+                            para.set_on_link(Some(cb));
+                        }
+                        body_nodes.push(para.mount());
                     }
-                    body_nodes.push(para.mount());
                 }
             }
         }
@@ -1599,6 +1724,7 @@ impl EuvMarkdownList {
     /// - `NodeId` - Mounted list column handle.
     fn render(&self) -> NodeId {
         let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
         let eva: CodeThemePalette = CodeThemePalette::resolve(tokens.get_mode());
         let ordered: bool = self.get_ordered();
@@ -1609,21 +1735,25 @@ impl EuvMarkdownList {
             on_link,
             on_toggle_task,
             ..
-        } = self.clone();
+        } = self;
         let is_selectable: bool = selectable.unwrap_or(true);
         let row_nodes: Vec<NodeId> = items
-            .into_iter()
+            .iter()
             .enumerate()
-            .map(|(idx, item): (usize, EuvMarkdownListItem)| {
+            .map(|(idx, item): (usize, &EuvMarkdownListItem)| {
                 let indent: f32 = (item.get_depth() as f32) * 18.0;
-                let text_str: String = item.get_text().clone();
-                let mut para: EuvMarkdownParagraph =
-                    EuvMarkdownParagraph::new(parse_markdown_inlines(&text_str), tokens)
-                        .selectable(is_selectable);
-                if let Some(cb) = on_link.clone() {
-                    para.set_on_link(Some(cb));
-                }
-                let para_node: NodeId = para.mount();
+                let text_ref: &str = item.get_text().as_str();
+                let para_node: NodeId = if !has_inline_markdown_trigger(text_ref) {
+                    EuvMarkdownParagraph::mount_plain_text(text_ref, p, is_selectable)
+                } else {
+                    let mut para: EuvMarkdownParagraph =
+                        EuvMarkdownParagraph::new(parse_markdown_inlines(text_ref), tokens)
+                            .selectable(is_selectable);
+                    if let Some(cb) = on_link.clone() {
+                        para.set_on_link(Some(cb));
+                    }
+                    para.mount()
+                };
                 if let Some(initial_checked) = item.checked_state() {
                     let chk_sig: Signal<bool> = Signal::new(initial_checked);
                     let cb_opt: Option<MarkdownTaskCallback> = on_toggle_task.clone();
@@ -1678,12 +1808,32 @@ impl EuvMarkdownList {
                         }
                     }
                 } else {
-                    let marker: String = if ordered {
-                        format!("{}.", start_num + idx)
-                    } else if item.get_depth() % 2 == 1 {
-                        "◦".to_string()
+                    let marker_node: NodeId = if ordered {
+                        let num_marker: String = format!("{}.", start_num + idx);
+                        view! {
+                            text {
+                                font_size: 14.0
+                                font_weight: FontWeight::Bold
+                                color: eva.get_keyword()
+                                selectable: false
+                                { num_marker }
+                            }
+                        }
                     } else {
-                        "•".to_string()
+                        let bullet: &str = if item.get_depth() % 2 == 1 {
+                            "◦"
+                        } else {
+                            "•"
+                        };
+                        view! {
+                            text {
+                                font_size: 14.0
+                                font_weight: FontWeight::Bold
+                                color: eva.get_keyword()
+                                selectable: false
+                                { bullet }
+                            }
+                        }
                     };
                     view! {
                         row {
@@ -1691,13 +1841,7 @@ impl EuvMarkdownList {
                             padding: Edges::new(2.0, 0.0, 2.0, indent)
                             align: AlignItems::Start
                             gap: SPACE_SM
-                            text {
-                                font_size: 14.0
-                                font_weight: FontWeight::Bold
-                                color: eva.get_keyword()
-                                selectable: false
-                                { marker }
-                            }
+                            { marker_node }
                             column {
                                 flex_grow: 1.0
                                 flex_shrink: 1.0
@@ -1756,6 +1900,25 @@ impl EuvMarkdownTable {
         self.set_on_link(Some(Rc::new(handler)));
         self
     }
+
+    /// Maps a column index to its resolved `(TextAlign, JustifyContent)` pair without heap allocation.
+    ///
+    /// # Arguments
+    ///
+    /// - `&[EuvMarkdownAlign]` - Parsed column alignments.
+    /// - `usize` - Zero-based column index.
+    ///
+    /// # Returns
+    ///
+    /// - `(TextAlign, JustifyContent)` - Text alignment and flex justification pair.
+    #[inline(always)]
+    fn align_pair(alignments: &[EuvMarkdownAlign], col_idx: usize) -> (TextAlign, JustifyContent) {
+        match alignments.get(col_idx).copied().unwrap_or_default() {
+            EuvMarkdownAlign::Left => (TextAlign::Left, JustifyContent::Start),
+            EuvMarkdownAlign::Center => (TextAlign::Center, JustifyContent::Center),
+            EuvMarkdownAlign::Right => (TextAlign::Right, JustifyContent::End),
+        }
+    }
 }
 
 /// Declarative `#[component]` implementation for `EuvMarkdownTable`.
@@ -1783,42 +1946,57 @@ impl EuvMarkdownTable {
             selectable,
             on_link,
             ..
-        } = self.clone();
+        } = self;
         let is_selectable: bool = selectable.unwrap_or(true);
         let col_count: usize = headers.len().max(1);
         let min_table_w: f32 = (col_count as f32) * MD_TABLE_COL_MIN_WIDTH;
-        let col_aligns: Vec<(TextAlign, JustifyContent)> = (0..col_count)
-            .map(
-                |col_idx: usize| match alignments.get(col_idx).copied().unwrap_or_default() {
-                    EuvMarkdownAlign::Left => (TextAlign::Left, JustifyContent::Start),
-                    EuvMarkdownAlign::Center => (TextAlign::Center, JustifyContent::Center),
-                    EuvMarkdownAlign::Right => (TextAlign::Right, JustifyContent::End),
-                },
-            )
-            .collect();
         let body_rows: Vec<NodeId> = rows
-            .into_iter()
+            .iter()
             .enumerate()
-            .map(|(ri, r): (usize, Vec<String>)| {
+            .map(|(ri, r): (usize, &Vec<String>)| {
                 let cells: Vec<NodeId> = (0..col_count)
                     .map(|ci: usize| {
-                        let cell_val: String = r.get(ci).cloned().unwrap_or_default();
-                        let (cell_align, cell_justify): (TextAlign, JustifyContent) = col_aligns
-                            .get(ci)
-                            .copied()
-                            .unwrap_or((TextAlign::Left, JustifyContent::Start));
-                        let inlines: Vec<EuvMarkdownInline> = parse_markdown_inlines(&cell_val);
+                        let cell_val: &str = r.get(ci).map(String::as_str).unwrap_or("");
+                        let (cell_align, cell_justify): (TextAlign, JustifyContent) =
+                            Self::align_pair(alignments, ci);
+                        if !has_inline_markdown_trigger(cell_val) {
+                            return view! {
+                                row {
+                                    flex_grow: 1.0
+                                    flex_shrink: 1.0
+                                    min_width: Length::Px(MD_TABLE_COL_MIN_WIDTH)
+                                    padding: Edges::symmetric(SPACE_SM, SPACE_SM)
+                                    justify: cell_justify
+                                    overflow: Overflow::Hidden
+                                    text {
+                                        width: Length::Percent(100.0)
+                                        font_size: 13.0
+                                        color: p.get_foreground()
+                                        text_align: cell_align
+                                        selectable: is_selectable
+                                        { cell_val }
+                                    }
+                                }
+                            };
+                        }
+                        let inlines: Vec<EuvMarkdownInline> = parse_markdown_inlines(cell_val);
                         let is_plain: bool = inlines
                             .iter()
                             .all(|seg: &EuvMarkdownInline| matches!(seg, EuvMarkdownInline::Text(_)));
                         if is_plain {
-                            let plain_val: String = inlines
-                                .into_iter()
-                                .map(|seg: EuvMarkdownInline| match seg {
-                                    EuvMarkdownInline::Text(s) => s,
-                                    _ => String::new(),
-                                })
-                                .collect();
+                            let plain_val: String = if inlines.len() == 1
+                                && let EuvMarkdownInline::Text(s) = &inlines[0]
+                            {
+                                s.clone()
+                            } else {
+                                inlines
+                                    .into_iter()
+                                    .map(|seg: EuvMarkdownInline| match seg {
+                                        EuvMarkdownInline::Text(s) => s,
+                                        _ => String::new(),
+                                    })
+                                    .collect()
+                            };
                             view! {
                                 row {
                                     flex_grow: 1.0
@@ -1876,9 +2054,14 @@ impl EuvMarkdownTable {
                 }
             })
             .collect();
+        let mut table_scroll_st: Style = Style::default();
+        table_scroll_st
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Column)
+            .set_align_items(AlignItems::Start);
         view! {
             scroll {
-                style: Style::default().column().align(AlignItems::Start)
+                style: table_scroll_st
                 width: Length::Percent(100.0)
                 border: (1.0, p.get_border())
                 radius: g.get_radius_md()
@@ -1890,7 +2073,7 @@ impl EuvMarkdownTable {
                     row {
                         width: Length::Percent(100.0)
                         background: eva.get_header_bg()
-                        for (ci, header) in headers.into_iter().enumerate() {
+                        for (ci, header) in headers.iter().enumerate() {
                             row {
                                 flex_grow: 1.0
                                 flex_shrink: 1.0
@@ -1902,9 +2085,9 @@ impl EuvMarkdownTable {
                                     font_size: 12.5
                                     font_weight: FontWeight::Bold
                                     color: p.get_foreground()
-                                    text_align: col_aligns.get(ci).map(|pair: &(TextAlign, JustifyContent)| pair.0).unwrap_or(TextAlign::Left)
+                                    text_align: Self::align_pair(alignments, ci).0
                                     selectable: is_selectable
-                                    { header }
+                                    { header.as_str() }
                                 }
                             }
                         }
@@ -1976,18 +2159,26 @@ impl EuvMarkdownDefList {
             selectable,
             on_link,
             ..
-        } = self.clone();
+        } = self;
         let is_selectable: bool = selectable.unwrap_or(true);
         let entry_nodes: Vec<NodeId> = items
-            .into_iter()
-            .map(|entry: EuvMarkdownDefItem| {
-                let term: String = entry.get_term().clone();
+            .iter()
+            .map(|entry: &EuvMarkdownDefItem| {
+                let term: &str = entry.get_term().as_str();
                 let def_nodes: Vec<NodeId> = entry
                     .get_definitions()
                     .iter()
                     .map(|desc: &String| {
+                        let desc_str: &str = desc.as_str();
+                        if !has_inline_markdown_trigger(desc_str) {
+                            return EuvMarkdownParagraph::mount_plain_text(
+                                desc_str,
+                                p,
+                                is_selectable,
+                            );
+                        }
                         let mut para: EuvMarkdownParagraph =
-                            EuvMarkdownParagraph::new(parse_markdown_inlines(desc), tokens)
+                            EuvMarkdownParagraph::new(parse_markdown_inlines(desc_str), tokens)
                                 .selectable(is_selectable);
                         if let Some(cb) = on_link.clone() {
                             para.set_on_link(Some(cb));
@@ -2099,19 +2290,24 @@ impl EuvMarkdownFootnotes {
             selectable,
             on_link,
             ..
-        } = self.clone();
+        } = self;
         let is_selectable: bool = selectable.unwrap_or(true);
         let rows: Vec<NodeId> = footnotes
-            .into_iter()
-            .map(|entry: EuvMarkdownFootnote| {
+            .iter()
+            .map(|entry: &EuvMarkdownFootnote| {
                 let id_lbl: String = format!("[{}]", entry.get_id());
-                let mut para: EuvMarkdownParagraph =
-                    EuvMarkdownParagraph::new(parse_markdown_inlines(entry.get_content()), tokens)
-                        .selectable(is_selectable);
-                if let Some(cb) = on_link.clone() {
-                    para.set_on_link(Some(cb));
-                }
-                let para_node: NodeId = para.mount();
+                let content_str: &str = entry.get_content().as_str();
+                let para_node: NodeId = if !has_inline_markdown_trigger(content_str) {
+                    EuvMarkdownParagraph::mount_plain_text(content_str, p, is_selectable)
+                } else {
+                    let mut para: EuvMarkdownParagraph =
+                        EuvMarkdownParagraph::new(parse_markdown_inlines(content_str), tokens)
+                            .selectable(is_selectable);
+                    if let Some(cb) = on_link.clone() {
+                        para.set_on_link(Some(cb));
+                    }
+                    para.mount()
+                };
                 view! {
                     row {
                         width: Length::Percent(100.0)
@@ -2208,8 +2404,8 @@ impl EuvMarkdownImage {
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
         let eva: CodeThemePalette = CodeThemePalette::resolve(tokens.get_mode());
-        let alt: String = self.get_alt().clone();
-        let url: String = self.get_url().clone();
+        let alt: &str = self.get_alt().as_str();
+        let url: &str = self.get_url().as_str();
         view! {
             column {
                 width: Length::Percent(100.0)
@@ -2356,25 +2552,26 @@ impl EuvMarkdownDetails {
             on_copy,
             on_toggle_task,
             ..
-        } = self.clone();
+        } = self;
         let is_selectable: bool = selectable.unwrap_or(true);
         let nested_src: String = body.join("\n");
         let mut inner_md: EuvMarkdown =
             EuvMarkdown::new(nested_src, tokens).selectable(is_selectable);
-        if let Some(cb) = on_link {
+        if let Some(cb) = on_link.clone() {
             inner_md.set_on_link(Some(cb));
         }
-        if let Some(cb) = on_copy {
+        if let Some(cb) = on_copy.clone() {
             inner_md.set_on_copy(Some(cb));
         }
-        if let Some(cb) = on_toggle_task {
+        if let Some(cb) = on_toggle_task.clone() {
             inner_md.set_on_toggle_task(Some(cb));
         }
         let body_node: NodeId = inner_md.mount();
+        let summary_title: String = summary.clone();
         view! {
             EuvCollapsible {
                 open: open
-                title: summary
+                title: summary_title
                 content: body_node
                 tokens: tokens
             }
@@ -2480,9 +2677,9 @@ impl EuvMarkdown {
             on_copy,
             on_toggle_task,
             ..
-        } = self.clone();
+        } = self;
         let is_selectable: bool = selectable.unwrap_or(true);
-        let blocks: Vec<EuvMarkdownBlock> = parse_markdown_blocks(&source);
+        let blocks: Vec<EuvMarkdownBlock> = parse_markdown_blocks(source);
         let children: Vec<NodeId> = blocks
             .into_iter()
             .map(|blk: EuvMarkdownBlock| match blk {

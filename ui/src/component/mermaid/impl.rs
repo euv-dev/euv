@@ -61,24 +61,26 @@ impl EuvMermaid {
             max_height,
             on_copy,
             ..
-        } = self.clone();
-        let diagram: Rc<MermaidDiagram> = Rc::new(parse_mermaid_diagram(&source));
+        } = self;
+        let diagram: Rc<MermaidDiagram> = Rc::new(parse_mermaid_diagram(source));
         let nat_sz: Size = measure_mermaid_diagram(&diagram);
-        let badge: String = mermaid_badge_label(&diagram).to_string();
+        let badge: &'static str = mermaid_badge_label(&diagram);
         let title_raw: String = mermaid_diagram_title(&diagram);
-        let header_title: String = if title_raw.is_empty() {
-            badge.clone()
+        let header_title_rc: Option<Rc<str>> = if title_raw.is_empty() {
+            None
         } else {
-            title_raw
+            Some(Rc::from(title_raw))
         };
-        let inline_max_h: f32 = if max_height > 0.0 {
-            max_height
+        let header_title_str: &str = header_title_rc.as_deref().unwrap_or(badge);
+        let inline_max_h: f32 = if *max_height > 0.0 {
+            *max_height
         } else {
             MERMAID_DEFAULT_MAX_HEIGHT
         };
         let copied_sig: Signal<bool> = Signal::new(false);
         let fs_open: Signal<bool> = Signal::new(false);
-        let copy_src: String = source.clone();
+        let source_rc: Rc<str> = Rc::from(source.as_str());
+        let copy_src: Rc<str> = Rc::clone(&source_rc);
         let copy_cb: Option<MarkdownStrCallback> = on_copy.clone();
         let ctx_copy: Context = ctx.clone();
         let on_copy_click = move |_: &UiEvent| {
@@ -106,37 +108,12 @@ impl EuvMermaid {
         let paint_fs_icon = move |bounds: Rect, dl: &mut DisplayList| {
             let live_eva: CodeThemePalette =
                 CodeThemePalette::resolve(live_tokens_untracked(tokens).get_mode());
-            let col: Color = live_eva.get_function();
-            let x0: f32 = bounds.get_x() + 1.5;
-            let y0: f32 = bounds.get_y() + 1.5;
-            let x1: f32 = bounds.right() - 1.5;
-            let y1: f32 = bounds.bottom() - 1.5;
-            let arm: f32 = 4.0;
-            for (a, b) in [
-                (Point::new(x0, y0 + arm), Point::new(x0, y0)),
-                (Point::new(x0, y0), Point::new(x0 + arm, y0)),
-                (Point::new(x1 - arm, y0), Point::new(x1, y0)),
-                (Point::new(x1, y0), Point::new(x1, y0 + arm)),
-                (Point::new(x0, y1 - arm), Point::new(x0, y1)),
-                (Point::new(x0, y1), Point::new(x0 + arm, y1)),
-                (Point::new(x1 - arm, y1), Point::new(x1, y1)),
-                (Point::new(x1, y1), Point::new(x1, y1 - arm)),
-            ]
-            .into_iter()
-            {
-                dl.push(DrawCommand::Line {
-                    from: a,
-                    to: b,
-                    color: col,
-                    width: 1.4,
-                });
-            }
+            draw_code_fullscreen_icon(bounds, dl, live_eva.get_function());
         };
         let diag_fs: Rc<MermaidDiagram> = Rc::clone(&diagram);
-        let fs_src_copy: String = source;
-        let fs_cb_copy: Option<MarkdownStrCallback> = on_copy;
-        let fs_badge: String = badge.clone();
-        let fs_title: String = header_title.clone();
+        let fs_src_copy: Rc<str> = Rc::clone(&source_rc);
+        let fs_cb_copy: Option<MarkdownStrCallback> = on_copy.clone();
+        let fs_title_rc: Option<Rc<str>> = header_title_rc.clone();
         let ctx_fs_copy: Context = ctx.clone();
         let build_fs_children = move || -> Vec<NodeId> {
             if !fs_open.get() {
@@ -151,7 +128,7 @@ impl EuvMermaid {
                 let cur_tok: ThemeTokens = live_tokens_untracked(tokens);
                 draw_mermaid_diagram(&diag_modal, bounds, dl, cur_tok);
             };
-            let modal_src: String = fs_src_copy.clone();
+            let modal_src: Rc<str> = Rc::clone(&fs_src_copy);
             let modal_cb: Option<MarkdownStrCallback> = fs_cb_copy.clone();
             let ctx_m: Context = ctx_fs_copy.clone();
             let on_modal_copy = move |_: &UiEvent| {
@@ -171,6 +148,11 @@ impl EuvMermaid {
             let on_close_fs = move |_: &UiEvent| {
                 let _: bool = fs_open.set_if_changed(false);
             };
+            let modal_title_str: &str = fs_title_rc.as_deref().unwrap_or(badge);
+            let mut modal_scroll_st: Style = Style::default();
+            modal_scroll_st
+                .get_mut_layout()
+                .set_flex_direction(FlexDirection::Column);
             let modal_panel: NodeId = view! {
                 column {
                     width: Length::Percent(94.0)
@@ -206,7 +188,7 @@ impl EuvMermaid {
                                     font_weight: FontWeight::Bold
                                     color: live_eva.get_keyword()
                                     text_overflow: TextOverflow::Clip
-                                    { fs_badge.clone() }
+                                    { badge }
                                 }
                             }
                             text {
@@ -217,7 +199,7 @@ impl EuvMermaid {
                                 font_size: 13.0
                                 font_weight: FontWeight::SemiBold
                                 color: live_p.get_foreground()
-                                { fs_title.clone() }
+                                { modal_title_str }
                             }
                         }
                         row {
@@ -261,7 +243,7 @@ impl EuvMermaid {
                         background: live_eva.get_border()
                     }
                     scroll {
-                        style: Style::default().column()
+                        style: modal_scroll_st
                         flex_grow: 1.0
                         width: Length::Percent(100.0)
                         height: Length::Percent(100.0)
@@ -284,6 +266,10 @@ impl EuvMermaid {
                 let _: bool = fs_open.set_if_changed(false);
             }
         };
+        let mut inline_scroll_st: Style = Style::default();
+        inline_scroll_st
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Column);
         let root: NodeId = view! {
             column {
                 width: Length::Percent(100.0)
@@ -328,7 +314,7 @@ impl EuvMermaid {
                             font_size: 12.0
                             font_weight: FontWeight::SemiBold
                             color: eva.get_foreground()
-                            { header_title }
+                            { header_title_str }
                         }
                     }
                     row {
@@ -383,7 +369,7 @@ impl EuvMermaid {
                     background: eva.get_border()
                 }
                 scroll {
-                    style: Style::default().column()
+                    style: inline_scroll_st
                     width: Length::Percent(100.0)
                     max_height: Length::Px(inline_max_h)
                     align: AlignItems::Start

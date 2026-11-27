@@ -162,27 +162,27 @@ fn push_merged_code_span(
     *pending = Some((start, end, kind));
 }
 
-/// Tokenizes a single source-code line into coalesced syntax-highlighted `CodeSpan` runs using a pre-resolved `CodeLang`.
+/// Scans a non-empty source-code line into contiguous `(start, end, CodeTokenKind)` byte ranges without heap allocation.
 ///
 /// # Arguments
 ///
-/// - `&str` - Source line to tokenize.
+/// - `&str` - Non-empty source line to scan.
 /// - `CodeLang` - Pre-resolved language hint.
-///
-/// # Returns
-///
-/// - `Vec<CodeSpan>` - Contiguous coalesced syntax-classified spans covering the full line.
-#[must_use]
-pub fn tokenize_code_line_with_lang(line: &str, lang: CodeLang) -> Vec<CodeSpan> {
-    if line.is_empty() {
-        return vec![CodeSpan::new(" ".to_string(), CodeTokenKind::Plain)];
-    }
+/// - `F` - Visitor invoked with `(start, end, kind)` for each contiguous token range.
+#[inline(always)]
+fn scan_code_line_ranges<F>(line: &str, lang: CodeLang, mut emit: F)
+where
+    F: FnMut(usize, usize, CodeTokenKind),
+{
+    let len: usize = line.len();
     if lang == CodeLang::Diff {
         if line.starts_with('+') && !line.starts_with("+++") {
-            return vec![CodeSpan::new(line.to_string(), CodeTokenKind::DiffAdd)];
+            emit(0, len, CodeTokenKind::DiffAdd);
+            return;
         }
         if line.starts_with('-') && !line.starts_with("---") {
-            return vec![CodeSpan::new(line.to_string(), CodeTokenKind::DiffDel)];
+            emit(0, len, CodeTokenKind::DiffDel);
+            return;
         }
     }
     let trimmed: &str = line.trim_start();
@@ -190,20 +190,19 @@ pub fn tokenize_code_line_with_lang(line: &str, lang: CodeLang) -> Vec<CodeSpan>
         || trimmed.starts_with("--")
         || (trimmed.starts_with('#') && !trimmed.starts_with("#[") && !trimmed.starts_with("#!["))
     {
-        return vec![CodeSpan::new(line.to_string(), CodeTokenKind::Comment)];
+        emit(0, len, CodeTokenKind::Comment);
+        return;
     }
     if trimmed.starts_with("#[") || trimmed.starts_with("#![") {
-        return vec![CodeSpan::new(line.to_string(), CodeTokenKind::Macro)];
+        emit(0, len, CodeTokenKind::Macro);
+        return;
     }
     let bytes: &[u8] = line.as_bytes();
-    let len: usize = bytes.len();
     let mut i: usize = 0;
-    let mut out: Vec<CodeSpan> = Vec::with_capacity((len / 8).clamp(2, 16));
-    let mut pending: Option<(usize, usize, CodeTokenKind)> = None;
     while i < len {
         let ch: u8 = bytes[i];
         if ch == CODE_BYTE_SLASH && i + 1 < len && bytes[i + 1] == CODE_BYTE_SLASH {
-            push_merged_code_span(&mut out, &mut pending, line, i, len, CodeTokenKind::Comment);
+            emit(i, len, CodeTokenKind::Comment);
             break;
         }
         if ch == CODE_BYTE_SQUOTE
@@ -218,7 +217,7 @@ pub fn tokenize_code_line_with_lang(line: &str, lang: CodeLang) -> Vec<CodeSpan>
             {
                 i += 1;
             }
-            push_merged_code_span(&mut out, &mut pending, line, start, i, CodeTokenKind::Macro);
+            emit(start, i, CodeTokenKind::Macro);
             continue;
         }
         if ch == CODE_BYTE_DQUOTE || ch == CODE_BYTE_SQUOTE || ch == CODE_BYTE_BACKTICK {
@@ -249,7 +248,7 @@ pub fn tokenize_code_line_with_lang(line: &str, lang: CodeLang) -> Vec<CodeSpan>
             } else {
                 CodeTokenKind::String
             };
-            push_merged_code_span(&mut out, &mut pending, line, start, i, kind);
+            emit(start, i, kind);
             continue;
         }
         if ch.is_ascii_digit() {
@@ -262,14 +261,7 @@ pub fn tokenize_code_line_with_lang(line: &str, lang: CodeLang) -> Vec<CodeSpan>
             {
                 i += 1;
             }
-            push_merged_code_span(
-                &mut out,
-                &mut pending,
-                line,
-                start,
-                i,
-                CodeTokenKind::Number,
-            );
+            emit(start, i, CodeTokenKind::Number);
             continue;
         }
         if ch.is_ascii_alphabetic() || ch == CODE_BYTE_UNDERSCORE {
@@ -281,12 +273,12 @@ pub fn tokenize_code_line_with_lang(line: &str, lang: CodeLang) -> Vec<CodeSpan>
             }
             if i < len && bytes[i] == CODE_BYTE_BANG {
                 i += 1;
-                push_merged_code_span(&mut out, &mut pending, line, start, i, CodeTokenKind::Macro);
+                emit(start, i, CodeTokenKind::Macro);
                 continue;
             }
             let word: &str = &line[start..i];
             let kind: CodeTokenKind = classify_code_ident(word, bytes, start, i, lang);
-            push_merged_code_span(&mut out, &mut pending, line, start, i, kind);
+            emit(start, i, kind);
             continue;
         }
         if ch.is_ascii_whitespace() {
@@ -295,7 +287,7 @@ pub fn tokenize_code_line_with_lang(line: &str, lang: CodeLang) -> Vec<CodeSpan>
             while i < len && bytes[i].is_ascii_whitespace() {
                 i += 1;
             }
-            push_merged_code_span(&mut out, &mut pending, line, start, i, CodeTokenKind::Plain);
+            emit(start, i, CodeTokenKind::Plain);
             continue;
         }
         let start: usize = i;
@@ -313,8 +305,34 @@ pub fn tokenize_code_line_with_lang(line: &str, lang: CodeLang) -> Vec<CodeSpan>
             i += ch_len;
             CodeTokenKind::Plain
         };
-        push_merged_code_span(&mut out, &mut pending, line, start, i, kind);
+        emit(start, i, kind);
     }
+}
+
+/// Tokenizes a single source-code line into coalesced syntax-highlighted `CodeSpan` runs using a pre-resolved `CodeLang`.
+///
+/// # Arguments
+///
+/// - `&str` - Source line to tokenize.
+/// - `CodeLang` - Pre-resolved language hint.
+///
+/// # Returns
+///
+/// - `Vec<CodeSpan>` - Contiguous coalesced syntax-classified spans covering the full line.
+#[must_use]
+pub fn tokenize_code_line_with_lang(line: &str, lang: CodeLang) -> Vec<CodeSpan> {
+    if line.is_empty() {
+        return vec![CodeSpan::new(" ".to_string(), CodeTokenKind::Plain)];
+    }
+    let mut out: Vec<CodeSpan> = Vec::with_capacity((line.len() / 8).clamp(2, 16));
+    let mut pending: Option<(usize, usize, CodeTokenKind)> = None;
+    scan_code_line_ranges(
+        line,
+        lang,
+        |start: usize, end: usize, kind: CodeTokenKind| {
+            push_merged_code_span(&mut out, &mut pending, line, start, end, kind);
+        },
+    );
     if let Some((p_start, p_end, p_kind)) = pending {
         out.push(CodeSpan::new(line[p_start..p_end].to_string(), p_kind));
     }
@@ -336,11 +354,11 @@ pub fn tokenize_code_line(line: &str, language: &str) -> Vec<CodeSpan> {
     tokenize_code_line_with_lang(line, CodeLang::from_name(language))
 }
 
-/// Measures the natural horizontal width and mounts syntax-highlighted line rows for `EuvCodeBlock`.
+/// Measures the natural horizontal width, line count, and mounts all syntax-highlighted line rows for `EuvCodeBlock` inside a single `SceneTree` write borrow.
 ///
 /// # Arguments
 ///
-/// - `&[String]` - Raw code lines.
+/// - `&str` - Raw source code string.
 /// - `CodeLang` - Pre-resolved syntax highlighting language.
 /// - `CodeThemePalette` - Resolved Eva Light/Dark Bold palette.
 /// - `bool` - Whether the line-number gutter is visible.
@@ -350,124 +368,168 @@ pub fn tokenize_code_line(line: &str, language: &str) -> Vec<CodeSpan> {
 ///
 /// # Returns
 ///
-/// - `(f32, Vec<NodeId>)` - Required natural content width in logical pixels and mounted line row handles.
+/// - `(f32, usize, Vec<NodeId>)` - Required natural content width in logical pixels, total line count, and mounted line row handles.
 pub(crate) fn build_code_line_nodes(
-    lines_vec: &[String],
+    code: &str,
     code_lang: CodeLang,
     eva: CodeThemePalette,
     show_nums: bool,
     highlight_lines: &[usize],
     code_font_size: f32,
     is_selectable: bool,
-) -> (f32, Vec<NodeId>) {
+) -> (f32, usize, Vec<NodeId>) {
+    let ctx: Context = current_context();
     let mono_cell_w: f32 = code_font_size * MONOSPACE_ADVANCE_RATIO;
     let gutter_w: f32 = if show_nums { CODE_GUTTER_WIDTH } else { 0.0 };
-    let mut max_cols: usize = 0;
-    let line_nodes: Vec<NodeId> = lines_vec
-        .iter()
-        .enumerate()
-        .map(|(idx, line_text): (usize, &String)| {
-            let line_no: usize = idx + 1;
-            let is_hl: bool = highlight_lines.contains(&line_no);
-            let expanded_line: String = line_text.replace('\t', "  ");
-            let line_cols: usize = expanded_line
-                .chars()
-                .map(|c: char| if c.is_ascii() { 1 } else { 2 })
-                .sum();
-            if line_cols > max_cols {
-                max_cols = line_cols;
-            }
-            let leading_spaces: usize = expanded_line
-                .bytes()
-                .take_while(|b: &u8| *b == CODE_BYTE_SPACE)
-                .count();
-            let trimmed_line: &str = &expanded_line[leading_spaces..];
-            let indent_px: f32 = (leading_spaces as f32) * mono_cell_w;
-            let spans: Vec<CodeSpan> = tokenize_code_line_with_lang(trimmed_line, code_lang);
-            let mut merged: Vec<(String, Color, FontWeight, bool)> =
-                Vec::with_capacity(spans.len());
-            for sp in spans.into_iter() {
-                let kind: CodeTokenKind = sp.get_kind();
-                let (fg, weight): (Color, FontWeight) = eva.token_style(kind);
-                let is_italic: bool = kind == CodeTokenKind::Comment;
-                if let Some(last) = merged.last_mut()
-                    && last.1 == fg
-                    && last.2 == weight
-                    && last.3 == is_italic
-                {
-                    last.0.push_str(sp.get_text());
+    let has_highlights: bool = !highlight_lines.is_empty();
+    let base_span_style: Style = Style::default()
+        .flex_shrink(0.0)
+        .font_size(code_font_size)
+        .font_family(FontFamily::Monospace)
+        .selectable(is_selectable)
+        .text_overflow(TextOverflow::Clip);
+    let base_row_style: Style = Style::default()
+        .row()
+        .min_width(Length::Percent(100.0))
+        .min_height(Length::Px((code_font_size * 1.62).max(20.0)))
+        .padding(Edges::symmetric(1.0, SPACE_SM))
+        .align(AlignItems::Center)
+        .background(COLOR_TRANSPARENT);
+    let gutter_row_style: Style = Style::default()
+        .row()
+        .width(Length::Px(CODE_GUTTER_WIDTH))
+        .flex_shrink(0.0)
+        .padding(Edges::new(0.0, SPACE_SM, 0.0, 0.0))
+        .justify(JustifyContent::End)
+        .align(AlignItems::Center)
+        .selectable(false);
+    let base_gutter_text_style: Style = Style::default()
+        .font_size((code_font_size - 1.0).max(10.5))
+        .font_family(FontFamily::Monospace)
+        .color(eva.get_line_number())
+        .selectable(false)
+        .text_overflow(TextOverflow::Clip);
+    let base_code_row_style: Style = Style::default()
+        .row()
+        .flex_shrink(0.0)
+        .align(AlignItems::Center)
+        .selectable(is_selectable);
+    let plain_fg: Color = eva.get_foreground();
+    let line_hl_bg: Color = eva.get_line_highlight();
+    let est_lines: usize = (code.len() / 32).clamp(1, 256);
+    let (max_cols, line_nodes): (usize, Vec<NodeId>) = ctx.get_scene().with_write(
+        |tree: &mut SceneTree| {
+            let mut max_cols: usize = 0;
+            let mut line_nodes: Vec<NodeId> = Vec::with_capacity(est_lines);
+            let mut span_nodes: Vec<NodeId> = Vec::with_capacity(16);
+            let mut line_no: usize = 0;
+            for line_text in code.lines().chain(code.is_empty().then_some("")) {
+                line_no += 1;
+                let is_hl: bool = has_highlights && highlight_lines.contains(&line_no);
+                let expanded_opt: Option<String> = if line_text.as_bytes().contains(&b'\t') {
+                    Some(line_text.replace('\t', "  "))
                 } else {
-                    merged.push((sp.get_text().clone(), fg, weight, is_italic));
+                    None
+                };
+                let expanded_line: &str = expanded_opt.as_deref().unwrap_or(line_text);
+                let line_cols: usize = if expanded_line.is_ascii() {
+                    expanded_line.len()
+                } else {
+                    expanded_line
+                        .chars()
+                        .map(|c: char| if c.is_ascii() { 1 } else { 2 })
+                        .sum()
+                };
+                if line_cols > max_cols {
+                    max_cols = line_cols;
                 }
-            }
-            let span_nodes: Vec<NodeId> = merged
-                .into_iter()
-                .map(
-                    |(txt, fg, weight, is_italic): (String, Color, FontWeight, bool)| {
-                        view! {
-                            text {
-                                flex_shrink: 0.0
-                                font_size: code_font_size
-                                font_family: FontFamily::Monospace
-                                font_weight: weight
-                                italic: is_italic
-                                color: fg
-                                selectable: is_selectable
-                                text_overflow: TextOverflow::Clip
-                                { txt }
+                let leading_spaces: usize = expanded_line
+                    .bytes()
+                    .take_while(|b: &u8| *b == CODE_BYTE_SPACE)
+                    .count();
+                let trimmed_line: &str = &expanded_line[leading_spaces..];
+                let indent_px: f32 = (leading_spaces as f32) * mono_cell_w;
+                span_nodes.clear();
+                if trimmed_line.is_empty() {
+                    let mut sp_style: Style = base_span_style;
+                    sp_style.get_mut_text().set_color(plain_fg);
+                    span_nodes.push(tree.create_node(NodeKind::Text(" ".to_string()), sp_style));
+                } else {
+                    let mut pending: Option<(usize, usize, Color, FontWeight, bool)> = None;
+                    scan_code_line_ranges(
+                        trimmed_line,
+                        code_lang,
+                        |start: usize, end: usize, kind: CodeTokenKind| {
+                            let (fg, weight): (Color, FontWeight) = eva.token_style(kind);
+                            let is_italic: bool = kind == CodeTokenKind::Comment;
+                            if let Some((p_start, p_end, p_fg, p_weight, p_italic)) = pending {
+                                if p_fg == fg
+                                    && p_weight == weight
+                                    && p_italic == is_italic
+                                    && p_end == start
+                                {
+                                    pending = Some((p_start, end, p_fg, p_weight, p_italic));
+                                    return;
+                                }
+                                let mut sp_style: Style = base_span_style;
+                                sp_style
+                                    .get_mut_text()
+                                    .set_weight(p_weight)
+                                    .set_italic(p_italic)
+                                    .set_color(p_fg);
+                                span_nodes.push(tree.create_node(
+                                    NodeKind::Text(trimmed_line[p_start..p_end].to_string()),
+                                    sp_style,
+                                ));
                             }
-                        }
-                    },
-                )
-                .collect();
-            let row_bg: Color = if is_hl {
-                eva.get_line_highlight()
-            } else {
-                COLOR_TRANSPARENT
-            };
-            let line_num_col: Color = if is_hl {
-                eva.get_foreground()
-            } else {
-                eva.get_line_number()
-            };
-            view! {
-                row {
-                    min_width: Length::Percent(100.0)
-                    min_height: Length::Px((code_font_size * 1.62).max(20.0))
-                    padding: Edges::symmetric(1.0, SPACE_SM)
-                    align: AlignItems::Center
-                    background: row_bg
-                    if show_nums {
-                        row {
-                            width: Length::Px(CODE_GUTTER_WIDTH)
-                            flex_shrink: 0.0
-                            padding: Edges::new(0.0, SPACE_SM, 0.0, 0.0)
-                            justify: JustifyContent::End
-                            align: AlignItems::Center
-                            selectable: false
-                            text {
-                                font_size: (code_font_size - 1.0).max(10.5)
-                                font_family: FontFamily::Monospace
-                                color: line_num_col
-                                selectable: false
-                                text_overflow: TextOverflow::Clip
-                                { format!("{line_no}") }
-                            }
-                        }
-                    }
-                    row {
-                        flex_shrink: 0.0
-                        padding: Edges::new(0.0, SPACE_MD, 0.0, indent_px)
-                        align: AlignItems::Center
-                        selectable: is_selectable
-                        ..span_nodes
+                            pending = Some((start, end, fg, weight, is_italic));
+                        },
+                    );
+                    if let Some((p_start, p_end, p_fg, p_weight, p_italic)) = pending {
+                        let mut sp_style: Style = base_span_style;
+                        sp_style
+                            .get_mut_text()
+                            .set_weight(p_weight)
+                            .set_italic(p_italic)
+                            .set_color(p_fg);
+                        span_nodes.push(tree.create_node(
+                            NodeKind::Text(trimmed_line[p_start..p_end].to_string()),
+                            sp_style,
+                        ));
                     }
                 }
+                let mut row_style: Style = base_row_style;
+                if is_hl {
+                    row_style.get_mut_paint().set_background(Some(line_hl_bg));
+                }
+                let line_row: NodeId = tree.create_node(NodeKind::View, row_style);
+                if show_nums {
+                    let gutter_row: NodeId = tree.create_node(NodeKind::View, gutter_row_style);
+                    let mut num_style: Style = base_gutter_text_style;
+                    if is_hl {
+                        num_style.get_mut_text().set_color(plain_fg);
+                    }
+                    let gutter_text: NodeId =
+                        tree.create_node(NodeKind::Text(line_no.to_string()), num_style);
+                    tree.append_child(gutter_row, gutter_text);
+                    tree.append_child(line_row, gutter_row);
+                }
+                let mut code_row_style: Style = base_code_row_style;
+                code_row_style
+                    .get_mut_layout()
+                    .set_padding(Edges::new(0.0, SPACE_MD, 0.0, indent_px));
+                let code_row: NodeId = tree.create_node(NodeKind::View, code_row_style);
+                tree.append_children(code_row, &span_nodes);
+                tree.append_child(line_row, code_row);
+                line_nodes.push(line_row);
             }
-        })
-        .collect();
+            (max_cols, line_nodes)
+        },
+        (0, Vec::new()),
+    );
+    let line_count: usize = line_nodes.len();
     let natural_w: f32 = gutter_w + (max_cols as f32) * mono_cell_w + SPACE_MD * 2.0 + 24.0;
-    (natural_w, line_nodes)
+    (natural_w, line_count, line_nodes)
 }
 
 /// Draws the crisp four-corner vector expand icon used on `EuvCodeBlock` Fullscreen buttons.
@@ -811,6 +873,22 @@ fn next_inline_trigger(bytes: &[u8], from: usize) -> usize {
         idx += 1;
     }
     bytes.len()
+}
+
+/// Checks in O(N) byte-LUT scan whether `text` contains any Markdown inline formatting delimiter.
+///
+/// # Arguments
+///
+/// - `&str` - Candidate text slice.
+///
+/// # Returns
+///
+/// - `bool` - `true` when at least one Markdown inline trigger byte is present.
+#[inline(always)]
+#[must_use]
+pub(crate) fn has_inline_markdown_trigger(text: &str) -> bool {
+    let bytes: &[u8] = text.as_bytes();
+    next_inline_trigger(bytes, 0) < bytes.len()
 }
 
 /// Returns whether an ASCII byte can be backslash-escaped in inline Markdown text.
