@@ -28,7 +28,7 @@ pub struct LayoutEngine {
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(skip)]
-    pub(crate) flex_items_scratch: Vec<(NodeId, Size, LayoutStyle)>,
+    pub(crate) flex_items_scratch: Vec<FlexItemRecord>,
     /// Reusable flat stack storing contiguous `(start, end)` line slices into `flex_items_scratch`.
     #[get(pub(crate))]
     #[get_mut(pub(crate))]

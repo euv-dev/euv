@@ -33,3 +33,37 @@ pub(crate) const TEXT_HASH_FINAL_A: u64 = 0xff51_afd7_ed55_8ccd;
 
 /// Secondary Murmur3/SplitMix64 avalanche constant for `TextSizeCache`.
 pub(crate) const TEXT_HASH_FINAL_B: u64 = 0xc4ce_b9fe_1a85_ec53;
+
+/// `FlexItemRecord::flags` bit indicating `LayoutStyle::width == Length::Auto`.
+pub(crate) const FLEX_ITEM_WIDTH_AUTO: u16 = 1 << 0;
+
+/// `FlexItemRecord::flags` bit indicating `LayoutStyle::height == Length::Auto`.
+pub(crate) const FLEX_ITEM_HEIGHT_AUTO: u16 = 1 << 1;
+
+/// `FlexItemRecord::flags` bit indicating `LayoutStyle::width` is `Length::Percent(_)`.
+pub(crate) const FLEX_ITEM_WIDTH_PERCENT: u16 = 1 << 2;
+
+/// `FlexItemRecord::flags` bit indicating `LayoutStyle::height` is `Length::Percent(_)`.
+pub(crate) const FLEX_ITEM_HEIGHT_PERCENT: u16 = 1 << 3;
+
+/// `FlexItemRecord::flags` bit indicating `min_width` or `max_width` is `Length::Percent(_)`.
+pub(crate) const FLEX_ITEM_MINMAX_W_PERCENT: u16 = 1 << 4;
+
+/// `FlexItemRecord::flags` bit indicating `min_height` or `max_height` is `Length::Percent(_)`.
+pub(crate) const FLEX_ITEM_MINMAX_H_PERCENT: u16 = 1 << 5;
+
+/// `FlexItemRecord::flags` bit indicating `aspect_ratio` is configured on the child.
+pub(crate) const FLEX_ITEM_HAS_ASPECT_RATIO: u16 = 1 << 6;
+
+/// `FlexItemRecord::flags` bit indicating `min_height` or `max_height` is explicitly set.
+pub(crate) const FLEX_ITEM_MINMAX_H_SET: u16 = 1 << 7;
+
+/// `FlexItemRecord::flags` bit indicating the child was laid out or cache-verified during probing.
+pub(crate) const FLEX_ITEM_PROBED: u16 = 1 << 8;
+
+/// `FlexItemRecord::flags` bit indicating the child is a leaf node without nested children.
+pub(crate) const FLEX_ITEM_IS_LEAF: u16 = 1 << 9;
+
+/// Default `FlexItemRecord::flags` mask for an unattached auto-sized leaf fallback entry.
+pub(crate) const FLEX_ITEM_DEFAULT_LEAF_FLAGS: u16 =
+    FLEX_ITEM_WIDTH_AUTO + FLEX_ITEM_HEIGHT_AUTO + FLEX_ITEM_IS_LEAF;

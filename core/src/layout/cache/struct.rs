@@ -105,3 +105,26 @@ pub(crate) struct TextSizeCache {
     /// Lazily allocated flat table of `TEXT_SIZE_CACHE_SLOTS` entries (`2` ways per set).
     pub(crate) entries: Vec<TextSizeEntry>,
 }
+
+/// Compact single-cache-line scratch record tracking a flex child across probe and placement passes.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct FlexItemRecord {
+    /// Scene node handle of the flex child.
+    pub(crate) node_id: NodeId,
+    /// Current target size updated by flex grow and auto-cross re-probing.
+    pub(crate) size: Size,
+    /// Border-box size produced by the initial probe pass.
+    pub(crate) probed_size: Size,
+    /// Logical origin where the child currently resides after the probe pass.
+    pub(crate) probed_origin: Point,
+    /// Outer margin insets copied once from `LayoutStyle`.
+    pub(crate) margin: Edges,
+    /// Flex grow factor copied once from `LayoutStyle`.
+    pub(crate) flex_grow: f32,
+    /// Effective `align-self` override copied once from `LayoutStyle`.
+    pub(crate) align_self: AlignSelf,
+    /// Overflow clipping behavior copied once from `LayoutStyle`.
+    pub(crate) overflow: Overflow,
+    /// Packed boolean flags (`FLEX_ITEM_*`) describing child sizing constraints and probe state.
+    pub(crate) flags: u16,
+}
