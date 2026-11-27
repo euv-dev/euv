@@ -232,29 +232,58 @@ fn hit_test_subtree(
         scroll_offset.get_x() + node.get_layout_box().get_scroll_offset().get_x() - tx,
         scroll_offset.get_y() + node.get_layout_box().get_scroll_offset().get_y() - ty,
     );
-    let mut sorted_children: Vec<(i32, usize, NodeId)> = node
-        .get_children()
-        .iter()
-        .copied()
-        .enumerate()
-        .filter_map(|(order, cid): (usize, NodeId)| {
-            tree.get_node(cid)
-                .map(|c: &SceneNode| (c.style_ref().get_layout().get_z_index(), order, cid))
-        })
-        .collect();
-    sorted_children.sort_by(|a: &(i32, usize, NodeId), b: &(i32, usize, NodeId)| {
-        b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1))
-    });
-    for (_, _, child_id) in sorted_children.into_iter() {
-        if let Some(hit) = hit_test_subtree(
-            tree,
-            child_id,
-            point,
-            child_scroll,
-            effective_clip,
-            in_portal_pass,
-        ) {
-            return Some(hit);
+    let children: &[NodeId] = node.get_children().as_slice();
+    if !children.is_empty() {
+        let mut needs_z_sort: bool = false;
+        if children.len() > 1 {
+            for cid in children.iter().copied() {
+                if let Some(child_node) = tree.get_node(cid)
+                    && child_node.style_ref().get_layout().get_z_index() != 0
+                {
+                    needs_z_sort = true;
+                    break;
+                }
+            }
+        }
+        if !needs_z_sort {
+            for child_id in children.iter().rev().copied() {
+                if let Some(hit) = hit_test_subtree(
+                    tree,
+                    child_id,
+                    point,
+                    child_scroll,
+                    effective_clip,
+                    in_portal_pass,
+                ) {
+                    return Some(hit);
+                }
+            }
+        } else {
+            let mut sorted_children: Vec<(i32, usize, NodeId)> = Vec::with_capacity(children.len());
+            for (order, cid) in children.iter().copied().enumerate() {
+                if let Some(child_node) = tree.get_node(cid) {
+                    sorted_children.push((
+                        child_node.style_ref().get_layout().get_z_index(),
+                        order,
+                        cid,
+                    ));
+                }
+            }
+            sorted_children.sort_by(|a: &(i32, usize, NodeId), b: &(i32, usize, NodeId)| {
+                b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1))
+            });
+            for (_, _, child_id) in sorted_children.into_iter() {
+                if let Some(hit) = hit_test_subtree(
+                    tree,
+                    child_id,
+                    point,
+                    child_scroll,
+                    effective_clip,
+                    in_portal_pass,
+                ) {
+                    return Some(hit);
+                }
+            }
         }
     }
     if shifted_bounds.contains(point) {
