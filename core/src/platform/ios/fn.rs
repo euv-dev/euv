@@ -340,3 +340,22 @@ pub(crate) fn ios_present_cg_image(
     }
     Ok(())
 }
+
+/// Pauses or resumes a UIKit `CADisplayLink*` via `-[CADisplayLink setPaused:]`.
+///
+/// # Arguments
+///
+/// - `usize` - Raw `CADisplayLink*` pointer (`0` when no display link is attached).
+/// - `bool` - `true` to pause display-link ticks in background; `false` to resume.
+pub(crate) fn uikit_set_display_link_paused(display_link: usize, paused: bool) {
+    if display_link == 0 {
+        return;
+    }
+    // SAFETY: `objc_msgSend` matches `void (id, SEL, BOOL)` ABI on 64-bit Apple platforms.
+    unsafe {
+        let sel: *mut c_void = sel_registerName(UIKIT_SEL_SET_PAUSED.as_ptr().cast::<c_char>());
+        let func: unsafe extern "C" fn(*mut c_void, *mut c_void, i8) =
+            transmute(objc_msgSend as *const ());
+        func(display_link as *mut c_void, sel, if paused { 1 } else { 0 });
+    }
+}

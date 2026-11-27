@@ -257,6 +257,10 @@ impl App {
             idle_secs_since_present: 0.0,
             is_idle_frame: true,
             partial_layout_damage: true,
+            mount_scope: None,
+            background_frozen: false,
+            resume_zero_dt_pending: false,
+            background_frozen_scopes: Vec::new(),
         })
     }
 
@@ -675,6 +679,225 @@ impl App {
         self.get_context().app_state_signal()
     }
 
+    /// Returns `true` when the application is currently frozen in background with zero CPU/GPU frame work.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Application reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` while background-frozen.
+    #[must_use]
+    pub fn is_background_frozen(&self) -> bool {
+        self.get_background_frozen()
+    }
+
+    /// Returns `true` when the host event loop should pump frames (`running && !is_background_frozen()`).
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Application reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `false` when background-frozen or shutting down so OS/Web frame pumps stay completely idle.
+    #[must_use]
+    pub fn should_pump_frames(&self) -> bool {
+        self.get_running() && !self.get_background_frozen()
+    }
+
+    /// Returns whether the underlying platform backend's frame pump is currently paused for background freeze.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Application reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when the platform frame pump is paused.
+    #[must_use]
+    pub fn is_platform_frame_pump_paused(&self) -> bool {
+        let Self { platform, .. } = self;
+        platform.is_frame_pump_paused()
+    }
+
+    /// Freezes active reactive scopes, suspends timers/animations/rendering, and pauses the platform frame pump.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable application.
+    fn enter_background_freeze(&mut self) {
+        if self.get_background_frozen() {
+            return;
+        }
+        self.set_background_frozen(true);
+        self.set_resume_zero_dt_pending(false);
+        self.cancel_all_active_pointers();
+        self.set_scroll_velocity(Point::default());
+        self.set_touch_scroll_target(None);
+        self.set_smooth_scroll_pending(Point::default());
+        self.set_smooth_scroll_target(None);
+        self.apply_ime_focus_state(None, Rect::default(), false);
+        self.set_was_animating(false);
+        self.set_is_idle_frame(true);
+        self.set_active_present_fps(0.0);
+        self.set_fps_accum_secs(0.0);
+        self.set_fps_accum_frames(0);
+        self.set_fps_budget_accum(0.0);
+        self.get_mut_frame_clock().set_delta_secs(0.0);
+        self.get_mut_frame_clock().set_accumulator(0.0);
+        let mount_scope_id: Option<ScopeId> = {
+            let Self { mount_scope, .. } = self;
+            mount_scope.as_ref().map(Scope::id)
+        };
+        let scene_scopes: Vec<ScopeId> = self.get_scene().with_read(
+            |tree: &SceneTree| tree.collect_subtree_scope_ids(tree.get_root()),
+            Vec::new(),
+        );
+        let frozen_ids: Vec<ScopeId> = with_runtime(
+            |rt: &mut ReactiveRuntime| {
+                let mut ids: Vec<ScopeId> = Vec::new();
+                if let Some(ms_id) = mount_scope_id
+                    && !rt.is_scope_effectively_frozen(ms_id)
+                {
+                    let _: bool = rt.set_scope_frozen(ms_id, true);
+                    ids.push(ms_id);
+                }
+                for sid in scene_scopes.into_iter() {
+                    if !rt.is_scope_effectively_frozen(sid) {
+                        let _: bool = rt.set_scope_frozen(sid, true);
+                        ids.push(sid);
+                    }
+                }
+                ids
+            },
+            Vec::new(),
+        );
+        self.set_background_frozen_scopes(frozen_ids);
+        let _: bool = self.get_context().get_is_idle().set_if_changed(true);
+        let _: bool = self.get_context().get_present_fps().set_if_changed(0.0);
+        let _: bool = self.get_context().get_live_fps().set_if_changed(0.0);
+        let Self { platform, .. } = self;
+        platform.set_frame_pump_paused(true);
+    }
+
+    /// Exits background-frozen state, clamps resume `dt` to `0.0`, resumes scopes frozen by background entry, and schedules a clean restore redraw.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable application.
+    /// - `bool` - Whether to schedule a full restore redraw and clamp the first foreground `dt` to `0.0`.
+    fn exit_background_freeze(&mut self, schedule_redraw: bool) {
+        if !self.get_background_frozen() {
+            return;
+        }
+        self.set_background_frozen(false);
+        self.set_resume_zero_dt_pending(schedule_redraw);
+        self.get_mut_frame_clock().set_delta_secs(0.0);
+        self.get_mut_frame_clock().set_accumulator(0.0);
+        self.set_fps_accum_secs(0.0);
+        self.set_fps_accum_frames(0);
+        self.set_fps_budget_accum(0.0);
+        let scopes_to_resume: Vec<ScopeId> = take(self.get_mut_background_frozen_scopes());
+        let should_flush: bool = with_runtime(
+            |rt: &mut ReactiveRuntime| {
+                let mut any_dirty: bool = false;
+                for sid in scopes_to_resume.into_iter() {
+                    if rt.set_scope_frozen(sid, false) {
+                        any_dirty = true;
+                    }
+                }
+                any_dirty
+            },
+            false,
+        );
+        if should_flush {
+            flush_effects();
+        }
+        {
+            let Self { platform, .. } = self;
+            platform.set_frame_pump_paused(false);
+        }
+        if schedule_redraw {
+            self.set_pending_full_damage(FullRedrawReason::Forced);
+        }
+    }
+
+    /// Records a zero-work skipped frame while background-frozen without touching layout, paint, rasterization, or presentation.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable application.
+    /// - `u64` - Input/event dispatch duration in microseconds.
+    ///
+    /// # Returns
+    ///
+    /// - `FrameStats` - Zeroed idle frame stats preserving last rendered hash.
+    fn record_background_frozen_frame(&mut self, input_us: u64) -> FrameStats {
+        let mut skipped: FrameStats = self.get_mut_renderer().record_skipped_frame();
+        skipped.set_draw_commands(0);
+        self.set_is_idle_frame(true);
+        self.set_active_present_fps(0.0);
+        let _: bool = self.get_context().get_is_idle().set_if_changed(true);
+        let _: bool = self.get_context().get_present_fps().set_if_changed(0.0);
+        let _: bool = self.get_context().get_live_fps().set_if_changed(0.0);
+        let target_hz: f32 = self.target_hz();
+        self.set_last_frame_telemetry(FrameTelemetry {
+            frame_id: skipped.get_frame_index(),
+            phases: FramePhaseMetrics {
+                input_us,
+                reactive_us: 0,
+                layout_us: 0,
+                paint_list_us: 0,
+                raster_us: 0,
+                present_us: 0,
+            },
+            dirty_area_ratio: 0.0,
+            full_redraw_reason: FullRedrawReason::None,
+            target_hz,
+            present_fps: 0.0,
+            is_idle: true,
+            layout_nodes: 0,
+            draw_commands: 0,
+            pixels_shaded: 0,
+        });
+        skipped
+    }
+
+    /// Blocks on OS lifecycle events with zero CPU usage while background-frozen and renders a restored frame immediately upon waking to foreground.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable application.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<FrameStats, PlatformError>` - Zeroed idle stats while still backgrounded, or restored frame stats after waking.
+    pub fn wait_background_events(&mut self) -> Result<FrameStats, PlatformError> {
+        let telemetry_on: bool = self.get_telemetry_enabled();
+        let mut phase_mark: PhaseMark = Self::phase_start(telemetry_on);
+        if !self.get_command_queue().is_empty() {
+            let commands: Vec<WindowCommand> = self.get_mut_command_queue().drain();
+            for cmd in commands.into_iter() {
+                let Self { platform, .. } = self;
+                platform.apply_command(cmd)?;
+            }
+        }
+        let events: Vec<WindowEvent> = {
+            let Self { platform, .. } = self;
+            platform.wait_for_events()
+        };
+        if !events.is_empty() {
+            self.dispatch_coalesced_events(events);
+        }
+        let input_us: u64 = Self::phase_lap_us(&mut phase_mark);
+        if self.get_background_frozen() || !self.get_running() {
+            return Ok(self.record_background_frozen_frame(input_us));
+        }
+        self.step_frame()
+    }
+
     /// Normalizes a raw `SystemEvent` through `SystemEventNormalizer`, updates reactive `Context` signals, and notifies all active hooks and visible `Lifecycle` components.
     ///
     /// # Arguments
@@ -690,6 +913,15 @@ impl App {
             .get_app_state()
             .set_if_changed(next_state);
         for ev in canonical_events.into_iter() {
+            let is_background: bool = matches!(ev, SystemEvent::Background);
+            let should_unfreeze_before_dispatch: bool = matches!(
+                ev,
+                SystemEvent::Appear | SystemEvent::Foreground | SystemEvent::Terminate
+            );
+            if should_unfreeze_before_dispatch && self.get_background_frozen() {
+                let schedule_redraw: bool = !matches!(ev, SystemEvent::Terminate);
+                self.exit_background_freeze(schedule_redraw);
+            }
             match &ev {
                 SystemEvent::FocusChanged(focused) => {
                     self.get_mut_window_state().set_focused(*focused);
@@ -817,6 +1049,9 @@ impl App {
                 .with_read(SceneTree::collect_visible_lifecycles, Vec::new());
             dispatch_lifecycle_system_event(&observers, &ev);
             dispatch_system_event_listeners(&ev);
+            if is_background {
+                self.enter_background_freeze();
+            }
         }
     }
 
@@ -1020,6 +1255,9 @@ impl App {
     /// - `bool` - Whether animations need continuous frame stepping.
     #[must_use]
     pub fn has_active_animations(&self) -> bool {
+        if self.get_background_frozen() {
+            return false;
+        }
         if self.get_scene().has_active_transitions() {
             return true;
         }
@@ -1058,11 +1296,24 @@ impl App {
         F: FnOnce() -> C,
         C: Component,
     {
+        let prev_scope: Option<Scope> = {
+            let Self { mount_scope, .. } = self;
+            mount_scope.take()
+        };
+        if let Some(old) = prev_scope {
+            old.dispose();
+        }
         let ctx: Context = self.get_context().clone();
-        let root_child: NodeId = with_context(ctx, || {
-            let component: C = builder();
-            component.mount()
+        let (new_scope, root_child): (Scope, NodeId) = Scope::run(|_s: Scope| {
+            with_context(ctx, || {
+                let component: C = builder();
+                component.mount()
+            })
         });
+        {
+            let Self { mount_scope, .. } = self;
+            *mount_scope = Some(new_scope);
+        }
         let scene: SceneHandle = self.get_scene().clone();
         let root: NodeId = scene.with_read(SceneTree::get_root, NodeId::default());
         scene.replace_children_safe(root, vec![root_child]);
@@ -1223,6 +1474,30 @@ impl App {
     /// - `&Self` - Mutable app.
     /// - `WindowEvent` - Event received from the OS or test harness.
     pub fn dispatch_window_event(&mut self, event: WindowEvent) {
+        if self.get_background_frozen() {
+            match event {
+                WindowEvent::Resized(..)
+                | WindowEvent::SafeAreaChanged(..)
+                | WindowEvent::ThemeChanged(..)
+                | WindowEvent::Focused(..)
+                | WindowEvent::CloseRequested(_)
+                | WindowEvent::Lifecycle(_)
+                | WindowEvent::DeepLink(_)
+                | WindowEvent::System(_) => {}
+                WindowEvent::PointerMove(..)
+                | WindowEvent::PointerDown(..)
+                | WindowEvent::PointerUp(..)
+                | WindowEvent::PointerCancel(..)
+                | WindowEvent::Scroll(..)
+                | WindowEvent::KeyDown(..)
+                | WindowEvent::KeyUp(..)
+                | WindowEvent::TextInput(..)
+                | WindowEvent::Ime(..)
+                | WindowEvent::RedrawRequested(_) => {
+                    return;
+                }
+            }
+        }
         self.get_mut_input_state().ingest(&event);
         for host in self.get_game_hosts().iter() {
             host.ingest_event(&event);
@@ -1449,10 +1724,19 @@ impl App {
             self.dispatch_coalesced_events(events);
         }
         let input_us: u64 = Self::phase_lap_us(&mut phase_mark);
+        if self.get_background_frozen() {
+            return Ok(self.record_background_frozen_frame(input_us));
+        }
         flush_effects();
+        let resume_zero_dt: bool = self.get_resume_zero_dt_pending();
+        if resume_zero_dt {
+            self.set_resume_zero_dt_pending(false);
+        }
         let raw_dt: f32 = self.get_frame_clock().get_delta_secs();
         let native_hz: f32 = self.get_display_refresh_rate_hz().clamp(24.0, 480.0);
-        let anim_dt: f32 = if raw_dt > 0.0001 {
+        let anim_dt: f32 = if resume_zero_dt {
+            0.0
+        } else if raw_dt > 0.0001 {
             raw_dt.clamp(1.0 / 480.0, 0.05)
         } else {
             1.0 / native_hz
@@ -1937,8 +2221,11 @@ impl App {
             self.set_fps_accum_secs(next_fps_secs);
             self.set_fps_accum_frames(next_fps_frames);
             if self.get_active_present_fps() <= 0.0 {
-                let instant_fps: f32 =
-                    (((1.0 / anim_dt).clamp(1.0, 999.0) * 2.0).round() * 0.5).min(target_hz);
+                let instant_fps: f32 = if anim_dt > 0.0001 {
+                    (((1.0 / anim_dt).clamp(1.0, 999.0) * 2.0).round() * 0.5).min(target_hz)
+                } else {
+                    target_hz
+                };
                 self.set_active_present_fps(instant_fps);
                 let _: bool = self
                     .get_context()
@@ -1980,9 +2267,13 @@ impl App {
     ///
     /// - `Result<FrameStats, PlatformError>` - Frame telemetry for the rendered frame.
     pub fn step_game_frame(&mut self, dt_secs: f32) -> Result<FrameStats, PlatformError> {
-        let _: u32 = self.get_mut_frame_clock().tick(dt_secs);
+        if !self.get_background_frozen() && !self.get_resume_zero_dt_pending() {
+            let _: u32 = self.get_mut_frame_clock().tick(dt_secs);
+        }
         let stats: FrameStats = self.step_frame()?;
-        self.get_mut_input_state().begin_frame();
+        if !self.get_background_frozen() {
+            self.get_mut_input_state().begin_frame();
+        }
         Ok(stats)
     }
 
@@ -1999,7 +2290,7 @@ impl App {
         }
         // SAFETY: `info` points to the live `App` on the main thread for the exact duration of `run_frames`.
         let app: &mut Self = unsafe { &mut *info.cast::<Self>() };
-        if !app.get_running() || app.get_in_step_frame() {
+        if !app.should_pump_frames() || app.get_in_step_frame() {
             return;
         }
         app.set_in_step_frame(true);
@@ -2028,22 +2319,55 @@ impl App {
             } else {
                 null_mut()
             };
+        #[cfg(target_os = "macos")]
+        let mut live_timer_paused: bool = false;
         let mut last_stats: FrameStats = FrameStats::default();
         let mut rendered: u64 = 0;
         let mut loop_err: Option<PlatformError> = None;
         #[cfg(not(target_arch = "wasm32"))]
         let mut prev_instant: Instant = Instant::now();
         while self.get_running() {
+            if self.get_background_frozen() && max_frames.is_none() {
+                #[cfg(target_os = "macos")]
+                if !live_timer.is_null() && !live_timer_paused {
+                    macos_set_live_resize_timer_paused(live_timer, true);
+                    live_timer_paused = true;
+                }
+                self.set_in_step_frame(true);
+                let wait_res: Result<FrameStats, PlatformError> = self.wait_background_events();
+                self.set_in_step_frame(false);
+                match wait_res {
+                    Ok(stats) => last_stats = stats,
+                    Err(err) => {
+                        loop_err = Some(err);
+                        break;
+                    }
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    prev_instant = Instant::now();
+                }
+                #[cfg(target_os = "macos")]
+                if !self.get_background_frozen() && !live_timer.is_null() && live_timer_paused {
+                    macos_set_live_resize_timer_paused(live_timer, false);
+                    live_timer_paused = false;
+                }
+                continue;
+            }
             #[cfg(not(target_arch = "wasm32"))]
             let frame_start: Instant = Instant::now();
             #[cfg(not(target_arch = "wasm32"))]
             if max_frames.is_none() {
-                let real_dt: f32 = frame_start
-                    .duration_since(prev_instant)
-                    .as_secs_f32()
-                    .clamp(1.0 / 480.0, 0.05);
-                prev_instant = frame_start;
-                let _: u32 = self.get_mut_frame_clock().tick(real_dt);
+                if self.get_resume_zero_dt_pending() {
+                    prev_instant = frame_start;
+                } else {
+                    let real_dt: f32 = frame_start
+                        .duration_since(prev_instant)
+                        .as_secs_f32()
+                        .clamp(1.0 / 480.0, 0.05);
+                    prev_instant = frame_start;
+                    let _: u32 = self.get_mut_frame_clock().tick(real_dt);
+                }
             }
             self.set_in_step_frame(true);
             let step_res: Result<FrameStats, PlatformError> = self.step_frame();
@@ -2063,6 +2387,14 @@ impl App {
             }
             if !self.get_running() {
                 break;
+            }
+            if self.get_background_frozen() && max_frames.is_none() {
+                #[cfg(target_os = "macos")]
+                if !live_timer.is_null() && !live_timer_paused {
+                    macos_set_live_resize_timer_paused(live_timer, true);
+                    live_timer_paused = true;
+                }
+                continue;
             }
             #[cfg(not(target_arch = "wasm32"))]
             if max_frames.is_none() {

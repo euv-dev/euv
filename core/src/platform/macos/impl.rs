@@ -22,6 +22,8 @@ impl Default for MacOsPlatform {
             last_low_power: initial_low_power,
             last_pasteboard_count: initial_pb,
             last_theme: initial_theme,
+            last_app_hidden: false,
+            pump_paused: false,
         }
     }
 }
@@ -373,6 +375,7 @@ impl PlatformBackend for MacOsPlatform {
         let mut resized_events: Vec<(WindowId, u32, u32, f32)> = Vec::new();
         let mut focus_events: Vec<(WindowId, bool)> = Vec::new();
         let mut closed_ids: Vec<WindowId> = Vec::new();
+        let app_hidden: bool = macos_app_is_hidden();
         let mut any_miniaturized: bool = false;
         let mut primary_wid: Option<WindowId> = None;
         for (id, rec) in self.get_mut_windows().iter_mut() {
@@ -384,6 +387,9 @@ impl PlatformBackend for MacOsPlatform {
                 let is_mini: bool = objc_send_bool0(win_ptr, objc_sel(OBJC_SEL_IS_MINIATURIZED));
                 if is_mini {
                     any_miniaturized = true;
+                    continue;
+                }
+                if app_hidden {
                     continue;
                 }
                 if rec.get_config().get_visible()
@@ -424,9 +430,12 @@ impl PlatformBackend for MacOsPlatform {
                 }
             }
         }
-        if any_miniaturized != self.get_last_miniaturized() {
-            self.set_last_miniaturized(any_miniaturized);
-            let lc_ev: SystemEvent = if any_miniaturized {
+        let was_background: bool = self.get_last_miniaturized() || self.get_last_app_hidden();
+        let in_background: bool = any_miniaturized || app_hidden;
+        self.set_last_miniaturized(any_miniaturized);
+        self.set_last_app_hidden(app_hidden);
+        if in_background != was_background {
+            let lc_ev: SystemEvent = if in_background {
                 SystemEvent::Background
             } else {
                 SystemEvent::Foreground
@@ -437,7 +446,7 @@ impl PlatformBackend for MacOsPlatform {
         let app_active: bool = macos_app_is_active();
         if app_active != self.get_last_app_active() {
             self.set_last_app_active(app_active);
-            if !any_miniaturized {
+            if !in_background {
                 let act_ev: SystemEvent = if app_active {
                     SystemEvent::Foreground
                 } else {
@@ -486,6 +495,47 @@ impl PlatformBackend for MacOsPlatform {
                 .push(WindowEvent::CloseRequested(id));
         }
         take(self.get_mut_pending_events())
+    }
+
+    /// Blocks inside AppKit's kernel run loop until an OS event arrives, consuming zero CPU while backgrounded.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable macOS platform.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<WindowEvent>` - Events received upon wake.
+    fn wait_for_events(&mut self) -> Vec<WindowEvent> {
+        if self.get_pending_events().is_empty() && !self.get_windows().is_empty() {
+            let mut waited: Vec<WindowEvent> = Vec::new();
+            macos_wait_next_event(self.get_windows(), &mut waited);
+            self.get_mut_pending_events().extend(waited);
+        }
+        self.poll_events()
+    }
+
+    /// Updates macOS background frame-pump pause state.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable macOS platform.
+    /// - `bool` - `true` when paused in background; `false` when active.
+    fn set_frame_pump_paused(&mut self, paused: bool) {
+        self.set_pump_paused(paused);
+    }
+
+    /// Returns whether the macOS frame pump is currently paused for background freeze.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Platform reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when paused in background.
+    fn is_frame_pump_paused(&self) -> bool {
+        self.get_pump_paused()
     }
 
     /// Blits the RGBA8 `Framebuffer` directly onto the window's `CALayer` via CoreGraphics.

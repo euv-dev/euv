@@ -277,6 +277,12 @@ unsafe extern "system" {
     ///
     /// - `isize` - `LRESULT` from `WndProc`.
     fn DispatchMessageW(msg: *const Win32Msg) -> isize;
+    /// Suspends the current thread with zero CPU usage until a new Win32 message enters the thread queue.
+    ///
+    /// # Returns
+    ///
+    /// - `i32` - Non-zero on success.
+    fn WaitMessage() -> i32;
 }
 
 #[link(name = "gdi32")]
@@ -784,6 +790,14 @@ pub(crate) fn win32_present_dib(
         }
     }
     Ok(())
+}
+
+/// Blocks the thread with zero CPU usage via Win32 `WaitMessage` until an OS message wakes the window.
+pub(crate) fn win32_wait_for_message() {
+    // SAFETY: Standard Win32 thread message queue blocking wait.
+    unsafe {
+        let _: i32 = WaitMessage();
+    }
 }
 
 /// Pumps pending Win32 messages via `PeekMessageW` and drains events captured by `win32_wnd_proc`.

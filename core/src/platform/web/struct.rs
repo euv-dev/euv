@@ -52,4 +52,8 @@ pub struct WebPlatform {
     #[get(pub(crate))]
     #[set(pub(crate))]
     pub(crate) last_locale: String,
+    /// Whether the browser `requestAnimationFrame` loop is paused while hidden/backgrounded.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) pump_paused: bool,
 }

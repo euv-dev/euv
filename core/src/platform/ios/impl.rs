@@ -14,12 +14,27 @@ impl Default for IosPlatform {
             windows: HashMap::new(),
             pending_events: Vec::new(),
             clipboard_cache: None,
+            display_link: 0,
+            pump_paused: false,
         }
     }
 }
 
-/// UIKit system event injection helpers for `IosPlatform`.
+/// UIKit system event injection and display-link lifecycle helpers for `IosPlatform`.
 impl IosPlatform {
+    /// Attaches a host `CADisplayLink*` pointer so background transitions pause it automatically with zero CPU/GPU wakeups.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable iOS/iPadOS platform backend.
+    /// - `usize` - Raw `CADisplayLink*` pointer (`0` to detach).
+    pub fn attach_display_link(&mut self, display_link: usize) {
+        self.set_display_link(display_link);
+        if display_link != 0 {
+            uikit_set_display_link_paused(display_link, self.get_pump_paused());
+        }
+    }
+
     /// Enqueues a normalized UIKit `SystemEvent` to be drained on the next `poll_events()` tick.
     ///
     /// # Arguments
@@ -27,6 +42,11 @@ impl IosPlatform {
     /// - `&Self` - Mutable iOS/iPadOS platform backend.
     /// - `SystemEvent` - System event forwarded from `UIApplicationDelegate` / `UISceneDelegate`.
     pub fn push_system_event(&mut self, event: SystemEvent) {
+        match &event {
+            SystemEvent::Background => self.set_frame_pump_paused(true),
+            SystemEvent::Foreground => self.set_frame_pump_paused(false),
+            _ => {}
+        }
         self.get_mut_pending_events()
             .push(WindowEvent::System(event));
     }
@@ -233,6 +253,30 @@ impl PlatformBackend for IosPlatform {
     /// - `Vec<WindowEvent>` - Pending events.
     fn poll_events(&mut self) -> Vec<WindowEvent> {
         take(self.get_mut_pending_events())
+    }
+
+    /// Pauses or resumes the attached UIKit `CADisplayLink` frame pump.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable iOS/iPadOS platform backend.
+    /// - `bool` - `true` to pause frame ticks in background; `false` to resume.
+    fn set_frame_pump_paused(&mut self, paused: bool) {
+        self.set_pump_paused(paused);
+        uikit_set_display_link_paused(self.get_display_link(), paused);
+    }
+
+    /// Returns whether the UIKit frame pump is currently paused for background freeze.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Platform backend reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when paused in background.
+    fn is_frame_pump_paused(&self) -> bool {
+        self.get_pump_paused()
     }
 
     /// Presents `framebuffer` directly onto the UIKit `CALayer` / `CAMetalLayer`.

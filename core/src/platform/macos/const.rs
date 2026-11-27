@@ -22,6 +22,15 @@ pub(crate) const OBJC_CLS_NS_PASTEBOARD: &str = "NSPasteboard\0";
 /// Objective-C class name for `NSProcessInfo`.
 pub(crate) const OBJC_CLS_NS_PROCESS_INFO: &str = "NSProcessInfo\0";
 
+/// Objective-C class name for `NSDate`.
+pub(crate) const OBJC_CLS_NS_DATE: &str = "NSDate\0";
+
+/// Objective-C selector for `distantFuture` on `NSDate`.
+pub(crate) const OBJC_SEL_DISTANT_FUTURE: &str = "distantFuture\0";
+
+/// Objective-C selector for `isHidden` on `NSApplication`.
+pub(crate) const OBJC_SEL_IS_HIDDEN: &str = "isHidden\0";
+
 /// Objective-C selector for `processInfo` on `NSProcessInfo`.
 pub(crate) const OBJC_SEL_PROCESS_INFO: &str = "processInfo\0";
 

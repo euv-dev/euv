@@ -104,4 +104,12 @@ pub struct MacOsPlatform {
     #[get(pub(crate), type(copy))]
     #[set(pub(crate))]
     pub(crate) last_theme: ThemeMode,
+    /// Last polled `NSApplication.isHidden` state for Cmd+H background normalization.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) last_app_hidden: bool,
+    /// Whether the macOS run-loop frame pump is paused while background-frozen.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) pump_paused: bool,
 }

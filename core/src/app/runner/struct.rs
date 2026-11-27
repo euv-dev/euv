@@ -285,6 +285,24 @@ pub struct App {
     #[get(type(copy))]
     #[set(skip)]
     pub(crate) partial_layout_damage: bool,
+    /// Root reactive scope created by `App::mount` so root effects freeze cleanly in background.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) mount_scope: Option<Scope>,
+    /// True while the application is frozen in background (zero CPU ticks, zero layout/paint/GPU work).
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) background_frozen: bool,
+    /// True on the first frame after returning from background so elapsed sleep time clamps to `dt = 0.0`.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) resume_zero_dt_pending: bool,
+    /// Reactive scope handles frozen exclusively by background entry (leaving pre-frozen router pages untouched).
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) background_frozen_scopes: Vec<ScopeId>,
 }
 
 /// Fused single-borrow pre-tick snapshot collected at the start of `App::step_frame`.

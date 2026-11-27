@@ -71,6 +71,40 @@ pub trait PlatformBackend: WindowController {
     /// - `Vec<WindowEvent>` - Ordered pending events.
     fn poll_events(&mut self) -> Vec<WindowEvent>;
 
+    /// Blocks with zero CPU usage until at least one OS or lifecycle event arrives, then drains all pending events.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable platform backend.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<WindowEvent>` - Ordered events received upon wake.
+    fn wait_for_events(&mut self) -> Vec<WindowEvent> {
+        self.poll_events()
+    }
+
+    /// Pauses or resumes the native host frame pump when entering or leaving background-frozen state.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable platform backend.
+    /// - `bool` - `true` to pause frame pumping for background freeze; `false` to resume.
+    fn set_frame_pump_paused(&mut self, _paused: bool) {}
+
+    /// Returns whether the platform backend's frame pump is currently paused for background freeze.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Backend reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when frame pumping is paused.
+    fn is_frame_pump_paused(&self) -> bool {
+        false
+    }
+
     /// Presents a CPU-rendered RGBA8 `Framebuffer` directly onto the native window surface.
     ///
     /// # Arguments

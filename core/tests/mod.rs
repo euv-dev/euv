@@ -1,3 +1,4 @@
+mod app;
 mod dynamic;
 mod game;
 mod layout;

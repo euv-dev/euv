@@ -8,15 +8,17 @@ impl Default for WebPlatform {
     ///
     /// - `Self` - Initialized web platform.
     fn default() -> Self {
+        let initial_hidden: bool = web_document_hidden();
         Self {
             next_id: 1,
             windows: HashMap::new(),
             pending_events: Vec::new(),
             clipboard_cache: None,
-            last_hidden: web_document_hidden(),
+            last_hidden: initial_hidden,
             last_online: web_navigator_online(),
             last_theme: web_system_theme(),
             last_locale: web_navigator_locale(),
+            pump_paused: initial_hidden,
         }
     }
 }
@@ -30,6 +32,15 @@ impl WebPlatform {
     /// - `&Self` - Mutable web platform backend.
     /// - `SystemEvent` - System event to enqueue.
     pub fn push_system_event(&mut self, event: SystemEvent) {
+        match &event {
+            SystemEvent::Background => {
+                self.set_pump_paused(true);
+            }
+            SystemEvent::Foreground => {
+                self.set_pump_paused(false);
+            }
+            _ => {}
+        }
         self.get_mut_pending_events()
             .push(WindowEvent::System(event));
     }
@@ -295,6 +306,7 @@ impl PlatformBackend for WebPlatform {
         let cur_hidden: bool = web_document_hidden();
         if cur_hidden != self.get_last_hidden() {
             self.set_last_hidden(cur_hidden);
+            self.set_pump_paused(cur_hidden);
             let lc_ev: SystemEvent = if cur_hidden {
                 SystemEvent::Background
             } else {
@@ -332,6 +344,29 @@ impl PlatformBackend for WebPlatform {
                 .push(WindowEvent::System(SystemEvent::LocaleChanged(cur_locale)));
         }
         take(self.get_mut_pending_events())
+    }
+
+    /// Pauses or resumes the browser `requestAnimationFrame` pump flag.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable web platform.
+    /// - `bool` - `true` when hidden/backgrounded; `false` when foregrounded.
+    fn set_frame_pump_paused(&mut self, paused: bool) {
+        self.set_pump_paused(paused);
+    }
+
+    /// Returns whether the web `requestAnimationFrame` pump is currently paused for background freeze.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Platform reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when paused in background.
+    fn is_frame_pump_paused(&self) -> bool {
+        self.get_pump_paused()
     }
 
     /// Blits `framebuffer` directly onto the browser `CanvasRenderingContext2d`.

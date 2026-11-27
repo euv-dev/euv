@@ -164,4 +164,8 @@ pub struct WindowsPlatform {
     /// Clipboard cache.
     #[get(skip)]
     pub(crate) clipboard_cache: Option<String>,
+    /// Whether the Win32 frame pump is paused for background freeze.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) pump_paused: bool,
 }

@@ -15,6 +15,7 @@ impl Default for AndroidPlatform {
             windows: HashMap::new(),
             pending_events: Vec::new(),
             clipboard_cache: None,
+            pump_paused: false,
         }
     }
 }
@@ -36,6 +37,18 @@ impl AndroidPlatform {
         }
     }
 
+    /// Detaches the active `ANativeWindow*` pointer on `APP_CMD_TERM_WINDOW` so backgrounded apps never touch destroyed surfaces.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable Android platform.
+    pub fn detach_native_window(&mut self) {
+        self.set_attached_native_window(0);
+        for rec in self.get_mut_windows().values_mut() {
+            rec.set_native_window(0);
+        }
+    }
+
     /// Enqueues a normalized Android `SystemEvent` to be drained on the next `poll_events()` tick.
     ///
     /// # Arguments
@@ -43,6 +56,15 @@ impl AndroidPlatform {
     /// - `&Self` - Mutable Android platform backend.
     /// - `SystemEvent` - System event forwarded from `Activity` / `Application` JNI hooks.
     pub fn push_system_event(&mut self, event: SystemEvent) {
+        match &event {
+            SystemEvent::Background => {
+                self.set_pump_paused(true);
+            }
+            SystemEvent::Foreground => {
+                self.set_pump_paused(false);
+            }
+            _ => {}
+        }
         self.get_mut_pending_events()
             .push(WindowEvent::System(event));
     }
@@ -231,6 +253,29 @@ impl PlatformBackend for AndroidPlatform {
     /// - `Vec<WindowEvent>` - Pending events.
     fn poll_events(&mut self) -> Vec<WindowEvent> {
         take(self.get_mut_pending_events())
+    }
+
+    /// Pauses or resumes the Android Choreographer / NDK frame pump flag.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable Android platform.
+    /// - `bool` - `true` when backgrounded; `false` when resumed.
+    fn set_frame_pump_paused(&mut self, paused: bool) {
+        self.set_pump_paused(paused);
+    }
+
+    /// Returns whether the Android frame pump is currently paused for background freeze.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Platform reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when paused in background.
+    fn is_frame_pump_paused(&self) -> bool {
+        self.get_pump_paused()
     }
 
     /// Blits `framebuffer` directly into the locked `ANativeWindow` hardware buffer.

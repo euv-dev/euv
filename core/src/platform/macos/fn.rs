@@ -102,6 +102,13 @@ unsafe extern "C" {
     ///
     /// - `*mut c_void` - Timer handle.
     fn CFRunLoopTimerInvalidate(timer: *mut c_void);
+    /// Updates the next fire date of a `CFRunLoopTimerRef` (set to distant future to pause with 0% CPU).
+    ///
+    /// # Arguments
+    ///
+    /// - `*mut c_void` - Timer handle.
+    /// - `f64` - Next CoreFoundation absolute fire timestamp in seconds.
+    fn CFRunLoopTimerSetNextFireDate(timer: *mut c_void, fire_date: f64);
     /// Global CoreFoundation constant for `kCFRunLoopCommonModes` (includes `NSEventTrackingRunLoopMode`).
     static kCFRunLoopCommonModes: *const c_void;
 }
@@ -583,6 +590,222 @@ pub(crate) fn macos_map_modifiers(flags: usize) -> Modifiers {
     )
 }
 
+/// Translates and forwards a single dequeued AppKit `NSEvent*` into `out_events` and AppKit's responder chain.
+///
+/// # Arguments
+///
+/// - `*mut c_void` - Shared `NSApplication*` pointer.
+/// - `*mut c_void` - Dequeued `NSEvent*` pointer.
+/// - `&HashMap<WindowId, MacOsWindowRecord>` - Open native macOS windows.
+/// - `&mut Vec<WindowEvent>` - Output event queue.
+fn macos_dispatch_single_event(
+    app: *mut c_void,
+    event: *mut c_void,
+    windows: &HashMap<WindowId, MacOsWindowRecord>,
+    out_events: &mut Vec<WindowEvent>,
+) {
+    let send_sel: *mut c_void = objc_sel(OBJC_SEL_SEND_EVENT);
+    let type_sel: *mut c_void = objc_sel(OBJC_SEL_TYPE);
+    let win_sel: *mut c_void = objc_sel(OBJC_SEL_WINDOW);
+    let loc_sel: *mut c_void = objc_sel(OBJC_SEL_LOCATION_IN_WINDOW);
+    let mod_sel: *mut c_void = objc_sel(OBJC_SEL_MODIFIER_FLAGS);
+    let key_sel: *mut c_void = objc_sel(OBJC_SEL_KEY_CODE);
+    let chars_sel: *mut c_void = objc_sel(OBJC_SEL_CHARACTERS);
+    let utf8_sel: *mut c_void = objc_sel(OBJC_SEL_UTF8_STRING);
+    let scroll_x_sel: *mut c_void = objc_sel(OBJC_SEL_SCROLLING_DELTA_X);
+    let scroll_y_sel: *mut c_void = objc_sel(OBJC_SEL_SCROLLING_DELTA_Y);
+    let precise_scroll_sel: *mut c_void = objc_sel(OBJC_SEL_HAS_PRECISE_SCROLL);
+    let ev_type: usize = objc_send_usize0(event, type_sel);
+    let ev_win: usize = objc_send_ptr0(event, win_sel) as usize;
+    let mods: Modifiers = macos_map_modifiers(objc_send_usize0(event, mod_sel));
+    let matched: Option<(WindowId, f32)> = windows
+        .iter()
+        .find(|(_, rec): &(&WindowId, &MacOsWindowRecord)| {
+            rec.get_ns_window() == ev_win || ev_win == 0
+        })
+        .map(|(id, rec): (&WindowId, &MacOsWindowRecord)| {
+            (*id, rec.get_state().get_logical_height())
+        });
+    let mut forward_to_appkit: bool = true;
+    if let Some((wid, logical_h)) = matched {
+        let loc: CgPoint = objc_send_point0(event, loc_sel);
+        let ui_x: f32 = loc.x as f32;
+        let ui_y: f32 = logical_h - (loc.y as f32);
+        let inside_content: bool = ui_y >= 0.0 && ui_y <= logical_h && ui_x >= 0.0;
+        match ev_type {
+            NS_EVENT_LEFT_MOUSE_DOWN if inside_content => {
+                out_events.push(WindowEvent::PointerDown(
+                    wid,
+                    PointerEvent::new(
+                        1,
+                        PointerDevice::Mouse,
+                        Point::new(ui_x, ui_y),
+                        PointerButton::Primary,
+                        1.0,
+                        mods,
+                    ),
+                ));
+            }
+            NS_EVENT_LEFT_MOUSE_UP => {
+                out_events.push(WindowEvent::PointerUp(
+                    wid,
+                    PointerEvent::new(
+                        1,
+                        PointerDevice::Mouse,
+                        Point::new(ui_x, ui_y),
+                        PointerButton::Primary,
+                        0.0,
+                        mods,
+                    ),
+                ));
+            }
+            NS_EVENT_RIGHT_MOUSE_DOWN if inside_content => {
+                out_events.push(WindowEvent::PointerDown(
+                    wid,
+                    PointerEvent::new(
+                        1,
+                        PointerDevice::Mouse,
+                        Point::new(ui_x, ui_y),
+                        PointerButton::Secondary,
+                        1.0,
+                        mods,
+                    ),
+                ));
+            }
+            NS_EVENT_RIGHT_MOUSE_UP if inside_content => {
+                out_events.push(WindowEvent::PointerUp(
+                    wid,
+                    PointerEvent::new(
+                        1,
+                        PointerDevice::Mouse,
+                        Point::new(ui_x, ui_y),
+                        PointerButton::Secondary,
+                        0.0,
+                        mods,
+                    ),
+                ));
+            }
+            NS_EVENT_MOUSE_MOVED if inside_content => {
+                let next_ptr: PointerEvent = PointerEvent::new(
+                    1,
+                    PointerDevice::Mouse,
+                    Point::new(ui_x, ui_y),
+                    PointerButton::Primary,
+                    0.0,
+                    mods,
+                );
+                if let Some(WindowEvent::PointerMove(prev_wid, prev_ptr)) = out_events.last_mut()
+                    && *prev_wid == wid
+                {
+                    *prev_ptr = next_ptr;
+                } else {
+                    out_events.push(WindowEvent::PointerMove(wid, next_ptr));
+                }
+            }
+            NS_EVENT_LEFT_MOUSE_DRAGGED => {
+                let next_ptr: PointerEvent = PointerEvent::new(
+                    1,
+                    PointerDevice::Mouse,
+                    Point::new(ui_x, ui_y),
+                    PointerButton::Primary,
+                    1.0,
+                    mods,
+                );
+                if let Some(WindowEvent::PointerMove(prev_wid, prev_ptr)) = out_events.last_mut()
+                    && *prev_wid == wid
+                {
+                    *prev_ptr = next_ptr;
+                } else {
+                    out_events.push(WindowEvent::PointerMove(wid, next_ptr));
+                }
+            }
+            NS_EVENT_SCROLL_WHEEL if inside_content => {
+                let is_precise: bool = objc_send_bool0(event, precise_scroll_sel);
+                let multiplier: f32 = if is_precise { 1.0 } else { 18.0 };
+                let raw_dx: f32 = -(objc_send_f64_0(event, scroll_x_sel) as f32) * multiplier;
+                let raw_dy: f32 = -(objc_send_f64_0(event, scroll_y_sel) as f32) * multiplier;
+                let (dx, dy): (f32, f32) =
+                    if mods.get_shift() && raw_dx.abs() <= 0.01 && raw_dy.abs() > 0.01 {
+                        (raw_dy, 0.0)
+                    } else {
+                        (raw_dx, raw_dy)
+                    };
+                if let Some(WindowEvent::Scroll(prev_wid, prev_delta)) = out_events.last_mut()
+                    && *prev_wid == wid
+                {
+                    *prev_delta = Point::new(prev_delta.get_x() + dx, prev_delta.get_y() + dy);
+                } else {
+                    out_events.push(WindowEvent::Scroll(wid, Point::new(dx, dy)));
+                }
+            }
+            NS_EVENT_KEY_DOWN => {
+                let raw_key: u16 = objc_send_u16_0(event, key_sel);
+                let chars_ns: *mut c_void = objc_send_ptr0(event, chars_sel);
+                let utf8_ptr: *const c_char = objc_send_ptr0(chars_ns, utf8_sel).cast::<c_char>();
+                let text: String = if utf8_ptr.is_null() {
+                    String::new()
+                } else {
+                    // SAFETY: `UTF8String` returns a valid null-terminated UTF-8 string when non-null.
+                    unsafe { CStr::from_ptr(utf8_ptr).to_str().unwrap_or("").to_string() }
+                };
+                let key_text: String = if mods.get_meta() || mods.get_ctrl() {
+                    let unmod_ns: *mut c_void =
+                        objc_send_ptr0(event, objc_sel(OBJC_SEL_CHARS_IGNORING_MODS));
+                    let unmod_ptr: *const c_char =
+                        objc_send_ptr0(unmod_ns, utf8_sel).cast::<c_char>();
+                    if unmod_ptr.is_null() {
+                        text.clone()
+                    } else {
+                        // SAFETY: `UTF8String` returns a valid null-terminated UTF-8 string when non-null.
+                        unsafe { CStr::from_ptr(unmod_ptr).to_str().unwrap_or("").to_string() }
+                    }
+                } else {
+                    text.clone()
+                };
+                let key_code: KeyCode = macos_map_key_code(raw_key, &key_text);
+                out_events.push(WindowEvent::KeyDown(
+                    wid,
+                    KeyEvent::new(key_code, mods, false),
+                ));
+                if !mods.get_meta() && !mods.get_ctrl() {
+                    let printable: String =
+                        text.chars().filter(|c: &char| !c.is_control()).collect();
+                    if !printable.is_empty() {
+                        out_events.push(WindowEvent::TextInput(wid, printable));
+                    }
+                    forward_to_appkit = false;
+                } else if matches!(key_code, KeyCode::Character('c' | 'C' | 'a' | 'A')) {
+                    forward_to_appkit = false;
+                }
+            }
+            NS_EVENT_KEY_UP => {
+                let raw_key: u16 = objc_send_u16_0(event, key_sel);
+                let chars_ns: *mut c_void =
+                    objc_send_ptr0(event, objc_sel(OBJC_SEL_CHARS_IGNORING_MODS));
+                let utf8_ptr: *const c_char = objc_send_ptr0(chars_ns, utf8_sel).cast::<c_char>();
+                let text: String = if utf8_ptr.is_null() {
+                    String::new()
+                } else {
+                    // SAFETY: `UTF8String` returns a valid null-terminated C string when non-null.
+                    unsafe { CStr::from_ptr(utf8_ptr).to_str().unwrap_or("").to_string() }
+                };
+                let key_code: KeyCode = macos_map_key_code(raw_key, &text);
+                out_events.push(WindowEvent::KeyUp(
+                    wid,
+                    KeyEvent::new(key_code, mods, false),
+                ));
+                if !mods.get_meta() {
+                    forward_to_appkit = false;
+                }
+            }
+            _ => {}
+        }
+    }
+    if forward_to_appkit {
+        let _: *mut c_void = objc_send_ptr1(app, send_sel, event);
+    }
+}
+
 /// Pumps pending AppKit `NSEvent`s non-blockingly and translates mouse, scroll, and keyboard input into `WindowEvent`s.
 ///
 /// # Arguments
@@ -600,17 +823,6 @@ pub(crate) fn macos_pump_events(
     }
     let mode_ns: *mut c_void = macos_ns_string(NS_DEFAULT_RUN_LOOP_MODE);
     let next_sel: *mut c_void = objc_sel(OBJC_SEL_NEXT_EVENT);
-    let send_sel: *mut c_void = objc_sel(OBJC_SEL_SEND_EVENT);
-    let type_sel: *mut c_void = objc_sel(OBJC_SEL_TYPE);
-    let win_sel: *mut c_void = objc_sel(OBJC_SEL_WINDOW);
-    let loc_sel: *mut c_void = objc_sel(OBJC_SEL_LOCATION_IN_WINDOW);
-    let mod_sel: *mut c_void = objc_sel(OBJC_SEL_MODIFIER_FLAGS);
-    let key_sel: *mut c_void = objc_sel(OBJC_SEL_KEY_CODE);
-    let chars_sel: *mut c_void = objc_sel(OBJC_SEL_CHARACTERS);
-    let utf8_sel: *mut c_void = objc_sel(OBJC_SEL_UTF8_STRING);
-    let scroll_x_sel: *mut c_void = objc_sel(OBJC_SEL_SCROLLING_DELTA_X);
-    let scroll_y_sel: *mut c_void = objc_sel(OBJC_SEL_SCROLLING_DELTA_Y);
-    let precise_scroll_sel: *mut c_void = objc_sel(OBJC_SEL_HAS_PRECISE_SCROLL);
     let mut processed: usize = 0;
     while processed < 64 {
         // SAFETY: Invokes `-[NSApplication nextEventMatchingMask:untilDate:inMode:dequeue:]` non-blockingly (`untilDate:nil`).
@@ -628,200 +840,48 @@ pub(crate) fn macos_pump_events(
         if event.is_null() {
             break;
         }
-        let ev_type: usize = objc_send_usize0(event, type_sel);
-        let ev_win: usize = objc_send_ptr0(event, win_sel) as usize;
-        let mods: Modifiers = macos_map_modifiers(objc_send_usize0(event, mod_sel));
-        let matched: Option<(WindowId, f32)> = windows
-            .iter()
-            .find(|(_, rec): &(&WindowId, &MacOsWindowRecord)| {
-                rec.get_ns_window() == ev_win || ev_win == 0
-            })
-            .map(|(id, rec): (&WindowId, &MacOsWindowRecord)| {
-                (*id, rec.get_state().get_logical_height())
-            });
-        let mut forward_to_appkit: bool = true;
-        if let Some((wid, logical_h)) = matched {
-            let loc: CgPoint = objc_send_point0(event, loc_sel);
-            let ui_x: f32 = loc.x as f32;
-            let ui_y: f32 = logical_h - (loc.y as f32);
-            let inside_content: bool = ui_y >= 0.0 && ui_y <= logical_h && ui_x >= 0.0;
-            match ev_type {
-                NS_EVENT_LEFT_MOUSE_DOWN if inside_content => {
-                    out_events.push(WindowEvent::PointerDown(
-                        wid,
-                        PointerEvent::new(
-                            1,
-                            PointerDevice::Mouse,
-                            Point::new(ui_x, ui_y),
-                            PointerButton::Primary,
-                            1.0,
-                            mods,
-                        ),
-                    ));
-                }
-                NS_EVENT_LEFT_MOUSE_UP => {
-                    out_events.push(WindowEvent::PointerUp(
-                        wid,
-                        PointerEvent::new(
-                            1,
-                            PointerDevice::Mouse,
-                            Point::new(ui_x, ui_y),
-                            PointerButton::Primary,
-                            0.0,
-                            mods,
-                        ),
-                    ));
-                }
-                NS_EVENT_RIGHT_MOUSE_DOWN if inside_content => {
-                    out_events.push(WindowEvent::PointerDown(
-                        wid,
-                        PointerEvent::new(
-                            1,
-                            PointerDevice::Mouse,
-                            Point::new(ui_x, ui_y),
-                            PointerButton::Secondary,
-                            1.0,
-                            mods,
-                        ),
-                    ));
-                }
-                NS_EVENT_RIGHT_MOUSE_UP if inside_content => {
-                    out_events.push(WindowEvent::PointerUp(
-                        wid,
-                        PointerEvent::new(
-                            1,
-                            PointerDevice::Mouse,
-                            Point::new(ui_x, ui_y),
-                            PointerButton::Secondary,
-                            0.0,
-                            mods,
-                        ),
-                    ));
-                }
-                NS_EVENT_MOUSE_MOVED if inside_content => {
-                    let next_ptr: PointerEvent = PointerEvent::new(
-                        1,
-                        PointerDevice::Mouse,
-                        Point::new(ui_x, ui_y),
-                        PointerButton::Primary,
-                        0.0,
-                        mods,
-                    );
-                    if let Some(WindowEvent::PointerMove(prev_wid, prev_ptr)) =
-                        out_events.last_mut()
-                        && *prev_wid == wid
-                    {
-                        *prev_ptr = next_ptr;
-                    } else {
-                        out_events.push(WindowEvent::PointerMove(wid, next_ptr));
-                    }
-                }
-                NS_EVENT_LEFT_MOUSE_DRAGGED => {
-                    let next_ptr: PointerEvent = PointerEvent::new(
-                        1,
-                        PointerDevice::Mouse,
-                        Point::new(ui_x, ui_y),
-                        PointerButton::Primary,
-                        1.0,
-                        mods,
-                    );
-                    if let Some(WindowEvent::PointerMove(prev_wid, prev_ptr)) =
-                        out_events.last_mut()
-                        && *prev_wid == wid
-                    {
-                        *prev_ptr = next_ptr;
-                    } else {
-                        out_events.push(WindowEvent::PointerMove(wid, next_ptr));
-                    }
-                }
-                NS_EVENT_SCROLL_WHEEL if inside_content => {
-                    let is_precise: bool = objc_send_bool0(event, precise_scroll_sel);
-                    let multiplier: f32 = if is_precise { 1.0 } else { 18.0 };
-                    let raw_dx: f32 = -(objc_send_f64_0(event, scroll_x_sel) as f32) * multiplier;
-                    let raw_dy: f32 = -(objc_send_f64_0(event, scroll_y_sel) as f32) * multiplier;
-                    let (dx, dy): (f32, f32) =
-                        if mods.get_shift() && raw_dx.abs() <= 0.01 && raw_dy.abs() > 0.01 {
-                            (raw_dy, 0.0)
-                        } else {
-                            (raw_dx, raw_dy)
-                        };
-                    if let Some(WindowEvent::Scroll(prev_wid, prev_delta)) = out_events.last_mut()
-                        && *prev_wid == wid
-                    {
-                        *prev_delta = Point::new(prev_delta.get_x() + dx, prev_delta.get_y() + dy);
-                    } else {
-                        out_events.push(WindowEvent::Scroll(wid, Point::new(dx, dy)));
-                    }
-                }
-                NS_EVENT_KEY_DOWN => {
-                    let raw_key: u16 = objc_send_u16_0(event, key_sel);
-                    let chars_ns: *mut c_void = objc_send_ptr0(event, chars_sel);
-                    let utf8_ptr: *const c_char =
-                        objc_send_ptr0(chars_ns, utf8_sel).cast::<c_char>();
-                    let text: String = if utf8_ptr.is_null() {
-                        String::new()
-                    } else {
-                        // SAFETY: `UTF8String` returns a valid null-terminated UTF-8 string when non-null.
-                        unsafe { CStr::from_ptr(utf8_ptr).to_str().unwrap_or("").to_string() }
-                    };
-                    let key_text: String = if mods.get_meta() || mods.get_ctrl() {
-                        let unmod_ns: *mut c_void =
-                            objc_send_ptr0(event, objc_sel(OBJC_SEL_CHARS_IGNORING_MODS));
-                        let unmod_ptr: *const c_char =
-                            objc_send_ptr0(unmod_ns, utf8_sel).cast::<c_char>();
-                        if unmod_ptr.is_null() {
-                            text.clone()
-                        } else {
-                            // SAFETY: `UTF8String` returns a valid null-terminated UTF-8 string when non-null.
-                            unsafe { CStr::from_ptr(unmod_ptr).to_str().unwrap_or("").to_string() }
-                        }
-                    } else {
-                        text.clone()
-                    };
-                    let key_code: KeyCode = macos_map_key_code(raw_key, &key_text);
-                    out_events.push(WindowEvent::KeyDown(
-                        wid,
-                        KeyEvent::new(key_code, mods, false),
-                    ));
-                    if !mods.get_meta() && !mods.get_ctrl() {
-                        let printable: String =
-                            text.chars().filter(|c: &char| !c.is_control()).collect();
-                        if !printable.is_empty() {
-                            out_events.push(WindowEvent::TextInput(wid, printable));
-                        }
-                        forward_to_appkit = false;
-                    } else if matches!(key_code, KeyCode::Character('c' | 'C' | 'a' | 'A')) {
-                        forward_to_appkit = false;
-                    }
-                }
-                NS_EVENT_KEY_UP => {
-                    let raw_key: u16 = objc_send_u16_0(event, key_sel);
-                    let chars_ns: *mut c_void =
-                        objc_send_ptr0(event, objc_sel(OBJC_SEL_CHARS_IGNORING_MODS));
-                    let utf8_ptr: *const c_char =
-                        objc_send_ptr0(chars_ns, utf8_sel).cast::<c_char>();
-                    let text: String = if utf8_ptr.is_null() {
-                        String::new()
-                    } else {
-                        // SAFETY: `UTF8String` returns a valid null-terminated C string when non-null.
-                        unsafe { CStr::from_ptr(utf8_ptr).to_str().unwrap_or("").to_string() }
-                    };
-                    let key_code: KeyCode = macos_map_key_code(raw_key, &text);
-                    out_events.push(WindowEvent::KeyUp(
-                        wid,
-                        KeyEvent::new(key_code, mods, false),
-                    ));
-                    if !mods.get_meta() {
-                        forward_to_appkit = false;
-                    }
-                }
-                _ => {}
-            }
-        }
-        if forward_to_appkit {
-            let _: *mut c_void = objc_send_ptr1(app, send_sel, event);
-        }
+        macos_dispatch_single_event(app, event, windows, out_events);
         processed += 1;
+    }
+    let _: *mut c_void = objc_send_ptr0(app, objc_sel(OBJC_SEL_UPDATE_WINDOWS));
+}
+
+/// Blocks inside AppKit's kernel run loop (`[NSDate distantFuture]`) with zero CPU usage until an OS event wakes the app.
+///
+/// # Arguments
+///
+/// - `&HashMap<WindowId, MacOsWindowRecord>` - Open native macOS windows.
+/// - `&mut Vec<WindowEvent>` - Output event queue receiving the waking event.
+pub(crate) fn macos_wait_next_event(
+    windows: &HashMap<WindowId, MacOsWindowRecord>,
+    out_events: &mut Vec<WindowEvent>,
+) {
+    if windows.is_empty() {
+        return;
+    }
+    let app_cls: *mut c_void = objc_class(OBJC_CLS_NS_APPLICATION);
+    let app: *mut c_void = objc_send_ptr0(app_cls, objc_sel(OBJC_SEL_SHARED_APP));
+    if app.is_null() {
+        return;
+    }
+    let date_cls: *mut c_void = objc_class(OBJC_CLS_NS_DATE);
+    let distant_future: *mut c_void = objc_send_ptr0(date_cls, objc_sel(OBJC_SEL_DISTANT_FUTURE));
+    let mode_ns: *mut c_void = macos_ns_string(NS_DEFAULT_RUN_LOOP_MODE);
+    let next_sel: *mut c_void = objc_sel(OBJC_SEL_NEXT_EVENT);
+    // SAFETY: Invokes `-[NSApplication nextEventMatchingMask:untilDate:inMode:dequeue:]` blocking on `[NSDate distantFuture]`.
+    let event: *mut c_void = unsafe {
+        let next_fn: unsafe extern "C" fn(
+            *mut c_void,
+            *mut c_void,
+            usize,
+            *mut c_void,
+            *mut c_void,
+            i8,
+        ) -> *mut c_void = transmute(objc_msgSend as *const ());
+        next_fn(app, next_sel, NS_EVENT_MASK_ANY, distant_future, mode_ns, 1)
+    };
+    if !event.is_null() {
+        macos_dispatch_single_event(app, event, windows, out_events);
     }
     let _: *mut c_void = objc_send_ptr0(app, objc_sel(OBJC_SEL_UPDATE_WINDOWS));
 }
@@ -991,6 +1051,29 @@ pub(crate) fn macos_remove_live_resize_timer(timer: *mut c_void) {
     unsafe {
         CFRunLoopTimerInvalidate(timer);
         CFRelease(timer.cast_const());
+    }
+}
+
+/// Suspends or resumes a `CFRunLoopTimerRef` so backgrounded macOS apps wake 0 times per second.
+///
+/// # Arguments
+///
+/// - `*mut c_void` - Retained `CFRunLoopTimerRef` handle (no-op when null).
+/// - `bool` - `true` to push next fire date to distant future; `false` to resume at native refresh cadence.
+pub(crate) fn macos_set_live_resize_timer_paused(timer: *mut c_void, paused: bool) {
+    if timer.is_null() {
+        return;
+    }
+    let next_fire: f64 = if paused {
+        1.0e15
+    } else {
+        let interval: f64 = 1.0 / (macos_display_refresh_rate_hz().clamp(60.0, 360.0) as f64);
+        // SAFETY: `CFAbsoluteTimeGetCurrent` is thread-safe and returns monotonic CF seconds.
+        unsafe { CFAbsoluteTimeGetCurrent() + interval }
+    };
+    // SAFETY: Valid `CFRunLoopTimerRef` owned by caller on the main run-loop thread.
+    unsafe {
+        CFRunLoopTimerSetNextFireDate(timer, next_fire);
     }
 }
 
@@ -1233,6 +1316,21 @@ pub(crate) fn macos_app_is_active() -> bool {
         return true;
     }
     objc_send_bool0(app, objc_sel(OBJC_SEL_IS_ACTIVE))
+}
+
+/// Queries whether the macOS `NSApplication` is currently hidden (e.g., via Cmd+H).
+///
+/// # Returns
+///
+/// - `bool` - `true` when hidden; `false` when visible or AppKit is unavailable.
+#[must_use]
+pub(crate) fn macos_app_is_hidden() -> bool {
+    let app_cls: *mut c_void = objc_class(OBJC_CLS_NS_APPLICATION);
+    let app: *mut c_void = objc_send_ptr0(app_cls, objc_sel(OBJC_SEL_SHARED_APP));
+    if app.is_null() {
+        return false;
+    }
+    objc_send_bool0(app, objc_sel(OBJC_SEL_IS_HIDDEN))
 }
 
 /// Queries whether macOS Low Power Mode is currently enabled via `NSProcessInfo.isLowPowerModeEnabled`.

@@ -43,6 +43,9 @@ pub(crate) const UIKIT_SEL_LAYER: &str = "layer\0";
 /// Objective-C selector for `setContents:`.
 pub(crate) const UIKIT_SEL_SET_CONTENTS: &str = "setContents:\0";
 
+/// Objective-C selector for `setPaused:` on `CADisplayLink`.
+pub(crate) const UIKIT_SEL_SET_PAUSED: &str = "setPaused:\0";
+
 /// `UIUserInterfaceIdiomPad` enum integer value (`1`).
 pub(crate) const UI_USER_INTERFACE_IDIOM_PAD: isize = 1;
 

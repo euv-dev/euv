@@ -14,6 +14,7 @@ impl Default for WindowsPlatform {
             windows: HashMap::new(),
             pending_events: Vec::new(),
             clipboard_cache: None,
+            pump_paused: false,
         }
     }
 }
@@ -243,6 +244,45 @@ impl PlatformBackend for WindowsPlatform {
         } = self;
         win32_pump_messages(windows, pending_events);
         take(pending_events)
+    }
+
+    /// Blocks via Win32 `WaitMessage` with zero CPU usage until an OS message arrives, then drains all messages.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable Windows platform.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<WindowEvent>` - Events received upon wake.
+    fn wait_for_events(&mut self) -> Vec<WindowEvent> {
+        if self.get_pending_events().is_empty() && !self.get_windows().is_empty() {
+            win32_wait_for_message();
+        }
+        self.poll_events()
+    }
+
+    /// Updates Win32 background frame-pump pause state.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable Windows platform.
+    /// - `bool` - `true` when paused in background; `false` when active.
+    fn set_frame_pump_paused(&mut self, paused: bool) {
+        self.set_pump_paused(paused);
+    }
+
+    /// Returns whether the Win32 frame pump is currently paused for background freeze.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Platform reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when paused in background.
+    fn is_frame_pump_paused(&self) -> bool {
+        self.get_pump_paused()
     }
 
     /// Blits `framebuffer` directly to the Win32 `HWND` via GDI `StretchDIBits`.
