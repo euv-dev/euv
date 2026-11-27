@@ -364,6 +364,12 @@ pub struct ShowcaseState {
     pub(crate) bg_snap_video_playing: Rc<Cell<bool>>,
     /// Snapshot of whether Media Studio audio playback was playing before background.
     pub(crate) bg_snap_audio_playing: Rc<Cell<bool>>,
+    /// Guard flag ensuring Media Studio sample codecs/frames hydrate lazily on first `/media` visit.
+    pub(crate) media_loaded: Rc<Cell<bool>>,
+    /// Guard flag ensuring `.wasm` OTA binaries populate lazily on first `/dynamic` visit.
+    pub(crate) wasm_registry_loaded: Rc<Cell<bool>>,
+    /// Guard flag ensuring Stress Lab workload catalog hydrates lazily on first `/stress` visit.
+    pub(crate) stress_loaded: Rc<Cell<bool>>,
 }
 
 /// Full-featured 2D arcade arena scene powered by `GameWorld`, `PhysicsWorld2D`, `Camera2D`, `ParticleSystem`, `TileMap`, `ActionMap`, and `AudioBus`.
@@ -411,6 +417,9 @@ pub struct DemoPhysicsScene {
     /// Last rendered viewport size in logical pixels for responsive camera framing in inline and fullscreen modes.
     #[get(type(copy))]
     pub(crate) viewport_size: Size,
+    /// Whether the full arena tilemap, entities, and particle pool have been lazily initialized.
+    #[get(type(copy))]
+    pub(crate) initialized: bool,
 }
 
 /// Interactive AAA 3D open-world city scene with PBR shading, BVH ray tracing, model importing, and runtime settings.
@@ -443,4 +452,7 @@ pub struct DemoOpenWorld3DScene {
     /// Smoothed real-time FPS telemetry.
     #[get(type(copy))]
     pub(crate) smoothed_fps: f32,
+    /// Whether the 3D city meshes, materials, and BVH acceleration structure have been lazily built.
+    #[get(type(copy))]
+    pub(crate) initialized: bool,
 }

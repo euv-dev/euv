@@ -76,11 +76,17 @@ impl EuvModal {
                 if is_open {
                     handle.with_write(
                         |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(backdrop);
+                            tree.cancel_subtree_transitions(dialog);
                             if let Some(n) = tree.get_node_mut(backdrop) {
-                                n.get_mut_style()
-                                    .get_mut_paint()
-                                    .set_pointer_events(PointerEvents::Auto);
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::Flex);
+                                st.get_mut_paint()
+                                    .set_pointer_events(PointerEvents::Auto)
+                                    .set_transform(Transform2D::default());
                             }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(backdrop, dirty_l | DIRTY_PAINT);
                             tree.start_transition(
                                 NodeTransition::fade(backdrop, 0.0, 1.0, 0.22, false)
                                     .with_easing(Easing::EaseOutQuint),
@@ -92,19 +98,24 @@ impl EuvModal {
                 } else {
                     handle.with_write(
                         |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(backdrop);
+                            tree.cancel_subtree_transitions(dialog);
                             if let Some(n) = tree.get_node_mut(backdrop) {
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::None);
+                                st.get_mut_paint()
+                                    .set_pointer_events(PointerEvents::None)
+                                    .set_opacity(1.0)
+                                    .set_transform(Transform2D::default());
+                            }
+                            if let Some(n) = tree.get_node_mut(dialog) {
                                 n.get_mut_style()
                                     .get_mut_paint()
-                                    .set_pointer_events(PointerEvents::None);
+                                    .set_opacity(1.0)
+                                    .set_transform(Transform2D::default());
                             }
-                            tree.start_transition(
-                                NodeTransition::modal_exit(dialog)
-                                    .with_easing(Easing::EaseOutCubic),
-                            );
-                            tree.start_transition(
-                                NodeTransition::fade(backdrop, 1.0, 0.0, 0.18, true)
-                                    .with_easing(Easing::EaseOutCubic),
-                            );
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(backdrop, dirty_l | DIRTY_PAINT);
                         },
                         (),
                     );
@@ -143,13 +154,20 @@ impl EuvToast {
         let Self { message, .. } = self;
         let message_owned: String = message.clone();
         let init_vis: bool = visible.get_untracked();
+        let safe_sig: Signal<SafeAreaInsets> = ctx.get_safe_area();
+        let init_safe: SafeAreaInsets = safe_sig.get_untracked();
         let toast: NodeId = view! {
             portal {
                 style: Style::default().row()
                 align: AlignItems::Center
                 display: if init_vis { Display::Flex } else { Display::None }
                 position: Position::Fixed
-                inset: (None, Some(SPACE_LG), Some(SPACE_LG), None)
+                inset: (
+                    None,
+                    Some(SPACE_LG + init_safe.get_right()),
+                    Some(SPACE_LG + init_safe.get_bottom()),
+                    None
+                )
                 padding: Edges::symmetric(SPACE_SM, SPACE_LG)
                 background: bg
                 radius: g.get_radius_md()
@@ -167,8 +185,25 @@ impl EuvToast {
             }
         };
         let handle: SceneHandle = ctx.get_scene().clone();
+        let handle_safe: SceneHandle = handle.clone();
         let prev_vis: Rc<Cell<bool>> = Rc::new(Cell::new(init_vis));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            let _: Effect = Effect::new(move || {
+                let safe: SafeAreaInsets = safe_sig.get();
+                handle_safe.with_write(
+                    |tree: &mut SceneTree| {
+                        if let Some(n) = tree.get_node_mut(toast) {
+                            n.get_mut_style()
+                                .get_mut_layout()
+                                .set_right(Some(SPACE_LG + safe.get_right()))
+                                .set_bottom(Some(SPACE_LG + safe.get_bottom()));
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(toast, dirty_l | DIRTY_PAINT);
+                        }
+                    },
+                    (),
+                );
+            });
             Effect::new(move || {
                 let is_vis: bool = visible.get();
                 let was_vis: bool = prev_vis.replace(is_vis);
@@ -176,32 +211,40 @@ impl EuvToast {
                     return;
                 }
                 if is_vis {
-                    handle.start_transition(
-                        NodeTransition::slide_fade(
-                            toast,
-                            Point::new(0.0, 22.0),
-                            Point::new(0.0, 0.0),
-                            0.0,
-                            1.0,
-                            0.28,
-                            false,
-                        )
-                        .with_scale(0.92, 1.0)
-                        .with_easing(Easing::SpringSnappy),
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(toast);
+                            tree.start_transition(
+                                NodeTransition::slide_fade(
+                                    toast,
+                                    Point::new(0.0, 22.0),
+                                    Point::new(0.0, 0.0),
+                                    0.0,
+                                    1.0,
+                                    0.28,
+                                    false,
+                                )
+                                .with_scale(0.92, 1.0)
+                                .with_easing(Easing::SpringSnappy),
+                            );
+                        },
+                        (),
                     );
                 } else {
-                    handle.start_transition(
-                        NodeTransition::slide_fade(
-                            toast,
-                            Point::new(0.0, 0.0),
-                            Point::new(0.0, 14.0),
-                            1.0,
-                            0.0,
-                            0.18,
-                            true,
-                        )
-                        .with_scale(1.0, 0.96)
-                        .with_easing(Easing::EaseOutCubic),
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(toast);
+                            if let Some(n) = tree.get_node_mut(toast) {
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::None);
+                                st.get_mut_paint()
+                                    .set_opacity(1.0)
+                                    .set_transform(Transform2D::default());
+                            }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(toast, dirty_l | DIRTY_PAINT);
+                        },
+                        (),
                     );
                 }
             })

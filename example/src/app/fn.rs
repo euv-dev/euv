@@ -14,6 +14,9 @@ pub fn create_showcase_app(
     headless: bool,
     mode: RenderMode,
 ) -> Result<(App, ShowcaseState), PlatformError> {
+    EuvOverlayStack::clear();
+    reset_fullscreen_state();
+    clear_provided_theme();
     let render_cfg: RenderConfig = match mode {
         RenderMode::Software => RenderConfig::software(),
         RenderMode::Hardware => RenderConfig::hardware(),
@@ -67,6 +70,9 @@ pub fn create_showcase_app_for_platform(
     platform: PlatformKind,
     mode: RenderMode,
 ) -> Result<(App, ShowcaseState), PlatformError> {
+    EuvOverlayStack::clear();
+    reset_fullscreen_state();
+    clear_provided_theme();
     let render_cfg: RenderConfig = match mode {
         RenderMode::Software => RenderConfig::software(),
         RenderMode::Hardware => RenderConfig::hardware(),
@@ -172,6 +178,9 @@ fn dump_rgba_frame(
 #[cfg(not(target_arch = "wasm32"))]
 pub fn capture_showcase_screenshots(out_dir: &Path) -> Result<usize, PlatformError> {
     reset_reactive_runtime();
+    EuvOverlayStack::clear();
+    reset_fullscreen_state();
+    clear_provided_theme();
     fs::create_dir_all(out_dir)
         .map_err(|err: Error| PlatformError::InitializationFailed(err.to_string()))?;
     let mut window_cfg: WindowConfig = WindowConfig::default();
@@ -1202,6 +1211,45 @@ fn web_attach_ime_proxy(doc: &Document) {
 /// - `bool` - `true` when handled by the browser bridge.
 #[cfg(target_arch = "wasm32")]
 fn web_native_action_bridge(kind: &str, arg1: &str, _arg2: &str) -> bool {
+    if kind == NATIVE_ACTION_FULLSCREEN {
+        let Some(win) = window() else {
+            return false;
+        };
+        let Some(doc) = win.document() else {
+            return false;
+        };
+        if arg1 == WEB_FS_ACTION_ON {
+            if let Some(root_el) = doc.document_element()
+                && let Ok(func_val) = Reflect::get(
+                    root_el.as_ref(),
+                    &JsValue::from_str(WEB_METHOD_REQUEST_FULLSCREEN),
+                )
+                && let Ok(func) = func_val.dyn_into::<Function>()
+            {
+                let _: Result<JsValue, JsValue> = func.call0(root_el.as_ref());
+                return true;
+            }
+            return false;
+        }
+        if arg1 == WEB_FS_ACTION_OFF {
+            let active_fs: bool = Reflect::get(
+                doc.as_ref(),
+                &JsValue::from_str(WEB_PROP_FULLSCREEN_ELEMENT),
+            )
+            .map(|v: JsValue| !v.is_null() && !v.is_undefined())
+            .unwrap_or(false);
+            if active_fs
+                && let Ok(func_val) =
+                    Reflect::get(doc.as_ref(), &JsValue::from_str(WEB_METHOD_EXIT_FULLSCREEN))
+                && let Ok(func) = func_val.dyn_into::<Function>()
+            {
+                let _: Result<JsValue, JsValue> = func.call0(doc.as_ref());
+                return true;
+            }
+            return false;
+        }
+        return false;
+    }
     if kind != NATIVE_ACTION_IME {
         return false;
     }

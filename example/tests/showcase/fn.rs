@@ -100,7 +100,8 @@ fn scroll_and_click_label(app: &mut App, label: &str) -> FrameStats {
 }
 
 fn open_nav_and_click(app: &mut App, label: &str) -> FrameStats {
-    let _: FrameStats = click_label(app, "E");
+    let menu_pt: Point = find_a11y_center(app, "Menu");
+    let _: FrameStats = click_at(app, menu_pt);
     for _ in 0..20 {
         let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
     }
@@ -383,7 +384,8 @@ fn instant_responsive_resize_adapts_shell_and_all_ten_pages_without_horizontal_o
         Breakpoint::Compact
     );
     assert_ne!(f_mob.get_frame_hash(), f_tab.get_frame_hash());
-    let f_menu_open: FrameStats = click_label(&mut app, "E");
+    let menu_pt: Point = find_a11y_center(&app, "Menu");
+    let f_menu_open: FrameStats = click_at(&mut app, menu_pt);
     assert_ne!(f_menu_open.get_frame_hash(), f_mob.get_frame_hash());
     for _ in 0..20 {
         let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
@@ -613,10 +615,6 @@ fn fast_wheel_scroll_scrollbar_slider_drag_animations_touch_scroll_and_game_keys
     assert!(!app.has_active_animations());
     let _: FrameStats = click_at(&mut app, Point::new(12.0, 12.0));
     assert!(!state.get_modal_open().get_untracked());
-    assert!(app.has_active_animations());
-    for _ in 0..18 {
-        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
-    }
     assert!(!app.has_active_animations());
     let _: FrameStats = click_label(&mut app, "Alert Dialog");
     for _ in 0..18 {
@@ -1267,7 +1265,9 @@ fn twitter_bottom_nav_swipe_routing_live_fps_drawer_drag_and_dropdown_width_work
     let has_fps_badge: bool = app.get_scene().with_read(
         |tree: &SceneTree| {
             tree.get_nodes().iter().any(|n: &SceneNode| {
-                n.get_alive() && matches!(n.get_kind(), NodeKind::Text(t) if t.contains("FPS"))
+                n.get_alive()
+                    && n.a11y_props_ref()
+                        .is_some_and(|a: &A11yProps| a.get_label() == "Live FPS")
             })
         },
         false,
@@ -1825,4 +1825,113 @@ fn showcase_background_freeze_suspends_all_stateful_pages_and_restores_losslessl
         false,
     );
     assert!(has_freeze_telemetry);
+}
+
+fn find_a11y_center(app: &App, label: &str) -> Point {
+    app.get_scene().with_read(
+        |tree: &SceneTree| {
+            for (idx, node) in tree.get_nodes().iter().enumerate() {
+                if !node.get_alive() || node.style_ref().get_layout().get_display() == Display::None
+                {
+                    continue;
+                }
+                if node
+                    .a11y_props_ref()
+                    .is_some_and(|a: &A11yProps| a.get_label() == label)
+                {
+                    let nid: NodeId = NodeId::new(idx as u32, node.get_generation());
+                    if let Some(bounds) = tree.node_screen_bounds(nid)
+                        && bounds.get_width() > 0.0
+                        && bounds.get_height() > 0.0
+                    {
+                        return Point::new(
+                            bounds.get_x() + bounds.get_width() * 0.5,
+                            bounds.get_y() + bounds.get_height() * 0.5,
+                        );
+                    }
+                }
+            }
+            Point::new(-1.0, -1.0)
+        },
+        Point::new(-1.0, -1.0),
+    )
+}
+
+#[test]
+fn showcase_lazy_cold_start_icon_chrome_and_50_cycle_exit_reenter_stay_responsive() {
+    reset_reactive_runtime();
+    let (mut app, state): (App, ShowcaseState) =
+        create_showcase_app(true, RenderMode::Software).unwrap();
+    let _: FrameStats = app.step_frame().unwrap();
+    assert!(!state.get_media_loaded().get());
+    assert!(!state.get_wasm_registry_loaded().get());
+    assert!(!state.get_stress_loaded().get());
+    let mode_btn: Point = find_a11y_center(&app, BTN_MODE_A11Y);
+    assert!(mode_btn.get_x() >= 0.0);
+    let _: FrameStats = click_at(&mut app, mode_btn);
+    assert_eq!(
+        state.get_theme().get_mode().get_untracked(),
+        ThemeMode::Dark
+    );
+    let scheme_before: DesignScheme = state.get_theme().get_scheme().get_untracked();
+    let scheme_btn: Point = find_a11y_center(&app, BTN_SCHEME_A11Y);
+    assert!(scheme_btn.get_x() >= 0.0);
+    let _: FrameStats = click_at(&mut app, scheme_btn);
+    assert_ne!(
+        state.get_theme().get_scheme().get_untracked(),
+        scheme_before
+    );
+    let search_btn: Point = find_a11y_center(&app, BTN_SEARCH_A11Y);
+    assert!(search_btn.get_x() >= 0.0);
+    let _: FrameStats = click_at(&mut app, search_btn);
+    assert!(state.get_cmd_palette_open().get_untracked());
+    assert!(EuvOverlayStack::dismiss_top());
+    let _: FrameStats = app.step_frame().unwrap();
+    assert!(!state.get_cmd_palette_open().get_untracked());
+    for cycle in 0..25u32 {
+        if cycle % 5 == 0 {
+            let _: bool = state.get_cmd_palette_open().set_if_changed(true);
+            enter_fullscreen();
+            let _: FrameStats = app.step_frame().unwrap();
+        }
+        app.dispatch_window_event(WindowEvent::System(SystemEvent::Inactive));
+        app.dispatch_window_event(WindowEvent::System(SystemEvent::Background));
+        app.dispatch_window_event(WindowEvent::System(SystemEvent::Foreground));
+        if is_fullscreen_active() {
+            reset_fullscreen_state();
+        }
+        if EuvOverlayStack::active_count() > 0 {
+            let _: usize = EuvOverlayStack::dismiss_all();
+        }
+        let _: FrameStats = app.step_frame().unwrap();
+    }
+    assert_eq!(EuvOverlayStack::active_count(), 0);
+    assert!(!is_fullscreen_active());
+    assert!(!state.get_bg_frozen().get_untracked());
+    let mode_before_click: ThemeMode = state.get_theme().get_mode().get_untracked();
+    let mode_btn_after: Point = find_a11y_center(&app, BTN_MODE_A11Y);
+    assert!(mode_btn_after.get_x() >= 0.0);
+    let _: FrameStats = click_at(&mut app, mode_btn_after);
+    assert_ne!(
+        state.get_theme().get_mode().get_untracked(),
+        mode_before_click
+    );
+    let _: FrameStats = click_label(&mut app, BNAV_DOCS_LABEL);
+    assert_eq!(state.get_route().get_untracked(), ROUTE_MARKDOWN);
+    for cycle in 0..50u32 {
+        if cycle % 5 == 0 {
+            enter_fullscreen();
+        }
+        reset_reactive_runtime();
+        let (mut re_app, re_state): (App, ShowcaseState) =
+            create_showcase_app(true, RenderMode::Software).unwrap();
+        let _: FrameStats = re_app.step_frame().unwrap();
+        assert_eq!(EuvOverlayStack::active_count(), 0);
+        assert!(!is_fullscreen_active());
+        if cycle % 10 == 0 || cycle == 49 {
+            let _: FrameStats = click_label(&mut re_app, BNAV_DOCS_LABEL);
+            assert_eq!(re_state.get_route().get_untracked(), ROUTE_MARKDOWN);
+        }
+        re_app.dispatch_window_event(WindowEvent::System(SystemEvent::Terminate));
+    }
 }

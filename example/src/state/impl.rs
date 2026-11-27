@@ -11,7 +11,7 @@ impl ShowcaseState {
     pub fn new() -> Self {
         let counter: Signal<i32> = Signal::new(1);
         let doubled: Memo<i32> = computed!((counter) -> i32 => move |n: i32| n * 2);
-        let arena: DemoPhysicsScene = DemoPhysicsScene::create_arena();
+        let arena: DemoPhysicsScene = DemoPhysicsScene::create_lazy_arena();
         let game_host: GameEngineHost = GameEngineHost::new(arena, 1.0 / 60.0);
         game_host.set_paused(true);
         let engine3d_quality: Signal<RenderQualityConfig> =
@@ -25,7 +25,7 @@ impl ShowcaseState {
             "Ready: Cinematic + RT Full GI active — import .OBJ or .glTF live".to_string(),
         );
         let engine3d_camera_mode: Signal<u8> = Signal::new(0);
-        let scene3d: DemoOpenWorld3DScene = DemoOpenWorld3DScene::create_city(
+        let scene3d: DemoOpenWorld3DScene = DemoOpenWorld3DScene::create_lazy_city(
             engine3d_quality,
             engine3d_time_of_day,
             engine3d_import_queue,
@@ -38,7 +38,6 @@ impl ShowcaseState {
             EuvRouter::new(ROUTE_OVERVIEW).with_default_retention(PageRetention::Freeze);
         let dynamic_hub: DynamicUpdateHub = DynamicUpdateHub::new();
         let wasm_registry: RegistryWasmFetcher = RegistryWasmFetcher::default();
-        Self::populate_wasm_registry(&wasm_registry);
         let wasm_manager: WasmDynamicManager = WasmDynamicManager::new(
             dynamic_hub.clone(),
             Rc::new(wasm_registry.clone()),
@@ -106,11 +105,11 @@ impl ShowcaseState {
             calendar_day: Signal::new(25),
             menubar_active: Signal::new(None),
             carousel_index: Signal::new(0),
-            media_gif: Signal::new(GifAnimation::sample_neon_gif()),
-            media_live: Signal::new(LivePhotoAsset::sample_live_photo()),
-            media_video: Signal::new(VideoTrack::sample_hdr_video()),
-            media_audio: Signal::new(AudioTrack::sample_synth_wav()),
-            media_pdf: Signal::new(PdfDocument::sample_pdf()),
+            media_gif: Signal::new(GifAnimation::default()),
+            media_live: Signal::new(LivePhotoAsset::default()),
+            media_video: Signal::new(VideoTrack::default()),
+            media_audio: Signal::new(AudioTrack::default()),
+            media_pdf: Signal::new(PdfDocument::default()),
             media_html_link_log: Signal::new("Click any native HTML link below".to_string()),
             os_target_platform_idx: Signal::new(0),
             island_mode_idx: Signal::new(0),
@@ -155,7 +154,7 @@ impl ShowcaseState {
             ]),
             tree_selected: Signal::new(None),
             breadcrumb_active: Signal::new(2),
-            stress_results: Signal::new(default_stress_results()),
+            stress_results: Signal::new(Vec::new()),
             stress_summary: Signal::new(STRESS_SUMMARY_READY.to_string()),
             router,
             router_ready: Rc::new(Cell::new(false)),
@@ -182,7 +181,52 @@ impl ShowcaseState {
             bg_snap_live_playing: Rc::new(Cell::new(false)),
             bg_snap_video_playing: Rc::new(Cell::new(false)),
             bg_snap_audio_playing: Rc::new(Cell::new(false)),
+            media_loaded: Rc::new(Cell::new(false)),
+            wasm_registry_loaded: Rc::new(Cell::new(false)),
+            stress_loaded: Rc::new(Cell::new(false)),
         }
+    }
+
+    /// Lazily hydrates Media Studio sample assets on first `/media` visit so Frame 1 incurs zero media codec work.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Reactive showcase state reference.
+    pub fn ensure_media_loaded(&self) {
+        if self.get_media_loaded().replace(true) {
+            return;
+        }
+        let _: bool = self.get_media_gif().set(GifAnimation::sample_neon_gif());
+        let _: bool = self
+            .get_media_live()
+            .set(LivePhotoAsset::sample_live_photo());
+        let _: bool = self.get_media_video().set(VideoTrack::sample_hdr_video());
+        let _: bool = self.get_media_audio().set(AudioTrack::sample_synth_wav());
+        let _: bool = self.get_media_pdf().set(PdfDocument::sample_pdf());
+    }
+
+    /// Lazily populates the in-memory `.wasm` OTA registry on first `/dynamic` visit so Frame 1 incurs zero WASM encoding work.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Reactive showcase state reference.
+    pub fn ensure_wasm_registry_loaded(&self) {
+        if self.get_wasm_registry_loaded().replace(true) {
+            return;
+        }
+        Self::populate_wasm_registry(self.get_wasm_registry());
+    }
+
+    /// Lazily initializes the Stress Lab workload descriptors on first `/stress` visit.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Reactive showcase state reference.
+    pub fn ensure_stress_loaded(&self) {
+        if self.get_stress_loaded().replace(true) {
+            return;
+        }
+        let _: bool = self.get_stress_results().set(default_stress_results());
     }
 
     /// Registers genuine executable partial, global, and fault-case `.wasm` binaries into `registry`.
@@ -277,7 +321,7 @@ impl ShowcaseState {
         );
     }
 
-    /// Formats a clean Linear/Vercel-style top bar breadcrumb for `route`.
+    /// Formats a concise single-line top navbar title for `route`.
     ///
     /// # Arguments
     ///
@@ -285,28 +329,28 @@ impl ShowcaseState {
     ///
     /// # Returns
     ///
-    /// - `String` - Formatted breadcrumb path (`"euv Studio  /  Category  /  Page"`).
+    /// - `String` - Concise 1-2 word page title for the top navigation bar.
     #[must_use]
     pub fn breadcrumb_for_route(route: &str) -> String {
-        let (sec, title): (&str, &str) = match route {
-            ROUTE_OVERVIEW => (NAV_SEC_WORKSPACE, NAV_LABEL_OVERVIEW),
-            ROUTE_LAB => (NAV_SEC_WORKSPACE, NAV_LABEL_LAB),
-            ROUTE_MARKDOWN => (NAV_SEC_DESIGN, NAV_LABEL_MARKDOWN),
-            ROUTE_FORMS => (NAV_SEC_DESIGN, NAV_LABEL_FORMS),
-            ROUTE_THEMES => (NAV_SEC_DESIGN, NAV_LABEL_THEMES),
-            ROUTE_OVERLAYS => (NAV_SEC_DESIGN, NAV_LABEL_OVERLAYS),
-            ROUTE_DATA => (NAV_SEC_DESIGN, NAV_LABEL_DATA),
-            ROUTE_GAME_3D => (NAV_SEC_ENGINE, NAV_LABEL_GAME_3D),
-            ROUTE_GAME => (NAV_SEC_ENGINE, NAV_LABEL_GAME),
-            ROUTE_MEDIA => (NAV_SEC_ENGINE, NAV_LABEL_MEDIA),
-            ROUTE_RENDER => (NAV_SEC_ENGINE, NAV_LABEL_RENDER),
-            ROUTE_DYNAMIC => (NAV_SEC_RUNTIME, NAV_LABEL_DYNAMIC),
-            ROUTE_STRESS => (NAV_SEC_RUNTIME, NAV_LABEL_STRESS),
-            ROUTE_WINDOW => (NAV_SEC_RUNTIME, NAV_LABEL_WINDOW),
-            ROUTE_REACTIVE => (NAV_SEC_RUNTIME, NAV_LABEL_REACTIVE),
-            other => (NAV_SEC_RUNTIME, other),
+        let title: &str = match route {
+            ROUTE_OVERVIEW => NAV_TITLE_HOME,
+            ROUTE_LAB => NAV_TITLE_LAB,
+            ROUTE_MARKDOWN => NAV_TITLE_MARKDOWN,
+            ROUTE_FORMS => NAV_TITLE_FORMS,
+            ROUTE_THEMES => NAV_TITLE_THEMES,
+            ROUTE_OVERLAYS => NAV_TITLE_OVERLAYS,
+            ROUTE_DATA => NAV_TITLE_DATA,
+            ROUTE_GAME_3D => NAV_TITLE_GAME_3D,
+            ROUTE_GAME => NAV_TITLE_GAME,
+            ROUTE_MEDIA => NAV_TITLE_MEDIA,
+            ROUTE_RENDER => NAV_TITLE_RENDER,
+            ROUTE_DYNAMIC => NAV_TITLE_DYNAMIC,
+            ROUTE_STRESS => NAV_TITLE_STRESS,
+            ROUTE_WINDOW => NAV_TITLE_WINDOW,
+            ROUTE_REACTIVE => NAV_TITLE_REACTIVE,
+            other => other,
         };
-        format!("{sec} / {title}")
+        title.to_string()
     }
 
     /// Binds `hub` from the active `App` and wires interactive dynamic actions and WASM manager callbacks.
@@ -621,35 +665,37 @@ impl ShowcaseState {
         let game3d_running: bool = !self.get_game3d_host().is_paused();
         self.get_bg_snap_game3d_running().set(game3d_running);
         self.get_game3d_host().set_paused(true);
-        let gif_playing: bool = self.get_media_gif().get_untracked().get_playing();
-        self.get_bg_snap_gif_playing().set(gif_playing);
-        if gif_playing {
-            let _: bool = self.get_media_gif().update(|gif: &mut GifAnimation| {
-                gif.set_playing(false);
-            });
-        }
-        let live_playing: bool = self.get_media_live().get_untracked().get_active_motion();
-        self.get_bg_snap_live_playing().set(live_playing);
-        if live_playing {
-            let _: bool = self.get_media_live().update(|live: &mut LivePhotoAsset| {
-                live.set_motion_playing(false);
-            });
-        }
-        let video_playing: bool =
-            self.get_media_video().get_untracked().get_state() == PlaybackState::Playing;
-        self.get_bg_snap_video_playing().set(video_playing);
-        if video_playing {
-            let _: bool = self.get_media_video().update(|video: &mut VideoTrack| {
-                video.set_state(PlaybackState::Paused);
-            });
-        }
-        let audio_playing: bool =
-            self.get_media_audio().get_untracked().get_state() == PlaybackState::Playing;
-        self.get_bg_snap_audio_playing().set(audio_playing);
-        if audio_playing {
-            let _: bool = self.get_media_audio().update(|audio: &mut AudioTrack| {
-                audio.set_state(PlaybackState::Paused);
-            });
+        if self.get_media_loaded().get() {
+            let gif_playing: bool = self.get_media_gif().get_untracked().get_playing();
+            self.get_bg_snap_gif_playing().set(gif_playing);
+            if gif_playing {
+                let _: bool = self.get_media_gif().update(|gif: &mut GifAnimation| {
+                    gif.set_playing(false);
+                });
+            }
+            let live_playing: bool = self.get_media_live().get_untracked().get_active_motion();
+            self.get_bg_snap_live_playing().set(live_playing);
+            if live_playing {
+                let _: bool = self.get_media_live().update(|live: &mut LivePhotoAsset| {
+                    live.set_motion_playing(false);
+                });
+            }
+            let video_playing: bool =
+                self.get_media_video().get_untracked().get_state() == PlaybackState::Playing;
+            self.get_bg_snap_video_playing().set(video_playing);
+            if video_playing {
+                let _: bool = self.get_media_video().update(|video: &mut VideoTrack| {
+                    video.set_state(PlaybackState::Paused);
+                });
+            }
+            let audio_playing: bool =
+                self.get_media_audio().get_untracked().get_state() == PlaybackState::Playing;
+            self.get_bg_snap_audio_playing().set(audio_playing);
+            if audio_playing {
+                let _: bool = self.get_media_audio().update(|audio: &mut AudioTrack| {
+                    audio.set_state(PlaybackState::Paused);
+                });
+            }
         }
         let _: bool = self.get_bg_frozen().set_if_changed(true);
         let _: bool = self
@@ -714,6 +760,42 @@ impl Default for ShowcaseState {
 
 /// Arena setup and gameplay helper methods for `DemoPhysicsScene`.
 impl DemoPhysicsScene {
+    /// Creates an empty zero-allocation 2D arena placeholder that hydrates lazily on first active tick or render.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Uninitialized lazy arena placeholder.
+    #[must_use]
+    pub fn create_lazy_arena() -> Self {
+        Self {
+            world: GameWorld::default(),
+            physics: PhysicsWorld2D::default(),
+            camera: Camera2D::default(),
+            particles: ParticleSystem::default(),
+            tilemap: TileMap::empty(0, 0, 48.0),
+            actions: ActionMap::default(),
+            audio: AudioBus::default(),
+            player_id: EntityId::default(),
+            fire_cooldown: 0.0,
+            dash_cooldown: 0.0,
+            score: 0,
+            wave: 1,
+            show_colliders: false,
+            smoothed_fps: 0.0,
+            ticks: 0,
+            viewport_size: Size::new(820.0, 340.0),
+            initialized: false,
+        }
+    }
+
+    /// Hydrates the full 2D arena tilemap, entities, and particle pool once on first active simulation or render.
+    fn ensure_initialized(&mut self) {
+        if self.get_initialized() {
+            return;
+        }
+        *self = Self::create_arena();
+    }
+
     /// Builds a playable 1280x720 tiled neon arena with player ship, obstacles, and initial enemy wave.
     ///
     /// # Returns
@@ -830,6 +912,7 @@ impl DemoPhysicsScene {
             smoothed_fps: 0.0,
             ticks: 0,
             viewport_size: Size::new(820.0, 340.0),
+            initialized: true,
         };
         scene.spawn_enemy_wave(8);
         scene
@@ -949,6 +1032,7 @@ impl GameScene for DemoPhysicsScene {
     /// - `f32` - Fixed simulation delta time in seconds.
     /// - `&InputState` - Real-time polled keyboard and pointer state.
     fn fixed_update(&mut self, dt: f32, input: &InputState) {
+        self.ensure_initialized();
         let move_vec: Point = self.get_actions().movement_vector(input);
         let fire_pressed: bool = self.get_actions().is_active(GameAction::Fire, input);
         let dash_pressed: bool = self.get_actions().is_just_pressed(GameAction::Dash, input);
@@ -1114,6 +1198,7 @@ impl GameScene for DemoPhysicsScene {
     /// - `f32` - Interpolation alpha in `[0.0, 1.0]`.
     /// - `&mut GameRenderContext<'_>` - Immediate-mode game draw surface.
     fn render(&mut self, _alpha: f32, ctx: &mut GameRenderContext<'_>) {
+        self.ensure_initialized();
         let size: Size = ctx.viewport_size();
         if size.get_width() > 32.0 && size.get_height() > 32.0 {
             self.set_viewport_size(size);
@@ -1195,6 +1280,51 @@ impl GameScene for DemoPhysicsScene {
 
 /// Construction and runtime-config helpers for `DemoOpenWorld3DScene`.
 impl DemoOpenWorld3DScene {
+    /// Creates an empty zero-allocation 3D city placeholder that builds meshes and BVH lazily on first `/game3d` tick or render.
+    ///
+    /// # Arguments
+    ///
+    /// - `Signal<RenderQualityConfig>` - Live quality/RT/resolution configuration signal.
+    /// - `Signal<f32>` - Live time-of-day sun hour signal.
+    /// - `Signal<u64>` - Monotonic model import request signal.
+    /// - `Signal<String>` - Live status feedback signal.
+    /// - `Signal<u8>` - Active 3D camera mode signal (`0=Chase, 1=Hood, 2=Orbit, 3=Aerial`).
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Uninitialized lazy 3D scene placeholder.
+    #[must_use]
+    pub fn create_lazy_city(
+        quality_signal: Signal<RenderQualityConfig>,
+        time_signal: Signal<f32>,
+        import_signal: Signal<u64>,
+        status_signal: Signal<String>,
+        camera_mode_signal: Signal<u8>,
+    ) -> Self {
+        Self {
+            world: World3D::default(),
+            renderer: Renderer3D::default(),
+            actions: ActionMap::default(),
+            quality_signal,
+            time_signal,
+            import_signal,
+            last_import_seq: 0,
+            status_signal,
+            camera_mode_signal,
+            smoothed_fps: 0.0,
+            initialized: false,
+        }
+    }
+
+    /// Lazily constructs the Vice Boulevard 3D open-world city meshes and BVH once on first active simulation or render.
+    fn ensure_initialized(&mut self) {
+        if self.get_initialized() {
+            return;
+        }
+        self.set_world(World3D::create_open_world_city());
+        self.set_initialized(true);
+    }
+
     /// Creates the live Vice Boulevard 3D open-world scene bound to reactive runtime settings signals.
     ///
     /// # Arguments
@@ -1227,6 +1357,7 @@ impl DemoOpenWorld3DScene {
             status_signal,
             camera_mode_signal,
             smoothed_fps: 0.0,
+            initialized: true,
         }
     }
 }
@@ -1241,6 +1372,7 @@ impl GameScene for DemoOpenWorld3DScene {
     /// - `f32` - Fixed simulation timestep in seconds.
     /// - `&InputState` - Real-time polled keyboard/pointer state.
     fn fixed_update(&mut self, dt: f32, input: &InputState) {
+        self.ensure_initialized();
         let req_seq: u64 = self.get_import_signal().get_untracked();
         if req_seq != self.get_last_import_seq() {
             self.set_last_import_seq(req_seq);
@@ -1316,6 +1448,7 @@ impl GameScene for DemoOpenWorld3DScene {
     /// - `f32` - Interpolation alpha.
     /// - `&mut GameRenderContext<'_>` - Immediate-mode viewport draw context.
     fn render(&mut self, _alpha: f32, ctx: &mut GameRenderContext<'_>) {
+        self.ensure_initialized();
         let size: Size = ctx.viewport_size();
         let quality: RenderQualityConfig = self.get_quality_signal().get_untracked();
         let dpi_boost: f32 = match quality.get_preset() {

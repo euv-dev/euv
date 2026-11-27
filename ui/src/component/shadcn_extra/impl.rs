@@ -171,11 +171,17 @@ impl EuvAlertDialog {
                 if is_open {
                     handle.with_write(
                         |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(scrim);
+                            tree.cancel_subtree_transitions(card);
                             if let Some(n) = tree.get_node_mut(scrim) {
-                                n.get_mut_style()
-                                    .get_mut_paint()
-                                    .set_pointer_events(PointerEvents::Auto);
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::Flex);
+                                st.get_mut_paint()
+                                    .set_pointer_events(PointerEvents::Auto)
+                                    .set_transform(Transform2D::default());
                             }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(scrim, dirty_l | DIRTY_PAINT);
                             tree.start_transition(NodeTransition::fade(
                                 scrim, 0.0, 1.0, 0.20, false,
                             ));
@@ -186,15 +192,24 @@ impl EuvAlertDialog {
                 } else {
                     handle.with_write(
                         |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(scrim);
+                            tree.cancel_subtree_transitions(card);
                             if let Some(n) = tree.get_node_mut(scrim) {
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::None);
+                                st.get_mut_paint()
+                                    .set_pointer_events(PointerEvents::None)
+                                    .set_opacity(1.0)
+                                    .set_transform(Transform2D::default());
+                            }
+                            if let Some(n) = tree.get_node_mut(card) {
                                 n.get_mut_style()
                                     .get_mut_paint()
-                                    .set_pointer_events(PointerEvents::None);
+                                    .set_opacity(1.0)
+                                    .set_transform(Transform2D::default());
                             }
-                            tree.start_transition(NodeTransition::modal_exit(card));
-                            tree.start_transition(NodeTransition::fade(
-                                scrim, 1.0, 0.0, 0.18, true,
-                            ));
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(scrim, dirty_l | DIRTY_PAINT);
                         },
                         (),
                     );

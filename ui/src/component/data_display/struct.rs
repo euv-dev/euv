@@ -29,7 +29,7 @@ pub struct EuvAvatar {
 /// Crisp vector-rendered symbolic icon badge.
 #[derive(Clone, Data, New, Props)]
 pub struct EuvIcon {
-    /// Symbolic glyph string.
+    /// Symbolic glyph string (used when `icon` is `None`).
     pub(crate) symbol: String,
     /// Icon box size in logical pixels.
     #[get(type(copy))]
@@ -37,6 +37,11 @@ pub struct EuvIcon {
     /// Foreground color.
     #[get(type(copy))]
     pub(crate) color: Color,
+    /// Optional built-in native vector glyph drawn directly via `DisplayList` primitives.
+    #[new(skip)]
+    #[get(type(copy))]
+    #[prop(default = None)]
+    pub(crate) icon: Option<EuvIconName>,
 }
 
 /// Keyboard shortcut keycap indicator (`Cmd`, `Ctrl`, `K`).

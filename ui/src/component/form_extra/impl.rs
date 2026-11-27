@@ -470,8 +470,19 @@ impl EuvSlider {
         ctx.on_pointer_up(track, move |_: &UiEvent| {
             drag_up.set(false);
         });
+        let drag_cancel: Rc<Cell<bool>> = dragging.clone();
+        ctx.on_pointer_cancel(track, move |_: &UiEvent| {
+            drag_cancel.set(false);
+        });
+        let drag_state: Rc<Cell<bool>> = dragging.clone();
+        let app_state_sig: Signal<AppState> = ctx.get_app_state();
         let scene_watch: SceneHandle = ctx.get_scene().clone();
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            let _: Effect = Effect::new(move || {
+                if app_state_sig.get() != AppState::Active {
+                    drag_state.set(false);
+                }
+            });
             Effect::new(move || {
                 let _: f32 = value.get();
                 scene_watch.mark_dirty(track, DIRTY_PAINT);
@@ -615,6 +626,8 @@ impl EuvSelect {
         let handle: SceneHandle = ctx.get_scene().clone();
         let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(init_open));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            let _: Effect =
+                EuvOverlayStack::bind_signal(open, SELECT_OVERLAY_NAME, Z_INDEX_DRAWER - 10);
             Effect::new(move || {
                 let is_open: bool = open.get();
                 let was_open: bool = prev_open.replace(is_open);
@@ -622,32 +635,48 @@ impl EuvSelect {
                     return;
                 }
                 if is_open {
-                    handle.start_transition(
-                        NodeTransition::slide_fade(
-                            menu,
-                            Point::new(0.0, -8.0),
-                            Point::new(0.0, 0.0),
-                            0.0,
-                            1.0,
-                            0.24,
-                            false,
-                        )
-                        .with_scale(0.95, 1.0)
-                        .with_easing(Easing::SpringSnappy),
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(menu);
+                            if let Some(n) = tree.get_node_mut(menu) {
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::Flex);
+                                st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
+                            }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(menu, dirty_l | DIRTY_PAINT);
+                            tree.start_transition(
+                                NodeTransition::slide_fade(
+                                    menu,
+                                    Point::new(0.0, -8.0),
+                                    Point::new(0.0, 0.0),
+                                    0.0,
+                                    1.0,
+                                    0.24,
+                                    false,
+                                )
+                                .with_scale(0.95, 1.0)
+                                .with_easing(Easing::SpringSnappy),
+                            );
+                        },
+                        (),
                     );
                 } else {
-                    handle.start_transition(
-                        NodeTransition::slide_fade(
-                            menu,
-                            Point::new(0.0, 0.0),
-                            Point::new(0.0, -5.0),
-                            1.0,
-                            0.0,
-                            0.14,
-                            true,
-                        )
-                        .with_scale(1.0, 0.96)
-                        .with_easing(Easing::EaseOutCubic),
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(menu);
+                            if let Some(n) = tree.get_node_mut(menu) {
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::None);
+                                st.get_mut_paint()
+                                    .set_pointer_events(PointerEvents::None)
+                                    .set_opacity(1.0)
+                                    .set_transform(Transform2D::default());
+                            }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(menu, dirty_l | DIRTY_PAINT);
+                        },
+                        (),
                     );
                 }
             })

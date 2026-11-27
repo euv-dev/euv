@@ -20,6 +20,16 @@ pub struct EuvButton {
     #[get(type(copy))]
     #[prop(custom)]
     pub(crate) disabled: bool,
+    /// Whether the button expands (`flex_grow: 1.0`) to fill available space in flex rows.
+    #[new(skip)]
+    #[get(type(copy))]
+    #[prop(custom)]
+    pub(crate) fill: bool,
+    /// Optional minimum logical width in pixels for auto-fill wrapping button rows.
+    #[new(skip)]
+    #[get(type(copy))]
+    #[prop(custom)]
+    pub(crate) min_width: Option<f32>,
     /// Active theme token bundle.
     #[get(type(copy))]
     pub(crate) tokens: ThemeTokens,

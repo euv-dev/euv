@@ -311,7 +311,8 @@ impl EuvTabs {
             .set_width(Length::Percent(100.0))
             .set_row_gap(SPACE_XS)
             .set_column_gap(SPACE_XS)
-            .set_padding(Edges::all(SPACE_XS));
+            .set_padding(Edges::all(SPACE_XS))
+            .set_overflow(Overflow::Hidden);
         bar_st
             .get_mut_paint()
             .set_background(Some(init_p.get_muted()))

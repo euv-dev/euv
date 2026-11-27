@@ -610,30 +610,7 @@ pub(crate) fn build_code_line_nodes(
 /// - `&mut DisplayList` - Active draw command list.
 /// - `Color` - Stroke color.
 pub(crate) fn draw_code_fullscreen_icon(bounds: Rect, dl: &mut DisplayList, col: Color) {
-    let x0: f32 = bounds.get_x() + 1.5;
-    let y0: f32 = bounds.get_y() + 1.5;
-    let x1: f32 = bounds.right() - 1.5;
-    let y1: f32 = bounds.bottom() - 1.5;
-    let arm: f32 = 4.0;
-    for (a, b) in [
-        (Point::new(x0, y0 + arm), Point::new(x0, y0)),
-        (Point::new(x0, y0), Point::new(x0 + arm, y0)),
-        (Point::new(x1 - arm, y0), Point::new(x1, y0)),
-        (Point::new(x1, y0), Point::new(x1, y0 + arm)),
-        (Point::new(x0, y1 - arm), Point::new(x0, y1)),
-        (Point::new(x0, y1), Point::new(x0 + arm, y1)),
-        (Point::new(x1 - arm, y1), Point::new(x1, y1)),
-        (Point::new(x1, y1), Point::new(x1, y1 - arm)),
-    ]
-    .into_iter()
-    {
-        dl.push(DrawCommand::Line {
-            from: a,
-            to: b,
-            color: col,
-            width: 1.4,
-        });
-    }
+    draw_euv_icon(EuvIconName::Maximize, bounds, dl, col);
 }
 
 /// Compares an ASCII-lowercase table key against a candidate slice case-insensitively without heap allocation.

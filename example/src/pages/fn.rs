@@ -74,6 +74,7 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
     let state_c: ShowcaseState = state.clone();
     let bg_state: ShowcaseState = state.clone();
     let fg_state: ShowcaseState = state.clone();
+    let sys_state: ShowcaseState = state.clone();
     let sys_log_sig: Signal<Vec<String>> = state.get_system_event_log();
     let sys_count_sig: Signal<u32> = state.get_system_event_count();
     let (ev_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
@@ -84,6 +85,13 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
             fg_state.restore_from_foreground();
         });
         let _: SystemEventSubscription = on_system_event(move |ev: &SystemEvent| {
+            if matches!(ev, SystemEvent::Terminate) {
+                sys_state.freeze_for_background();
+                let _: usize = EuvOverlayStack::dismiss_all();
+                reset_fullscreen_state();
+            } else if matches!(ev, SystemEvent::Foreground) {
+                sys_state.restore_from_foreground();
+            }
             let next_seq: u32 = sys_count_sig.get_untracked().saturating_add(1);
             let _: bool = sys_count_sig.set(next_seq);
             let entry: String = format!("#{next_seq}: {ev:?}");
@@ -344,54 +352,16 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                             let st_dark_top: ShowcaseState = state_shell.clone();
                             let st_scheme_top: ShowcaseState = state_shell.clone();
                             let st_dark_mobile: ShowcaseState = state_shell.clone();
+                            let st_scheme_mobile: ShowcaseState = state_shell.clone();
                             let theme_mode_sig: Signal<ThemeMode> = state_shell.get_theme().get_mode();
-                            let theme_scheme_sig: Signal<DesignScheme> = state_shell.get_theme().get_scheme();
-                            let mode_text_desktop = move || -> String {
-                                match theme_mode_sig.get() {
-                                    ThemeMode::Dark => LABEL_MODE_LIGHT.to_string(),
-                                    ThemeMode::Light => LABEL_MODE_DARK.to_string(),
-                                }
-                            };
-                            let mode_text_mobile = move || -> String {
-                                match theme_mode_sig.get() {
-                                    ThemeMode::Dark => LABEL_MODE_LIGHT.to_string(),
-                                    ThemeMode::Light => LABEL_MODE_DARK.to_string(),
-                                }
-                            };
-                            let scheme_text_desktop = move || -> String {
-                                format!("{:?}", theme_scheme_sig.get())
-                            };
-                            let scheme_btn_style = move || -> Style {
+                            let icon_btn_style_desk = move || -> Style {
                                 let live_tok: ThemeTokens = use_live_tokens(tokens);
                                 let live_p: ThemePalette = live_tok.get_palette();
                                 let live_g: ThemeGeometry = live_tok.get_geometry();
                                 Style::default()
                                 .row()
-                                .height(Length::Px(live_g.get_control_sm()))
-                                .padding(Edges::symmetric(0.0, SPACE_SM))
-                                .justify(JustifyContent::Center)
-                                .align(AlignItems::Center)
-                                .background(live_p.get_secondary())
-                                .border(live_g.get_border_width(), live_p.get_border())
-                                .radius(live_g.get_radius_md())
-                                .cursor(CursorIcon::Pointer)
-                            };
-                            let scheme_lbl_style = move || -> Style {
-                                let live_p: ThemePalette = use_live_tokens(tokens).get_palette();
-                                Style::default()
-                                .font_size(12.5)
-                                .font_weight(FontWeight::SemiBold)
-                                .color(live_p.get_secondary_foreground())
-                                .text_overflow(TextOverflow::Clip)
-                            };
-                            let mode_btn_style = move || -> Style {
-                                let live_tok: ThemeTokens = use_live_tokens(tokens);
-                                let live_p: ThemePalette = live_tok.get_palette();
-                                let live_g: ThemeGeometry = live_tok.get_geometry();
-                                Style::default()
-                                .row()
-                                .height(Length::Px(live_g.get_control_sm()))
-                                .padding(Edges::symmetric(0.0, SPACE_SM))
+                                .width(Length::Px(30.0))
+                                .height(Length::Px(30.0))
                                 .justify(JustifyContent::Center)
                                 .align(AlignItems::Center)
                                 .background(live_p.get_background())
@@ -399,34 +369,52 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                                 .radius(live_g.get_radius_md())
                                 .cursor(CursorIcon::Pointer)
                             };
-                            let mode_lbl_desktop_style = move || -> Style {
-                                let live_p: ThemePalette = use_live_tokens(tokens).get_palette();
-                                Style::default()
-                                .font_size(12.5)
-                                .font_weight(FontWeight::SemiBold)
-                                .color(live_p.get_foreground())
-                                .text_overflow(TextOverflow::Clip)
-                            };
-                            let mode_mobile_style = move || -> Style {
+                            let icon_btn_style_mob = move || -> Style {
                                 let live_tok: ThemeTokens = use_live_tokens(tokens);
+                                let live_p: ThemePalette = live_tok.get_palette();
                                 let live_g: ThemeGeometry = live_tok.get_geometry();
                                 Style::default()
                                 .row()
-                                .height(Length::Px(live_g.get_control_sm()))
-                                .padding(Edges::symmetric(0.0, SPACE_SM))
+                                .width(Length::Px(28.0))
+                                .height(Length::Px(28.0))
                                 .justify(JustifyContent::Center)
                                 .align(AlignItems::Center)
-                                .background(COLOR_TRANSPARENT)
+                                .background(live_p.get_background())
+                                .border(live_g.get_border_width(), live_p.get_border())
                                 .radius(live_g.get_radius_md())
                                 .cursor(CursorIcon::Pointer)
                             };
-                            let mode_lbl_mobile_style = move || -> Style {
-                                let live_p: ThemePalette = use_live_tokens(tokens).get_palette();
-                                Style::default()
-                                .font_size(12.5)
-                                .font_weight(FontWeight::SemiBold)
-                                .color(live_p.get_foreground())
-                                .text_overflow(TextOverflow::Clip)
+                            let paint_search_desk = move |bounds: Rect, dl: &mut DisplayList| {
+                                let live_p: ThemePalette = live_tokens_untracked(tokens).get_palette();
+                                draw_euv_icon(EuvIconName::Search, bounds, dl, live_p.get_foreground());
+                            };
+                            let paint_search_mob = move |bounds: Rect, dl: &mut DisplayList| {
+                                let live_p: ThemePalette = live_tokens_untracked(tokens).get_palette();
+                                draw_euv_icon(EuvIconName::Search, bounds, dl, live_p.get_foreground());
+                            };
+                            let paint_scheme_desk = move |bounds: Rect, dl: &mut DisplayList| {
+                                let live_p: ThemePalette = live_tokens_untracked(tokens).get_palette();
+                                draw_euv_icon(EuvIconName::Palette, bounds, dl, live_p.get_primary());
+                            };
+                            let paint_scheme_mob = move |bounds: Rect, dl: &mut DisplayList| {
+                                let live_p: ThemePalette = live_tokens_untracked(tokens).get_palette();
+                                draw_euv_icon(EuvIconName::Palette, bounds, dl, live_p.get_primary());
+                            };
+                            let paint_mode_desk = move |bounds: Rect, dl: &mut DisplayList| {
+                                let live_p: ThemePalette = live_tokens_untracked(tokens).get_palette();
+                                let glyph: EuvIconName = match theme_mode_sig.get_untracked() {
+                                    ThemeMode::Dark => EuvIconName::Sun,
+                                    ThemeMode::Light => EuvIconName::Moon,
+                                };
+                                draw_euv_icon(glyph, bounds, dl, live_p.get_foreground());
+                            };
+                            let paint_mode_mob = move |bounds: Rect, dl: &mut DisplayList| {
+                                let live_p: ThemePalette = live_tokens_untracked(tokens).get_palette();
+                                let glyph: EuvIconName = match theme_mode_sig.get_untracked() {
+                                    ThemeMode::Dark => EuvIconName::Sun,
+                                    ThemeMode::Light => EuvIconName::Moon,
+                                };
+                                draw_euv_icon(glyph, bounds, dl, live_p.get_foreground());
                             };
                             let on_open_cmd_desktop = move |_: &UiEvent| {
                                 let _: bool = cmd_open.set_if_changed(true);
@@ -434,8 +422,11 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                             let on_open_cmd_mobile = move |_: &UiEvent| {
                                 let _: bool = cmd_open.set_if_changed(true);
                             };
-                            let on_cycle_scheme = move |_: &UiEvent| {
+                            let on_cycle_scheme_desktop = move |_: &UiEvent| {
                                 st_scheme_top.next_scheme();
+                            };
+                            let on_cycle_scheme_mobile = move |_: &UiEvent| {
+                                st_scheme_mobile.next_scheme();
                             };
                             let on_toggle_mode_desktop = move |_: &UiEvent| {
                                 st_dark_top.toggle_theme_mode();
@@ -445,29 +436,39 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                             };
                             let top_actions: NodeId = view! {
                                 row {
-                                    gap: SPACE_SM
+                                    gap: SPACE_XS
                                     align: AlignItems::Center
-                                    EuvButton {
-                                        label: BTN_SEARCH_DESKTOP.to_string()
-                                        tokens: tokens
-                                        outline()
-                                        sm()
-                                        on_click: on_open_cmd_desktop
-                                    }
                                     row {
-                                        bind_style: scheme_btn_style
-                                        on_click: on_cycle_scheme
-                                        text {
-                                            bind_style: scheme_lbl_style
-                                            { scheme_text_desktop }
+                                        bind_style: icon_btn_style_desk
+                                        role: A11yRole::Button
+                                        a11y_label: BTN_SEARCH_A11Y.to_string()
+                                        on_click: on_open_cmd_desktop
+                                        canvas {
+                                            width: Length::Px(15.0)
+                                            height: Length::Px(15.0)
+                                            painter: paint_search_desk
                                         }
                                     }
                                     row {
-                                        bind_style: mode_btn_style
+                                        bind_style: icon_btn_style_desk
+                                        role: A11yRole::Button
+                                        a11y_label: BTN_SCHEME_A11Y.to_string()
+                                        on_click: on_cycle_scheme_desktop
+                                        canvas {
+                                            width: Length::Px(15.0)
+                                            height: Length::Px(15.0)
+                                            painter: paint_scheme_desk
+                                        }
+                                    }
+                                    row {
+                                        bind_style: icon_btn_style_desk
+                                        role: A11yRole::Button
+                                        a11y_label: BTN_MODE_A11Y.to_string()
                                         on_click: on_toggle_mode_desktop
-                                        text {
-                                            bind_style: mode_lbl_desktop_style
-                                            { mode_text_desktop }
+                                        canvas {
+                                            width: Length::Px(15.0)
+                                            height: Length::Px(15.0)
+                                            painter: paint_mode_desk
                                         }
                                     }
                                 }
@@ -476,19 +477,37 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                                 row {
                                     gap: SPACE_XS
                                     align: AlignItems::Center
-                                    EuvButton {
-                                        label: BTN_SEARCH_MOBILE.to_string()
-                                        tokens: tokens
-                                        outline()
-                                        sm()
+                                    row {
+                                        bind_style: icon_btn_style_mob
+                                        role: A11yRole::Button
+                                        a11y_label: BTN_SEARCH_A11Y.to_string()
                                         on_click: on_open_cmd_mobile
+                                        canvas {
+                                            width: Length::Px(14.0)
+                                            height: Length::Px(14.0)
+                                            painter: paint_search_mob
+                                        }
                                     }
                                     row {
-                                        bind_style: mode_mobile_style
+                                        bind_style: icon_btn_style_mob
+                                        role: A11yRole::Button
+                                        a11y_label: BTN_SCHEME_A11Y.to_string()
+                                        on_click: on_cycle_scheme_mobile
+                                        canvas {
+                                            width: Length::Px(14.0)
+                                            height: Length::Px(14.0)
+                                            painter: paint_scheme_mob
+                                        }
+                                    }
+                                    row {
+                                        bind_style: icon_btn_style_mob
+                                        role: A11yRole::Button
+                                        a11y_label: BTN_MODE_A11Y.to_string()
                                         on_click: on_toggle_mode_mobile
-                                        text {
-                                            bind_style: mode_lbl_mobile_style
-                                            { mode_text_mobile }
+                                        canvas {
+                                            width: Length::Px(14.0)
+                                            height: Length::Px(14.0)
+                                            painter: paint_mode_mob
                                         }
                                     }
                                 }
@@ -1168,6 +1187,8 @@ pub fn mount_markdown_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
                     flex_wrap: FlexWrap::Wrap
                     gap: SPACE_SM
                     ..swatch_nodes
+                }
+                EuvActionRow {
                     EuvButton {
                         label: BTN_TOGGLE_EVA_MODE.to_string()
                         tokens: tokens
@@ -2058,6 +2079,7 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     });
     let ai_tick: Signal<u32> = Signal::new(0);
     let ai_fps_sig: Signal<f32> = ctx.get_live_fps();
+    let ai_hz_sig: Signal<f32> = ctx.get_display_refresh_rate();
     let ai_route_sig: Signal<String> = state.get_route();
     let ai_scheme_sig: Signal<DesignScheme> = state.get_theme().get_scheme();
     let mut touch_pad_id: NodeId = NodeId::default();
@@ -2210,17 +2232,19 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                             AI_BRIDGE_STATUS_OFF
                         };
                         let ai_fps: f32 = ai_fps_sig.get();
+                        let ai_hz: f32 = ai_hz_sig.get().clamp(30.0, 480.0);
                         let fps_display: String = if !ai_fps.is_finite() || ai_fps <= 0.05 {
                             LABEL_FPS_IDLE.to_string()
                         } else {
                             format!("{ai_fps:.1}")
                         };
                         format!(
-                            "Protocol: {} ({}) | Route: {} | Scheme: {} | Live FPS: {} | Signals: {} | Memos: {} | Effects: {} | Scopes: {} | Clock: {}",
+                            "Protocol: {} ({}) | Route: {} | Scheme: {} | Display: {:.0}Hz | Live FPS: {} | Signals: {} | Memos: {} | Effects: {} | Scopes: {} | Clock: {}",
                             proto_label,
                             bridge_label,
                             ai_route_sig.get(),
                             ai_scheme_sig.get().as_str(),
+                            ai_hz,
                             fps_display,
                             rs.get_live_signals(),
                             rs.get_live_memos(),
@@ -3219,6 +3243,7 @@ fn mount_game_fullscreen_portal(
     tokens: ThemeTokens,
 ) -> NodeId {
     let ctx: Context = current_context();
+    bind_fullscreen_context(&ctx);
     let fs_viewport: NodeId = host.mount_viewport(
         Style::default()
             .flex_grow(1.0)
@@ -3275,6 +3300,9 @@ fn mount_game_fullscreen_portal(
     let on_exit = move |_: &UiEvent| {
         let _: bool = open.set_if_changed(false);
     };
+    let paint_exit_icon = move |bounds: Rect, dl: &mut DisplayList| {
+        draw_euv_icon(EuvIconName::Minimize, bounds, dl, Color::hex(0xFAFAFA));
+    };
     let mut top_bar_id: NodeId = NodeId::default();
     let mut bottom_bar_id: NodeId = NodeId::default();
     let portal: NodeId = view! {
@@ -3285,10 +3313,16 @@ fn mount_game_fullscreen_portal(
             inset: (Some(0.0), Some(0.0), Some(0.0), Some(0.0))
             width: Length::Percent(100.0)
             height: Length::Percent(100.0)
+            padding: Edges::all(0.0)
+            margin: Edges::all(0.0)
             background: Color::hex(0x09090B)
+            border: (0.0, COLOR_TRANSPARENT)
+            radius: 0.0
             overflow: Overflow::Hidden
+            pointer_events: PointerEvents::None
             stop_scroll_propagation: true
-            z_index: Z_INDEX_MODAL
+            stop_event_propagation: true
+            z_index: Z_INDEX_FULLSCREEN
             row {
                 node_ref: top_bar_id
                 width: Length::Percent(100.0)
@@ -3304,14 +3338,25 @@ fn mount_game_fullscreen_portal(
                     font_weight: FontWeight::SemiBold
                     color: Color::hex(0xFAFAFA)
                     text_overflow: TextOverflow::Ellipsis
-                    { format!("{title} · Fullscreen") }
+                    { title.to_string() }
                 }
-                EuvButton {
-                    label: BTN_EXIT_FULLSCREEN.to_string()
-                    tokens: tokens
-                    secondary()
-                    sm()
+                row {
+                    width: Length::Px(28.0)
+                    height: Length::Px(28.0)
+                    justify: JustifyContent::Center
+                    align: AlignItems::Center
+                    radius: 6.0
+                    background: Color::rgba(255, 255, 255, 24)
+                    border: (1.0, Color::rgba(255, 255, 255, 44))
+                    cursor: CursorIcon::Pointer
+                    role: A11yRole::Button
+                    a11y_label: BTN_EXIT_FULLSCREEN.to_string()
                     on_click: on_exit
+                    canvas {
+                        width: Length::Px(14.0)
+                        height: Length::Px(14.0)
+                        painter: paint_exit_icon
+                    }
                 }
             }
             { fs_viewport }
@@ -3319,37 +3364,45 @@ fn mount_game_fullscreen_portal(
                 node_ref: bottom_bar_id
                 width: Length::Percent(100.0)
                 flex_shrink: 0.0
-                flex_wrap: FlexWrap::Wrap
-                justify: JustifyContent::Center
-                align: AlignItems::Center
-                gap: SPACE_SM
                 padding: Edges::symmetric(SPACE_SM, SPACE_MD)
                 background: Color::rgba(9, 9, 11, 232)
-                { ctrl_left }
-                { ctrl_up }
-                { ctrl_down }
-                { ctrl_right }
-                { extra_ctrl }
+                EuvActionRow {
+                    { ctrl_left }
+                    { ctrl_up }
+                    { ctrl_down }
+                    { ctrl_right }
+                    { extra_ctrl }
+                }
             }
         }
     };
     let handle: SceneHandle = ctx.get_scene().clone();
     let safe_sig: Signal<SafeAreaInsets> = ctx.get_safe_area();
     let prev_fs: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+    let fs_acquired: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+    let fs_cleanup: Rc<Cell<bool>> = Rc::clone(&fs_acquired);
     let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-        let _: Effect = EuvOverlayStack::bind_signal(open, FS_OVERLAY_NAME, Z_INDEX_MODAL);
+        on_cleanup(move || {
+            if fs_cleanup.replace(false) {
+                exit_fullscreen();
+            }
+        });
+        let _: Effect = EuvOverlayStack::bind_signal(open, FS_OVERLAY_NAME, Z_INDEX_FULLSCREEN);
         Effect::new(move || {
             let is_open: bool = open.get();
             let safe: SafeAreaInsets = safe_sig.get();
             if is_open != prev_fs.replace(is_open) {
-                let _: bool = dispatch_native_action(
-                    NATIVE_ACTION_FULLSCREEN,
-                    if is_open { FS_ACTION_ON } else { FS_ACTION_OFF },
-                    "",
-                );
+                if is_open {
+                    if !fs_acquired.replace(true) {
+                        enter_fullscreen();
+                    }
+                } else if fs_acquired.replace(false) {
+                    exit_fullscreen();
+                }
             }
             handle.with_write(
                 |tree: &mut SceneTree| {
+                    tree.cancel_subtree_transitions(portal);
                     if let Some(n) = tree.get_node_mut(inline_viewport) {
                         let mut st: Style = n.get_style();
                         st.get_mut_layout().set_display(if is_open {
@@ -3367,6 +3420,14 @@ fn mount_game_fullscreen_portal(
                         } else {
                             Display::None
                         });
+                        st.get_mut_paint()
+                            .set_pointer_events(if is_open {
+                                PointerEvents::Auto
+                            } else {
+                                PointerEvents::None
+                            })
+                            .set_opacity(1.0)
+                            .set_transform(Transform2D::default());
                         n.set_style(st);
                     }
                     if let Some(n) = tree.get_node_mut(top_bar_id) {
@@ -3378,6 +3439,7 @@ fn mount_game_fullscreen_portal(
                             SPACE_MD + safe.get_left(),
                         ));
                         n.set_style(st);
+                        tree.mark_dirty(top_bar_id, DIRTY_LAYOUT | DIRTY_PAINT);
                     }
                     if let Some(n) = tree.get_node_mut(bottom_bar_id) {
                         let mut st: Style = n.get_style();
@@ -3388,6 +3450,7 @@ fn mount_game_fullscreen_portal(
                             SPACE_MD + safe.get_left(),
                         ));
                         n.set_style(st);
+                        tree.mark_dirty(bottom_bar_id, DIRTY_LAYOUT | DIRTY_PAINT);
                     }
                     let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
                     tree.mark_dirty(portal, dirty_l | DIRTY_PAINT);
@@ -3916,6 +3979,7 @@ pub fn mount_overlays_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
 ///
 /// - `NodeId` - Mounted dynamic updates page node.
 pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
+    state.ensure_wasm_registry_loaded();
     let p: ThemePalette = tokens.get_palette();
     let g: ThemeGeometry = tokens.get_geometry();
     let hub: DynamicUpdateHub = state.get_dynamic_hub().clone();
@@ -4785,6 +4849,7 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
 ///
 /// - `NodeId` - Mounted Media Studio page node.
 pub fn mount_media_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
+    state.ensure_media_loaded();
     let p: ThemePalette = tokens.get_palette();
     let link_log: Signal<String> = state.get_media_html_link_log();
     let link_log_cb: Signal<String> = link_log;
