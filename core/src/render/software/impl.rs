@@ -119,7 +119,7 @@ impl BandWorkerPool {
     /// - `&[PreppedCommand]` - Pre-clipped command table.
     /// - `BandAuxSlices<'_>` - Pre-positioned glyphs, caret rects, rounded clips, and cached quadrant masks.
     /// - `&GlyphAtlas` - Shared read-only glyph atlas.
-    /// - `(f32, AntialiasingMode, Option<&[u8]>)` - Tuple of `(scale, antialiasing, optional_base_restore)`.
+    /// - `(f32, AntialiasingMode, BandRestoreSpec<'_>)` - Tuple of `(scale, antialiasing, restore_spec)`.
     ///
     /// # Returns
     ///
@@ -130,15 +130,27 @@ impl BandWorkerPool {
         prepped: &[PreppedCommand],
         aux: BandAuxSlices<'_>,
         atlas: &GlyphAtlas,
-        render_opts: (f32, AntialiasingMode, Option<&[u8]>),
+        render_opts: (f32, AntialiasingMode, BandRestoreSpec<'_>),
     ) -> usize {
         let (pixels, width, y_offset, height, start_byte): (&mut [u8], u32, u32, u32, usize) =
             slice_spec;
-        let (scale, aa, base_restore): (f32, AntialiasingMode, Option<&[u8]>) = render_opts;
-        if let Some(src_buf) = base_restore {
+        let (scale, aa, restore): (f32, AntialiasingMode, BandRestoreSpec<'_>) = render_opts;
+        if let Some(src_buf) = restore.base_pixels {
             let end_byte: usize = start_byte + pixels.len();
             if let Some(src_slice) = src_buf.get(start_byte..end_byte) {
-                pixels.copy_from_slice(src_slice);
+                let x0_clamped: u32 = restore.x0.min(width);
+                let x1_clamped: u32 = restore.x1.clamp(x0_clamped, width);
+                restore_band_strip(
+                    pixels,
+                    src_slice,
+                    (
+                        (width as usize) * 4,
+                        height as usize,
+                        (x0_clamped as usize) * 4,
+                        ((x1_clamped - x0_clamped) as usize) * 4,
+                    ),
+                    restore.scrim_luts,
+                );
             }
         }
         let mut band: PixelBand<'_> = PixelBand {
@@ -171,7 +183,7 @@ impl BandWorkerPool {
     /// - `(&[DrawCommand], &[PreppedCommand])` - Display list commands and pre-clipped command table.
     /// - `BandAuxSlices<'_>` - Pre-positioned glyphs, caret rects, rounded clips, and cached quadrant masks.
     /// - `&GlyphAtlas` - Shared read-only glyph atlas.
-    /// - `(f32, AntialiasingMode, Option<&[u8]>)` - Tuple of `(scale, antialiasing, optional_base_restore)`.
+    /// - `(f32, AntialiasingMode, BandRestoreSpec<'_>)` - Tuple of `(scale, antialiasing, restore_spec)`.
     ///
     /// # Returns
     ///
@@ -183,7 +195,7 @@ impl BandWorkerPool {
         cmd_slices: (&[DrawCommand], &[PreppedCommand]),
         aux: BandAuxSlices<'_>,
         atlas: &GlyphAtlas,
-        render_opts: (f32, AntialiasingMode, Option<&[u8]>),
+        render_opts: (f32, AntialiasingMode, BandRestoreSpec<'_>),
     ) -> usize {
         let Self {
             worker_count,
@@ -199,7 +211,7 @@ impl BandWorkerPool {
             &[RoundedClipMask],
             &[CachedCornerMask],
         ) = aux;
-        let (scale, aa, base_restore): (f32, AntialiasingMode, Option<&[u8]>) = render_opts;
+        let (scale, aa, restore): (f32, AntialiasingMode, BandRestoreSpec<'_>) = render_opts;
         let fb_w: u32 = framebuffer.get_width();
         let fb_h: u32 = framebuffer.get_height();
         let start_y: u32 = y0.min(fb_h);
@@ -223,7 +235,7 @@ impl BandWorkerPool {
                 prepped,
                 aux,
                 atlas,
-                (scale, aa, base_restore),
+                (scale, aa, restore),
             );
         }
         let Ok(mut tasks) = dispatch_tasks.try_lock() else {
@@ -233,10 +245,14 @@ impl BandWorkerPool {
                 prepped,
                 aux,
                 atlas,
-                (scale, aa, base_restore),
+                (scale, aa, restore),
             );
         };
         tasks.clear();
+        let rx0_clamped: u32 = restore.x0.min(fb_w);
+        let rx1_clamped: u32 = restore.x1.clamp(rx0_clamped, fb_w);
+        let restore_x0_bytes: usize = (rx0_clamped as usize) * 4;
+        let restore_row_bytes: usize = ((rx1_clamped - rx0_clamped) as usize) * 4;
         let rows_per: usize = (total_rows as usize).div_ceil(strip_count);
         let chunk_bytes: usize = rows_per * row_stride;
         let mut cur_y: u32 = start_y;
@@ -244,7 +260,7 @@ impl BandWorkerPool {
         for chunk in slice.chunks_mut(chunk_bytes) {
             let chunk_len: usize = chunk.len();
             let chunk_rows: u32 = (chunk_len / row_stride) as u32;
-            let base_ptr: usize = if let Some(src_buf) = base_restore {
+            let base_ptr: usize = if let Some(src_buf) = restore.base_pixels {
                 let byte_end: usize = cur_byte_off + chunk_len;
                 if byte_end <= src_buf.len() {
                     // SAFETY: `cur_byte_off <= byte_end <= src_buf.len()` stays within `src_buf`.
@@ -262,10 +278,15 @@ impl BandWorkerPool {
                 y_start: cur_y,
                 height: chunk_rows,
                 base_src_ptr: base_ptr,
+                restore_x0_bytes,
+                restore_row_bytes,
             });
             cur_y += chunk_rows;
             cur_byte_off += chunk_len;
         }
+        let scrim_luts_ptr: usize = restore.scrim_luts.map_or(0, |luts: &RgbaLutQuad| {
+            (luts as *const RgbaLutQuad) as usize
+        });
         let job: BandJob = BandJob {
             tasks_ptr: tasks.as_ptr() as usize,
             tasks_len: tasks.len(),
@@ -282,6 +303,7 @@ impl BandWorkerPool {
             corner_masks_ptr: corner_masks.as_ptr() as usize,
             corner_masks_len: corner_masks.len(),
             atlas_ptr: (atlas as *const GlyphAtlas) as usize,
+            scrim_luts_ptr,
             scale,
             aa,
             next_idx: AtomicUsize::new(0),
@@ -859,10 +881,64 @@ impl SoftwareRenderer {
             line_glyphs_scratch: Vec::with_capacity(64),
             caret_rects_scratch: Vec::with_capacity(4),
             corner_mask_cache: CornerMaskCache::default(),
+            prev_portal_bounds: None,
+            prev_portal_scrim: None,
+            prepped_bounds: None,
+            prepped_fg_bounds: None,
         }
     }
 
-    /// Rasterizes `display_list` into the internal `Framebuffer` clipped to `damage` using multi-core parallel horizontal bands and lossless portal backdrop caching.
+    /// Detects whether `prepped_scratch[0]` is a pure full-viewport borderless unrounded translucent scrim.
+    ///
+    /// # Arguments
+    ///
+    /// - `&[DrawCommand]` - Full display list commands.
+    /// - `&[PreppedCommand]` - Prepped portal commands.
+    /// - `(u32, u32, f32)` - Tuple `(phys_w, phys_h, scale)`.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<Color>` - Full-viewport translucent scrim color if fusable into backdrop restore.
+    #[must_use]
+    fn detect_full_viewport_scrim(
+        commands: &[DrawCommand],
+        prepped: &[PreppedCommand],
+        dims: (u32, u32, f32),
+    ) -> Option<Color> {
+        let (phys_w, phys_h, scale): (u32, u32, f32) = dims;
+        let first: &PreppedCommand = prepped.first()?;
+        if first.get_rounded_clip_len() != 0 {
+            return None;
+        }
+        let clip: Rect = first.get_active_clip();
+        let fw: f32 = phys_w as f32;
+        let fh: f32 = phys_h as f32;
+        if clip.get_x() > 0.0 || clip.get_y() > 0.0 || clip.right() < fw || clip.bottom() < fh {
+            return None;
+        }
+        if let DrawCommand::FillRoundedRect {
+            rect,
+            color,
+            radius,
+            border,
+        } = &commands[first.get_cmd_index()]
+        {
+            let sa: u8 = color.get_a();
+            if sa > 0 && sa < 255 && radius.max_radius() <= 0.0 && border.get_width() <= 0.0 {
+                let phys: Rect = snap_physical_rect(*rect, scale);
+                if phys.get_x() <= 0.0
+                    && phys.get_y() <= 0.0
+                    && phys.right() >= fw
+                    && phys.bottom() >= fh
+                {
+                    return Some(*color);
+                }
+            }
+        }
+        None
+    }
+
+    /// Rasterizes `display_list` into the internal `Framebuffer` clipped to `damage` using multi-core parallel horizontal bands and dirty-rect scoped portal backdrop caching.
     ///
     /// # Arguments
     ///
@@ -884,6 +960,8 @@ impl SoftwareRenderer {
             self.set_prev_base_hash(0);
             self.set_base_cache_width(0);
             self.set_base_cache_height(0);
+            self.set_prev_portal_bounds(None);
+            self.set_prev_portal_scrim(None);
         }
         let effective_damage: DamageRegion = if resized {
             DamageRegion::full()
@@ -919,13 +997,68 @@ impl SoftwareRenderer {
                     root_clip,
                     (phys_w, phys_h, scale),
                 );
-                let pixels_shaded: usize =
-                    self.execute_prepared_bands(commands, root_clip, (phys_w, phys_h, scale), true);
-                return (tiles_updated, pixels_shaded.max(1));
+                let cur_scrim: Option<Color> = Self::detect_full_viewport_scrim(
+                    commands,
+                    self.get_prepped_scratch().as_slice(),
+                    (phys_w, phys_h, scale),
+                );
+                let cur_fg_bounds: Option<Rect> = if cur_scrim.is_some() {
+                    self.get_prepped_fg_bounds()
+                } else {
+                    self.get_prepped_bounds()
+                };
+                let prev_scrim: Option<Color> = self.get_prev_portal_scrim();
+                let prev_bounds: Option<Rect> = self.get_prev_portal_bounds();
+                self.set_prev_portal_scrim(cur_scrim);
+                self.set_prev_portal_bounds(cur_fg_bounds);
+                let prepped_start: usize = usize::from(cur_scrim.is_some());
+                let (dirty_clip, has_work): (Rect, bool) = if cur_scrim == prev_scrim {
+                    let mut union_rect: Option<Rect> = None;
+                    if let Some(prev_r) = prev_bounds {
+                        expand_opt_rect(&mut union_rect, prev_r);
+                    }
+                    if let Some(cur_r) = cur_fg_bounds {
+                        expand_opt_rect(&mut union_rect, cur_r);
+                    }
+                    if let Some(r) = union_rect.and_then(|u: Rect| u.intersect(root_clip)) {
+                        (r, true)
+                    } else {
+                        (Rect::default(), false)
+                    }
+                } else {
+                    (root_clip, true)
+                };
+                if !has_work {
+                    return (tiles_updated, 1);
+                }
+                let scrim_shaded: usize = if cur_scrim.is_some() {
+                    let sx0: u32 = (dirty_clip.get_x().floor().max(0.0) as u32).min(phys_w);
+                    let sy0: u32 = (dirty_clip.get_y().floor().max(0.0) as u32).min(phys_h);
+                    let sx1: u32 = (dirty_clip.right().ceil().max(0.0) as u32).min(phys_w);
+                    let sy1: u32 = (dirty_clip.bottom().ceil().max(0.0) as u32).min(phys_h);
+                    ((sx1.saturating_sub(sx0)) as usize)
+                        .saturating_mul((sy1.saturating_sub(sy0)) as usize)
+                } else {
+                    0
+                };
+                let band_shaded: usize = self.execute_prepared_bands(
+                    commands,
+                    dirty_clip,
+                    (phys_w, phys_h, scale),
+                    (true, cur_scrim, prepped_start),
+                );
+                return (
+                    tiles_updated,
+                    scrim_shaded.saturating_add(band_shaded).max(1),
+                );
             }
             self.prepare_frame_range(display_list, (0, split), root_clip, (phys_w, phys_h, scale));
-            let base_shaded: usize =
-                self.execute_prepared_bands(commands, root_clip, (phys_w, phys_h, scale), false);
+            let base_shaded: usize = self.execute_prepared_bands(
+                commands,
+                root_clip,
+                (phys_w, phys_h, scale),
+                (false, None, 0),
+            );
             let base_stable: bool = base_hash != 0 && self.get_prev_base_hash() == base_hash;
             self.set_prev_base_hash(base_hash);
             if base_stable {
@@ -952,26 +1085,48 @@ impl SoftwareRenderer {
                 root_clip,
                 (phys_w, phys_h, scale),
             );
-            let portal_shaded: usize =
-                self.execute_prepared_bands(commands, root_clip, (phys_w, phys_h, scale), false);
+            let cur_scrim: Option<Color> = Self::detect_full_viewport_scrim(
+                commands,
+                self.get_prepped_scratch().as_slice(),
+                (phys_w, phys_h, scale),
+            );
+            let cur_fg_bounds: Option<Rect> = if cur_scrim.is_some() {
+                self.get_prepped_fg_bounds()
+            } else {
+                self.get_prepped_bounds()
+            };
+            self.set_prev_portal_scrim(cur_scrim);
+            self.set_prev_portal_bounds(cur_fg_bounds);
+            let portal_shaded: usize = self.execute_prepared_bands(
+                commands,
+                root_clip,
+                (phys_w, phys_h, scale),
+                (false, None, 0),
+            );
             return (tiles_updated, base_shaded.saturating_add(portal_shaded));
         }
         if !has_portals {
             self.set_base_cache_hash(0);
             self.set_prev_base_hash(0);
         }
+        self.set_prev_portal_bounds(None);
+        self.set_prev_portal_scrim(None);
         self.prepare_frame_range(
             display_list,
             (0, commands.len()),
             root_clip,
             (phys_w, phys_h, scale),
         );
-        let pixels_shaded: usize =
-            self.execute_prepared_bands(commands, root_clip, (phys_w, phys_h, scale), false);
+        let pixels_shaded: usize = self.execute_prepared_bands(
+            commands,
+            root_clip,
+            (phys_w, phys_h, scale),
+            (false, None, 0),
+        );
         (tiles_updated, pixels_shaded)
     }
 
-    /// Executes prepared scratch buffers across horizontal bands with optional parallel restore from `base_cache_pixels`.
+    /// Executes prepared scratch buffers across horizontal bands with optional dirty-rect backdrop restore and fused scrim LUT.
     ///
     /// # Arguments
     ///
@@ -979,7 +1134,7 @@ impl SoftwareRenderer {
     /// - `&[DrawCommand]` - Full frame draw command slice.
     /// - `Rect` - Root physical damage clip rectangle.
     /// - `(u32, u32, f32)` - Tuple `(phys_w, phys_h, scale)`.
-    /// - `bool` - Whether to restore `base_cache_pixels` into each strip before rasterizing.
+    /// - `(bool, Option<Color>, usize)` - Tuple `(restore_base_cache, fused_scrim_color, prepped_start)`.
     ///
     /// # Returns
     ///
@@ -989,13 +1144,21 @@ impl SoftwareRenderer {
         commands: &[DrawCommand],
         root_clip: Rect,
         dims: (u32, u32, f32),
-        restore_base_cache: bool,
+        restore_opts: (bool, Option<Color>, usize),
     ) -> usize {
         let (phys_w, phys_h, scale): (u32, u32, f32) = dims;
+        let (restore_base_cache, scrim_color, prepped_start): (bool, Option<Color>, usize) =
+            restore_opts;
+        let clip_x0: u32 = (root_clip.get_x().floor().max(0.0) as u32).min(phys_w);
         let clip_y0: u32 = (root_clip.get_y().floor().max(0.0) as u32).min(phys_h);
-        let clip_y1: u32 = (root_clip.bottom().ceil().max(0.0) as u32).min(phys_h);
-        let clip_w: u32 = (root_clip.get_width().ceil().max(0.0) as u32).min(phys_w);
+        let clip_x1: u32 = (root_clip.right().ceil().max(0.0) as u32).clamp(clip_x0, phys_w);
+        let clip_y1: u32 = (root_clip.bottom().ceil().max(0.0) as u32).clamp(clip_y0, phys_h);
+        let clip_w: u32 = clip_x1.saturating_sub(clip_x0);
         let clip_h: u32 = clip_y1.saturating_sub(clip_y0);
+        if clip_w == 0 || clip_h == 0 {
+            return 0;
+        }
+        let scrim_lut_val: Option<RgbaLutQuad> = scrim_color.map(build_linear_blend_luts);
         let Self {
             framebuffer,
             glyph_atlas,
@@ -1009,16 +1172,22 @@ impl SoftwareRenderer {
             ..
         } = self;
         let aa: AntialiasingMode = *antialiasing;
-        let prepped_slice: &[PreppedCommand] = prepped_scratch.as_slice();
+        let clamped_start: usize = prepped_start.min(prepped_scratch.len());
+        let prepped_slice: &[PreppedCommand] = &prepped_scratch.as_slice()[clamped_start..];
         let glyphs_slice: &[PositionedGlyph] = positioned_glyphs_scratch.as_slice();
         let caret_rects_slice: &[Rect] = caret_rects_scratch.as_slice();
         let rounded_clips_slice: &[RoundedClipMask] = rounded_clips_scratch.as_slice();
         let corner_masks_slice: &[CachedCornerMask] = corner_mask_cache.entries();
         let atlas_ref: &GlyphAtlas = glyph_atlas;
-        let base_restore: Option<&[u8]> = if restore_base_cache {
-            Some(base_cache_pixels.as_slice())
-        } else {
-            None
+        let restore_spec: BandRestoreSpec<'_> = BandRestoreSpec {
+            base_pixels: if restore_base_cache {
+                Some(base_cache_pixels.as_slice())
+            } else {
+                None
+            },
+            x0: clip_x0,
+            x1: clip_x1,
+            scrim_luts: scrim_lut_val.as_ref(),
         };
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -1049,16 +1218,37 @@ impl SoftwareRenderer {
                             corner_masks_slice,
                         ),
                         atlas_ref,
-                        (scale, aa, base_restore),
+                        (scale, aa, restore_spec),
                     );
                 }
             }
-            if let Some(src_buf) = base_restore
-                && src_buf.len() == framebuffer.get_pixels().len()
+            let row_stride: usize = (phys_w as usize) * 4;
+            let start_byte: usize = (clip_y0 as usize) * row_stride;
+            let end_byte: usize = (clip_y1 as usize) * row_stride;
+            let Some(slice) = framebuffer.get_mut_pixels().get_mut(start_byte..end_byte) else {
+                return 0;
+            };
+            if let Some(src_buf) = restore_spec.base_pixels
+                && let Some(src_slice) = src_buf.get(start_byte..end_byte)
             {
-                framebuffer.get_mut_pixels().copy_from_slice(src_buf);
+                restore_band_strip(
+                    slice,
+                    src_slice,
+                    (
+                        row_stride,
+                        clip_h as usize,
+                        (clip_x0 as usize) * 4,
+                        (clip_w as usize) * 4,
+                    ),
+                    restore_spec.scrim_luts,
+                );
             }
-            let mut band: PixelBand<'_> = framebuffer.as_band_mut();
+            let mut band: PixelBand<'_> = PixelBand {
+                width: phys_w,
+                y_offset: clip_y0,
+                height: clip_h,
+                pixels: slice,
+            };
             Self::render_band(
                 &mut band,
                 commands,
@@ -1075,13 +1265,33 @@ impl SoftwareRenderer {
         }
         #[cfg(target_arch = "wasm32")]
         {
-            let _: (u32, u32) = (clip_w, clip_h);
-            if let Some(src_buf) = base_restore
-                && src_buf.len() == framebuffer.get_pixels().len()
+            let row_stride: usize = (phys_w as usize) * 4;
+            let start_byte: usize = (clip_y0 as usize) * row_stride;
+            let end_byte: usize = (clip_y1 as usize) * row_stride;
+            let Some(slice) = framebuffer.get_mut_pixels().get_mut(start_byte..end_byte) else {
+                return 0;
+            };
+            if let Some(src_buf) = restore_spec.base_pixels
+                && let Some(src_slice) = src_buf.get(start_byte..end_byte)
             {
-                framebuffer.get_mut_pixels().copy_from_slice(src_buf);
+                restore_band_strip(
+                    slice,
+                    src_slice,
+                    (
+                        row_stride,
+                        clip_h as usize,
+                        (clip_x0 as usize) * 4,
+                        (clip_w as usize) * 4,
+                    ),
+                    restore_spec.scrim_luts,
+                );
             }
-            let mut band: PixelBand<'_> = framebuffer.as_band_mut();
+            let mut band: PixelBand<'_> = PixelBand {
+                width: phys_w,
+                y_offset: clip_y0,
+                height: clip_h,
+                pixels: slice,
+            };
             Self::render_band(
                 &mut band,
                 commands,
@@ -1132,12 +1342,16 @@ impl SoftwareRenderer {
             line_glyphs_scratch: line_scratch,
             caret_rects_scratch: caret_rects,
             corner_mask_cache,
+            prepped_bounds,
+            prepped_fg_bounds,
             antialiasing,
             ..
         } = self;
         let aa: AntialiasingMode = *antialiasing;
         prepped.clear();
         prepped.reserve(clamped_end - clamped_start);
+        *prepped_bounds = None;
+        *prepped_fg_bounds = None;
         rounded_clips.clear();
         positioned_glyphs.clear();
         caret_rects.clear();
@@ -1196,6 +1410,10 @@ impl SoftwareRenderer {
                             rounded_clips,
                             active_clip,
                         );
+                        if !prepped.is_empty() {
+                            expand_opt_rect(prepped_fg_bounds, active_clip);
+                        }
+                        expand_opt_rect(prepped_bounds, active_clip);
                         prepped.push(PreppedCommand {
                             cmd_index,
                             active_clip,
@@ -1225,6 +1443,10 @@ impl SoftwareRenderer {
                                 rounded_clips,
                                 vis,
                             );
+                            if !prepped.is_empty() {
+                                expand_opt_rect(prepped_fg_bounds, vis);
+                            }
+                            expand_opt_rect(prepped_bounds, vis);
                             prepped.push(PreppedCommand {
                                 cmd_index,
                                 active_clip,
@@ -1275,6 +1497,10 @@ impl SoftwareRenderer {
                                 rounded_clips,
                                 vis,
                             );
+                            if !prepped.is_empty() {
+                                expand_opt_rect(prepped_fg_bounds, vis);
+                            }
+                            expand_opt_rect(prepped_bounds, vis);
                             prepped.push(PreppedCommand {
                                 cmd_index,
                                 active_clip,
@@ -1335,11 +1561,30 @@ impl SoftwareRenderer {
                     if glyph_run_len == 0 {
                         continue;
                     }
+                    let mut run_vis: Rect = vis;
+                    let g_s: usize = glyph_run_start as usize;
+                    let g_e: usize = g_s.saturating_add(glyph_run_len as usize);
+                    for g in positioned_glyphs[g_s..g_e].iter() {
+                        let g_rect: Rect =
+                            Rect::new(g.x as f32, g.y as f32, g.width as f32, g.height as f32);
+                        if let Some(clipped_g) = g_rect.intersect(active_clip) {
+                            let gx0: f32 = run_vis.get_x().min(clipped_g.get_x());
+                            let gy0: f32 = run_vis.get_y().min(clipped_g.get_y());
+                            let gx1: f32 = run_vis.right().max(clipped_g.right());
+                            let gy1: f32 = run_vis.bottom().max(clipped_g.bottom());
+                            run_vis =
+                                Rect::new(gx0, gy0, (gx1 - gx0).max(0.0), (gy1 - gy0).max(0.0));
+                        }
+                    }
                     let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
                         rounded_clip_stack.as_slice(),
                         rounded_clips,
-                        vis,
+                        run_vis,
                     );
+                    if !prepped.is_empty() {
+                        expand_opt_rect(prepped_fg_bounds, run_vis);
+                    }
+                    expand_opt_rect(prepped_bounds, run_vis);
                     prepped.push(PreppedCommand {
                         cmd_index,
                         active_clip,
@@ -1400,6 +1645,18 @@ impl SoftwareRenderer {
                         rounded_clips,
                         vis,
                     );
+                    let mut caret_vis: Rect = vis;
+                    if let Some(cv) = caret_rect.intersect(active_clip) {
+                        let cx0: f32 = caret_vis.get_x().min(cv.get_x());
+                        let cy0: f32 = caret_vis.get_y().min(cv.get_y());
+                        let cx1: f32 = caret_vis.right().max(cv.right());
+                        let cy1: f32 = caret_vis.bottom().max(cv.bottom());
+                        caret_vis = Rect::new(cx0, cy0, (cx1 - cx0).max(0.0), (cy1 - cy0).max(0.0));
+                    }
+                    if !prepped.is_empty() {
+                        expand_opt_rect(prepped_fg_bounds, caret_vis);
+                    }
+                    expand_opt_rect(prepped_bounds, caret_vis);
                     prepped.push(PreppedCommand {
                         cmd_index,
                         active_clip,
@@ -1433,6 +1690,10 @@ impl SoftwareRenderer {
                                 rounded_clips,
                                 vis,
                             );
+                            if !prepped.is_empty() {
+                                expand_opt_rect(prepped_fg_bounds, vis);
+                            }
+                            expand_opt_rect(prepped_bounds, vis);
                             prepped.push(PreppedCommand {
                                 cmd_index,
                                 active_clip,
@@ -1466,6 +1727,10 @@ impl SoftwareRenderer {
                                 rounded_clips,
                                 vis,
                             );
+                            if !prepped.is_empty() {
+                                expand_opt_rect(prepped_fg_bounds, vis);
+                            }
+                            expand_opt_rect(prepped_bounds, vis);
                             prepped.push(PreppedCommand {
                                 cmd_index,
                                 active_clip,
@@ -1498,6 +1763,10 @@ impl SoftwareRenderer {
                                 rounded_clips,
                                 vis,
                             );
+                            if !prepped.is_empty() {
+                                expand_opt_rect(prepped_fg_bounds, vis);
+                            }
+                            expand_opt_rect(prepped_bounds, vis);
                             prepped.push(PreppedCommand {
                                 cmd_index,
                                 active_clip,

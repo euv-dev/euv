@@ -22,6 +22,25 @@ pub(crate) struct BandTaskSlice {
     /// Optional raw source pointer for parallel base-scene backdrop restore (`0` when unused).
     #[get(type(copy))]
     pub(crate) base_src_ptr: usize,
+    /// Horizontal byte offset within each row where backdrop restore starts.
+    #[get(type(copy))]
+    pub(crate) restore_x0_bytes: usize,
+    /// Horizontal byte length restored per row (`width * 4` for full-width contiguous restore).
+    #[get(type(copy))]
+    pub(crate) restore_row_bytes: usize,
+}
+
+/// Optional base-scene backdrop restore and fused full-viewport scrim LUT specification for band dispatch.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct BandRestoreSpec<'a> {
+    /// Cached full-framebuffer RGBA8 base scene pixels, if restoring backdrop.
+    pub(crate) base_pixels: Option<&'a [u8]>,
+    /// Inclusive physical start X column to restore on each row.
+    pub(crate) x0: u32,
+    /// Exclusive physical end X column to restore on each row.
+    pub(crate) x1: u32,
+    /// Optional prebuilt 256-entry linear-light scrim LUT fused into backdrop restore.
+    pub(crate) scrim_luts: Option<&'a RgbaLutQuad>,
 }
 
 /// Precomputed 1D horizontal edge pixel sample reused across every vertical interior scanline of a rounded rectangle.
@@ -179,6 +198,8 @@ pub(crate) struct BandJob {
     pub(crate) corner_masks_len: usize,
     /// Base address of the shared read-only `GlyphAtlas`.
     pub(crate) atlas_ptr: usize,
+    /// Optional raw pointer to a stack-pinned `RgbaLutQuad` fused into backdrop restore (`0` when unused).
+    pub(crate) scrim_luts_ptr: usize,
     /// Active physical DPI scale factor.
     pub(crate) scale: f32,
     /// Active anti-aliasing policy.
@@ -382,6 +403,22 @@ pub struct SoftwareRenderer {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) corner_mask_cache: CornerMaskCache,
+    /// Physical union bounds of the foreground portal commands painted on the previous cached frame.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) prev_portal_bounds: Option<Rect>,
+    /// Full-viewport translucent scrim color active on the previous cached portal frame, if any.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) prev_portal_scrim: Option<Color>,
+    /// Physical union bounds of all prepped commands emitted during the latest `prepare_frame_range`.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) prepped_bounds: Option<Rect>,
+    /// Physical union bounds of `prepped_scratch[1..]` emitted during the latest `prepare_frame_range`.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) prepped_fg_bounds: Option<Rect>,
 }
 
 /// Compact 16-byte hot per-column cache entry reused across every vertical shadow strip scanline.

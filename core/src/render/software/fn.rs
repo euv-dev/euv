@@ -1595,6 +1595,92 @@ pub(crate) fn apply_shadow_strip_span(
     shaded
 }
 
+/// Expands optional bounding rectangle `acc` to include non-empty physical rectangle `rect`.
+///
+/// # Arguments
+///
+/// - `&mut Option<Rect>` - Accumulator union rectangle.
+/// - `Rect` - Candidate rectangle to union into `acc`.
+#[inline(always)]
+pub(crate) fn expand_opt_rect(acc: &mut Option<Rect>, rect: Rect) {
+    if rect.get_width() <= 0.0 || rect.get_height() <= 0.0 {
+        return;
+    }
+    if let Some(cur) = *acc {
+        let x0: f32 = cur.get_x().min(rect.get_x());
+        let y0: f32 = cur.get_y().min(rect.get_y());
+        let x1: f32 = cur.right().max(rect.right());
+        let y1: f32 = cur.bottom().max(rect.bottom());
+        *acc = Some(Rect::new(x0, y0, (x1 - x0).max(0.0), (y1 - y0).max(0.0)));
+    } else {
+        *acc = Some(rect);
+    }
+}
+
+/// Restores a horizontal band strip from `src` into `dst` over `[x0_bytes, x0_bytes + row_bytes)` with optional fused scrim LUT.
+///
+/// # Arguments
+///
+/// - `&mut [u8]` - Destination horizontal band pixel buffer.
+/// - `&[u8]` - Matching source horizontal band pixel buffer from `base_cache_pixels`.
+/// - `(usize, usize, usize, usize)` - Row layout `(row_stride, height, x0_bytes, row_bytes)`.
+/// - `Option<&RgbaLutQuad>` - Optional 256-entry linear-light scrim LUT fused into the restore pass.
+#[inline(always)]
+pub(crate) fn restore_band_strip(
+    dst: &mut [u8],
+    src: &[u8],
+    row_spec: (usize, usize, usize, usize),
+    scrim_luts: Option<&RgbaLutQuad>,
+) {
+    let (row_stride, height, x0_bytes, row_bytes): (usize, usize, usize, usize) = row_spec;
+    if row_bytes == 0 || height == 0 || dst.len() != src.len() {
+        return;
+    }
+    let full_width: bool = x0_bytes == 0 && row_bytes == row_stride;
+    if let Some((lut_r, lut_g, lut_b, lut_a)) = scrim_luts {
+        if full_width {
+            let src_chunks: &[[u8; 4]] = src.as_chunks::<4>().0;
+            let dst_chunks: &mut [[u8; 4]] = dst.as_chunks_mut::<4>().0;
+            for (sp, dp) in src_chunks.iter().zip(dst_chunks.iter_mut()) {
+                dp[0] = lut_r[sp[0] as usize];
+                dp[1] = lut_g[sp[1] as usize];
+                dp[2] = lut_b[sp[2] as usize];
+                dp[3] = lut_a[sp[3] as usize];
+            }
+        } else {
+            let end_bytes: usize = x0_bytes.saturating_add(row_bytes);
+            if end_bytes > row_stride {
+                return;
+            }
+            for row_idx in 0..height {
+                let row_off: usize = row_idx * row_stride;
+                let s_row: &[u8] = &src[row_off + x0_bytes..row_off + end_bytes];
+                let d_row: &mut [u8] = &mut dst[row_off + x0_bytes..row_off + end_bytes];
+                let src_chunks: &[[u8; 4]] = s_row.as_chunks::<4>().0;
+                let dst_chunks: &mut [[u8; 4]] = d_row.as_chunks_mut::<4>().0;
+                for (sp, dp) in src_chunks.iter().zip(dst_chunks.iter_mut()) {
+                    dp[0] = lut_r[sp[0] as usize];
+                    dp[1] = lut_g[sp[1] as usize];
+                    dp[2] = lut_b[sp[2] as usize];
+                    dp[3] = lut_a[sp[3] as usize];
+                }
+            }
+        }
+    } else if full_width {
+        dst.copy_from_slice(src);
+    } else {
+        let end_bytes: usize = x0_bytes.saturating_add(row_bytes);
+        if end_bytes > row_stride {
+            return;
+        }
+        for row_idx in 0..height {
+            let row_off: usize = row_idx * row_stride;
+            dst[row_off + x0_bytes..row_off + end_bytes]
+                .copy_from_slice(&src[row_off + x0_bytes..row_off + end_bytes]);
+        }
+    }
+}
+
 /// Returns the process-wide persistent horizontal-band rasterizer worker pool, lazily spawning warm threads once.
 ///
 /// # Returns
@@ -1636,6 +1722,11 @@ pub(crate) fn run_band_job_loop(job: &BandJob) {
         )
     };
     let atlas: &GlyphAtlas = unsafe { &*(job.atlas_ptr as *const GlyphAtlas) };
+    let scrim_luts: Option<&RgbaLutQuad> = if job.scrim_luts_ptr != 0 {
+        Some(unsafe { &*(job.scrim_luts_ptr as *const RgbaLutQuad) })
+    } else {
+        None
+    };
     let mut local_shaded: usize = 0;
     loop {
         let idx: usize = job.next_idx.fetch_add(1, Ordering::AcqRel);
@@ -1649,7 +1740,17 @@ pub(crate) fn run_band_job_loop(job: &BandJob) {
             let src_slice: &[u8] = unsafe {
                 from_raw_parts(task.get_base_src_ptr() as *const u8, task.get_pixels_len())
             };
-            pixels.copy_from_slice(src_slice);
+            restore_band_strip(
+                pixels,
+                src_slice,
+                (
+                    (task.get_width() as usize) * 4,
+                    task.get_height() as usize,
+                    task.get_restore_x0_bytes(),
+                    task.get_restore_row_bytes(),
+                ),
+                scrim_luts,
+            );
         }
         let mut band: PixelBand<'_> = PixelBand {
             pixels,
