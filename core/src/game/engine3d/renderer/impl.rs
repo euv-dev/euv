@@ -4,7 +4,7 @@ use super::*;
 #[cfg(not(target_arch = "wasm32"))]
 /// Inherent implementation of [`Engine3dWorkerPool`].
 impl Engine3dWorkerPool {
-    /// Creates a warm persistent worker pool sized to host CPU cores (`1..=8` total threads including caller).
+    /// Creates a warm persistent worker pool sized to host CPU cores (`1..=16` total threads including caller) with lock-free spin-before-park dispatch.
     ///
     /// # Returns
     ///
@@ -14,52 +14,93 @@ impl Engine3dWorkerPool {
         let total: usize = available_parallelism()
             .map(usize::from)
             .unwrap_or(4)
-            .clamp(1, 8);
-        let worker_count: usize = total.saturating_sub(1);
-        let shared: Arc<(Mutex<Engine3dPoolState>, Condvar, Condvar)> = Arc::new((
-            Mutex::new(Engine3dPoolState::default()),
-            Condvar::new(),
-            Condvar::new(),
-        ));
-        for idx in 0..worker_count {
-            let shared_clone: Arc<(Mutex<Engine3dPoolState>, Condvar, Condvar)> =
-                Arc::clone(&shared);
+            .clamp(1, ENGINE3D_WORKER_MAX_THREADS);
+        let requested_workers: usize = total.saturating_sub(1);
+        let mut slots: Vec<Engine3dWorkerSlot> = Vec::with_capacity(requested_workers);
+        for _ in 0..requested_workers {
+            slots.push(Engine3dWorkerSlot::default());
+        }
+        let shared: Arc<Engine3dPoolShared> = Arc::new(Engine3dPoolShared {
+            active_job: AtomicUsize::new(0),
+            active_workers: AtomicUsize::new(0),
+            caller_parked: AtomicUsize::new(0),
+            caller_lock: Mutex::new(()),
+            wake_caller: Condvar::new(),
+            slots,
+        });
+        let mut spawned_count: usize = 0;
+        for idx in 0..requested_workers {
+            let shared_clone: Arc<Engine3dPoolShared> = Arc::clone(&shared);
             let name: String = format!("{ENGINE3D_WORKER_PREFIX}-{idx}");
-            let _: io::Result<JoinHandle<()>> = Builder::new().name(name).spawn(move || {
-                let mut seen_epoch: u64 = 0;
-                loop {
-                    let job_ptr: usize = {
-                        let (lock, wake_workers, _): &(Mutex<Engine3dPoolState>, Condvar, Condvar) =
-                            &shared_clone;
-                        let Ok(mut state) = lock.lock() else {
-                            break;
-                        };
-                        while state.get_epoch() == seen_epoch || state.get_active_job() == 0 {
-                            let Ok(next_guard) = wake_workers.wait(state) else {
+            let spawn_res: io::Result<JoinHandle<()>> =
+                Builder::new().name(name).spawn(move || {
+                    let slot: &Engine3dWorkerSlot = &shared_clone.slots[idx];
+                    let mut seen_epoch: usize = 0;
+                    loop {
+                        let mut spins: u32 = 0;
+                        let job_ptr: usize = loop {
+                            let cur_epoch: usize = slot.epoch.load(Ordering::Acquire);
+                            if cur_epoch != seen_epoch {
+                                let ptr: usize = shared_clone.active_job.load(Ordering::Acquire);
+                                if ptr != 0 {
+                                    seen_epoch = cur_epoch;
+                                    break ptr;
+                                }
+                            }
+                            if spins < ENGINE3D_WORKER_SPIN_LIMIT {
+                                spins += 1;
+                                spin_loop();
+                                continue;
+                            }
+                            let Ok(mut guard) = slot.lock.lock() else {
                                 return;
                             };
-                            state = next_guard;
+                            slot.parked.store(1, Ordering::SeqCst);
+                            let parked_ptr: Option<usize> = loop {
+                                let locked_epoch: usize = slot.epoch.load(Ordering::SeqCst);
+                                if locked_epoch != seen_epoch {
+                                    let ptr: usize =
+                                        shared_clone.active_job.load(Ordering::Acquire);
+                                    if ptr != 0 {
+                                        seen_epoch = locked_epoch;
+                                        break Some(ptr);
+                                    }
+                                }
+                                let Ok(next_guard) = slot.wake.wait(guard) else {
+                                    break None;
+                                };
+                                guard = next_guard;
+                            };
+                            slot.parked.store(0, Ordering::SeqCst);
+                            let Some(ptr) = parked_ptr else {
+                                return;
+                            };
+                            break ptr;
+                        };
+                        // SAFETY: Caller keeps `Engine3dJob` pinned on its stack until `workers_done >= active_workers`.
+                        let job: &Engine3dJob = unsafe { &*(job_ptr as *const Engine3dJob) };
+                        run_engine3d_job_loop(job);
+                        let expected: usize = shared_clone.active_workers.load(Ordering::Acquire);
+                        let finished: usize = job.workers_done.fetch_add(1, Ordering::SeqCst) + 1;
+                        if finished >= expected
+                            && shared_clone.caller_parked.load(Ordering::SeqCst) != 0
+                        {
+                            let _guard: Result<
+                                MutexGuard<'_, ()>,
+                                PoisonError<MutexGuard<'_, ()>>,
+                            > = shared_clone.caller_lock.lock();
+                            shared_clone.wake_caller.notify_one();
                         }
-                        seen_epoch = state.get_epoch();
-                        state.get_active_job()
-                    };
-                    let job: &Engine3dJob = unsafe { &*(job_ptr as *const Engine3dJob) };
-                    run_engine3d_job_loop(job);
-                    let finished: usize = job.workers_done.fetch_add(1, Ordering::AcqRel) + 1;
-                    if finished >= worker_count {
-                        let (lock, _, wake_caller): &(Mutex<Engine3dPoolState>, Condvar, Condvar) =
-                            &shared_clone;
-                        let _guard: Result<
-                            MutexGuard<'_, Engine3dPoolState>,
-                            PoisonError<MutexGuard<'_, Engine3dPoolState>>,
-                        > = lock.lock();
-                        wake_caller.notify_one();
                     }
-                }
-            });
+                });
+            if spawn_res.is_ok() {
+                spawned_count += 1;
+            } else {
+                break;
+            }
         }
         Self {
-            worker_count,
+            worker_count: spawned_count,
             dispatch_lock: Mutex::new(()),
             shared,
         }
@@ -160,15 +201,12 @@ impl Renderer3D {
         col
     }
 
-    /// Evaluates a band of coarse deferred RT probes `[gy_start..gy_end)` with soft shadows, multi-bounce reflections, and Lumen GI.
+    /// Evaluates a band of coarse deferred RT probes `[gy_start..gy_end)` with precomputed soft-shadow and Lumen GI/AO ray tables.
     ///
     /// # Arguments
     ///
     /// - `&DeferredFrameCtx` - Shared per-frame camera and RT parameters.
-    /// - `&[f32]` - Linear `1/w` depth buffer.
-    /// - `&[u32]` - G-Buffer triangle index buffer.
-    /// - `&[GShadeTri]` - Per-triangle shading records.
-    /// - `&Bvh3D` - Scene SAH BVH.
+    /// - `ProbeTraceInputs<'_>` - Read-only depth, G-Buffer IDs, shading records, precomputed GI rays, and SAH BVH.
     /// - `(usize, &mut [RtProbeSample])` - `(gy_start, mutable probe band slice)`.
     ///
     /// # Returns
@@ -176,32 +214,17 @@ impl Renderer3D {
     /// - `usize` - Total BVH rays traced within this band.
     fn trace_probe_band(
         fctx: &DeferredFrameCtx,
-        depth_buf: &[f32],
-        g_tri_idx: &[u32],
-        shaded_tris: &[GShadeTri],
-        bvh: &Bvh3D,
+        inputs: ProbeTraceInputs<'_>,
         band: (usize, &mut [RtProbeSample]),
     ) -> usize {
+        let (depth_buf, g_tri_idx, shaded_tris, gi_rays, bvh): ProbeTraceInputs<'_> = inputs;
         let (gy_start, out_probes): (usize, &mut [RtProbeSample]) = band;
         let gw: usize = fctx.gw;
         let step: usize = fctx.rt_step;
         let half_step: usize = step / 2;
         let sun_dir: Vec3 = fctx.sun.get_direction();
         let inv_sun: Vec3 = fctx.inv_sun_dir;
-        let sun_t1: Vec3 = sun_dir.cross(Vec3::new(0.0, 1.0, 0.0)).normalize();
-        let sun_t2: Vec3 = sun_dir.cross(sun_t1).normalize();
-        let soft_offsets: [(f32, f32); 4] = [
-            (0.016, 0.012),
-            (-0.014, 0.016),
-            (0.012, -0.016),
-            (-0.016, -0.012),
-        ];
-        let gi_jitter: [Vec3; 4] = [
-            Vec3::new(0.38, 0.52, -0.24),
-            Vec3::new(-0.34, 0.56, 0.28),
-            Vec3::new(0.24, 0.48, 0.36),
-            Vec3::new(-0.28, 0.50, -0.34),
-        ];
+        let soft_rays: [(Vec3, Vec3); 4] = fctx.soft_shadow_rays;
         let use_soft_shadows: bool = fctx.rt_mode == RayTracingMode::FullPathTracedGi;
         let multi_bounce_refl: bool = fctx.reflection_bounces >= 2;
         let mut rays: usize = 0;
@@ -222,7 +245,8 @@ impl Renderer3D {
                 }
                 let inv_w: f32 = depth_buf[pix_idx];
                 let depth: f32 = 1.0 / inv_w.max(1e-6);
-                let tri: &GShadeTri = &shaded_tris[tid as usize];
+                let tri_idx: usize = tid as usize;
+                let tri: &GShadeTri = &shaded_tris[tri_idx];
                 let (world_p, ray_vec): (Vec3, Vec3) = Self::pixel_world_pos(fctx, px, py, depth);
                 let origin: Vec3 = world_p.add(tri.shade_n.scale(0.08));
                 let pattern: usize = (gx & 1) | ((gy & 1) << 1);
@@ -230,12 +254,7 @@ impl Renderer3D {
                 if tri.n_dot_l > 0.02 {
                     rays += 1;
                     let (s_dir, s_inv): (Vec3, Vec3) = if use_soft_shadows {
-                        let (ox, oy): (f32, f32) = soft_offsets[pattern];
-                        let jittered: Vec3 = sun_dir
-                            .add(sun_t1.scale(ox))
-                            .add(sun_t2.scale(oy))
-                            .normalize();
-                        (jittered, Ray3D::safe_inv_vec(jittered))
+                        soft_rays[pattern]
                     } else {
                         (sun_dir, inv_sun)
                     };
@@ -302,12 +321,7 @@ impl Renderer3D {
                         gi_col = fctx.sun.get_sky_horizon().scale(0.18);
                         ao = 0.88;
                     } else {
-                        let mut jit: Vec3 = gi_jitter[pattern];
-                        if tri.shade_n.dot(jit) < -0.15 {
-                            jit = jit.scale(-1.0);
-                        }
-                        let gi_dir: Vec3 = tri.shade_n.add(jit).normalize();
-                        let inv_gi: Vec3 = Ray3D::safe_inv_vec(gi_dir);
+                        let (gi_dir, inv_gi): (Vec3, Vec3) = gi_rays[tri_idx][pattern];
                         rays += 1;
                         match bvh.trace_closest_raw(origin, gi_dir, inv_gi, 0.06, 20.0) {
                             Some((dist, hit_idx)) => {
@@ -917,26 +931,25 @@ impl Renderer3D {
         ]
     }
 
-    /// Fused post-process pass applying Geometry-Aware FXAA 3.11 + 8-step Morphological Silhouette Edge-Walking AA, 9-tap variance-clamped TAA, and smooth bilinear HDR Bloom.
+    /// Fused post-process pass applying Geometry-Aware FXAA 3.11 + 8-step Morphological Silhouette Edge-Walking AA, 9-tap variance-clamped TAA, and smooth bilinear HDR Bloom directly into uninitialized output memory.
     ///
     /// # Arguments
     ///
     /// - `(usize, usize, usize, usize)` - Dimensions `(w, h, bloom_w, bloom_h)`.
     /// - `PostProcessInputs<'_>` - Read-only `(color_src, luma, g_tri_idx, bloom, taa_history)`.
     /// - `(bool, bool, bool)` - Flags `(use_fxaa, use_taa, use_bloom)`.
-    /// - `(usize, &mut [u8])` - `(y_start, mutable RGBA output band)`.
-    fn post_process_band(
+    /// - `(usize, *mut u8, usize)` - `(y_start, writable band RGBA base pointer, band row count)`.
+    unsafe fn post_process_band(
         dims: (usize, usize, usize, usize),
         inputs: PostProcessInputs<'_>,
         flags: (bool, bool, bool),
-        band: (usize, &mut [u8]),
+        band: (usize, *mut u8, usize),
     ) {
         let (w, h, bw, bh): (usize, usize, usize, usize) = dims;
         let (src, luma, g_tri_idx, bloom, history): PostProcessInputs<'_> = inputs;
         let (use_fxaa, use_taa, use_bloom): (bool, bool, bool) = flags;
-        let (y_start, dst_band): (usize, &mut [u8]) = band;
+        let (y_start, dst_ptr, band_rows): (usize, *mut u8, usize) = band;
         let row_bytes: usize = w * 4;
-        let band_rows: usize = dst_band.len() / row_bytes.max(1);
         let has_bloom: bool = use_bloom && bw > 0 && bh > 0 && bloom.len() >= bw * bh;
         let has_taa: bool = use_taa && history.len() == src.len();
         let w_i32: i32 = w as i32;
@@ -946,11 +959,18 @@ impl Renderer3D {
             let src_off: usize = y * row_bytes;
             let dst_off: usize = local_y * row_bytes;
             if !use_fxaa && !has_bloom && !has_taa {
-                dst_band[dst_off..(dst_off + row_bytes)]
-                    .copy_from_slice(&src[src_off..(src_off + row_bytes)]);
+                // SAFETY: Caller guarantees `dst_ptr` covers `band_rows * row_bytes` disjoint writable bytes,
+                // and `src_off + row_bytes <= src.len()` since `y < h`.
+                unsafe {
+                    dst_ptr
+                        .add(dst_off)
+                        .copy_from_nonoverlapping(src.as_ptr().add(src_off), row_bytes);
+                }
                 continue;
             }
-            if !use_fxaa || y == 0 || y + 1 >= h || w < 3 {
+            let edge_row: bool = y == 0 || y + 1 >= h;
+            let simple_row: bool = !use_fxaa || edge_row;
+            if simple_row || w < 3 {
                 for x in 0..w {
                     let sc: usize = src_off + x * 4;
                     let dc: usize = dst_off + x * 4;
@@ -963,17 +983,26 @@ impl Renderer3D {
                         g = (g + (bl[1] * 64.0) as i32).min(255);
                         b = (b + (bl[2] * 64.0) as i32).min(255);
                     }
-                    dst_band[dc] = r as u8;
-                    dst_band[dc + 1] = g as u8;
-                    dst_band[dc + 2] = b as u8;
-                    dst_band[dc + 3] = 255;
+                    // SAFETY: `dc + 4 <= band_rows * row_bytes` and `[u8; 4]` has alignment 1.
+                    unsafe {
+                        dst_ptr
+                            .add(dc)
+                            .cast::<[u8; 4]>()
+                            .write([r as u8, g as u8, b as u8, 255]);
+                    }
                 }
                 continue;
             }
-            dst_band[dst_off..(dst_off + 4)].copy_from_slice(&src[src_off..(src_off + 4)]);
             let last_px: usize = (w - 1) * 4;
-            dst_band[(dst_off + last_px)..(dst_off + last_px + 4)]
-                .copy_from_slice(&src[(src_off + last_px)..(src_off + last_px + 4)]);
+            // SAFETY: `w >= 3`, so both first and last 4-byte pixels lie within `dst_off..dst_off + row_bytes`.
+            unsafe {
+                dst_ptr
+                    .add(dst_off)
+                    .copy_from_nonoverlapping(src.as_ptr().add(src_off), 4);
+                dst_ptr
+                    .add(dst_off + last_px)
+                    .copy_from_nonoverlapping(src.as_ptr().add(src_off + last_px), 4);
+            }
             let row: usize = y * w;
             let row_up: usize = (y - 1) * w;
             let row_dn: usize = (y + 1) * w;
@@ -988,10 +1017,11 @@ impl Renderer3D {
                 let lmin: i32 = lc.min(ln).min(ls).min(le).min(lw);
                 let contrast: i32 = lmax - lmin;
                 let tid_c: u32 = g_tri_idx[row + x];
-                let geom_edge: bool = tid_c != g_tri_idx[row_up + x]
-                    || tid_c != g_tri_idx[row_dn + x]
-                    || tid_c != g_tri_idx[row + x - 1]
-                    || tid_c != g_tri_idx[row + x + 1];
+                let edge_v_id: bool =
+                    tid_c != g_tri_idx[row_up + x] || tid_c != g_tri_idx[row_dn + x];
+                let edge_h_id: bool =
+                    tid_c != g_tri_idx[row + x - 1] || tid_c != g_tri_idx[row + x + 1];
+                let geom_edge: bool = edge_v_id || edge_h_id;
                 let sc: usize = (row + x) * 4;
                 let dc: usize = dst_off + x * 4;
                 let mut rgb: [i32; 3] = [src[sc] as i32, src[sc + 1] as i32, src[sc + 2] as i32];
@@ -1028,15 +1058,13 @@ impl Renderer3D {
                         let sy: i32 = y_i32 - tan_dy * s;
                         let ox: i32 = sx + perp_dx;
                         let oy: i32 = sy + perp_dy;
-                        if sx < 0
-                            || sx >= w_i32
-                            || sy < 0
-                            || sy >= h_i32
-                            || ox < 0
-                            || ox >= w_i32
-                            || oy < 0
-                            || oy >= h_i32
-                        {
+                        let oob_s: bool = sx < 0 || sx >= w_i32;
+                        let oob_sy: bool = sy < 0 || sy >= h_i32;
+                        let oob_o: bool = ox < 0 || ox >= w_i32;
+                        let oob_oy: bool = oy < 0 || oy >= h_i32;
+                        let oob_a: bool = oob_s || oob_sy;
+                        let oob_b: bool = oob_o || oob_oy;
+                        if oob_a || oob_b {
                             dist_neg = s;
                             break;
                         }
@@ -1056,15 +1084,13 @@ impl Renderer3D {
                         let sy: i32 = y_i32 + tan_dy * s;
                         let ox: i32 = sx + perp_dx;
                         let oy: i32 = sy + perp_dy;
-                        if sx < 0
-                            || sx >= w_i32
-                            || sy < 0
-                            || sy >= h_i32
-                            || ox < 0
-                            || ox >= w_i32
-                            || oy < 0
-                            || oy >= h_i32
-                        {
+                        let oob_s: bool = sx < 0 || sx >= w_i32;
+                        let oob_sy: bool = sy < 0 || sy >= h_i32;
+                        let oob_o: bool = ox < 0 || ox >= w_i32;
+                        let oob_oy: bool = oy < 0 || oy >= h_i32;
+                        let oob_a: bool = oob_s || oob_sy;
+                        let oob_b: bool = oob_o || oob_oy;
+                        if oob_a || oob_b {
                             dist_pos = s;
                             break;
                         }
@@ -1141,15 +1167,20 @@ impl Renderer3D {
                     rgb[1] = (rgb[1] + (bl[1] * 64.0) as i32).min(255);
                     rgb[2] = (rgb[2] + (bl[2] * 64.0) as i32).min(255);
                 }
-                dst_band[dc] = rgb[0] as u8;
-                dst_band[dc + 1] = rgb[1] as u8;
-                dst_band[dc + 2] = rgb[2] as u8;
-                dst_band[dc + 3] = 255;
+                // SAFETY: `dc + 4 <= band_rows * row_bytes` and `[u8; 4]` has alignment 1.
+                unsafe {
+                    dst_ptr.add(dc).cast::<[u8; 4]>().write([
+                        rgb[0] as u8,
+                        rgb[1] as u8,
+                        rgb[2] as u8,
+                        255,
+                    ]);
+                }
             }
         }
     }
 
-    /// Renders `world` at runtime-configured `quality` into an `ImageBuffer` using the persistent zero-spawn multi-core worker pool.
+    /// Renders `world` at runtime-configured `quality` directly into `out_pixels` without zero-filling, returning internal `(width, height)`.
     ///
     /// # Arguments
     ///
@@ -1158,17 +1189,19 @@ impl Renderer3D {
     /// - `u32` - Target viewport width in logical pixels.
     /// - `u32` - Target viewport height in logical pixels.
     /// - `&RenderQualityConfig` - Live runtime quality, resolution scale, LOD, and ray-tracing settings.
+    /// - `&mut Vec<u8>` - Destination RGBA8 byte buffer resized without zero-fill and populated completely.
     ///
     /// # Returns
     ///
-    /// - `ImageBuffer` - Ready RGBA8 rendered 3D frame for immediate presentation.
-    pub fn render_world(
+    /// - `(u32, u32)` - Internal rasterized framebuffer `(width, height)`.
+    fn render_world_into_vec(
         &mut self,
         world: &mut World3D,
         viewport_w: u32,
         viewport_h: u32,
         quality: &RenderQualityConfig,
-    ) -> ImageBuffer {
+        out_pixels: &mut Vec<u8>,
+    ) -> (u32, u32) {
         let scale: f32 = quality.get_resolution_scale().clamp(0.40, 4.0);
         let w: u32 = ((viewport_w as f32 * scale).round() as u32).clamp(240, 3840);
         let h: u32 = ((viewport_h as f32 * scale).round() as u32).clamp(144, 2160);
@@ -1244,6 +1277,7 @@ impl Renderer3D {
             g_tri_idx,
             luma_buffer,
             shaded_tris,
+            gi_rays_scratch,
             rt_probes,
             rt_probes_denoised,
             bloom_a,
@@ -1542,6 +1576,22 @@ impl Renderer3D {
             quality.get_preset(),
             QualityPreset::High | QualityPreset::Ultra | QualityPreset::Cinematic
         );
+        let sun_inv_dir: Vec3 = Ray3D::safe_inv_vec(sun_dir);
+        let soft_shadow_rays: GiRayQuad = if rt_mode == RayTracingMode::FullPathTracedGi {
+            let sun_t1: Vec3 = sun_dir.cross(Vec3::new(0.0, 1.0, 0.0)).normalize();
+            let sun_t2: Vec3 = sun_dir.cross(sun_t1).normalize();
+            let mut table: GiRayQuad = [(sun_dir, sun_inv_dir); 4];
+            for (slot, &(ox, oy)) in table.iter_mut().zip(SOFT_SHADOW_OFFSETS_4.iter()) {
+                let jittered: Vec3 = sun_dir
+                    .add(sun_t1.scale(ox))
+                    .add(sun_t2.scale(oy))
+                    .normalize();
+                *slot = (jittered, Ray3D::safe_inv_vec(jittered));
+            }
+            table
+        } else {
+            [(sun_dir, sun_inv_dir); 4]
+        };
         let fctx: DeferredFrameCtx = DeferredFrameCtx {
             w: w_usize,
             h: h_usize,
@@ -1556,7 +1606,8 @@ impl Renderer3D {
             cam_right_scaled: cam_right.scale(half_w),
             cam_up_scaled: cam_up.scale(half_h),
             sun,
-            inv_sun_dir: Ray3D::safe_inv_vec(sun_dir),
+            inv_sun_dir: sun_inv_dir,
+            soft_shadow_rays,
             rt_mode,
             reflection_bounces: quality.get_reflection_bounces(),
             fog_on: quality.get_volumetric_fog(),
@@ -1570,20 +1621,48 @@ impl Renderer3D {
             if rt_probes.len() != probe_count {
                 rt_probes.resize(probe_count, RtProbeSample::default());
             }
+            gi_rays_scratch.clear();
+            if rt_mode == RayTracingMode::FullPathTracedGi {
+                gi_rays_scratch.reserve(shaded_tris.len());
+                let j0: Vec3 = Vec3::new(GI_JITTER_4[0][0], GI_JITTER_4[0][1], GI_JITTER_4[0][2]);
+                let j1: Vec3 = Vec3::new(GI_JITTER_4[1][0], GI_JITTER_4[1][1], GI_JITTER_4[1][2]);
+                let j2: Vec3 = Vec3::new(GI_JITTER_4[2][0], GI_JITTER_4[2][1], GI_JITTER_4[2][2]);
+                let j3: Vec3 = Vec3::new(GI_JITTER_4[3][0], GI_JITTER_4[3][1], GI_JITTER_4[3][2]);
+                let jits: [Vec3; 4] = [j0, j1, j2, j3];
+                for tri in shaded_tris.iter() {
+                    let n: Vec3 = tri.shade_n;
+                    let mut dirs: [(Vec3, Vec3); 4] = [(n, n); 4];
+                    for (slot, &base_jit) in dirs.iter_mut().zip(jits.iter()) {
+                        let jit: Vec3 = if n.dot(base_jit) < -0.15 {
+                            base_jit.scale(-1.0)
+                        } else {
+                            base_jit
+                        };
+                        let gi_dir: Vec3 = n.add(jit).normalize();
+                        *slot = (gi_dir, Ray3D::safe_inv_vec(gi_dir));
+                    }
+                    gi_rays_scratch.push(dirs);
+                }
+            }
             let depth_ref: &[f32] = depth_buffer.as_slice();
             let gtri_ref: &[u32] = g_tri_idx.as_slice();
             let stri_ref: &[GShadeTri] = shaded_tris.as_slice();
+            let gi_rays_ref: &[GiRayQuad] = gi_rays_scratch.as_slice();
             let probes_base: usize = rt_probes.as_mut_ptr() as usize;
-            let probe_grain: usize = (gh / 16).clamp(4, 16);
+            let probe_grain: usize = (gh / 32).clamp(2, 8);
             parallel_for_ranges(gh, probe_grain, |gy0: usize, gy1: usize| {
+                // SAFETY: `parallel_for_ranges` partitions `0..gh` into disjoint row bands within `rt_probes`.
                 let slice: &mut [RtProbeSample] = unsafe {
                     from_raw_parts_mut(
                         (probes_base as *mut RtProbeSample).add(gy0 * gw),
                         (gy1 - gy0) * gw,
                     )
                 };
-                let r: usize =
-                    Self::trace_probe_band(&fctx, depth_ref, gtri_ref, stri_ref, bvh, (gy0, slice));
+                let r: usize = Self::trace_probe_band(
+                    &fctx,
+                    (depth_ref, gtri_ref, stri_ref, gi_rays_ref, bvh),
+                    (gy0, slice),
+                );
                 if r > 0 {
                     let _: usize = rays_atom.fetch_add(r, Ordering::Relaxed);
                 }
@@ -1599,6 +1678,7 @@ impl Renderer3D {
                 let src_probes: &[RtProbeSample] = rt_probes.as_slice();
                 let dst_base: usize = rt_probes_denoised.as_mut_ptr() as usize;
                 parallel_for_ranges(gh, probe_grain, |gy0: usize, gy1: usize| {
+                    // SAFETY: Disjoint row bands within `rt_probes_denoised`.
                     let dst_slice: &mut [RtProbeSample] = unsafe {
                         from_raw_parts_mut(
                             (dst_base as *mut RtProbeSample).add(gy0 * gw),
@@ -1627,21 +1707,24 @@ impl Renderer3D {
             let luma_base: usize = luma_buffer.as_mut_ptr() as usize;
             let bloom_base: usize = bloom_a.as_mut_ptr() as usize;
             let bloom_total_len: usize = bloom_a.len();
-            let shade_grain: usize = ((h_usize / 16).div_ceil(4) * 4).clamp(16, 48);
+            let shade_grain: usize = ((h_usize / 32).div_ceil(4) * 4).clamp(8, 24);
             parallel_for_ranges(h_usize, shade_grain, |y0: usize, y1: usize| {
                 let rows: usize = y1 - y0;
+                // SAFETY: `shade_grain` is a multiple of 4 and `parallel_for_ranges` yields disjoint row bands.
                 let c_band: &mut [u8] = unsafe {
                     from_raw_parts_mut(
                         (color_base as *mut u8).add(y0 * w_usize * 4),
                         rows * w_usize * 4,
                     )
                 };
+                // SAFETY: Disjoint luma row band for `[y0, y1)`.
                 let l_band: &mut [u8] = unsafe {
                     from_raw_parts_mut((luma_base as *mut u8).add(y0 * w_usize), rows * w_usize)
                 };
                 let b_start: usize = (y0 / 4) * bw;
                 let b_end: usize = ((y1.div_ceil(4)) * bw).min(bloom_total_len);
                 let b_band: &mut [[f32; 3]] = if b_start < b_end {
+                    // SAFETY: Since `y0` and non-final `y1` are multiples of 4, `[b_start, b_end)` ranges are disjoint.
                     unsafe {
                         from_raw_parts_mut(
                             (bloom_base as *mut [f32; 3]).add(b_start),
@@ -1669,7 +1752,11 @@ impl Renderer3D {
         let vp_m0: f32 = vp.get_m()[0] + vp.get_m()[12] * 0.01 + vp.get_m()[14] * 0.01;
         let cam_stable: bool = (*prev_vp_m0 - vp_m0).abs() < 0.35;
         let use_taa: bool = aa_mode == AntiAliasingMode::Taa && *has_taa_history && cam_stable;
-        let mut out_pixels: Vec<u8> = vec![0; pixel_count * 4];
+        let byte_len: usize = pixel_count * 4;
+        out_pixels.clear();
+        if out_pixels.capacity() < byte_len {
+            out_pixels.reserve_exact(byte_len);
+        }
         {
             let src_ref: &[u8] = color_buffer.as_slice();
             let luma_ref: &[u8] = luma_buffer.as_slice();
@@ -1677,21 +1764,24 @@ impl Renderer3D {
             let bloom_ref: &[[f32; 3]] = bloom_a.as_slice();
             let hist_ref: &[u8] = aa_buffer.as_slice();
             let out_base: usize = out_pixels.as_mut_ptr() as usize;
-            let post_grain: usize = (h_usize / 16).clamp(16, 48);
+            let post_grain: usize = (h_usize / 32).clamp(8, 24);
             parallel_for_ranges(h_usize, post_grain, |y0: usize, y1: usize| {
-                let dst_band: &mut [u8] = unsafe {
-                    from_raw_parts_mut(
-                        (out_base as *mut u8).add(y0 * w_usize * 4),
-                        (y1 - y0) * w_usize * 4,
-                    )
-                };
-                Self::post_process_band(
-                    (w_usize, h_usize, bw, bh),
-                    (src_ref, luma_ref, gtri_ref, bloom_ref, hist_ref),
-                    (use_fxaa, use_taa, bloom_on),
-                    (y0, dst_band),
-                );
+                // SAFETY: `out_pixels` has capacity `>= byte_len`, `parallel_for_ranges` partitions `0..h_usize`
+                // into disjoint row ranges, and `post_process_band` writes all `(y1 - y0) * w_usize * 4` bytes.
+                unsafe {
+                    let band_ptr: *mut u8 = (out_base as *mut u8).add(y0 * w_usize * 4);
+                    Self::post_process_band(
+                        (w_usize, h_usize, bw, bh),
+                        (src_ref, luma_ref, gtri_ref, bloom_ref, hist_ref),
+                        (use_fxaa, use_taa, bloom_on),
+                        (y0, band_ptr, y1 - y0),
+                    );
+                }
             });
+        }
+        // SAFETY: `parallel_for_ranges` has joined and initialized every byte in `0..byte_len`.
+        unsafe {
+            out_pixels.set_len(byte_len);
         }
         if aa_mode == AntiAliasingMode::Taa {
             swap(aa_buffer, color_buffer);
@@ -1719,7 +1809,65 @@ impl Renderer3D {
             meshlets_culled,
         };
         self.set_last_stats(stats);
+        (w, h)
+    }
+
+    /// Renders `world` at runtime-configured `quality` into an `ImageBuffer` without zero-filling output memory.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable 3D renderer.
+    /// - `&mut World3D` - Open-world 3D scene graph.
+    /// - `u32` - Target viewport width in logical pixels.
+    /// - `u32` - Target viewport height in logical pixels.
+    /// - `&RenderQualityConfig` - Live runtime quality, resolution scale, LOD, and ray-tracing settings.
+    ///
+    /// # Returns
+    ///
+    /// - `ImageBuffer` - Ready RGBA8 rendered 3D frame for immediate presentation.
+    pub fn render_world(
+        &mut self,
+        world: &mut World3D,
+        viewport_w: u32,
+        viewport_h: u32,
+        quality: &RenderQualityConfig,
+    ) -> ImageBuffer {
+        let mut out_pixels: Vec<u8> = Vec::new();
+        let (w, h): (u32, u32) =
+            self.render_world_into_vec(world, viewport_w, viewport_h, quality, &mut out_pixels);
         ImageBuffer::new(w, h, out_pixels)
+    }
+
+    /// Renders `world` into the persistent internal `rgba_scratch` buffer, eliminating per-frame output heap allocations.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable 3D renderer.
+    /// - `&mut World3D` - Open-world 3D scene graph.
+    /// - `u32` - Target viewport width in logical pixels.
+    /// - `u32` - Target viewport height in logical pixels.
+    /// - `&RenderQualityConfig` - Live runtime quality, resolution scale, LOD, and ray-tracing settings.
+    ///
+    /// # Returns
+    ///
+    /// - `&[u8]` - Borrowed RGBA8 pixel slice of the rendered 3D frame.
+    #[must_use]
+    pub fn render_world_rgba(
+        &mut self,
+        world: &mut World3D,
+        viewport_w: u32,
+        viewport_h: u32,
+        quality: &RenderQualityConfig,
+    ) -> &[u8] {
+        let mut scratch: Vec<u8> = {
+            let Self { rgba_scratch, .. } = self;
+            take(rgba_scratch)
+        };
+        let _: (u32, u32) =
+            self.render_world_into_vec(world, viewport_w, viewport_h, quality, &mut scratch);
+        let Self { rgba_scratch, .. } = self;
+        *rgba_scratch = scratch;
+        rgba_scratch.as_slice()
     }
 
     /// Clips a triangle against the camera near plane `w >= near_w` (Sutherland-Hodgman), returning 0, 1, or 2 triangles.

@@ -1,15 +1,35 @@
 use super::*;
 
-/// Synchronized dispatch epoch and active job pointer for the persistent 3D worker pool.
+/// Per-worker atomic wakeup epoch and condition variable slot eliminating shared-mutex contention in `Engine3dWorkerPool`.
 #[cfg(not(target_arch = "wasm32"))]
-#[derive(Clone, Copy, Data, Debug, Default)]
-pub(crate) struct Engine3dPoolState {
-    /// Monotonically increasing dispatch epoch counter.
-    #[get(type(copy))]
-    pub(crate) epoch: u64,
-    /// Raw pointer address of the active `Engine3dJob` (`0` when idle).
-    #[get(type(copy))]
-    pub(crate) active_job: usize,
+#[derive(Debug, Default)]
+pub(crate) struct Engine3dWorkerSlot {
+    /// Monotonically incremented epoch signaling this worker to run the active job.
+    pub(crate) epoch: AtomicUsize,
+    /// Non-zero while this worker is parked on `wake` and requires condvar notification.
+    pub(crate) parked: AtomicUsize,
+    /// Private sleep mutex paired with `wake`.
+    pub(crate) lock: Mutex<()>,
+    /// Condition variable waking this worker when parked between frames.
+    pub(crate) wake: Condvar,
+}
+
+/// Shared lock-free dispatch state coordinating caller and persistent 3D background workers.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug)]
+pub(crate) struct Engine3dPoolShared {
+    /// Raw pointer address of the caller-pinned `Engine3dJob` (`0` when idle).
+    pub(crate) active_job: AtomicUsize,
+    /// Number of background workers woken for the active dispatch.
+    pub(crate) active_workers: AtomicUsize,
+    /// Non-zero while the calling thread is parked waiting for workers to complete.
+    pub(crate) caller_parked: AtomicUsize,
+    /// Caller sleep mutex paired with `wake_caller`.
+    pub(crate) caller_lock: Mutex<()>,
+    /// Condition variable waking the calling thread once all active workers finish.
+    pub(crate) wake_caller: Condvar,
+    /// Per-worker wakeup slots (`len == worker_count`).
+    pub(crate) slots: Vec<Engine3dWorkerSlot>,
 }
 
 /// Active work-stealing range job executed synchronously across caller and persistent 3D worker threads.
@@ -40,8 +60,8 @@ pub(crate) struct Engine3dWorkerPool {
     pub(crate) worker_count: usize,
     /// Non-blocking re-entrancy guard serializing top-level dispatches cleanly.
     pub(crate) dispatch_lock: Mutex<()>,
-    /// Shared dispatch state mutex and worker/caller condition variables.
-    pub(crate) shared: Arc<(Mutex<Engine3dPoolState>, Condvar, Condvar)>,
+    /// Shared lock-free atomic dispatch state and per-worker wakeup slots.
+    pub(crate) shared: Arc<Engine3dPoolShared>,
 }
 
 /// Per-frame telemetry emitted by `Renderer3D` for live FPS/RT/LOD/Nanite/culling diagnostics.
@@ -173,6 +193,8 @@ pub(crate) struct DeferredFrameCtx {
     pub(crate) sun: DirectionalLight3D,
     /// Precomputed safe reciprocal sun direction for fast shadow BVH traversal.
     pub(crate) inv_sun_dir: Vec3,
+    /// Precomputed 2x2 soft-shadow jittered `(dir, inv_dir)` ray table hoisted once per frame.
+    pub(crate) soft_shadow_rays: GiRayQuad,
     /// Active ray-tracing quality tier.
     pub(crate) rt_mode: RayTracingMode,
     /// Maximum reflection/GI bounce depth (`0..=3`).
@@ -211,6 +233,16 @@ pub struct Renderer3D {
     #[get_mut(skip)]
     #[set(skip)]
     pub(crate) shaded_tris: Vec<GShadeTri>,
+    /// Per-triangle precomputed 2x2 Lumen GI/AO `(dir, inv_dir)` ray table hoisted once per frame.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) gi_rays_scratch: Vec<GiRayQuad>,
+    /// Persistent reusable RGBA8 final output buffer eliminating per-frame allocations in `render_world_rgba`.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) rgba_scratch: Vec<u8>,
     /// Coarse coherent ray-tracing probe grid.
     #[get(skip)]
     #[get_mut(skip)]
