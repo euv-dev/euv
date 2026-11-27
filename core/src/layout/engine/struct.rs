@@ -34,6 +34,11 @@ pub struct LayoutEngine {
     #[get_mut(pub(crate))]
     #[set(skip)]
     pub(crate) flex_lines_scratch: Vec<(usize, usize)>,
+    /// Reusable stack buffer for iterative zero-allocation subtree translations.
+    #[get(skip)]
+    #[get_mut(pub(crate))]
+    #[set(skip)]
+    pub(crate) translate_scratch: Vec<NodeId>,
     /// Bounded 2-way set-associative cache of measured text sizes for layout passes.
     #[get(skip)]
     #[get_mut(pub(crate))]

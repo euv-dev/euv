@@ -22,12 +22,14 @@ impl LayoutEngine {
         self.get_mut_abs_scratch().clear();
         self.get_mut_flex_items_scratch().clear();
         self.get_mut_flex_lines_scratch().clear();
+        self.get_mut_translate_scratch().clear();
         self.layout_node(tree, root_id, space, &mut stats);
         debug_assert!(self.get_children_scratch().is_empty());
         debug_assert!(self.get_flow_scratch().is_empty());
         debug_assert!(self.get_abs_scratch().is_empty());
         debug_assert!(self.get_flex_items_scratch().is_empty());
         debug_assert!(self.get_flex_lines_scratch().is_empty());
+        debug_assert!(self.get_mut_translate_scratch().is_empty());
         self.set_last_stats(stats);
         stats
     }
@@ -1235,44 +1237,74 @@ impl LayoutEngine {
     ///
     /// # Arguments
     ///
-    /// - `&Self` - Layout engine reference.
+    /// - `&Self` - Mutable layout engine reference.
     /// - `&mut SceneTree` - Mutable retained scene tree.
     /// - `NodeId` - Root node of the clean subtree being shifted.
     /// - `f32` - Horizontal translation delta in logical pixels.
     /// - `f32` - Vertical translation delta in logical pixels.
-    fn translate_subtree(&self, tree: &mut SceneTree, root_id: NodeId, dx: f32, dy: f32) {
-        let mut stack: Vec<(NodeId, bool)> = vec![(root_id, true)];
-        while let Some((nid, is_root)) = stack.pop() {
-            let children_to_visit: Vec<NodeId> = {
-                let Some(node) = tree.get_node_mut(nid) else {
-                    continue;
-                };
-                let Style { layout, .. } = node.style_ref();
-                let is_fixed_pos: bool = layout.get_position() == Position::Fixed;
-                let is_none_disp: bool = layout.get_display() == Display::None;
-                if !is_root && is_fixed_pos {
-                    continue;
-                }
-                if let Some(mut c) = node.cached_constraint() {
-                    c.set_origin_x(c.get_origin_x() + dx);
-                    c.set_origin_y(c.get_origin_y() + dy);
-                    node.set_last_constraint(Some(c));
-                }
-                if is_none_disp {
-                    continue;
-                }
-                let mut bounds: Rect = node.get_layout_box().get_bounds();
-                bounds.set_x(bounds.get_x() + dx);
-                bounds.set_y(bounds.get_y() + dy);
-                node.get_mut_layout_box().set_bounds(bounds);
-                let mut content: Rect = node.get_layout_box().get_content_bounds();
-                content.set_x(content.get_x() + dx);
-                content.set_y(content.get_y() + dy);
-                node.get_mut_layout_box().set_content_bounds(content);
-                node.get_children().clone()
+    fn translate_subtree(&mut self, tree: &mut SceneTree, root_id: NodeId, dx: f32, dy: f32) {
+        if dx == 0.0 && dy == 0.0 {
+            return;
+        }
+        let Some(root_node) = tree.get_node_mut(root_id) else {
+            return;
+        };
+        let Style { layout, .. } = root_node.style_ref();
+        let root_none_disp: bool = layout.get_display() == Display::None;
+        if let Some(mut c) = root_node.cached_constraint() {
+            c.set_origin_x(c.get_origin_x() + dx);
+            c.set_origin_y(c.get_origin_y() + dy);
+            root_node.set_last_constraint(Some(c));
+        }
+        if root_none_disp {
+            return;
+        }
+        let mut root_bounds: Rect = root_node.get_layout_box().get_bounds();
+        root_bounds.set_x(root_bounds.get_x() + dx);
+        root_bounds.set_y(root_bounds.get_y() + dy);
+        root_node.get_mut_layout_box().set_bounds(root_bounds);
+        let mut root_content: Rect = root_node.get_layout_box().get_content_bounds();
+        root_content.set_x(root_content.get_x() + dx);
+        root_content.set_y(root_content.get_y() + dy);
+        root_node
+            .get_mut_layout_box()
+            .set_content_bounds(root_content);
+        let root_children: &[NodeId] = root_node.get_children().as_slice();
+        if root_children.is_empty() {
+            return;
+        }
+        let stack: &mut Vec<NodeId> = self.get_mut_translate_scratch();
+        stack.clear();
+        stack.extend_from_slice(root_children);
+        while let Some(nid) = stack.pop() {
+            let Some(node) = tree.get_node_mut(nid) else {
+                continue;
             };
-            for child_id in children_to_visit.into_iter() {
-                stack.push((child_id, false));
+            let Style { layout, .. } = node.style_ref();
+            let is_fixed_pos: bool = layout.get_position() == Position::Fixed;
+            let is_none_disp: bool = layout.get_display() == Display::None;
+            if is_fixed_pos {
+                continue;
+            }
+            if let Some(mut c) = node.cached_constraint() {
+                c.set_origin_x(c.get_origin_x() + dx);
+                c.set_origin_y(c.get_origin_y() + dy);
+                node.set_last_constraint(Some(c));
+            }
+            if is_none_disp {
+                continue;
+            }
+            let mut bounds: Rect = node.get_layout_box().get_bounds();
+            bounds.set_x(bounds.get_x() + dx);
+            bounds.set_y(bounds.get_y() + dy);
+            node.get_mut_layout_box().set_bounds(bounds);
+            let mut content: Rect = node.get_layout_box().get_content_bounds();
+            content.set_x(content.get_x() + dx);
+            content.set_y(content.get_y() + dy);
+            node.get_mut_layout_box().set_content_bounds(content);
+            let children_slice: &[NodeId] = node.get_children().as_slice();
+            if !children_slice.is_empty() {
+                stack.extend_from_slice(children_slice);
             }
         }
     }
