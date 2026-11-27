@@ -83,7 +83,6 @@ pub(crate) fn evaluate_memo(id: MemoId) -> bool {
     }
     let staged: Option<StagedMemo> = with_runtime(
         |rt: &mut ReactiveRuntime| {
-            rt.clear_dependencies(SubscriberId::Memo(id));
             let entry: &mut MemoEntry = rt.get_mut_memos().get_mut(idx)?;
             if entry.get_generation() != slot.get_generation() {
                 return None;
@@ -91,7 +90,7 @@ pub(crate) fn evaluate_memo(id: MemoId) -> bool {
             let compute: MemoComputeFn = entry.compute.clone()?;
             let prev_value: Option<Box<dyn Any>> = entry.value.take();
             rt.get_mut_observer_stack()
-                .push(Some(SubscriberId::Memo(id)));
+                .push(Some((SubscriberId::Memo(id), 0)));
             Some((compute, prev_value))
         },
         None,
@@ -118,7 +117,7 @@ pub(crate) fn evaluate_memo(id: MemoId) -> bool {
     };
     with_runtime(
         |rt: &mut ReactiveRuntime| {
-            rt.get_mut_observer_stack().pop();
+            rt.finish_tracking();
             let should_propagate: bool = if let Some(entry) = rt.get_mut_memos().get_mut(idx) {
                 if entry.get_generation() != slot.get_generation() {
                     return;
@@ -159,9 +158,8 @@ pub(crate) fn run_effect(id: EffectId) {
             }
             entry.set_scheduled(false);
             let cb: Rc<RefCell<dyn FnMut()>> = entry.callback.clone()?;
-            rt.clear_dependencies(SubscriberId::Effect(id));
             rt.get_mut_observer_stack()
-                .push(Some(SubscriberId::Effect(id)));
+                .push(Some((SubscriberId::Effect(id), 0)));
             Some(cb)
         },
         None,
@@ -169,12 +167,19 @@ pub(crate) fn run_effect(id: EffectId) {
     let Some(callback) = callback_opt else {
         return;
     };
-    if let Ok(mut func) = callback.try_borrow_mut() {
+    let ran: bool = if let Ok(mut func) = callback.try_borrow_mut() {
         func();
-    }
+        true
+    } else {
+        false
+    };
     with_runtime(
         |rt: &mut ReactiveRuntime| {
-            rt.get_mut_observer_stack().pop();
+            if ran {
+                rt.finish_tracking();
+            } else {
+                rt.get_mut_observer_stack().pop();
+            }
         },
         (),
     );

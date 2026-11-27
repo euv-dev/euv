@@ -24,6 +24,250 @@ where
         }
     }
 
+    /// Returns the number of stored entries.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Small list reference.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Number of items currently stored.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn len(&self) -> usize {
+        match self {
+            Self::Empty => 0,
+            Self::One(_) => 1,
+            Self::Two(_, _) => 2,
+            Self::Many(vec) => vec.len(),
+        }
+    }
+
+    /// Returns the entry at `index` if in bounds.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Small list reference.
+    /// - `usize` - Zero-based item index.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<T>` - Copied item at `index`, or `None` when out of bounds.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn get(&self, index: usize) -> Option<T> {
+        match self {
+            Self::Empty => None,
+            Self::One(first) => {
+                if index == 0 {
+                    Some(*first)
+                } else {
+                    None
+                }
+            }
+            Self::Two(first, second) => match index {
+                0 => Some(*first),
+                1 => Some(*second),
+                _ => None,
+            },
+            Self::Many(vec) => vec.get(index).copied(),
+        }
+    }
+
+    /// Checks whether `target` already exists within the prefix `0..end`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Small list reference.
+    /// - `usize` - Exclusive upper index bound of the prefix.
+    /// - `T` - Entry to search for.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when `target` appears before index `end`.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn contains_prefix(&self, end: usize, target: T) -> bool {
+        if end == 0 {
+            return false;
+        }
+        match self {
+            Self::Empty => false,
+            Self::One(first) => *first == target,
+            Self::Two(first, second) => {
+                if *first == target {
+                    true
+                } else {
+                    end > 1 && *second == target
+                }
+            }
+            Self::Many(vec) => {
+                let bound: usize = end.min(vec.len());
+                vec[..bound].contains(&target)
+            }
+        }
+    }
+
+    /// Finds the first index `>= start` whose entry equals `target`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Small list reference.
+    /// - `usize` - Inclusive start index.
+    /// - `T` - Entry to locate.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<usize>` - Matching index if found at or after `start`.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn find_from(&self, start: usize, target: T) -> Option<usize> {
+        match self {
+            Self::Empty => None,
+            Self::One(first) => {
+                if start == 0 && *first == target {
+                    Some(0)
+                } else {
+                    None
+                }
+            }
+            Self::Two(first, second) => {
+                if start == 0 && *first == target {
+                    Some(0)
+                } else if start <= 1 && *second == target {
+                    Some(1)
+                } else {
+                    None
+                }
+            }
+            Self::Many(vec) => {
+                let mut idx: usize = start;
+                while idx < vec.len() {
+                    if vec[idx] == target {
+                        return Some(idx);
+                    }
+                    idx += 1;
+                }
+                None
+            }
+        }
+    }
+
+    /// Swaps two in-bounds entries at `a` and `b`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable small list reference.
+    /// - `usize` - First element index.
+    /// - `usize` - Second element index.
+    #[inline(always)]
+    pub(crate) fn swap(&mut self, a: usize, b: usize) {
+        if a == b {
+            return;
+        }
+        match self {
+            Self::Empty | Self::One(_) => {}
+            Self::Two(first, second) => {
+                if (a == 0 && b == 1) || (a == 1 && b == 0) {
+                    swap(first, second);
+                }
+            }
+            Self::Many(vec) => {
+                if a < vec.len() && b < vec.len() {
+                    vec.swap(a, b);
+                }
+            }
+        }
+    }
+
+    /// Appends `value` assuming uniqueness has already been established by the caller.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable small list reference.
+    /// - `T` - Unique entry to append.
+    #[inline(always)]
+    pub(crate) fn push_unchecked(&mut self, value: T) {
+        match self {
+            Self::Empty => {
+                *self = Self::One(value);
+            }
+            Self::One(first) => {
+                *self = Self::Two(*first, value);
+            }
+            Self::Two(first, second) => {
+                let mut list: Vec<T> = Vec::with_capacity(INITIAL_SUBSCRIBER_CAPACITY);
+                list.push(*first);
+                list.push(*second);
+                list.push(value);
+                *self = Self::Many(list);
+            }
+            Self::Many(vec) => {
+                vec.push(value);
+            }
+        }
+    }
+
+    /// Splits off and returns all entries at indices `>= keep_len`, keeping `0..keep_len` in place.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable small list reference.
+    /// - `usize` - Number of leading entries to retain.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Removed tail entries.
+    #[inline(always)]
+    pub(crate) fn take_tail(&mut self, keep_len: usize) -> Self {
+        match self {
+            Self::Empty => Self::Empty,
+            Self::One(first) => {
+                if keep_len == 0 {
+                    let item: T = *first;
+                    *self = Self::Empty;
+                    Self::One(item)
+                } else {
+                    Self::Empty
+                }
+            }
+            Self::Two(first, second) => match keep_len {
+                0 => {
+                    let a: T = *first;
+                    let b: T = *second;
+                    *self = Self::Empty;
+                    Self::Two(a, b)
+                }
+                1 => {
+                    let a: T = *first;
+                    let b: T = *second;
+                    *self = Self::One(a);
+                    Self::One(b)
+                }
+                _ => Self::Empty,
+            },
+            Self::Many(vec) => {
+                if keep_len >= vec.len() {
+                    return Self::Empty;
+                }
+                let removed: usize = vec.len() - keep_len;
+                if removed == 1
+                    && let Some(item) = vec.pop()
+                {
+                    return Self::One(item);
+                }
+                if removed == 2
+                    && let Some(second) = vec.pop()
+                    && let Some(first) = vec.pop()
+                {
+                    return Self::Two(first, second);
+                }
+                Self::Many(vec.split_off(keep_len))
+            }
+        }
+    }
+
     /// Appends `value` if it is not already present, promoting inline storage to `Many` only on the third unique item.
     ///
     /// # Arguments
@@ -750,16 +994,65 @@ impl ReactiveRuntime {
         }
     }
 
-    /// Records `dependency` on the currently executing observer if one exists.
+    /// Records `dependency` on the currently executing observer using O(1) cursor reuse on stable graphs.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable reference to the reactive runtime.
     /// - `DependencyId` - The dependency accessed during evaluation.
     pub(crate) fn track_dependency(&mut self, dependency: DependencyId) {
-        let Some(Some(subscriber)) = self.get_observer_stack().last().copied() else {
+        let Some(Some((subscriber, cursor))) = self.get_observer_stack().last().copied() else {
             return;
         };
+        let reuse_outcome: Option<usize> = match subscriber {
+            SubscriberId::Memo(memo_id) => {
+                let slot: SlotId = memo_id.slot();
+                let Some(entry) = self.get_mut_memos().get_mut(slot.as_usize()) else {
+                    return;
+                };
+                if entry.get_generation() != slot.get_generation() {
+                    return;
+                }
+                let deps: &mut SmallSubList<DependencyId> = entry.get_mut_dependencies();
+                if deps.get(cursor) == Some(dependency) {
+                    Some(cursor + 1)
+                } else if deps.contains_prefix(cursor, dependency) {
+                    return;
+                } else if let Some(found_idx) = deps.find_from(cursor + 1, dependency) {
+                    deps.swap(cursor, found_idx);
+                    Some(cursor + 1)
+                } else {
+                    None
+                }
+            }
+            SubscriberId::Effect(effect_id) => {
+                let slot: SlotId = effect_id.slot();
+                let Some(entry) = self.get_mut_effects().get_mut(slot.as_usize()) else {
+                    return;
+                };
+                if entry.get_generation() != slot.get_generation() {
+                    return;
+                }
+                let deps: &mut SmallSubList<DependencyId> = entry.get_mut_dependencies();
+                if deps.get(cursor) == Some(dependency) {
+                    Some(cursor + 1)
+                } else if deps.contains_prefix(cursor, dependency) {
+                    return;
+                } else if let Some(found_idx) = deps.find_from(cursor + 1, dependency) {
+                    deps.swap(cursor, found_idx);
+                    Some(cursor + 1)
+                } else {
+                    None
+                }
+            }
+        };
+        if let Some(next_cursor) = reuse_outcome {
+            if let Some(Some((_, top_cursor))) = self.get_mut_observer_stack().last_mut() {
+                *top_cursor = next_cursor;
+            }
+            return;
+        }
+        self.detach_tail_dependencies(subscriber, cursor);
         match dependency {
             DependencyId::Signal(sig_id) => {
                 let slot: SlotId = sig_id.slot();
@@ -784,7 +1077,7 @@ impl ReactiveRuntime {
                 if let Some(entry) = self.get_mut_memos().get_mut(slot.as_usize())
                     && entry.get_generation() == slot.get_generation()
                 {
-                    entry.get_mut_dependencies().push_unique(dependency);
+                    entry.get_mut_dependencies().push_unchecked(dependency);
                 }
             }
             SubscriberId::Effect(effect_id) => {
@@ -792,10 +1085,80 @@ impl ReactiveRuntime {
                 if let Some(entry) = self.get_mut_effects().get_mut(slot.as_usize())
                     && entry.get_generation() == slot.get_generation()
                 {
-                    entry.get_mut_dependencies().push_unique(dependency);
+                    entry.get_mut_dependencies().push_unchecked(dependency);
                 }
             }
         }
+        if let Some(Some((_, top_cursor))) = self.get_mut_observer_stack().last_mut() {
+            *top_cursor = cursor + 1;
+        }
+    }
+
+    /// Pops the top tracking frame and unsubscribes any stale tail dependencies beyond its final cursor.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable reference to the reactive runtime.
+    pub(crate) fn finish_tracking(&mut self) {
+        if let Some(Some((subscriber, cursor))) = self.get_mut_observer_stack().pop() {
+            self.detach_tail_dependencies(subscriber, cursor);
+        }
+    }
+
+    /// Truncates `subscriber`'s dependency list to `keep_len` and unsubscribes from any removed tail dependencies.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable reference to the reactive runtime.
+    /// - `SubscriberId` - Observer whose tail dependencies should be trimmed.
+    /// - `usize` - Number of active leading dependencies to retain.
+    fn detach_tail_dependencies(&mut self, subscriber: SubscriberId, keep_len: usize) {
+        let stale: SmallSubList<DependencyId> = match subscriber {
+            SubscriberId::Memo(memo_id) => {
+                let slot: SlotId = memo_id.slot();
+                match self.get_mut_memos().get_mut(slot.as_usize()) {
+                    Some(entry) if entry.get_generation() == slot.get_generation() => {
+                        let deps: &mut SmallSubList<DependencyId> = entry.get_mut_dependencies();
+                        if deps.len() <= keep_len {
+                            return;
+                        }
+                        deps.take_tail(keep_len)
+                    }
+                    _ => return,
+                }
+            }
+            SubscriberId::Effect(effect_id) => {
+                let slot: SlotId = effect_id.slot();
+                match self.get_mut_effects().get_mut(slot.as_usize()) {
+                    Some(entry) if entry.get_generation() == slot.get_generation() => {
+                        let deps: &mut SmallSubList<DependencyId> = entry.get_mut_dependencies();
+                        if deps.len() <= keep_len {
+                            return;
+                        }
+                        deps.take_tail(keep_len)
+                    }
+                    _ => return,
+                }
+            }
+        };
+        stale.for_each(|dep: DependencyId| match dep {
+            DependencyId::Signal(sig_id) => {
+                let slot: SlotId = sig_id.slot();
+                if let Some(entry) = self.get_mut_signals().get_mut(slot.as_usize())
+                    && entry.get_generation() == slot.get_generation()
+                {
+                    entry.get_mut_subscribers().remove_item(subscriber);
+                }
+            }
+            DependencyId::Memo(memo_id) => {
+                let slot: SlotId = memo_id.slot();
+                if let Some(entry) = self.get_mut_memos().get_mut(slot.as_usize())
+                    && entry.get_generation() == slot.get_generation()
+                {
+                    entry.get_mut_subscribers().remove_item(subscriber);
+                }
+            }
+        });
     }
 
     /// Propagates dirty flags downstream from signal slot `signal_idx` using the reusable scratch queue.
@@ -818,7 +1181,7 @@ impl ReactiveRuntime {
                     dirty_queue.push((subscriber, true));
                 });
         }
-        self.drain_dirty_queue();
+        self.drain_dirty_queue(false);
     }
 
     /// Propagates dirty flags downstream from memo slot `memo_idx` using the reusable scratch queue.
@@ -839,7 +1202,7 @@ impl ReactiveRuntime {
                     dirty_queue.push((subscriber, true));
                 });
         }
-        self.drain_dirty_queue();
+        self.drain_dirty_queue(true);
     }
 
     /// Drains the reusable `dirty_queue`, marking downstream memos and scheduling effects with zero allocations.
@@ -847,14 +1210,17 @@ impl ReactiveRuntime {
     /// # Arguments
     ///
     /// - `&Self` - Mutable reference to the reactive runtime.
-    fn drain_dirty_queue(&mut self) {
+    /// - `bool` - `true` when propagating from a pulled memo recomputation (skipping currently executing effects on `observer_stack`).
+    fn drain_dirty_queue(&mut self, from_memo: bool) {
         let Self {
             memos,
             effects,
+            observer_stack,
             pending_effects,
             dirty_queue,
             ..
         } = self;
+        let check_running: bool = from_memo && !observer_stack.is_empty();
         while let Some((sub, is_direct)) = dirty_queue.pop() {
             match sub {
                 SubscriberId::Memo(memo_id) => {
@@ -883,6 +1249,15 @@ impl ReactiveRuntime {
                     }
                 }
                 SubscriberId::Effect(effect_id) => {
+                    if check_running
+                        && observer_stack.iter().any(
+                            |frame: &Option<(SubscriberId, usize)>| {
+                                matches!(frame, Some((SubscriberId::Effect(active), _)) if *active == effect_id)
+                            },
+                        )
+                    {
+                        continue;
+                    }
                     let slot: SlotId = effect_id.slot();
                     if let Some(entry) = effects.get_mut(slot.as_usize())
                         && entry.get_generation() == slot.get_generation()

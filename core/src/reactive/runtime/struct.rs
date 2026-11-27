@@ -208,11 +208,11 @@ pub struct ReactiveRuntime {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) free_scopes: Vec<u32>,
-    /// Stack of currently executing observers for automatic dependency tracking.
+    /// Stack of currently executing observers and their dependency-reuse cursors.
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) observer_stack: Vec<Option<SubscriberId>>,
+    pub(crate) observer_stack: Vec<Option<(SubscriberId, usize)>>,
     /// Stack of active ownership scopes.
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
