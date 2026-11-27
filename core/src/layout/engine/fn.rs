@@ -12,14 +12,43 @@ use super::*;
 /// - `Option<NodeId>` - Topmost matching node handle, if any.
 #[must_use]
 pub fn hit_test(tree: &SceneTree, point: Point) -> Option<NodeId> {
-    let mut portals: Vec<(i32, usize, NodeId)> = Vec::new();
-    collect_top_layer_portals(tree, tree.get_root(), &mut portals);
-    portals.sort_by(|a: &(i32, usize, NodeId), b: &(i32, usize, NodeId)| {
-        b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1))
-    });
-    for (_, _, portal_id) in portals.into_iter() {
-        if let Some(hit) =
-            hit_test_subtree(tree, portal_id, point, Point::new(0.0, 0.0), None, true)
+    let registered: &[NodeId] = tree.portal_nodes();
+    if !registered.is_empty() {
+        let root: NodeId = tree.get_root();
+        let mut first_active: Option<(i32, NodeId)> = None;
+        let mut active_portals: Vec<(i32, NodeId)> = Vec::new();
+        for portal_id in registered.iter().copied() {
+            if is_active_top_layer_portal(tree, root, portal_id)
+                && let Some(node) = tree.get_node(portal_id)
+            {
+                let z: i32 = node.style_ref().get_layout().get_z_index();
+                if let Some(first) = first_active {
+                    if active_portals.is_empty() {
+                        active_portals.push(first);
+                    }
+                    active_portals.push((z, portal_id));
+                } else {
+                    first_active = Some((z, portal_id));
+                }
+            }
+        }
+        if !active_portals.is_empty() {
+            active_portals.sort_by(|a: &(i32, NodeId), b: &(i32, NodeId)| {
+                b.0.cmp(&a.0).then_with(|| {
+                    let (rb, ra): (usize, usize) = tree_order_pair(tree, b.1, a.1);
+                    rb.cmp(&ra)
+                })
+            });
+            for (_, portal_id) in active_portals.into_iter() {
+                if let Some(hit) =
+                    hit_test_subtree(tree, portal_id, point, Point::new(0.0, 0.0), None, true)
+                {
+                    return Some(hit);
+                }
+            }
+        } else if let Some((_, portal_id)) = first_active
+            && let Some(hit) =
+                hit_test_subtree(tree, portal_id, point, Point::new(0.0, 0.0), None, true)
         {
             return Some(hit);
         }
@@ -34,32 +63,111 @@ pub fn hit_test(tree: &SceneTree, point: Point) -> Option<NodeId> {
     )
 }
 
-/// Collects all visible top-layer `Portal` and `Position::Fixed` nodes in tree order.
+/// Checks in O(depth) whether `portal_id` is a visible, root-attached top-layer portal not nested inside another portal.
 ///
 /// # Arguments
 ///
 /// - `&SceneTree` - Retained scene tree.
-/// - `NodeId` - Current subtree root.
-/// - `&mut Vec<(i32, usize, NodeId)>` - Output list of `(z_index, order, node_id)`.
-fn collect_top_layer_portals(
-    tree: &SceneTree,
-    node_id: NodeId,
-    out: &mut Vec<(i32, usize, NodeId)>,
-) {
-    let Some(node) = tree.get_node(node_id) else {
-        return;
+/// - `NodeId` - Root scene node handle.
+/// - `NodeId` - Candidate portal or `Position::Fixed` node handle.
+///
+/// # Returns
+///
+/// - `bool` - `true` when `portal_id` participates in the top-layer hit-test pass.
+fn is_active_top_layer_portal(tree: &SceneTree, root: NodeId, portal_id: NodeId) -> bool {
+    let Some(node) = tree.get_node(portal_id) else {
+        return false;
     };
-    let layout: LayoutStyle = node.get_style().get_layout();
+    let Style { layout, .. } = node.style_ref();
     if layout.get_display() == Display::None {
-        return;
+        return false;
     }
-    if matches!(node.get_kind(), NodeKind::Portal) || layout.get_position() == Position::Fixed {
-        out.push((layout.get_z_index(), out.len(), node_id));
-        return;
+    let is_portal: bool =
+        matches!(node.get_kind(), NodeKind::Portal) || layout.get_position() == Position::Fixed;
+    if !is_portal {
+        return false;
     }
-    for child_id in node.get_children().iter().copied() {
-        collect_top_layer_portals(tree, child_id, out);
+    if portal_id == root {
+        return true;
     }
+    let mut cursor: Option<NodeId> = node.parent_id();
+    while let Some(pid) = cursor {
+        let Some(pnode) = tree.get_node(pid) else {
+            return false;
+        };
+        let Style {
+            layout: playout, ..
+        } = pnode.style_ref();
+        if playout.get_display() == Display::None {
+            return false;
+        }
+        let parent_is_portal: bool = matches!(pnode.get_kind(), NodeKind::Portal)
+            || playout.get_position() == Position::Fixed;
+        if parent_is_portal {
+            return false;
+        }
+        if pid == root {
+            return true;
+        }
+        cursor = pnode.parent_id();
+    }
+    false
+}
+
+/// Computes an order-preserving `(rank_a, rank_b)` pair comparing tree preorder of `a` and `b` in O(depth).
+///
+/// # Arguments
+///
+/// - `&SceneTree` - Retained scene tree.
+/// - `NodeId` - First root-attached node handle.
+/// - `NodeId` - Second root-attached node handle.
+///
+/// # Returns
+///
+/// - `(usize, usize)` - Comparable rank pair where `rank_a < rank_b` iff `a` precedes `b` in preorder.
+fn tree_order_pair(tree: &SceneTree, a: NodeId, b: NodeId) -> (usize, usize) {
+    if a == b {
+        return (0, 0);
+    }
+    let mut path_a: Vec<NodeId> = Vec::new();
+    let mut cur_a: Option<NodeId> = Some(a);
+    while let Some(id) = cur_a {
+        path_a.push(id);
+        cur_a = tree.get_node(id).and_then(SceneNode::parent_id);
+    }
+    path_a.reverse();
+    let mut path_b: Vec<NodeId> = Vec::new();
+    let mut cur_b: Option<NodeId> = Some(b);
+    while let Some(id) = cur_b {
+        path_b.push(id);
+        cur_b = tree.get_node(id).and_then(SceneNode::parent_id);
+    }
+    path_b.reverse();
+    let min_len: usize = path_a.len().min(path_b.len());
+    let mut diff_idx: usize = 0;
+    while diff_idx < min_len && path_a[diff_idx] == path_b[diff_idx] {
+        diff_idx += 1;
+    }
+    if diff_idx == min_len {
+        return (path_a.len(), path_b.len());
+    }
+    if diff_idx == 0 {
+        return (a.as_usize(), b.as_usize());
+    }
+    let lca: NodeId = path_a[diff_idx - 1];
+    let branch_a: NodeId = path_a[diff_idx];
+    let branch_b: NodeId = path_b[diff_idx];
+    if let Some(lca_node) = tree.get_node(lca) {
+        for child_id in lca_node.get_children().iter().copied() {
+            if child_id == branch_a {
+                return (0, 1);
+            }
+            if child_id == branch_b {
+                return (1, 0);
+            }
+        }
+    }
+    (a.as_usize(), b.as_usize())
 }
 
 /// Recursively hit-tests `node_id` in reverse paint order (topmost z-index first).
@@ -85,11 +193,8 @@ fn hit_test_subtree(
     in_portal_pass: bool,
 ) -> Option<NodeId> {
     let node: &SceneNode = tree.get_node(node_id)?;
-    let style: Style = node.get_style();
-    let layout: LayoutStyle = style.get_layout();
-    if layout.get_display() == Display::None
-        || style.get_paint().get_pointer_events() == PointerEvents::None
-    {
+    let Style { layout, paint, .. } = node.style_ref();
+    if layout.get_display() == Display::None || paint.get_pointer_events() == PointerEvents::None {
         return None;
     }
     if !in_portal_pass
@@ -98,7 +203,7 @@ fn hit_test_subtree(
         return None;
     }
     let raw_bounds: Rect = node.get_layout_box().get_bounds();
-    let transform: Transform2D = style.get_paint().get_transform();
+    let transform: Transform2D = paint.get_transform();
     let tx: f32 = transform.get_translate_x();
     let ty: f32 = transform.get_translate_y();
     let scaled_w: f32 = raw_bounds.get_width() * transform.get_scale_x();
@@ -134,7 +239,7 @@ fn hit_test_subtree(
         .enumerate()
         .filter_map(|(order, cid): (usize, NodeId)| {
             tree.get_node(cid)
-                .map(|c: &SceneNode| (c.get_style().get_layout().get_z_index(), order, cid))
+                .map(|c: &SceneNode| (c.style_ref().get_layout().get_z_index(), order, cid))
         })
         .collect();
     sorted_children.sort_by(|a: &(i32, usize, NodeId), b: &(i32, usize, NodeId)| {

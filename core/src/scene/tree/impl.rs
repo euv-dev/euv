@@ -21,12 +21,47 @@ impl Default for SceneTree {
             revision: 1,
             transitions: Vec::new(),
             caret_visible: true,
+            portal_nodes: Vec::new(),
         }
     }
 }
 
 /// Core retained scene graph mutation and traversal operations.
 impl SceneTree {
+    /// Returns the incrementally maintained slice of live `NodeKind::Portal` and `Position::Fixed` nodes.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene tree reference.
+    ///
+    /// # Returns
+    ///
+    /// - `&[NodeId]` - Live top-layer portal and fixed-position node handles.
+    #[must_use]
+    #[inline(always)]
+    pub fn portal_nodes(&self) -> &[NodeId] {
+        let Self { portal_nodes, .. } = self;
+        portal_nodes.as_slice()
+    }
+
+    /// Synchronizes `id` membership in `portal_nodes` whenever a top-layer node is created, mutated, or disposed.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable scene tree.
+    /// - `NodeId` - Target node handle.
+    /// - `bool` - Whether the node currently qualifies as a `Portal` or `Position::Fixed` top-layer node.
+    fn sync_portal_registration(&mut self, id: NodeId, is_portal: bool) {
+        let portals: &mut Vec<NodeId> = self.get_mut_portal_nodes();
+        if is_portal {
+            if !portals.contains(&id) {
+                portals.push(id);
+            }
+        } else if !portals.is_empty() {
+            portals.retain(|existing: &NodeId| *existing != id);
+        }
+    }
+
     /// Allocates a new node of `kind` with initial `style`.
     ///
     /// # Arguments
@@ -39,6 +74,8 @@ impl SceneTree {
     ///
     /// - `NodeId` - Generation-checked node handle.
     pub fn create_node(&mut self, kind: NodeKind, style: Style) -> NodeId {
+        let is_portal: bool = matches!(kind, NodeKind::Portal)
+            || style.get_layout().get_position() == Position::Fixed;
         let id: NodeId = if let Some(index) = self.get_mut_free_list().pop() {
             let slot: &mut SceneNode = &mut self.get_mut_nodes()[index as usize];
             let next_gen: u32 = slot.get_generation().wrapping_add(1).max(1);
@@ -49,6 +86,9 @@ impl SceneTree {
             self.get_mut_nodes().push(SceneNode::new(1, kind, style));
             NodeId::new(index, 1)
         };
+        if is_portal {
+            self.get_mut_portal_nodes().push(id);
+        }
         let next_rev: u64 = self.get_revision().wrapping_add(1);
         self.set_revision(next_rev);
         id
@@ -341,21 +381,34 @@ impl SceneTree {
     /// - `NodeId` - Target node handle.
     /// - `Style` - Replacement compiled style.
     pub fn set_style(&mut self, id: NodeId, style: Style) {
-        let dirty_mask: u16 = match self.get_node_mut(id) {
+        let (dirty_mask, portal_update): (u16, Option<bool>) = match self.get_node_mut(id) {
             Some(node) => {
                 let prev: Style = node.get_style();
                 if prev == style {
                     return;
                 }
                 let mut mask: u16 = DIRTY_PAINT;
-                if prev.get_layout() != style.get_layout() || prev.get_text() != style.get_text() {
+                let prev_layout: LayoutStyle = prev.get_layout();
+                let next_layout: LayoutStyle = style.get_layout();
+                if prev_layout != next_layout || prev.get_text() != style.get_text() {
                     mask |= DIRTY_LAYOUT | DIRTY_TEXT;
                 }
+                let is_portal_kind: bool = matches!(node.get_kind(), NodeKind::Portal);
+                let prev_fixed: bool = prev_layout.get_position() == Position::Fixed;
+                let next_fixed: bool = next_layout.get_position() == Position::Fixed;
+                let update: Option<bool> = if !is_portal_kind && prev_fixed != next_fixed {
+                    Some(next_fixed)
+                } else {
+                    None
+                };
                 node.set_style(style);
-                mask
+                (mask, update)
             }
             None => return,
         };
+        if let Some(is_portal) = portal_update {
+            self.sync_portal_registration(id, is_portal);
+        }
         self.mark_dirty(id, dirty_mask);
     }
 
@@ -971,6 +1024,9 @@ impl SceneTree {
             let Some(children) = children_opt else {
                 continue;
             };
+            if !self.portal_nodes().is_empty() {
+                self.sync_portal_registration(current, false);
+            }
             self.get_mut_free_list().push(current.get_index());
             for child in children.into_iter() {
                 stack.push(child);
@@ -1204,8 +1260,11 @@ impl SceneHandle {
             |tree: &mut SceneTree| {
                 let obs: Vec<(NodeId, Rc<dyn Lifecycle>)> = tree.collect_subtree_lifecycles(root);
                 tree.cancel_subtree_transitions(root);
+                let mut demoted_fixed: bool = false;
                 if let Some(node) = tree.get_node_mut(root) {
                     let mut st: Style = node.get_style();
+                    demoted_fixed = !matches!(node.get_kind(), NodeKind::Portal)
+                        && st.get_layout().get_position() == Position::Fixed;
                     st.get_mut_layout()
                         .set_position(Position::Absolute)
                         .set_top(Some(0.0))
@@ -1215,6 +1274,9 @@ impl SceneHandle {
                         .set_z_index(0);
                     st.get_mut_paint().set_pointer_events(PointerEvents::None);
                     node.set_style(st);
+                }
+                if demoted_fixed {
+                    tree.sync_portal_registration(root, false);
                 }
                 tree.start_transition(exit_transition.with_hide_on_complete(true));
                 tree.mark_dirty(root, DIRTY_LAYOUT | DIRTY_PAINT);

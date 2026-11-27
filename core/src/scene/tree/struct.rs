@@ -24,6 +24,11 @@ pub struct SceneTree {
     /// Blinking visibility state of the focused text input caret (`true` = visible phase).
     #[get(type(copy))]
     pub(crate) caret_visible: bool,
+    /// Incrementally maintained registry of live `NodeKind::Portal` and `Position::Fixed` nodes.
+    #[get(skip)]
+    #[get_mut(pub(crate))]
+    #[set(skip)]
+    pub(crate) portal_nodes: Vec<NodeId>,
 }
 
 /// Shared handle wrapping a `SceneTree` so reactive `Effect` closures can patch nodes directly.
