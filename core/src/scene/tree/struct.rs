@@ -44,11 +44,26 @@ pub struct SceneTree {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) full_damage_pending: bool,
+    /// Flag raised when one or more layout/children/text mutations occurred since the last damage collection.
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) layout_damage_pending: bool,
     /// Flag raised when `dirty_paint_nodes` exceeded `DIRTY_PAINT_FULL_THRESHOLD` since the last collection.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) full_damage_overflow: bool,
+    /// Number of newly allocated nodes created since the last damage collection (promotes to overflow above threshold).
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) created_since_damage: usize,
+    /// Pre-mutation conservative logical screen rectangles for disposed, reparented, or shrinking-halo nodes.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) extra_logical_damage: Vec<Rect>,
     /// Active native text selection state on a selectable `NodeKind::Text` node, if any.
     #[get(skip)]
     #[get_mut(skip)]

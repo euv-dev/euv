@@ -14,6 +14,149 @@ impl LayoutEngine {
     ///
     /// - `LayoutStats` - Computed vs cached subtree counts.
     pub fn compute(&mut self, tree: &mut SceneTree, viewport: Size) -> LayoutStats {
+        let Self {
+            track_damage,
+            damage_fallback,
+            layout_snapshots,
+            ..
+        } = self;
+        *track_damage = false;
+        *damage_fallback = LAYOUT_FALLBACK_NONE;
+        layout_snapshots.clear();
+        self.compute_inner(tree, viewport)
+    }
+
+    /// Computes layout for `tree` while recording pre/post-layout conservative bounds diffs into a tight `LayoutDamageReport`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable layout engine.
+    /// - `&mut SceneTree` - Retained scene tree to lay out.
+    /// - `Size` - Logical viewport dimensions.
+    /// - `f32` - Active display scale factor for outward-rounded physical damage rects.
+    ///
+    /// # Returns
+    ///
+    /// - `(LayoutStats, LayoutDamageReport)` - Layout pass stats and surgical physical damage or fallback cause.
+    pub(crate) fn compute_with_damage(
+        &mut self,
+        tree: &mut SceneTree,
+        viewport: Size,
+        scale: f32,
+    ) -> (LayoutStats, LayoutDamageReport) {
+        {
+            let Self {
+                track_damage,
+                damage_fallback,
+                layout_snapshots,
+                ..
+            } = self;
+            *track_damage = true;
+            *damage_fallback = LAYOUT_FALLBACK_NONE;
+            layout_snapshots.clear();
+        }
+        let stats: LayoutStats = self.compute_inner(tree, viewport);
+        let fallback_after: u8 = {
+            let Self {
+                track_damage,
+                damage_fallback,
+                ..
+            } = self;
+            *track_damage = false;
+            *damage_fallback
+        };
+        if fallback_after != LAYOUT_FALLBACK_NONE {
+            let Self {
+                layout_snapshots, ..
+            } = self;
+            layout_snapshots.clear();
+            return (
+                stats,
+                LayoutDamageReport {
+                    damage: DamageRegion::full(),
+                    fallback_kind: fallback_after,
+                },
+            );
+        }
+        let mut damage: DamageRegion = DamageRegion::default();
+        let mut final_fallback: u8 = LAYOUT_FALLBACK_NONE;
+        let Self {
+            layout_snapshots, ..
+        } = self;
+        for snap in layout_snapshots.iter().copied() {
+            let Some(node) = tree.get_node(snap.id) else {
+                continue;
+            };
+            let lbox: LayoutBox = node.get_layout_box();
+            let new_bounds: Rect = lbox.get_bounds();
+            let new_content_bounds: Rect = lbox.get_content_bounds();
+            let new_content_size: Size = lbox.get_content_size();
+            let bounds_changed: bool = !Self::rect_approx_eq(snap.old_bounds, new_bounds);
+            let content_changed: bool =
+                !Self::rect_approx_eq(snap.old_content_bounds, new_content_bounds);
+            let is_scroll_box: bool =
+                node.style_ref().layout_ref().get_overflow() == Overflow::Scroll;
+            let scroll_content_changed: bool =
+                is_scroll_box && !Self::size_approx_eq(snap.old_content_size, new_content_size);
+            let geom_changed: bool = bounds_changed || content_changed;
+            if !geom_changed && !scroll_content_changed {
+                continue;
+            }
+            let is_portal_or_fixed: bool = matches!(node.get_kind(), NodeKind::Portal)
+                || node.style_ref().layout_ref().get_position() == Position::Fixed;
+            if is_portal_or_fixed {
+                final_fallback = LAYOUT_FALLBACK_PORTAL;
+                break;
+            }
+            if snap.has_old_screen {
+                damage.add_rect(SceneTree::scale_logical_to_phys_rect(
+                    snap.old_screen,
+                    scale,
+                ));
+            }
+            if new_bounds.get_width() > 0.0 && new_bounds.get_height() > 0.0 {
+                match tree.node_conservative_logical_rect(snap.id) {
+                    Some(new_screen) => {
+                        damage.add_rect(SceneTree::scale_logical_to_phys_rect(new_screen, scale));
+                    }
+                    None => {
+                        final_fallback = LAYOUT_FALLBACK_UNSAFE;
+                        break;
+                    }
+                }
+            }
+        }
+        layout_snapshots.clear();
+        if final_fallback != LAYOUT_FALLBACK_NONE {
+            return (
+                stats,
+                LayoutDamageReport {
+                    damage: DamageRegion::full(),
+                    fallback_kind: final_fallback,
+                },
+            );
+        }
+        (
+            stats,
+            LayoutDamageReport {
+                damage,
+                fallback_kind: LAYOUT_FALLBACK_NONE,
+            },
+        )
+    }
+
+    /// Executes the core layout traversal over `tree` using the current `track_damage` mode.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable layout engine.
+    /// - `&mut SceneTree` - Retained scene tree to lay out.
+    /// - `Size` - Logical viewport dimensions.
+    ///
+    /// # Returns
+    ///
+    /// - `LayoutStats` - Computed vs cached subtree counts.
+    fn compute_inner(&mut self, tree: &mut SceneTree, viewport: Size) -> LayoutStats {
         let root_id: NodeId = tree.get_root();
         let space: AvailableSpace = AvailableSpace::root(viewport);
         let mut stats: LayoutStats = LayoutStats::default();
@@ -32,6 +175,97 @@ impl LayoutEngine {
         debug_assert!(self.get_mut_translate_scratch().is_empty());
         self.set_last_stats(stats);
         stats
+    }
+
+    /// Records the first pre-layout geometry snapshot of `node_id` when surgical damage tracking is active.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable layout engine.
+    /// - `&SceneTree` - Retained scene tree prior to writing `node_id`'s updated layout box.
+    /// - `NodeId` - Target node handle about to be mutated.
+    #[inline]
+    fn record_layout_snapshot(&mut self, tree: &SceneTree, node_id: NodeId) {
+        let Self {
+            track_damage,
+            damage_fallback,
+            layout_snapshots,
+            ..
+        } = self;
+        if !*track_damage || *damage_fallback != LAYOUT_FALLBACK_NONE {
+            return;
+        }
+        if layout_snapshots
+            .iter()
+            .any(|snap: &LayoutNodeSnapshot| snap.id == node_id)
+        {
+            return;
+        }
+        if layout_snapshots.len() >= DIRTY_PAINT_FULL_THRESHOLD {
+            *damage_fallback = LAYOUT_FALLBACK_OVERFLOW;
+            return;
+        }
+        let Some(node) = tree.get_node(node_id) else {
+            return;
+        };
+        let lbox: LayoutBox = node.get_layout_box();
+        let old_bounds: Rect = lbox.get_bounds();
+        let old_content_bounds: Rect = lbox.get_content_bounds();
+        let old_content_size: Size = lbox.get_content_size();
+        let (has_old_screen, old_screen): (bool, Rect) =
+            if old_bounds.get_width() > 0.0 && old_bounds.get_height() > 0.0 {
+                match tree.node_conservative_logical_rect(node_id) {
+                    Some(rect) => (true, rect),
+                    None => {
+                        *damage_fallback = LAYOUT_FALLBACK_UNSAFE;
+                        return;
+                    }
+                }
+            } else {
+                (false, Rect::default())
+            };
+        layout_snapshots.push(LayoutNodeSnapshot {
+            id: node_id,
+            old_bounds,
+            old_content_bounds,
+            old_content_size,
+            has_old_screen,
+            old_screen,
+        });
+    }
+
+    /// Returns `true` when two layout rectangles are equal within subpixel tolerance.
+    ///
+    /// # Arguments
+    ///
+    /// - `Rect` - First rectangle.
+    /// - `Rect` - Second rectangle.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - Whether position and dimensions match within `0.001` logical pixels.
+    #[inline]
+    fn rect_approx_eq(a: Rect, b: Rect) -> bool {
+        (a.get_x() - b.get_x()).abs() <= 0.001
+            && (a.get_y() - b.get_y()).abs() <= 0.001
+            && (a.get_width() - b.get_width()).abs() <= 0.001
+            && (a.get_height() - b.get_height()).abs() <= 0.001
+    }
+
+    /// Returns `true` when two layout sizes are equal within subpixel tolerance.
+    ///
+    /// # Arguments
+    ///
+    /// - `Size` - First size.
+    /// - `Size` - Second size.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - Whether width and height match within `0.001` logical pixels.
+    #[inline]
+    fn size_approx_eq(a: Size, b: Size) -> bool {
+        (a.get_width() - b.get_width()).abs() <= 0.001
+            && (a.get_height() - b.get_height()).abs() <= 0.001
     }
 
     /// Measures text bounding dimensions through the bounded `TextSizeCache`, delegating misses to `TextMeasurer::measure_size`.
@@ -111,21 +345,22 @@ impl LayoutEngine {
             let stack_base: usize = self.get_children_scratch().len();
             self.get_mut_children_scratch().push(node_id);
             while self.get_children_scratch().len() > stack_base {
-                if let Some(hid) = self.get_mut_children_scratch().pop()
-                    && let Some(hidden_node) = tree.get_node_mut(hid)
-                {
-                    hidden_node.get_mut_layout_box().set_bounds(Rect::default());
-                    hidden_node
-                        .get_mut_layout_box()
-                        .set_content_bounds(Rect::default());
-                    if hid == node_id {
-                        hidden_node.set_last_constraint(Some(space));
-                    } else {
-                        hidden_node.set_last_constraint(None);
+                if let Some(hid) = self.get_mut_children_scratch().pop() {
+                    self.record_layout_snapshot(tree, hid);
+                    if let Some(hidden_node) = tree.get_node_mut(hid) {
+                        hidden_node.get_mut_layout_box().set_bounds(Rect::default());
+                        hidden_node
+                            .get_mut_layout_box()
+                            .set_content_bounds(Rect::default());
+                        if hid == node_id {
+                            hidden_node.set_last_constraint(Some(space));
+                        } else {
+                            hidden_node.set_last_constraint(None);
+                        }
+                        hidden_node.get_mut_dirty().remove(DIRTY_LAYOUT_PASS_MASK);
+                        self.get_mut_children_scratch()
+                            .extend_from_slice(hidden_node.get_children().as_slice());
                     }
-                    hidden_node.get_mut_dirty().remove(DIRTY_LAYOUT_PASS_MASK);
-                    self.get_mut_children_scratch()
-                        .extend_from_slice(hidden_node.get_children().as_slice());
                 }
             }
             return Size::default();
@@ -292,6 +527,7 @@ impl LayoutEngine {
             (final_w - chrome_h).max(0.0),
             (final_h - chrome_v).max(0.0),
         );
+        self.record_layout_snapshot(tree, node_id);
         if let Some(node) = tree.get_node_mut(node_id) {
             node.get_mut_layout_box().set_bounds(bounds);
             node.get_mut_layout_box().set_content_bounds(content_bounds);
@@ -637,14 +873,16 @@ impl LayoutEngine {
                 } else {
                     placed.get_height()
                 };
-                if ((stretch_w && target_w > placed.get_width() + 0.01)
-                    || (stretch_h && target_h > placed.get_height() + 0.01))
-                    && let Some(node) = tree.get_node_mut(child_id)
+                if (stretch_w && target_w > placed.get_width() + 0.01)
+                    || (stretch_h && target_h > placed.get_height() + 0.01)
                 {
-                    let mut b: Rect = node.get_layout_box().get_bounds();
-                    b.set_width(target_w);
-                    b.set_height(target_h);
-                    node.get_mut_layout_box().set_bounds(b);
+                    self.record_layout_snapshot(tree, child_id);
+                    if let Some(node) = tree.get_node_mut(child_id) {
+                        let mut b: Rect = node.get_layout_box().get_bounds();
+                        b.set_width(target_w);
+                        b.set_height(target_h);
+                        node.get_mut_layout_box().set_bounds(b);
+                    }
                 }
                 if stretch_w {
                     self.get_mut_flex_items_scratch().push(FlexItemRecord {
@@ -676,6 +914,7 @@ impl LayoutEngine {
                     let rec: FlexItemRecord = self.get_flex_items_scratch()[rec_idx];
                     let widened: f32 =
                         (max_cross - rec.margin.horizontal()).max(rec.size.get_width());
+                    self.record_layout_snapshot(tree, rec.node_id);
                     if let Some(node) = tree.get_node_mut(rec.node_id) {
                         let mut b: Rect = node.get_layout_box().get_bounds();
                         b.set_width(widened);
@@ -1215,6 +1454,7 @@ impl LayoutEngine {
                     self.translate_subtree(tree, child_id, dx, dy);
                 }
             } else if can_stretch_leaf_h {
+                self.record_layout_snapshot(tree, child_id);
                 if let Some(node) = tree.get_node_mut(child_id) {
                     let cur_bounds: Rect = node.get_layout_box().get_bounds();
                     let same_box: bool = (cur_bounds.get_x() - x).abs() <= 0.001
@@ -1252,6 +1492,7 @@ impl LayoutEngine {
                     AvailableSpace::new(space_w, space_h, viewport, x, y)
                         .with_stretch(stretch_child_w, stretch_child_h);
                 let placed: Size = self.layout_node(tree, child_id, final_space, stats);
+                self.record_layout_snapshot(tree, child_id);
                 if let Some(node) = tree.get_node_mut(child_id) {
                     let mut b: Rect = node.get_layout_box().get_bounds();
                     let is_clipped: bool =
@@ -1378,12 +1619,13 @@ impl LayoutEngine {
                 } else {
                     self.layout_node(tree, child_id, cell_space, stats)
                 };
-                if (child_size.get_width() - col_w).abs() > 0.001
-                    && let Some(node) = tree.get_node_mut(child_id)
-                {
-                    let mut b: Rect = node.get_layout_box().get_bounds();
-                    b.set_width(col_w);
-                    node.get_mut_layout_box().set_bounds(b);
+                if (child_size.get_width() - col_w).abs() > 0.001 {
+                    self.record_layout_snapshot(tree, child_id);
+                    if let Some(node) = tree.get_node_mut(child_id) {
+                        let mut b: Rect = node.get_layout_box().get_bounds();
+                        b.set_width(col_w);
+                        node.get_mut_layout_box().set_bounds(b);
+                    }
                 }
                 let ch: f32 = child_size.get_height();
                 row_h = row_h.max(ch);
@@ -1393,9 +1635,14 @@ impl LayoutEngine {
             if row_end - idx > 1 && min_row_h < row_h {
                 for pos in idx..row_end {
                     let child_id: NodeId = self.get_flow_scratch()[pos];
-                    if let Some(node) = tree.get_node_mut(child_id) {
-                        let mut b: Rect = node.get_layout_box().get_bounds();
-                        if b.get_height() < row_h {
+                    let needs_stretch: bool =
+                        tree.get_node(child_id).is_some_and(|n: &SceneNode| {
+                            n.get_layout_box().get_bounds().get_height() < row_h
+                        });
+                    if needs_stretch {
+                        self.record_layout_snapshot(tree, child_id);
+                        if let Some(node) = tree.get_node_mut(child_id) {
+                            let mut b: Rect = node.get_layout_box().get_bounds();
                             b.set_height(row_h);
                             node.get_mut_layout_box().set_bounds(b);
                         }
@@ -1424,6 +1671,7 @@ impl LayoutEngine {
         if dx == 0.0 && dy == 0.0 {
             return;
         }
+        self.record_layout_snapshot(tree, root_id);
         let Some(root_node) = tree.get_node_mut(root_id) else {
             return;
         };
@@ -1451,19 +1699,29 @@ impl LayoutEngine {
         if root_children.is_empty() {
             return;
         }
-        let stack: &mut Vec<NodeId> = self.get_mut_translate_scratch();
-        stack.clear();
-        stack.extend_from_slice(root_children);
-        while let Some(nid) = stack.pop() {
-            let Some(node) = tree.get_node_mut(nid) else {
-                continue;
+        self.get_mut_translate_scratch().clear();
+        self.get_mut_translate_scratch()
+            .extend_from_slice(root_children);
+        while let Some(nid) = self.get_mut_translate_scratch().pop() {
+            let (is_fixed_pos, is_none_disp): (bool, bool) = match tree.get_node(nid) {
+                Some(node) => {
+                    let Style { layout, .. } = node.style_ref();
+                    (
+                        layout.get_position() == Position::Fixed,
+                        layout.get_display() == Display::None,
+                    )
+                }
+                None => continue,
             };
-            let Style { layout, .. } = node.style_ref();
-            let is_fixed_pos: bool = layout.get_position() == Position::Fixed;
-            let is_none_disp: bool = layout.get_display() == Display::None;
             if is_fixed_pos {
                 continue;
             }
+            if !is_none_disp {
+                self.record_layout_snapshot(tree, nid);
+            }
+            let Some(node) = tree.get_node_mut(nid) else {
+                continue;
+            };
             if let Some(mut c) = node.cached_constraint() {
                 c.set_origin_x(c.get_origin_x() + dx);
                 c.set_origin_y(c.get_origin_y() + dy);
@@ -1482,7 +1740,8 @@ impl LayoutEngine {
             node.get_mut_layout_box().set_content_bounds(content);
             let children_slice: &[NodeId] = node.get_children().as_slice();
             if !children_slice.is_empty() {
-                stack.extend_from_slice(children_slice);
+                self.get_mut_translate_scratch()
+                    .extend_from_slice(children_slice);
             }
         }
     }

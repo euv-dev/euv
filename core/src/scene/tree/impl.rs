@@ -25,7 +25,10 @@ impl Default for SceneTree {
             portal_nodes: Vec::new(),
             dirty_paint_nodes: Vec::new(),
             full_damage_pending: true,
+            layout_damage_pending: true,
             full_damage_overflow: false,
+            created_since_damage: 0,
+            extra_logical_damage: Vec::new(),
             text_selection: None,
         }
     }
@@ -109,10 +112,17 @@ impl SceneTree {
         };
         if is_portal {
             self.get_mut_portal_nodes().push(id);
+            self.set_full_damage_pending(true);
         }
         let next_live: usize = self.get_live_count().saturating_add(1);
         self.set_live_count(next_live);
-        self.set_full_damage_pending(true);
+        let next_created: usize = self.get_created_since_damage().saturating_add(1);
+        self.set_created_since_damage(next_created);
+        self.set_layout_damage_pending(true);
+        if next_created > DIRTY_PAINT_FULL_THRESHOLD {
+            self.set_full_damage_pending(true);
+            self.set_full_damage_overflow(true);
+        }
         let next_rev: u64 = self.get_revision().wrapping_add(1);
         self.set_revision(next_rev);
         id
@@ -303,14 +313,17 @@ impl SceneTree {
             return;
         }
         let prev_parent: Option<NodeId> = self.get_node(child).and_then(SceneNode::parent_id);
-        if let Some(old_parent) = prev_parent
-            && let Some(old_node) = self.get_node_mut(old_parent)
-        {
-            old_node
-                .get_mut_children()
-                .retain(|item: &NodeId| *item != child);
+        if let Some(old_parent) = prev_parent {
             if old_parent != parent {
-                self.mark_dirty(old_parent, DIRTY_CHILDREN_CHANGE_MASK);
+                self.record_subtree_logical_damage(child);
+            }
+            if let Some(old_node) = self.get_node_mut(old_parent) {
+                old_node
+                    .get_mut_children()
+                    .retain(|item: &NodeId| *item != child);
+                if old_parent != parent {
+                    self.mark_dirty(old_parent, DIRTY_CHILDREN_CHANGE_MASK);
+                }
             }
         }
         if let Some(child_node) = self.get_node_mut(child) {
@@ -362,6 +375,9 @@ impl SceneTree {
                 .get_node(child)
                 .and_then(|node: &SceneNode| node.parent_id());
             if let Some(old_parent) = prev_parent {
+                if old_parent != parent {
+                    self.record_subtree_logical_damage(child);
+                }
                 if let Some(old_node) = self.get_node_mut(old_parent) {
                     old_node
                         .get_mut_children()
@@ -463,6 +479,30 @@ impl SceneTree {
         }
     }
 
+    /// Returns `true` when transitioning from `prev` to `next` paint style can shrink shadows, borders, transforms, or hide children.
+    ///
+    /// # Arguments
+    ///
+    /// - `&PaintStyle` - Previous paint style reference.
+    /// - `&PaintStyle` - Replacement paint style reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - Whether the node's pre-mutation conservative bounds must be snapshotted before overwriting style.
+    #[inline]
+    fn needs_pre_paint_damage(prev: &PaintStyle, next: &PaintStyle) -> bool {
+        let shadow_changed: bool = prev.box_shadow() != next.box_shadow();
+        let transform_changed: bool = prev.get_transform() != next.get_transform();
+        let border_shrank: bool = prev.get_border().get_width() > next.get_border().get_width();
+        let focus_removed: bool =
+            prev.focus_ring_border().is_some() && next.focus_ring_border().is_none();
+        let opacity_toggled_zero: bool = (prev.get_opacity() > 0.0) != (next.get_opacity() > 0.0);
+        let a: bool = shadow_changed || transform_changed;
+        let b: bool = border_shrank || focus_removed;
+        let ab: bool = a || b;
+        ab || opacity_toggled_zero
+    }
+
     /// Surgically updates a node's `Style`, marking only `DIRTY_PAINT` for pure paint changes and skipping no-op writes.
     ///
     /// # Arguments
@@ -471,19 +511,34 @@ impl SceneTree {
     /// - `NodeId` - Target node handle.
     /// - `Style` - Replacement compiled style.
     pub fn set_style(&mut self, id: NodeId, style: Style) {
-        let (dirty_mask, portal_update): (u16, Option<bool>) = match self.get_node_mut(id) {
-            Some(node) => {
+        let pre_snapshot: Option<(u16, Option<bool>, bool, bool)> =
+            self.get_node(id).map(|node: &SceneNode| {
                 let is_portal_kind: bool = matches!(node.get_kind(), NodeKind::Portal);
+                let prev: &Style = node.style_ref();
                 let (mask, update): (u16, Option<bool>) =
-                    Self::diff_style_change(node.style_ref(), &style, is_portal_kind);
-                if mask == DIRTY_NONE {
-                    return;
-                }
-                node.set_style(style);
-                (mask, update)
-            }
-            None => return,
+                    Self::diff_style_change(prev, &style, is_portal_kind);
+                let pre_paint: bool = mask != DIRTY_NONE
+                    && Self::needs_pre_paint_damage(prev.paint_ref(), style.paint_ref());
+                let subtree_hidden: bool = pre_paint
+                    && (prev.paint_ref().get_opacity() > 0.0)
+                        != (style.paint_ref().get_opacity() > 0.0)
+                    && !node.get_children().is_empty();
+                (mask, update, pre_paint, subtree_hidden)
+            });
+        let Some((dirty_mask, portal_update, pre_paint, subtree_hidden)) = pre_snapshot else {
+            return;
         };
+        if dirty_mask == DIRTY_NONE {
+            return;
+        }
+        if subtree_hidden {
+            self.record_subtree_logical_damage(id);
+        } else if pre_paint {
+            self.record_node_logical_damage(id);
+        }
+        if let Some(node) = self.get_node_mut(id) {
+            node.set_style(style);
+        }
         if let Some(is_portal) = portal_update {
             self.sync_portal_registration(id, is_portal);
         }
@@ -505,20 +560,36 @@ impl SceneTree {
     where
         F: FnOnce(&mut Style),
     {
-        let (dirty_mask, portal_update): (u16, Option<bool>) = match self.get_node_mut(id) {
-            Some(node) => {
-                let is_portal_kind: bool = matches!(node.get_kind(), NodeKind::Portal);
-                let prev: Style = *node.style_ref();
-                mutator(node.get_mut_style());
-                let (mask, update): (u16, Option<bool>) =
-                    Self::diff_style_change(&prev, node.style_ref(), is_portal_kind);
-                if mask == DIRTY_NONE {
-                    return false;
-                }
-                (mask, update)
-            }
-            None => return false,
+        let prev_opt: Option<(Style, bool, bool)> = self.get_node(id).map(|node: &SceneNode| {
+            (
+                *node.style_ref(),
+                matches!(node.get_kind(), NodeKind::Portal),
+                !node.get_children().is_empty(),
+            )
+        });
+        let Some((prev, is_portal_kind, has_children)) = prev_opt else {
+            return false;
         };
+        let mut next: Style = prev;
+        mutator(&mut next);
+        let (dirty_mask, portal_update): (u16, Option<bool>) =
+            Self::diff_style_change(&prev, &next, is_portal_kind);
+        if dirty_mask == DIRTY_NONE {
+            return false;
+        }
+        let pre_paint: bool = Self::needs_pre_paint_damage(prev.paint_ref(), next.paint_ref());
+        if pre_paint {
+            let opacity_toggled_zero: bool =
+                (prev.paint_ref().get_opacity() > 0.0) != (next.paint_ref().get_opacity() > 0.0);
+            if opacity_toggled_zero && has_children {
+                self.record_subtree_logical_damage(id);
+            } else {
+                self.record_node_logical_damage(id);
+            }
+        }
+        if let Some(node) = self.get_node_mut(id) {
+            node.set_style(next);
+        }
         if let Some(is_portal) = portal_update {
             self.sync_portal_registration(id, is_portal);
         }
@@ -701,6 +772,193 @@ impl SceneTree {
             }
         }
         (Point::new(scroll_x, scroll_y), tx, ty, sx_scale, sy_scale)
+    }
+
+    /// Computes a conservative logical screen-space paint rectangle for `id` including ancestor scroll, transform, border, focus ring, and `3 * sigma` shadow halo.
+    ///
+    /// Returns `None` when a non-axis-aligned rotation or ancestor scale requires a safe full-viewport fallback.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene tree reference.
+    /// - `NodeId` - Target scene node handle.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<Rect>` - Conservative logical screen bounds, `Some(Rect::default())` when unmeasured, or `None` for unsafe fallback.
+    #[must_use]
+    pub(crate) fn node_conservative_logical_rect(&self, id: NodeId) -> Option<Rect> {
+        let node: &SceneNode = self.get_node(id)?;
+        let raw_bounds: Rect = node.get_layout_box().get_bounds();
+        if raw_bounds.get_width() <= 0.0 || raw_bounds.get_height() <= 0.0 {
+            return Some(Rect::default());
+        }
+        let style: &Style = node.style_ref();
+        let paint: &PaintStyle = style.paint_ref();
+        let tr: Transform2D = paint.get_transform();
+        if tr.get_rotation_rad().abs() > 0.0001
+            || tr.get_scale_x() <= 0.0
+            || tr.get_scale_y() <= 0.0
+        {
+            return None;
+        }
+        let mut tx: f32 = tr.get_translate_x();
+        let mut ty: f32 = tr.get_translate_y();
+        let sx: f32 = tr.get_scale_x();
+        let sy: f32 = tr.get_scale_y();
+        let start_top_layer: bool = matches!(node.get_kind(), NodeKind::Portal)
+            || style.layout_ref().get_position() == Position::Fixed;
+        let mut scroll_x: f32 = 0.0;
+        let mut scroll_y: f32 = 0.0;
+        let mut cursor: Option<NodeId> = node.parent_id();
+        while let Some(pid) = cursor {
+            let Some(pnode) = self.get_node(pid) else {
+                break;
+            };
+            let pstyle: &Style = pnode.style_ref();
+            let ptr: Transform2D = pstyle.paint_ref().get_transform();
+            if ptr.get_rotation_rad().abs() > 0.0001
+                || (ptr.get_scale_x() - 1.0).abs() > 0.001
+                || (ptr.get_scale_y() - 1.0).abs() > 0.001
+            {
+                return None;
+            }
+            tx += ptr.get_translate_x();
+            ty += ptr.get_translate_y();
+            if !start_top_layer {
+                let off: Point = pnode.get_layout_box().get_scroll_offset();
+                scroll_x += off.get_x();
+                scroll_y += off.get_y();
+            }
+            let parent_top_layer: bool = matches!(pnode.get_kind(), NodeKind::Portal)
+                || pstyle.layout_ref().get_position() == Position::Fixed;
+            if parent_top_layer {
+                break;
+            }
+            cursor = pnode.parent_id();
+        }
+        let border_w: f32 = paint.get_border().get_width();
+        let focus_pad: f32 = if paint.focus_ring_border().is_some() {
+            12.0
+        } else {
+            0.0
+        };
+        let mut margin: f32 = 10.0_f32.max(border_w + 6.0).max(focus_pad);
+        if let Some(shadow) = paint.box_shadow() {
+            let blur_pad: f32 = (shadow.get_blur_radius().max(0.5) * 1.5).min(96.0) + 4.0;
+            let spread: f32 = shadow.get_spread_radius().max(0.0);
+            let off_max: f32 = shadow.get_offset_x().abs().max(shadow.get_offset_y().abs());
+            margin = margin.max(blur_pad + spread + off_max + 4.0);
+        }
+        let base_x: f32 = raw_bounds.get_x() - scroll_x;
+        let base_y: f32 = raw_bounds.get_y() - scroll_y;
+        let base_rect: Rect = Rect::new(
+            base_x - margin,
+            base_y - margin,
+            raw_bounds.get_width() + margin * 2.0,
+            raw_bounds.get_height() + margin * 2.0,
+        );
+        let shifted_x: bool = tx != 0.0 || sx != 1.0;
+        let shifted_y: bool = ty != 0.0 || sy != 1.0;
+        if shifted_x || shifted_y {
+            let scale_pad_x: f32 = ((sx - 1.0).abs() * raw_bounds.get_width()).max(0.0);
+            let scale_pad_y: f32 = ((sy - 1.0).abs() * raw_bounds.get_height()).max(0.0);
+            let shifted_rect: Rect = Rect::new(
+                base_x + tx - margin - scale_pad_x,
+                base_y + ty - margin - scale_pad_y,
+                raw_bounds.get_width() * sx + (margin + scale_pad_x) * 2.0,
+                raw_bounds.get_height() * sy + (margin + scale_pad_y) * 2.0,
+            );
+            Some(base_rect.union(shifted_rect))
+        } else {
+            Some(base_rect)
+        }
+    }
+
+    /// Converts a conservative logical screen rectangle into an exact outward-rounded physical pixel rectangle.
+    ///
+    /// # Arguments
+    ///
+    /// - `Rect` - Conservative logical screen rectangle.
+    /// - `f32` - Active display scale factor.
+    ///
+    /// # Returns
+    ///
+    /// - `Rect` - Physical pixel rectangle guaranteed to enclose all covered pixels.
+    #[must_use]
+    pub(crate) fn scale_logical_to_phys_rect(logical: Rect, scale: f32) -> Rect {
+        let x0: f32 = (logical.get_x() * scale).floor();
+        let y0: f32 = (logical.get_y() * scale).floor();
+        let x1: f32 = (logical.right() * scale).ceil();
+        let y1: f32 = (logical.bottom() * scale).ceil();
+        Rect::new(x0, y0, (x1 - x0).max(0.0), (y1 - y0).max(0.0))
+    }
+
+    /// Records the current conservative logical bounds of `id` into `extra_logical_damage` prior to destructive mutation.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable scene tree.
+    /// - `NodeId` - Target scene node handle.
+    fn record_node_logical_damage(&mut self, id: NodeId) {
+        if self.get_full_damage_pending() {
+            return;
+        }
+        let rect_opt: Option<Rect> = self.node_conservative_logical_rect(id);
+        match rect_opt {
+            Some(rect) => {
+                if rect.get_width() <= 0.0 || rect.get_height() <= 0.0 {
+                    return;
+                }
+                if self.get_extra_logical_damage().len() >= DIRTY_PAINT_FULL_THRESHOLD {
+                    self.set_full_damage_pending(true);
+                    self.set_full_damage_overflow(true);
+                    self.get_mut_extra_logical_damage().clear();
+                } else {
+                    self.get_mut_extra_logical_damage().push(rect);
+                }
+            }
+            None => {
+                self.set_full_damage_pending(true);
+            }
+        }
+    }
+
+    /// Records pre-mutation conservative logical bounds for every live laid-out node in the subtree rooted at `root`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable scene tree.
+    /// - `NodeId` - Subtree root handle.
+    fn record_subtree_logical_damage(&mut self, root: NodeId) {
+        if self.get_full_damage_pending() {
+            return;
+        }
+        let mut stack: Vec<NodeId> = vec![root];
+        let mut visited: usize = 0;
+        while let Some(current) = stack.pop() {
+            let Some(node) = self.get_node(current) else {
+                continue;
+            };
+            visited += 1;
+            if visited > DIRTY_PAINT_FULL_THRESHOLD {
+                self.set_full_damage_pending(true);
+                self.set_full_damage_overflow(true);
+                self.get_mut_extra_logical_damage().clear();
+                return;
+            }
+            let children: Vec<NodeId> = node.get_children().clone();
+            let raw_bounds: Rect = node.get_layout_box().get_bounds();
+            if raw_bounds.get_width() > 0.0 && raw_bounds.get_height() > 0.0 {
+                self.record_node_logical_damage(current);
+                if self.get_full_damage_pending() {
+                    return;
+                }
+            }
+            for child in children.into_iter() {
+                stack.push(child);
+            }
+        }
     }
 
     /// Starts or smoothly retargets a paint/transform transition on `transition.get_node()`.
@@ -1044,10 +1302,12 @@ impl SceneTree {
             self.sync_portal_registration(id, is_portal);
         }
         if (mask & DIRTY_FULL_DAMAGE_MASK) != 0 {
-            self.set_full_damage_pending(true);
-        } else if !self.get_full_damage_pending()
-            && (mask & (DIRTY_PAINT | DIRTY_SCROLL)) != 0
-            && (prev_bits & (DIRTY_PAINT | DIRTY_SCROLL)) == 0
+            self.set_layout_damage_pending(true);
+        }
+        let paint_or_scroll: u16 = DIRTY_PAINT | DIRTY_SCROLL;
+        if !self.get_full_damage_pending()
+            && (mask & paint_or_scroll) != 0
+            && (prev_bits & paint_or_scroll) == 0
         {
             if self.get_dirty_paint_nodes().len() >= DIRTY_PAINT_FULL_THRESHOLD {
                 self.set_full_damage_pending(true);
@@ -1120,13 +1380,45 @@ impl SceneTree {
     ///
     /// - `DamageRegion` - Minimal damaged region, full damage on structural/layout change, or clean when idle.
     pub fn collect_paint_damage(&mut self, scale: f32) -> DamageRegion {
+        let (damage, _): (DamageRegion, bool) = self.collect_surgical_paint_damage(scale, false);
+        damage
+    }
+
+    /// Collects tight physical paint/scroll/removed-node damage while optionally deferring layout bounds diffing to `LayoutEngine`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable scene tree.
+    /// - `f32` - Active display scale factor.
+    /// - `bool` - When `true`, allows surgical pre/post-layout damage diffing instead of promoting all layout mutations to full redraw.
+    ///
+    /// # Returns
+    ///
+    /// - `(DamageRegion, bool)` - Collected damage region and whether a layout pass is still pending.
+    pub(crate) fn collect_surgical_paint_damage(
+        &mut self,
+        scale: f32,
+        allow_partial_layout: bool,
+    ) -> (DamageRegion, bool) {
         let clear_mask: u16 = DIRTY_PAINT_CLEAR_MASK;
-        if !self.get_full_damage_pending() && self.get_dirty_paint_nodes().is_empty() {
-            return DamageRegion::default();
+        let layout_pending: bool = self.get_layout_damage_pending();
+        let no_paint_nodes: bool = self.get_dirty_paint_nodes().is_empty();
+        let no_extra: bool = self.get_extra_logical_damage().is_empty();
+        if !self.get_full_damage_pending() && !layout_pending && no_paint_nodes && no_extra {
+            self.set_created_since_damage(0);
+            return (DamageRegion::default(), false);
         }
-        let mut full: bool = self.get_full_damage_pending();
+        let mut full: bool =
+            self.get_full_damage_pending() || (!allow_partial_layout && layout_pending);
         let mut region: DamageRegion = DamageRegion::default();
         if !full {
+            let extra_len: usize = self.get_extra_logical_damage().len();
+            for i in 0..extra_len {
+                let logical_rect: Rect = self.get_extra_logical_damage()[i];
+                if logical_rect.get_width() > 0.0 && logical_rect.get_height() > 0.0 {
+                    region.add_rect(Self::scale_logical_to_phys_rect(logical_rect, scale));
+                }
+            }
             let dirty_len: usize = self.get_dirty_paint_nodes().len();
             for i in 0..dirty_len {
                 let nid: NodeId = self.get_dirty_paint_nodes()[i];
@@ -1134,7 +1426,12 @@ impl SceneTree {
                     continue;
                 };
                 let bits: u16 = node.get_dirty().get_bits();
-                if (bits & DIRTY_FULL_DAMAGE_MASK) != 0 {
+                let has_layout_bits: bool = (bits & DIRTY_LAYOUT_PASS_MASK) != 0;
+                if !allow_partial_layout && (bits & DIRTY_FULL_DAMAGE_MASK) != 0 {
+                    full = true;
+                    break;
+                }
+                if (bits & DIRTY_SCROLL) != 0 && has_layout_bits {
                     full = true;
                     break;
                 }
@@ -1143,43 +1440,27 @@ impl SceneTree {
                 }
                 let raw_bounds: Rect = node.get_layout_box().get_bounds();
                 if raw_bounds.get_width() > 0.0 && raw_bounds.get_height() > 0.0 {
-                    let mut margin: f32 = 10.0;
-                    if let Some(shadow) = node.style_ref().get_paint().box_shadow() {
-                        margin = margin.max(
-                            shadow.get_blur_radius()
-                                + shadow.get_spread_radius()
-                                + shadow.get_offset_x().abs().max(shadow.get_offset_y().abs())
-                                + 4.0,
-                        );
+                    match self.node_conservative_logical_rect(nid) {
+                        Some(logical_rect) => {
+                            region.add_rect(Self::scale_logical_to_phys_rect(logical_rect, scale));
+                        }
+                        None => {
+                            full = true;
+                            break;
+                        }
                     }
-                    let (off, tx, ty, sx, sy): (Point, f32, f32, f32, f32) =
-                        self.node_scroll_and_transform(node);
-                    let base_x: f32 = raw_bounds.get_x() - off.get_x();
-                    let base_y: f32 = raw_bounds.get_y() - off.get_y();
-                    let base_phys: Rect = Rect::new(
-                        ((base_x - margin) * scale).floor(),
-                        ((base_y - margin) * scale).floor(),
-                        ((raw_bounds.get_width() + margin * 2.0) * scale).ceil(),
-                        ((raw_bounds.get_height() + margin * 2.0) * scale).ceil(),
-                    );
-                    region.add_rect(base_phys);
-                    let shifted_x: bool = tx != 0.0 || sx != 1.0;
-                    let shifted_y: bool = ty != 0.0 || sy != 1.0;
-                    if shifted_x || shifted_y {
-                        let shifted_phys: Rect = Rect::new(
-                            ((base_x + tx - margin) * scale).floor(),
-                            ((base_y + ty - margin) * scale).floor(),
-                            ((raw_bounds.get_width() * sx + margin * 2.0) * scale).ceil(),
-                            ((raw_bounds.get_height() * sy + margin * 2.0) * scale).ceil(),
-                        );
-                        region.add_rect(shifted_phys);
-                    }
-                } else if (bits & DIRTY_PAINT) != 0 {
+                } else if (bits & DIRTY_PAINT) != 0
+                    && !has_layout_bits
+                    && node.style_ref().layout_ref().get_display() != Display::None
+                {
                     full = true;
                     break;
                 }
             }
         }
+        self.set_layout_damage_pending(false);
+        self.set_created_since_damage(0);
+        self.get_mut_extra_logical_damage().clear();
         if !full {
             let dirty_len: usize = self.get_dirty_paint_nodes().len();
             for i in 0..dirty_len {
@@ -1204,7 +1485,7 @@ impl SceneTree {
                 }
             }
             self.get_mut_dirty_paint_nodes().clear();
-            return region;
+            return (region, layout_pending);
         }
         self.set_full_damage_pending(false);
         self.get_mut_dirty_paint_nodes().clear();
@@ -1213,7 +1494,7 @@ impl SceneTree {
                 node.get_mut_dirty().remove(clear_mask);
             }
         }
-        DamageRegion::full()
+        (DamageRegion::full(), layout_pending)
     }
 
     /// Consumes and returns whether the most recent dirty-paint accumulation overflowed `DIRTY_PAINT_FULL_THRESHOLD`.
@@ -1245,6 +1526,7 @@ impl SceneTree {
         if id == self.get_root() {
             return (Vec::new(), Vec::new());
         }
+        self.record_subtree_logical_damage(id);
         self.cancel_subtree_transitions(id);
         let mut stack: Vec<NodeId> = vec![id];
         let mut scopes: Vec<Scope> = Vec::new();

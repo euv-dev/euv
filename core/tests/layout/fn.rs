@@ -854,3 +854,263 @@ fn text_measurer_wrap_tolerates_float_rounding_and_chrome_round_trips() {
     assert_eq!(render_pass.get_lines()[0].get_text().as_str(), "MATH");
     assert!((render_pass.get_size().get_height() - txt_bounds.get_height()).abs() < 0.01);
 }
+
+#[test]
+fn partial_layout_damage_matches_full_redraw_bit_exact_across_mutations() {
+    fn build_scene(partial_enabled: bool) -> (App, NodeId, NodeId, NodeId, NodeId, NodeId, NodeId) {
+        let mut win_cfg: WindowConfig = WindowConfig::default();
+        win_cfg
+            .set_size(640, 480)
+            .set_render(RenderConfig::software());
+        let mut cfg: AppConfig = AppConfig::default();
+        cfg.set_window(win_cfg);
+        let mut app: App = App::headless(cfg).expect("headless app");
+        app.set_partial_layout_damage(partial_enabled);
+        app.set_telemetry_enabled(true);
+        let mut ids: (NodeId, NodeId, NodeId, NodeId, NodeId, NodeId) = (
+            NodeId::default(),
+            NodeId::default(),
+            NodeId::default(),
+            NodeId::default(),
+            NodeId::default(),
+            NodeId::default(),
+        );
+        let _: NodeId = app.mount(|| {
+            let mut ctx: Context = current_context();
+            let root: NodeId = ctx.view(
+                Style::default()
+                    .column()
+                    .width(Length::Px(640.0))
+                    .height(Length::Px(480.0))
+                    .padding(Edges::all(16.0))
+                    .gap(12.0)
+                    .background(Color::rgb(245, 247, 250)),
+            );
+            let move_row: NodeId = ctx.view(
+                Style::default()
+                    .row()
+                    .width(Length::Px(608.0))
+                    .height(Length::Px(80.0))
+                    .gap(10.0)
+                    .background(Color::rgb(232, 236, 244)),
+            );
+            let box_a: NodeId = ctx.view(
+                Style::default()
+                    .width(Length::Px(80.0))
+                    .height(Length::Px(48.0))
+                    .margin(Edges::new(8.0, 0.0, 0.0, 8.0))
+                    .background(Color::rgb(59, 130, 246))
+                    .border(2.0, Color::rgb(30, 64, 175))
+                    .radius(8.0)
+                    .shadow(Shadow::new(4.0, 6.0, 16.0, 3.0, Color::new(15, 23, 42, 90))),
+            );
+            let box_b: NodeId = ctx.view(
+                Style::default()
+                    .width(Length::Px(90.0))
+                    .height(Length::Px(48.0))
+                    .margin(Edges::new(8.0, 0.0, 0.0, 0.0))
+                    .background(Color::rgb(16, 185, 129))
+                    .radius(6.0),
+            );
+            let box_del: NodeId = ctx.view(
+                Style::default()
+                    .width(Length::Px(70.0))
+                    .height(Length::Px(48.0))
+                    .margin(Edges::new(8.0, 0.0, 0.0, 0.0))
+                    .background(Color::rgb(239, 68, 68))
+                    .shadow(Shadow::new(
+                        2.0,
+                        4.0,
+                        12.0,
+                        2.0,
+                        Color::new(127, 29, 29, 80),
+                    )),
+            );
+            ctx.append(move_row, box_a);
+            ctx.append(move_row, box_b);
+            ctx.append(move_row, box_del);
+            let clip_card: NodeId = ctx.view(
+                Style::default()
+                    .row()
+                    .width(Length::Px(260.0))
+                    .height(Length::Px(96.0))
+                    .overflow(Overflow::Hidden)
+                    .radius(18.0)
+                    .border(2.0, Color::rgb(71, 85, 105))
+                    .background(Color::rgb(255, 255, 255))
+                    .padding(Edges::all(8.0)),
+            );
+            let clip_child: NodeId = ctx.view(
+                Style::default()
+                    .width(Length::Px(120.0))
+                    .height(Length::Px(84.0))
+                    .background(Color::rgb(245, 158, 11)),
+            );
+            ctx.append(clip_card, clip_child);
+            let scroll_box: NodeId = ctx.scroll_view(
+                Style::default()
+                    .column()
+                    .width(Length::Px(240.0))
+                    .height(Length::Px(120.0))
+                    .gap(6.0)
+                    .padding(Edges::all(6.0))
+                    .border(1.0, Color::rgb(148, 163, 184))
+                    .background(Color::rgb(255, 255, 255)),
+            );
+            for i in 0..8usize {
+                let item: NodeId = ctx.view(
+                    Style::default()
+                        .width(Length::Px(210.0))
+                        .height(Length::Px(34.0))
+                        .background(if i % 2 == 0 {
+                            Color::rgb(226, 232, 240)
+                        } else {
+                            Color::rgb(203, 213, 225)
+                        })
+                        .radius(4.0),
+                );
+                let label: NodeId = ctx.text(
+                    format!("Row {i}"),
+                    Style::default()
+                        .font_size(12.0)
+                        .color(Color::rgb(15, 23, 42)),
+                );
+                ctx.append(item, label);
+                ctx.append(scroll_box, item);
+            }
+            ctx.append(root, move_row);
+            ctx.append(root, clip_card);
+            ctx.append(root, scroll_box);
+            ids = (move_row, box_a, box_b, box_del, clip_child, scroll_box);
+            root
+        });
+        let _: FrameStats = app.step_frame().expect("first frame");
+        (app, ids.0, ids.1, ids.2, ids.3, ids.4, ids.5)
+    }
+    fn assert_pixel_parity(label: &str, partial_app: &App, full_app: &App) {
+        let fb_p: &Framebuffer = partial_app
+            .get_renderer()
+            .framebuffer()
+            .expect("partial fb");
+        let fb_f: &Framebuffer = full_app.get_renderer().framebuffer().expect("full fb");
+        assert_eq!(
+            fb_p.get_width(),
+            fb_f.get_width(),
+            "{label}: width mismatch"
+        );
+        assert_eq!(
+            fb_p.get_height(),
+            fb_f.get_height(),
+            "{label}: height mismatch"
+        );
+        assert_eq!(
+            fb_p.get_pixels(),
+            fb_f.get_pixels(),
+            "{label}: partial layout damage framebuffer diverged from full redraw"
+        );
+    }
+    let (mut app_p, row_p, a_p, b_p, del_p, clip_p, scroll_p): (
+        App,
+        NodeId,
+        NodeId,
+        NodeId,
+        NodeId,
+        NodeId,
+        NodeId,
+    ) = build_scene(true);
+    let (mut app_f, row_f, a_f, b_f, del_f, clip_f, scroll_f): (
+        App,
+        NodeId,
+        NodeId,
+        NodeId,
+        NodeId,
+        NodeId,
+        NodeId,
+    ) = build_scene(false);
+    assert_eq!(
+        app_p.last_frame_telemetry().get_full_redraw_reason(),
+        FullRedrawReason::FirstFrame
+    );
+    assert_pixel_parity("baseline", &app_p, &app_f);
+    let _: FrameStats = app_p.step_frame().expect("idle frame");
+    let idle_tel: FrameTelemetry = app_p.last_frame_telemetry();
+    assert!(idle_tel.get_is_idle());
+    assert_eq!(idle_tel.get_dirty_area_ratio(), 0.0);
+    for (app, target) in [(&mut app_p, a_p), (&mut app_f, a_f)] {
+        let _: bool = app.get_scene().mutate_style(target, |st: &mut Style| {
+            let _: &mut LayoutStyle = st
+                .get_mut_layout()
+                .set_width(Length::Px(140.0))
+                .set_margin(Edges::new(14.0, 0.0, 0.0, 28.0));
+        });
+        let _: FrameStats = app.step_frame().expect("move+grow");
+    }
+    let tel_grow: FrameTelemetry = app_p.last_frame_telemetry();
+    assert_eq!(tel_grow.get_full_redraw_reason(), FullRedrawReason::None);
+    assert!(
+        tel_grow.get_dirty_area_ratio() > 0.0 && tel_grow.get_dirty_area_ratio() < 0.75,
+        "expected surgical partial damage on move+grow, got ratio={}",
+        tel_grow.get_dirty_area_ratio()
+    );
+    assert_pixel_parity("move_and_grow_with_shadow", &app_p, &app_f);
+    for (app, target) in [(&mut app_p, a_p), (&mut app_f, a_f)] {
+        let _: bool = app.get_scene().mutate_style(target, |st: &mut Style| {
+            let _: &mut LayoutStyle = st
+                .get_mut_layout()
+                .set_width(Length::Px(64.0))
+                .set_height(Length::Px(32.0))
+                .set_margin(Edges::new(4.0, 0.0, 0.0, 6.0));
+            let _: &mut PaintStyle = st.get_mut_paint().set_shadow(None);
+        });
+        let _: FrameStats = app.step_frame().expect("shrink+no_shadow");
+    }
+    let tel_shrink: FrameTelemetry = app_p.last_frame_telemetry();
+    assert_eq!(tel_shrink.get_full_redraw_reason(), FullRedrawReason::None);
+    assert!(tel_shrink.get_dirty_area_ratio() < 0.75);
+    assert_pixel_parity("shrink_and_remove_shadow", &app_p, &app_f);
+    for (app, parent, victim) in [(&mut app_p, row_p, del_p), (&mut app_f, row_f, del_f)] {
+        app.get_scene().remove_and_dispose_child(parent, victim);
+        let _: FrameStats = app.step_frame().expect("delete");
+    }
+    let tel_del: FrameTelemetry = app_p.last_frame_telemetry();
+    assert_eq!(tel_del.get_full_redraw_reason(), FullRedrawReason::None);
+    assert!(tel_del.get_dirty_area_ratio() < 0.75);
+    assert_pixel_parity("delete_node_with_shadow", &app_p, &app_f);
+    for (app, target) in [(&mut app_p, clip_p), (&mut app_f, clip_f)] {
+        let _: bool = app.get_scene().mutate_style(target, |st: &mut Style| {
+            let _: &mut LayoutStyle = st
+                .get_mut_layout()
+                .set_width(Length::Px(220.0))
+                .set_margin(Edges::new(0.0, 0.0, 0.0, 32.0));
+        });
+        let _: FrameStats = app.step_frame().expect("rounded_clip_move");
+    }
+    let tel_clip: FrameTelemetry = app_p.last_frame_telemetry();
+    assert_eq!(tel_clip.get_full_redraw_reason(), FullRedrawReason::None);
+    assert!(tel_clip.get_dirty_area_ratio() < 0.75);
+    assert_pixel_parity("rounded_overflow_hidden_clip", &app_p, &app_f);
+    for (app, sc) in [(&mut app_p, scroll_p), (&mut app_f, scroll_f)] {
+        app.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.set_scroll_offset(sc, Point::new(0.0, 72.0));
+            },
+            (),
+        );
+        let _: FrameStats = app.step_frame().expect("scroll");
+    }
+    let tel_scroll: FrameTelemetry = app_p.last_frame_telemetry();
+    assert_eq!(tel_scroll.get_full_redraw_reason(), FullRedrawReason::None);
+    assert!(tel_scroll.get_dirty_area_ratio() < 0.75);
+    assert_pixel_parity("scroll_container", &app_p, &app_f);
+    for (app, target) in [(&mut app_p, b_p), (&mut app_f, b_f)] {
+        let _: bool = app.get_scene().mutate_style(target, |st: &mut Style| {
+            let _: &mut LayoutStyle = st.get_mut_layout().set_width(Length::Px(150.0));
+        });
+        let _: FrameStats = app.step_frame().expect("sibling_resize");
+    }
+    assert_eq!(
+        app_p.last_frame_telemetry().get_full_redraw_reason(),
+        FullRedrawReason::None
+    );
+    assert_pixel_parity("sibling_resize", &app_p, &app_f);
+}

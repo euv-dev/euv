@@ -272,6 +272,10 @@ pub struct App {
     /// Whether the most recent `step_frame` call skipped rendering due to a clean idle scene.
     #[get(type(copy))]
     pub(crate) is_idle_frame: bool,
+    /// Toggle enabling surgical pre/post-layout conservative bounds diffing instead of full-screen layout fallback (default `true`).
+    #[get(type(copy))]
+    #[set(skip)]
+    pub(crate) partial_layout_damage: bool,
 }
 
 /// Fused single-borrow pre-tick snapshot collected at the start of `App::step_frame`.

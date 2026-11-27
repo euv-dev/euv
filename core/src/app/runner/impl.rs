@@ -181,7 +181,58 @@ impl App {
             active_present_fps: 0.0,
             idle_secs_since_present: 0.0,
             is_idle_frame: true,
+            partial_layout_damage: true,
         })
+    }
+
+    /// Enables or disables surgical partial-layout conservative bounds diffing (default `true`; disable for full-redraw A/B comparisons).
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable application.
+    /// - `bool` - `true` for surgical partial-layout damage; `false` to promote any layout pass to full-viewport redraw.
+    pub fn set_partial_layout_damage(&mut self, enabled: bool) {
+        let Self {
+            partial_layout_damage,
+            ..
+        } = self;
+        *partial_layout_damage = enabled;
+    }
+
+    /// Returns whether surgical partial-layout conservative bounds diffing is enabled.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Application reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when surgical partial-layout damage is active.
+    #[must_use]
+    pub fn is_partial_layout_damage_enabled(&self) -> bool {
+        self.get_partial_layout_damage()
+    }
+
+    /// Merges all disjoint normalized rectangles from `src` into `dst` without collapsing multi-rect damage into a single bounding box.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut DamageRegion` - Destination damage region.
+    /// - `DamageRegion` - Source damage region to merge.
+    /// - `u32` - Physical surface width in pixels.
+    /// - `u32` - Physical surface height in pixels.
+    fn merge_damage(dst: &mut DamageRegion, src: DamageRegion, phys_w: u32, phys_h: u32) {
+        if dst.get_full_damage() {
+            return;
+        }
+        if src.get_full_damage() {
+            *dst = DamageRegion::full();
+            return;
+        }
+        let (rects, count): ([Rect; 8], usize) = src.normalized_rects(phys_w, phys_h);
+        for rect in rects.iter().take(count).copied() {
+            dst.add_rect(rect);
+        }
     }
 
     /// Enables or disables opt-in per-phase microsecond timing instrumentation inside `step_frame`.
@@ -1489,9 +1540,15 @@ impl App {
                 full_reason = FullRedrawReason::Resize;
             }
         }
-        let (scene_rev, tree_damage, has_transitions_after, tree_overflow): (
+        let allow_partial_layout: bool = self.get_partial_layout_damage()
+            && self
+                .get_renderer()
+                .get_config()
+                .get_dirty_rect_optimization();
+        let (scene_rev, tree_damage, layout_pending, has_transitions_after, tree_overflow): (
             u64,
             DamageRegion,
+            bool,
             bool,
             bool,
         ) = {
@@ -1499,17 +1556,21 @@ impl App {
             scene.with_write(
                 |tree: &mut SceneTree| {
                     let overflowed: bool = tree.take_full_damage_overflow();
-                    let d: DamageRegion = tree.collect_paint_damage(scale);
+                    let (d, pending_layout): (DamageRegion, bool) =
+                        tree.collect_surgical_paint_damage(scale, allow_partial_layout);
                     (
                         tree.get_revision(),
                         d,
+                        pending_layout,
                         tree.has_active_transitions(),
                         overflowed,
                     )
                 },
-                (0, DamageRegion::full(), false, false),
+                (0, DamageRegion::full(), true, false, false),
             )
         };
+        let phys_w: u32 = ((viewport.get_width() * scale).round() as u32).max(1);
+        let phys_h: u32 = ((viewport.get_height() * scale).round() as u32).max(1);
         let vel_after: Point = self.get_scroll_velocity();
         let smooth_after: Point = self.get_smooth_scroll_pending();
         let vel_moving_after: bool = vel_after.get_x().hypot(vel_after.get_y()) > 1.5;
@@ -1523,20 +1584,22 @@ impl App {
                 if full_reason == FullRedrawReason::None {
                     full_reason = if tree_overflow {
                         FullRedrawReason::DamageOverflow
+                    } else if !allow_partial_layout && layout_pending {
+                        FullRedrawReason::Forced
                     } else {
                         FullRedrawReason::LayoutFallback
                     };
                 }
-            } else if let Some(rect) = tree_damage.bounds_rect() {
-                damage.add_rect(rect);
-            } else if damage.resolve(1, 1).is_none() {
+            } else if tree_damage.bounds_rect().is_some() {
+                Self::merge_damage(&mut damage, tree_damage, phys_w, phys_h);
+            } else if !layout_pending && damage.resolve(phys_w, phys_h).is_none() {
                 damage = DamageRegion::full();
                 if full_reason == FullRedrawReason::None {
                     full_reason = FullRedrawReason::Forced;
                 }
             }
-        } else if let Some(rect) = tree_damage.bounds_rect() {
-            damage.add_rect(rect);
+        } else if tree_damage.bounds_rect().is_some() {
+            Self::merge_damage(&mut damage, tree_damage, phys_w, phys_h);
         }
         if anim_ticked
             && !damage.get_full_damage()
@@ -1554,10 +1617,8 @@ impl App {
                 ));
             }
         }
-        let phys_w: u32 = ((viewport.get_width() * scale).round() as u32).max(1);
-        let phys_h: u32 = ((viewport.get_height() * scale).round() as u32).max(1);
         let damage_rect_opt: Option<Rect> = damage.resolve(phys_w, phys_h);
-        if damage_rect_opt.is_none() {
+        if damage_rect_opt.is_none() && !layout_pending {
             let reactive_us: u64 = Self::phase_lap_us(&mut phase_mark);
             let skipped: FrameStats = self.get_mut_renderer().record_skipped_frame();
             let idle_secs: f32 = self.get_idle_secs_since_present() + anim_dt;
@@ -1592,14 +1653,102 @@ impl App {
             return Ok(skipped);
         }
         let animated_or_game: bool = anim_ticked || has_active_game;
-        let portal_dirty: bool = !visible_portals.is_empty()
+        if !self
+            .get_renderer()
+            .get_config()
+            .get_dirty_rect_optimization()
+        {
+            damage = DamageRegion::full();
+            if full_reason == FullRedrawReason::None {
+                full_reason = FullRedrawReason::Forced;
+            }
+        }
+        let reactive_us: u64 = Self::phase_lap_us(&mut phase_mark);
+        let track_layout_damage: bool = allow_partial_layout && !damage.get_full_damage();
+        let (layout_stats, layout_report): (LayoutStats, LayoutDamageReport) = {
+            let Self {
+                scene,
+                layout_engine,
+                ..
+            } = self;
+            scene.with_write(
+                |tree: &mut SceneTree| {
+                    if track_layout_damage {
+                        layout_engine.compute_with_damage(tree, viewport, scale)
+                    } else {
+                        let st: LayoutStats = layout_engine.compute(tree, viewport);
+                        (st, LayoutDamageReport::default())
+                    }
+                },
+                (LayoutStats::default(), LayoutDamageReport::default()),
+            )
+        };
+        let layout_us: u64 = Self::phase_lap_us(&mut phase_mark);
+        if layout_stats.get_nodes_computed() > 0 && !damage.get_full_damage() {
+            if !allow_partial_layout {
+                damage = DamageRegion::full();
+                if full_reason == FullRedrawReason::None {
+                    full_reason = FullRedrawReason::Forced;
+                }
+            } else if layout_report.fallback_kind != LAYOUT_FALLBACK_NONE {
+                damage = DamageRegion::full();
+                if full_reason == FullRedrawReason::None {
+                    full_reason = match layout_report.fallback_kind {
+                        LAYOUT_FALLBACK_PORTAL => FullRedrawReason::PortalBackdrop,
+                        LAYOUT_FALLBACK_OVERFLOW => FullRedrawReason::DamageOverflow,
+                        _ => FullRedrawReason::LayoutFallback,
+                    };
+                }
+            } else if layout_report.damage.bounds_rect().is_some() {
+                Self::merge_damage(&mut damage, layout_report.damage, phys_w, phys_h);
+            }
+        }
+        let final_damage_opt: Option<Rect> = damage.resolve(phys_w, phys_h);
+        if final_damage_opt.is_none() {
+            let skipped: FrameStats = self.get_mut_renderer().record_skipped_frame();
+            self.set_last_rendered_revision(scene_rev);
+            self.set_pending_damage(DamageRegion::default());
+            self.set_pending_full_redraw_reason(FullRedrawReason::None);
+            let idle_secs: f32 = self.get_idle_secs_since_present() + anim_dt;
+            self.set_idle_secs_since_present(idle_secs);
+            self.set_is_idle_frame(true);
+            let _: bool = self.get_context().get_is_idle().set_if_changed(true);
+            if idle_secs >= 0.35 || self.get_fps_accum_frames() == 0 {
+                self.set_fps_accum_secs(0.0);
+                self.set_fps_accum_frames(0);
+                self.set_active_present_fps(0.0);
+                let _: bool = self.get_context().get_present_fps().set_if_changed(0.0);
+            }
+            self.set_last_frame_telemetry(FrameTelemetry {
+                frame_id: skipped.get_frame_index(),
+                phases: FramePhaseMetrics {
+                    input_us,
+                    reactive_us,
+                    layout_us,
+                    paint_list_us: 0,
+                    raster_us: 0,
+                    present_us: 0,
+                },
+                dirty_area_ratio: 0.0,
+                full_redraw_reason: FullRedrawReason::None,
+                target_hz,
+                present_fps: self.get_active_present_fps(),
+                is_idle: true,
+                layout_nodes: layout_stats.get_nodes_computed(),
+                draw_commands: 0,
+                pixels_shaded: 0,
+            });
+            return Ok(skipped);
+        }
+        let portal_dirty: bool = !damage.get_full_damage()
+            && !visible_portals.is_empty()
             && visible_portals
                 .iter()
                 .any(|(is_dirty, logical_rect): &(bool, Rect)| {
                     if *is_dirty || animated_or_game {
                         return true;
                     }
-                    if let Some(dmg) = damage_rect_opt {
+                    if let Some(dmg) = final_damage_opt {
                         let phys_portal: Rect = Rect::new(
                             logical_rect.get_x() * scale,
                             logical_rect.get_y() * scale,
@@ -1615,34 +1764,6 @@ impl App {
             damage = DamageRegion::full();
             if full_reason == FullRedrawReason::None {
                 full_reason = FullRedrawReason::PortalBackdrop;
-            }
-        } else if !self
-            .get_renderer()
-            .get_config()
-            .get_dirty_rect_optimization()
-        {
-            damage = DamageRegion::full();
-            if full_reason == FullRedrawReason::None {
-                full_reason = FullRedrawReason::Forced;
-            }
-        }
-        let reactive_us: u64 = Self::phase_lap_us(&mut phase_mark);
-        let layout_stats: LayoutStats = {
-            let Self {
-                scene,
-                layout_engine,
-                ..
-            } = self;
-            scene.with_write(
-                |tree: &mut SceneTree| layout_engine.compute(tree, viewport),
-                LayoutStats::default(),
-            )
-        };
-        let layout_us: u64 = Self::phase_lap_us(&mut phase_mark);
-        if layout_stats.get_nodes_computed() > 0 {
-            damage = DamageRegion::full();
-            if full_reason == FullRedrawReason::None {
-                full_reason = FullRedrawReason::LayoutFallback;
             }
         }
         if !damage.get_full_damage() {
