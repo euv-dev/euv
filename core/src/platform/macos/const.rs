@@ -19,6 +19,27 @@ pub(crate) const OBJC_CLS_NS_CURSOR: &str = "NSCursor\0";
 /// Objective-C class name for `NSPasteboard`.
 pub(crate) const OBJC_CLS_NS_PASTEBOARD: &str = "NSPasteboard\0";
 
+/// Objective-C class name for `NSProcessInfo`.
+pub(crate) const OBJC_CLS_NS_PROCESS_INFO: &str = "NSProcessInfo\0";
+
+/// Objective-C selector for `processInfo` on `NSProcessInfo`.
+pub(crate) const OBJC_SEL_PROCESS_INFO: &str = "processInfo\0";
+
+/// Objective-C selector for `isLowPowerModeEnabled` on `NSProcessInfo`.
+pub(crate) const OBJC_SEL_IS_LOW_POWER_MODE: &str = "isLowPowerModeEnabled\0";
+
+/// Objective-C selector for `isActive` on `NSApplication`.
+pub(crate) const OBJC_SEL_IS_ACTIVE: &str = "isActive\0";
+
+/// Objective-C selector for `isKeyWindow` on `NSWindow`.
+pub(crate) const OBJC_SEL_IS_KEY_WINDOW: &str = "isKeyWindow\0";
+
+/// Objective-C selector for `isMiniaturized` on `NSWindow`.
+pub(crate) const OBJC_SEL_IS_MINIATURIZED: &str = "isMiniaturized\0";
+
+/// Objective-C selector for `changeCount` on `NSPasteboard`.
+pub(crate) const OBJC_SEL_CHANGE_COUNT: &str = "changeCount\0";
+
 /// Objective-C selector for `generalPasteboard` on `NSPasteboard`.
 pub(crate) const OBJC_SEL_GENERAL_PASTEBOARD: &str = "generalPasteboard\0";
 

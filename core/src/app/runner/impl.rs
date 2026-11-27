@@ -72,6 +72,12 @@ impl App {
             .get_theme_mode()
             .set(window_state.get_system_theme());
         let _: bool = context.get_safe_area().set(window_state.get_safe_area());
+        let _: bool = context.get_orientation().set(ScreenOrientation::from_size(
+            window_state.get_logical_width(),
+            window_state.get_logical_height(),
+        ));
+        let _: bool = context.get_app_state().set(AppState::Active);
+        let _: bool = context.get_window_focused().set(window_state.get_focused());
         let _: bool = context.get_display_refresh_rate().set(native_hz);
         let _: bool = context.get_live_fps().set(native_hz);
         let renderer: Renderer = Renderer::new(
@@ -144,6 +150,7 @@ impl App {
             last_frame_damage: DamageRegion::default(),
             display_refresh_rate_hz: native_hz,
             was_animating: false,
+            system_event_normalizer: SystemEventNormalizer::new(),
         })
     }
 
@@ -262,8 +269,187 @@ impl App {
     ///
     /// - `Result<(), PlatformError>` - Clipboard write status.
     pub fn write_clipboard(&mut self, text: &str) -> Result<(), PlatformError> {
-        let Self { platform, .. } = self;
-        platform.write_clipboard(text)
+        let res: Result<(), PlatformError> = {
+            let Self { platform, .. } = self;
+            platform.write_clipboard(text)
+        };
+        if res.is_ok() {
+            self.dispatch_system_event(SystemEvent::ClipboardChanged);
+        }
+        res
+    }
+
+    /// Returns the current normalized cross-platform `AppState`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Application reference.
+    ///
+    /// # Returns
+    ///
+    /// - `AppState` - Current canonical application lifecycle state.
+    #[must_use]
+    pub fn app_state(&self) -> AppState {
+        self.get_system_event_normalizer().state()
+    }
+
+    /// Returns the reactive `Signal<AppState>` tracking canonical application lifecycle transitions.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Application reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Signal<AppState>` - Reactive application state signal.
+    #[must_use]
+    pub fn app_state_signal(&self) -> Signal<AppState> {
+        self.get_context().app_state_signal()
+    }
+
+    /// Normalizes a raw `SystemEvent` through `SystemEventNormalizer`, updates reactive `Context` signals, and notifies all active hooks and visible `Lifecycle` components.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable application.
+    /// - `SystemEvent` - Incoming platform or synthetic system event.
+    pub fn dispatch_system_event(&mut self, event: SystemEvent) {
+        let canonical_events: Vec<SystemEvent> =
+            self.get_mut_system_event_normalizer().normalize(event);
+        let next_state: AppState = self.get_system_event_normalizer().state();
+        let _: bool = self
+            .get_context()
+            .get_app_state()
+            .set_if_changed(next_state);
+        for ev in canonical_events.into_iter() {
+            match &ev {
+                SystemEvent::FocusChanged(focused) => {
+                    self.get_mut_window_state().set_focused(*focused);
+                    let _: bool = self
+                        .get_context()
+                        .get_window_focused()
+                        .set_if_changed(*focused);
+                    if !*focused {
+                        self.cancel_all_active_pointers();
+                    }
+                }
+                SystemEvent::Resize {
+                    width,
+                    height,
+                    scale_factor,
+                } => {
+                    let prev_ws: WindowState = self.get_window_state();
+                    if (prev_ws.get_logical_width() - *width).abs() > 0.5
+                        || (prev_ws.get_logical_height() - *height).abs() > 0.5
+                        || (prev_ws.get_scale_factor() - *scale_factor).abs() > 0.01
+                    {
+                        self.get_mut_window_state().set_logical_width(*width);
+                        self.get_mut_window_state().set_logical_height(*height);
+                        self.get_mut_window_state().set_scale_factor(*scale_factor);
+                        self.get_mut_window_state().set_physical_width(
+                            ((*width) * (*scale_factor)).round().max(1.0) as u32,
+                        );
+                        self.get_mut_window_state().set_physical_height(
+                            ((*height) * (*scale_factor)).round().max(1.0) as u32,
+                        );
+                    }
+                    let bp: Breakpoint = self.get_window_state().breakpoint();
+                    let logical_size: Size = Size::new(*width, *height);
+                    batch(|| {
+                        let _: bool = self.get_context().get_breakpoint().set_if_changed(bp);
+                        let _: bool = self
+                            .get_context()
+                            .get_viewport_size()
+                            .set_if_changed(logical_size);
+                    });
+                }
+                SystemEvent::SafeAreaChanged(insets) => {
+                    self.get_mut_window_state().set_safe_area(*insets);
+                    let _: bool = self.get_context().get_safe_area().set_if_changed(*insets);
+                    self.set_pending_damage(DamageRegion::full());
+                }
+                SystemEvent::OrientationChanged(orient) => {
+                    let _: bool = self.get_context().get_orientation().set_if_changed(*orient);
+                }
+                SystemEvent::ThemeChanged(mode) => {
+                    self.get_mut_window_state().set_system_theme(*mode);
+                    let _: bool = self.get_context().get_theme_mode().set_if_changed(*mode);
+                    self.set_pending_damage(DamageRegion::full());
+                }
+                SystemEvent::LocaleChanged(locale) => {
+                    let _: bool = self
+                        .get_context()
+                        .get_locale()
+                        .set_if_changed(locale.clone());
+                }
+                SystemEvent::KeyboardVisibilityChanged { visible, height } => {
+                    let _: bool = self
+                        .get_context()
+                        .get_keyboard_visible()
+                        .set_if_changed(*visible);
+                    let _: bool = self
+                        .get_context()
+                        .get_keyboard_height()
+                        .set_if_changed(*height);
+                    if !*visible {
+                        self.set_last_ime_active(false);
+                    }
+                }
+                SystemEvent::LowPowerModeChanged(enabled) => {
+                    let _: bool = self
+                        .get_context()
+                        .get_low_power_mode()
+                        .set_if_changed(*enabled);
+                }
+                SystemEvent::NetworkStatusChanged(status) => {
+                    let _: bool = self
+                        .get_context()
+                        .get_network_status()
+                        .set_if_changed(*status);
+                }
+                SystemEvent::BackPressed => {
+                    let _: bool = self
+                        .get_context()
+                        .get_system_back()
+                        .update(|v: &mut u64| *v = v.wrapping_add(1));
+                    if self.get_context().get_exit_requested().get_untracked() && self.get_running()
+                    {
+                        let wid: WindowId = self.get_window_state().get_id();
+                        self.queue_window_command(WindowCommand::Close(wid));
+                        self.set_running(false);
+                    }
+                }
+                SystemEvent::DeepLink(uri) => {
+                    let already_same: bool = self
+                        .get_deep_link()
+                        .get_untracked()
+                        .as_ref()
+                        .map(|existing: &DeepLinkEvent| {
+                            existing.get_raw_url().as_str() == uri.as_str()
+                        })
+                        .unwrap_or(false);
+                    if !already_same && let Ok(parsed) = DeepLinkEvent::parse(uri.as_str()) {
+                        let _: bool = self.get_deep_link().set(Some(parsed));
+                    }
+                }
+                SystemEvent::Inactive | SystemEvent::Disappear | SystemEvent::Background => {
+                    self.cancel_all_active_pointers();
+                }
+                SystemEvent::Terminate => {
+                    self.cancel_all_active_pointers();
+                    self.set_running(false);
+                }
+                SystemEvent::Appear | SystemEvent::Foreground => {
+                    self.set_pending_damage(DamageRegion::full());
+                }
+                SystemEvent::MemoryWarning(_) | SystemEvent::ClipboardChanged => {}
+            }
+            let observers: Vec<(NodeId, Rc<dyn Lifecycle>)> = self
+                .get_scene()
+                .with_read(SceneTree::collect_visible_lifecycles, Vec::new());
+            dispatch_lifecycle_system_event(&observers, &ev);
+            dispatch_system_event_listeners(&ev);
+        }
     }
 
     /// Copies the active scene text selection into the platform clipboard and returns the copied string.
@@ -632,6 +818,11 @@ impl App {
             (),
         );
         self.set_pending_damage(DamageRegion::full());
+        self.dispatch_system_event(SystemEvent::Resize {
+            width: lw,
+            height: lh,
+            scale_factor: safe_scale,
+        });
     }
 
     /// Processes a single incoming `WindowEvent`, updating state, hit-testing, and dispatching UI callbacks.
@@ -697,24 +888,24 @@ impl App {
                     );
                     self.set_pending_damage(DamageRegion::full());
                 }
+                let ws: WindowState = self.get_window_state();
+                self.dispatch_system_event(SystemEvent::Resize {
+                    width: ws.get_logical_width(),
+                    height: ws.get_logical_height(),
+                    scale_factor: ws.get_scale_factor(),
+                });
             }
             WindowEvent::SafeAreaChanged(_, insets) => {
-                self.get_mut_window_state().set_safe_area(insets);
-                let _: bool = self.get_context().get_safe_area().set_if_changed(insets);
-                self.set_pending_damage(DamageRegion::full());
+                self.dispatch_system_event(SystemEvent::SafeAreaChanged(insets));
             }
             WindowEvent::ThemeChanged(_, mode) => {
-                self.get_mut_window_state().set_system_theme(mode);
-                let _: bool = self.get_context().get_theme_mode().set_if_changed(mode);
-                self.set_pending_damage(DamageRegion::full());
+                self.dispatch_system_event(SystemEvent::ThemeChanged(mode));
             }
             WindowEvent::Focused(_, focused) => {
-                self.get_mut_window_state().set_focused(focused);
-                if !focused {
-                    self.cancel_all_active_pointers();
-                }
+                self.dispatch_system_event(SystemEvent::FocusChanged(focused));
             }
             WindowEvent::CloseRequested(_) => {
+                self.dispatch_system_event(SystemEvent::Terminate);
                 self.set_running(false);
             }
             WindowEvent::PointerMove(_, ptr) => {
@@ -740,15 +931,38 @@ impl App {
             }
             WindowEvent::Ime(_, ImeEvent::Disabled) => {
                 self.set_last_ime_active(false);
+                self.dispatch_system_event(SystemEvent::KeyboardVisibilityChanged {
+                    visible: false,
+                    height: 0.0,
+                });
             }
-            WindowEvent::Lifecycle(LifecycleEvent::Terminated) => {
-                self.set_running(false);
-            }
+            WindowEvent::Lifecycle(lc) => match lc {
+                LifecycleEvent::Resumed => {
+                    self.dispatch_system_event(SystemEvent::Foreground);
+                }
+                LifecycleEvent::Paused => {
+                    self.dispatch_system_event(SystemEvent::Background);
+                }
+                LifecycleEvent::LowMemory => {
+                    self.dispatch_system_event(SystemEvent::MemoryWarning(
+                        MemoryPressure::Critical,
+                    ));
+                }
+                LifecycleEvent::Terminated => {
+                    self.dispatch_system_event(SystemEvent::Terminate);
+                    self.set_running(false);
+                }
+            },
             WindowEvent::RedrawRequested(_) => {
                 self.set_pending_damage(DamageRegion::full());
             }
             WindowEvent::DeepLink(link) => {
+                let uri: String = link.get_raw_url().clone();
                 let _: bool = self.get_deep_link().set(Some(link));
+                self.dispatch_system_event(SystemEvent::DeepLink(uri));
+            }
+            WindowEvent::System(sys_event) => {
+                self.dispatch_system_event(sys_event);
             }
             WindowEvent::PointerCancel(_, pointer_id) => {
                 if pointer_id == 0 {
@@ -757,7 +971,7 @@ impl App {
                     self.handle_pointer_cancel_single(pointer_id);
                 }
             }
-            WindowEvent::KeyUp(_, _) | WindowEvent::Ime(_, _) | WindowEvent::Lifecycle(_) => {}
+            WindowEvent::KeyUp(_, _) | WindowEvent::Ime(_, _) => {}
         }
     }
 
@@ -3185,15 +3399,7 @@ impl App {
             }
         }
         if matches!(key.get_code(), KeyCode::Back | KeyCode::Escape) {
-            let _: bool = self
-                .get_context()
-                .get_system_back()
-                .update(|v: &mut u64| *v = v.wrapping_add(1));
-            if self.get_context().get_exit_requested().get_untracked() && self.get_running() {
-                let wid: WindowId = self.get_window_state().get_id();
-                self.queue_window_command(WindowCommand::Close(wid));
-                self.set_running(false);
-            }
+            self.dispatch_system_event(SystemEvent::BackPressed);
         }
         if !focused_is_input {
             let key_scroll_y: f32 = match key.get_code() {

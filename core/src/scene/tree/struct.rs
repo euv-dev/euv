@@ -89,6 +89,30 @@ pub struct Context {
     /// Reactive flag raised when the application requests graceful termination (e.g. double-back-to-exit at root).
     #[get(type(copy))]
     pub(crate) exit_requested: Signal<bool>,
+    /// Canonical cross-platform application lifecycle state signal (`Active`, `Inactive`, `Background`, `Terminated`).
+    #[get(type(copy))]
+    pub(crate) app_state: Signal<AppState>,
+    /// Live network reachability status signal (`Online`, `Offline`, `Wifi`, `Cellular`, `Unknown`).
+    #[get(type(copy))]
+    pub(crate) network_status: Signal<NetworkStatus>,
+    /// Whether the soft virtual keyboard / IME is currently presented.
+    #[get(type(copy))]
+    pub(crate) keyboard_visible: Signal<bool>,
+    /// Current soft virtual keyboard height in logical pixels (`0.0` when hidden).
+    #[get(type(copy))]
+    pub(crate) keyboard_height: Signal<f32>,
+    /// Current screen or window orientation signal.
+    #[get(type(copy))]
+    pub(crate) orientation: Signal<ScreenOrientation>,
+    /// Whether OS battery saver / low-power mode is currently enabled.
+    #[get(type(copy))]
+    pub(crate) low_power_mode: Signal<bool>,
+    /// Active OS/browser preferred BCP-47 locale string signal.
+    #[get(type(copy))]
+    pub(crate) locale: Signal<String>,
+    /// Whether the primary application window currently holds keyboard/input focus.
+    #[get(type(copy))]
+    pub(crate) window_focused: Signal<bool>,
     /// Monotonic runtime clock in milliseconds advanced deterministically by `App` frame steps.
     #[debug(skip)]
     #[get(skip)]

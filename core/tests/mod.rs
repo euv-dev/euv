@@ -7,6 +7,9 @@ mod render;
 mod system;
 mod window_platform;
 
-use std::{cell::Cell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 use super::*;

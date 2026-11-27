@@ -36,4 +36,20 @@ pub struct WebPlatform {
     /// Clipboard cache.
     #[get(skip)]
     pub(crate) clipboard_cache: Option<String>,
+    /// Last observed `document.hidden` visibility state.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) last_hidden: bool,
+    /// Last observed `navigator.onLine` connectivity state.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) last_online: bool,
+    /// Last observed browser dark/light appearance mode.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) last_theme: ThemeMode,
+    /// Last observed browser BCP-47 locale tag.
+    #[get(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) last_locale: String,
 }

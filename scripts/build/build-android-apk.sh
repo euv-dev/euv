@@ -54,9 +54,10 @@ cat > "${BUILD_DIR}/rust/src/lib.rs" <<'EOF'
 use std::ffi::{CString, c_char, c_void};
 use std::sync::atomic::{AtomicPtr, Ordering};
 use euv::{
-    App, GlyphKey, ImeEvent, KeyCode, KeyEvent, Modifiers, NativeSystemFont, PlatformKind,
-    PointerEvent, RasterizedGlyph, RenderMode, SafeAreaInsets, WindowEvent, WindowId,
-    register_external_glyph_rasterizer, register_native_action_bridge,
+    App, GlyphKey, ImeEvent, KeyCode, KeyEvent, MemoryPressure, Modifiers, NativeSystemFont,
+    NetworkStatus, PlatformKind, PointerEvent, RasterizedGlyph, RenderMode, SafeAreaInsets,
+    SystemEvent, SystemTheme, WindowEvent, WindowId, register_external_glyph_rasterizer,
+    register_native_action_bridge,
 };
 use euv_example::{ShowcaseState, create_showcase_app_for_platform};
 
@@ -749,6 +750,226 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeSystem
     ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
+fn read_jni_utf8(env: JniEnv, utf8_bytes: JByteArray) -> Option<String> {
+    if env.is_null() || utf8_bytes.is_null() {
+        return None;
+    }
+    unsafe {
+        let table: &JniNativeInterface = &*(*env);
+        let len: i32 = (table.get_array_length)(env, utf8_bytes);
+        if len > 0 {
+            let mut buf: Vec<u8> = vec![0; len as usize];
+            (table.get_byte_array_region)(env, utf8_bytes, 0, len, buf.as_mut_ptr().cast::<i8>());
+            String::from_utf8(buf).ok()
+        } else {
+            None
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeSystemLifecycle(
+    env: JniEnv,
+    _cls: JObject,
+    ptr: i64,
+    tag: i32,
+) {
+    if ptr == 0 {
+        return;
+    }
+    let ev: SystemEvent = match tag {
+        1 => SystemEvent::Appear,
+        2 => SystemEvent::Disappear,
+        3 => SystemEvent::Foreground,
+        4 => SystemEvent::Inactive,
+        5 => SystemEvent::Background,
+        6 => SystemEvent::Terminate,
+        _ => return,
+    };
+    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
+    h.app.dispatch_system_event(ev);
+    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeFocusChanged(
+    env: JniEnv,
+    _cls: JObject,
+    ptr: i64,
+    focused: i32,
+) {
+    if ptr == 0 {
+        return;
+    }
+    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
+    h.app
+        .dispatch_system_event(SystemEvent::FocusChanged(focused != 0));
+    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeKeyboardChanged(
+    env: JniEnv,
+    _cls: JObject,
+    ptr: i64,
+    visible: i32,
+    height: f32,
+) {
+    if ptr == 0 {
+        return;
+    }
+    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
+    h.app
+        .dispatch_system_event(SystemEvent::KeyboardVisibilityChanged {
+            visible: visible != 0,
+            height: height.max(0.0),
+        });
+    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeThemeChanged(
+    env: JniEnv,
+    _cls: JObject,
+    ptr: i64,
+    is_dark: i32,
+) {
+    if ptr == 0 {
+        return;
+    }
+    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
+    let mode: SystemTheme = if is_dark != 0 {
+        SystemTheme::Dark
+    } else {
+        SystemTheme::Light
+    };
+    h.app.dispatch_system_event(SystemEvent::ThemeChanged(mode));
+    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeMemoryWarning(
+    env: JniEnv,
+    _cls: JObject,
+    ptr: i64,
+    level: i32,
+) {
+    if ptr == 0 {
+        return;
+    }
+    let pressure: MemoryPressure = if level >= 2 {
+        MemoryPressure::Critical
+    } else {
+        MemoryPressure::Warning
+    };
+    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
+    h.app
+        .dispatch_system_event(SystemEvent::MemoryWarning(pressure));
+    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeLowPowerChanged(
+    env: JniEnv,
+    _cls: JObject,
+    ptr: i64,
+    enabled: i32,
+) {
+    if ptr == 0 {
+        return;
+    }
+    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
+    h.app
+        .dispatch_system_event(SystemEvent::LowPowerModeChanged(enabled != 0));
+    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeNetworkChanged(
+    env: JniEnv,
+    _cls: JObject,
+    ptr: i64,
+    status_tag: i32,
+) {
+    if ptr == 0 {
+        return;
+    }
+    let status: NetworkStatus = match status_tag {
+        0 => NetworkStatus::Offline,
+        1 => NetworkStatus::Online,
+        2 => NetworkStatus::Wifi,
+        3 => NetworkStatus::Cellular,
+        _ => NetworkStatus::Unknown,
+    };
+    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
+    h.app
+        .dispatch_system_event(SystemEvent::NetworkStatusChanged(status));
+    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeLocaleChanged(
+    env: JniEnv,
+    _cls: JObject,
+    ptr: i64,
+    utf8_bytes: JByteArray,
+) {
+    if ptr == 0 {
+        return;
+    }
+    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
+    if let Some(locale) = read_jni_utf8(env, utf8_bytes)
+        && !locale.is_empty()
+    {
+        h.app
+            .dispatch_system_event(SystemEvent::LocaleChanged(locale));
+    }
+    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeDeepLink(
+    env: JniEnv,
+    _cls: JObject,
+    ptr: i64,
+    utf8_bytes: JByteArray,
+) {
+    if ptr == 0 {
+        return;
+    }
+    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
+    if let Some(uri) = read_jni_utf8(env, utf8_bytes)
+        && !uri.is_empty()
+    {
+        h.app.dispatch_system_event(SystemEvent::DeepLink(uri));
+    }
+    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeClipboardChanged(
+    env: JniEnv,
+    _cls: JObject,
+    ptr: i64,
+) {
+    if ptr == 0 {
+        return;
+    }
+    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
+    h.app.dispatch_system_event(SystemEvent::ClipboardChanged);
+    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeTextInput(
     env: JniEnv,
@@ -964,6 +1185,8 @@ import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -1019,6 +1242,13 @@ public final class EuvNativeBridge {
                     case "ime": {
                         if (act instanceof EuvActivity) {
                             ((EuvActivity) act).setSoftKeyboardVisible("show".equals(a1));
+                        }
+                        break;
+                    }
+                    case "clipboard": {
+                        ClipboardManager cm = (ClipboardManager) act.getSystemService(Context.CLIPBOARD_SERVICE);
+                        if (cm != null) {
+                            cm.setPrimaryClip(ClipData.newPlainText("euv", a2));
                         }
                         break;
                     }
@@ -1153,6 +1383,16 @@ public final class EuvNativeBridge {
 
     public static native long nativeCreate(int physWidth, int physHeight, float scale, float refreshHz);
     public static native void nativeImeDisabled(long handle);
+    public static native void nativeSystemLifecycle(long handle, int tag);
+    public static native void nativeFocusChanged(long handle, int focused);
+    public static native void nativeKeyboardChanged(long handle, int visible, float height);
+    public static native void nativeThemeChanged(long handle, int isDark);
+    public static native void nativeMemoryWarning(long handle, int level);
+    public static native void nativeLowPowerChanged(long handle, int enabled);
+    public static native void nativeNetworkChanged(long handle, int statusTag);
+    public static native void nativeLocaleChanged(long handle, byte[] utf8Bytes);
+    public static native void nativeDeepLink(long handle, byte[] utf8Bytes);
+    public static native void nativeClipboardChanged(long handle);
     public static native void nativeResize(long handle, int physWidth, int physHeight, float scale);
     public static native void nativeSetSurface(long handle, Surface surface, int physWidth, int physHeight, float scale);
     public static native int nativeStepSurface(long handle, float dt, int forcePresent);
@@ -1179,7 +1419,9 @@ cat > "${BUILD_DIR}/java/vip/ltpp/euv/showcase/EuvActivity.java" <<'EOF'
 package vip.ltpp.euv.showcase;
 
 import android.app.Activity;
+import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Insets;
@@ -1188,6 +1430,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.PowerManager;
 import android.os.Process;
 import android.text.InputType;
 import android.util.Log;
@@ -1207,12 +1450,41 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 public final class EuvActivity extends Activity {
     private EuvCanvasView canvasView;
     private float targetRefreshHz = 60.0f;
+    private ClipboardManager clipboardManager;
+    private final ClipboardManager.OnPrimaryClipChangedListener clipListener = () -> {
+        if (canvasView != null) {
+            canvasView.dispatchClipboardChanged();
+        }
+    };
+
+    private void syncSystemConfig(Configuration cfg) {
+        if (canvasView == null || cfg == null) return;
+        boolean isDark = (cfg.uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        canvasView.dispatchThemeChanged(isDark);
+        String localeTag = Locale.getDefault().toLanguageTag();
+        if (localeTag != null && !localeTag.isEmpty()) {
+            canvasView.dispatchLocaleChanged(localeTag);
+        }
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (pm != null) {
+            canvasView.dispatchLowPowerChanged(pm.isPowerSaveMode());
+        }
+    }
+
+    private void forwardIntentDeepLink(Intent intent) {
+        if (intent == null || canvasView == null) return;
+        String uri = intent.getDataString();
+        if (uri != null && !uri.isEmpty()) {
+            canvasView.dispatchDeepLink(uri);
+        }
+    }
 
     private void selectHighestRefreshMode(Window win) {
         try {
@@ -1251,6 +1523,11 @@ public final class EuvActivity extends Activity {
         selectHighestRefreshMode(win);
         canvasView = new EuvCanvasView(this, targetRefreshHz);
         setContentView(canvasView);
+        clipboardManager = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboardManager != null) {
+            clipboardManager.addPrimaryClipChangedListener(clipListener);
+        }
+        forwardIntentDeepLink(getIntent());
         if (Build.VERSION.SDK_INT >= 33) {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
                 android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
@@ -1273,12 +1550,58 @@ public final class EuvActivity extends Activity {
     }
 
     @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        forwardIntentDeepLink(intent);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if (canvasView != null) {
+            canvasView.dispatchSystemLifecycle(1);
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        if (canvasView != null) {
+            canvasView.dispatchSystemLifecycle(5);
+        }
+        super.onStop();
+    }
+
+    @Override
     protected void onDestroy() {
+        if (clipboardManager != null) {
+            clipboardManager.removePrimaryClipChangedListener(clipListener);
+        }
         EuvNativeBridge.setHostActivity(null);
         if (canvasView != null) {
+            canvasView.dispatchSystemLifecycleSync(6);
             canvasView.shutdown();
         }
         super.onDestroy();
+    }
+
+    @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        if (canvasView == null) return;
+        if (level >= TRIM_MEMORY_RUNNING_CRITICAL || level >= TRIM_MEMORY_COMPLETE) {
+            canvasView.dispatchMemoryWarning(2);
+        } else if (level >= TRIM_MEMORY_RUNNING_MODERATE) {
+            canvasView.dispatchMemoryWarning(1);
+        }
+    }
+
+    @Override
+    public void onLowMemory() {
+        super.onLowMemory();
+        if (canvasView != null) {
+            canvasView.dispatchMemoryWarning(2);
+        }
     }
 
     public void setSoftKeyboardVisible(boolean show) {
@@ -1301,6 +1624,7 @@ public final class EuvActivity extends Activity {
         super.onConfigurationChanged(newConfig);
         if (canvasView != null) {
             canvasView.syncDisplayScaleAndResize();
+            syncSystemConfig(newConfig);
         }
     }
 
@@ -1310,6 +1634,8 @@ public final class EuvActivity extends Activity {
         EuvNativeBridge.setHostActivity(this);
         selectHighestRefreshMode(getWindow());
         if (canvasView != null) {
+            canvasView.dispatchSystemLifecycle(3);
+            syncSystemConfig(getResources().getConfiguration());
             canvasView.startLoop();
         }
     }
@@ -1319,6 +1645,7 @@ public final class EuvActivity extends Activity {
         super.onPause();
         if (canvasView != null) {
             canvasView.cancelAllTouches();
+            canvasView.dispatchSystemLifecycle(4);
             canvasView.stopLoop();
         }
     }
@@ -1326,8 +1653,11 @@ public final class EuvActivity extends Activity {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        if (!hasFocus && canvasView != null) {
-            canvasView.cancelAllTouches();
+        if (canvasView != null) {
+            if (!hasFocus) {
+                canvasView.cancelAllTouches();
+            }
+            canvasView.dispatchFocusChanged(hasFocus);
         }
     }
 
@@ -1391,8 +1721,10 @@ public final class EuvActivity extends Activity {
                 float right = bars.right / d;
                 float bottom = Math.max(bars.bottom, ime.bottom) / d;
                 float left = bars.left / d;
+                float imeHeight = ime.bottom / d;
                 renderHandler.post(() -> {
                     if (handle != 0) {
+                        EuvNativeBridge.nativeKeyboardChanged(handle, imeVisible ? 1 : 0, imeHeight);
                         if (imeHiddenNow) {
                             EuvNativeBridge.nativeImeDisabled(handle);
                         }
@@ -1627,6 +1959,89 @@ public final class EuvActivity extends Activity {
             return true;
         }
 
+        void dispatchSystemLifecycle(int tag) {
+            renderHandler.post(() -> {
+                if (handle != 0) {
+                    EuvNativeBridge.nativeSystemLifecycle(handle, tag);
+                }
+            });
+        }
+
+        void dispatchSystemLifecycleSync(int tag) {
+            CountDownLatch latch = new CountDownLatch(1);
+            renderHandler.post(() -> {
+                if (handle != 0) {
+                    EuvNativeBridge.nativeSystemLifecycle(handle, tag);
+                }
+                latch.countDown();
+            });
+            try {
+                latch.await(250L, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        void dispatchFocusChanged(boolean focused) {
+            renderHandler.post(() -> {
+                if (handle != 0) {
+                    EuvNativeBridge.nativeFocusChanged(handle, focused ? 1 : 0);
+                }
+            });
+        }
+
+        void dispatchThemeChanged(boolean isDark) {
+            renderHandler.post(() -> {
+                if (handle != 0) {
+                    EuvNativeBridge.nativeThemeChanged(handle, isDark ? 1 : 0);
+                }
+            });
+        }
+
+        void dispatchMemoryWarning(int level) {
+            renderHandler.post(() -> {
+                if (handle != 0) {
+                    EuvNativeBridge.nativeMemoryWarning(handle, level);
+                }
+            });
+        }
+
+        void dispatchLowPowerChanged(boolean enabled) {
+            renderHandler.post(() -> {
+                if (handle != 0) {
+                    EuvNativeBridge.nativeLowPowerChanged(handle, enabled ? 1 : 0);
+                }
+            });
+        }
+
+        void dispatchLocaleChanged(String localeTag) {
+            byte[] utf8 = localeTag.getBytes(StandardCharsets.UTF_8);
+            if (utf8.length == 0) return;
+            renderHandler.post(() -> {
+                if (handle != 0) {
+                    EuvNativeBridge.nativeLocaleChanged(handle, utf8);
+                }
+            });
+        }
+
+        void dispatchDeepLink(String uri) {
+            byte[] utf8 = uri.getBytes(StandardCharsets.UTF_8);
+            if (utf8.length == 0) return;
+            renderHandler.post(() -> {
+                if (handle != 0) {
+                    EuvNativeBridge.nativeDeepLink(handle, utf8);
+                }
+            });
+        }
+
+        void dispatchClipboardChanged() {
+            renderHandler.post(() -> {
+                if (handle != 0) {
+                    EuvNativeBridge.nativeClipboardChanged(handle);
+                }
+            });
+        }
+
         void startLoop() {
             renderHandler.post(() -> {
                 if (!running) {
@@ -1856,7 +2271,7 @@ cat > "${BUILD_DIR}/AndroidManifest.xml" <<'EOF'
             android:name=".EuvActivity"
             android:exported="true"
             android:windowSoftInputMode="adjustResize|stateHidden"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|fontScale|uiMode|keyboard|keyboardHidden|navigation">
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|fontScale|uiMode|locale|keyboard|keyboardHidden|navigation">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

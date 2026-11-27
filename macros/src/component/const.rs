@@ -12,6 +12,13 @@ pub(crate) const LIFECYCLE_METHOD_NAMES: &[&str] = &[
     "on_unmount",
     "on_destroy",
     "on_error",
+    "on_appear",
+    "on_disappear",
+    "on_foreground",
+    "on_background",
+    "on_inactive",
+    "on_terminate",
+    "on_system_event",
 ];
 /// Component render method name routed to `impl Component for T`.
 pub(crate) const COMPONENT_RENDER_FN: &str = "render";

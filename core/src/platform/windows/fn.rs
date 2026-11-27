@@ -23,6 +23,16 @@ unsafe extern "system" {
     ///
     /// - `*mut c_void` - Function pointer or null.
     fn GetProcAddress(h_module: *mut c_void, lp_proc_name: *const u8) -> *mut c_void;
+    /// Queries Windows AC/battery power and Battery Saver status.
+    ///
+    /// # Arguments
+    ///
+    /// - `*mut Win32SystemPowerStatus` - Output power status struct.
+    ///
+    /// # Returns
+    ///
+    /// - `i32` - Non-zero on success.
+    fn GetSystemPowerStatus(status: *mut Win32SystemPowerStatus) -> i32;
 }
 
 #[link(name = "user32")]
@@ -479,17 +489,43 @@ pub(crate) unsafe extern "system" fn win32_wnd_proc(
             win32_push_event(hwnd, Win32EventPayload::Close);
             return 0;
         }
+        WM_DESTROY => {
+            win32_push_event(hwnd, Win32EventPayload::Destroyed);
+        }
+        WM_ACTIVATEAPP => {
+            win32_push_event(hwnd, Win32EventPayload::Activated(w_param != 0));
+        }
         WM_SIZE => {
-            let phys_w: u32 = ((l_param & 0xFFFF) as u32).max(1);
-            let phys_h: u32 = (((l_param >> 16) & 0xFFFF) as u32).max(1);
-            // SAFETY: Valid `HWND` passed by Win32.
-            let dpi: u32 = unsafe { GetDpiForWindow(hwnd) };
-            let scale: f32 = if dpi > 0 {
-                (dpi as f32) / WIN32_DEFAULT_DPI
+            if w_param == SIZE_MINIMIZED {
+                win32_push_event(hwnd, Win32EventPayload::Minimized(true));
             } else {
-                1.0
-            };
-            win32_push_event(hwnd, Win32EventPayload::Resized(phys_w, phys_h, scale));
+                win32_push_event(hwnd, Win32EventPayload::Minimized(false));
+                let phys_w: u32 = ((l_param & 0xFFFF) as u32).max(1);
+                let phys_h: u32 = (((l_param >> 16) & 0xFFFF) as u32).max(1);
+                // SAFETY: Valid `HWND` passed by Win32.
+                let dpi: u32 = unsafe { GetDpiForWindow(hwnd) };
+                let scale: f32 = if dpi > 0 {
+                    (dpi as f32) / WIN32_DEFAULT_DPI
+                } else {
+                    1.0
+                };
+                win32_push_event(hwnd, Win32EventPayload::Resized(phys_w, phys_h, scale));
+            }
+        }
+        WM_SETTINGCHANGE | WM_THEMECHANGED => {
+            win32_push_event(hwnd, Win32EventPayload::ThemeUpdated);
+        }
+        WM_CLIPBOARDUPDATE => {
+            win32_push_event(hwnd, Win32EventPayload::ClipboardUpdated);
+        }
+        WM_POWERBROADCAST if w_param == PBT_POWERSTATUSCHANGE => {
+            let mut st: Win32SystemPowerStatus = Win32SystemPowerStatus::default();
+            // SAFETY: Stack-allocated `Win32SystemPowerStatus` passed to `GetSystemPowerStatus`.
+            let ok: i32 = unsafe { GetSystemPowerStatus(&mut st) };
+            if ok != 0 {
+                let low_power: bool = (st.system_status_flag & 1) != 0;
+                win32_push_event(hwnd, Win32EventPayload::PowerStatusChanged(low_power));
+            }
         }
         WM_DPICHANGED => {
             let dpi: u32 = (w_param & 0xFFFF) as u32;
@@ -851,6 +887,36 @@ pub(crate) fn win32_pump_messages(
             }
             Win32EventPayload::Text(ch) => {
                 events.push(WindowEvent::TextInput(wid, ch.to_string()));
+            }
+            Win32EventPayload::Activated(active) => {
+                let ev: SystemEvent = if active {
+                    SystemEvent::Foreground
+                } else {
+                    SystemEvent::Inactive
+                };
+                events.push(WindowEvent::System(ev));
+            }
+            Win32EventPayload::Minimized(minimized) => {
+                let ev: SystemEvent = if minimized {
+                    SystemEvent::Background
+                } else {
+                    SystemEvent::Foreground
+                };
+                events.push(WindowEvent::System(ev));
+            }
+            Win32EventPayload::ClipboardUpdated => {
+                events.push(WindowEvent::System(SystemEvent::ClipboardChanged));
+            }
+            Win32EventPayload::ThemeUpdated => {
+                events.push(WindowEvent::ThemeChanged(wid, ThemeMode::Light));
+            }
+            Win32EventPayload::PowerStatusChanged(low_power) => {
+                events.push(WindowEvent::System(SystemEvent::LowPowerModeChanged(
+                    low_power,
+                )));
+            }
+            Win32EventPayload::Destroyed => {
+                events.push(WindowEvent::System(SystemEvent::Terminate));
             }
         }
     }

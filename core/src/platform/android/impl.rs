@@ -35,6 +35,17 @@ impl AndroidPlatform {
             rec.set_native_window(native_window);
         }
     }
+
+    /// Enqueues a normalized Android `SystemEvent` to be drained on the next `poll_events()` tick.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable Android platform backend.
+    /// - `SystemEvent` - System event forwarded from `Activity` / `Application` JNI hooks.
+    pub fn push_system_event(&mut self, event: SystemEvent) {
+        self.get_mut_pending_events()
+            .push(WindowEvent::System(event));
+    }
 }
 
 /// `WindowController` implementation for Android NDK.

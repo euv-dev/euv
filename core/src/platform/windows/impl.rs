@@ -18,6 +18,20 @@ impl Default for WindowsPlatform {
     }
 }
 
+/// Win32 system event injection helpers for `WindowsPlatform`.
+impl WindowsPlatform {
+    /// Enqueues a normalized Windows `SystemEvent` to be drained on the next `poll_events()` tick.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable Windows platform backend.
+    /// - `SystemEvent` - System event to enqueue.
+    pub fn push_system_event(&mut self, event: SystemEvent) {
+        self.get_mut_pending_events()
+            .push(WindowEvent::System(event));
+    }
+}
+
 /// `WindowController` implementation translating commands directly to Win32 APIs.
 impl WindowController for WindowsPlatform {
     /// Applies a `WindowCommand` onto the target `HWND`.

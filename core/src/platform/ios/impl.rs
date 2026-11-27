@@ -18,6 +18,20 @@ impl Default for IosPlatform {
     }
 }
 
+/// UIKit system event injection helpers for `IosPlatform`.
+impl IosPlatform {
+    /// Enqueues a normalized UIKit `SystemEvent` to be drained on the next `poll_events()` tick.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable iOS/iPadOS platform backend.
+    /// - `SystemEvent` - System event forwarded from `UIApplicationDelegate` / `UISceneDelegate`.
+    pub fn push_system_event(&mut self, event: SystemEvent) {
+        self.get_mut_pending_events()
+            .push(WindowEvent::System(event));
+    }
+}
+
 /// `WindowController` implementation for iOS and iPadOS.
 impl WindowController for IosPlatform {
     /// Applies a `WindowCommand` against the active UIKit window scene.

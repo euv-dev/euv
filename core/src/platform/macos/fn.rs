@@ -1219,3 +1219,48 @@ pub(crate) fn macos_present_cg_image(
     }
     Ok(())
 }
+
+/// Queries whether the macOS `NSApplication` is currently the active foreground application.
+///
+/// # Returns
+///
+/// - `bool` - `true` when active or AppKit is unavailable.
+#[must_use]
+pub(crate) fn macos_app_is_active() -> bool {
+    let app_cls: *mut c_void = objc_class(OBJC_CLS_NS_APPLICATION);
+    let app: *mut c_void = objc_send_ptr0(app_cls, objc_sel(OBJC_SEL_SHARED_APP));
+    if app.is_null() {
+        return true;
+    }
+    objc_send_bool0(app, objc_sel(OBJC_SEL_IS_ACTIVE))
+}
+
+/// Queries whether macOS Low Power Mode is currently enabled via `NSProcessInfo.isLowPowerModeEnabled`.
+///
+/// # Returns
+///
+/// - `bool` - `true` when system Low Power Mode is active.
+#[must_use]
+pub(crate) fn macos_low_power_mode() -> bool {
+    let cls: *mut c_void = objc_class(OBJC_CLS_NS_PROCESS_INFO);
+    let info: *mut c_void = objc_send_ptr0(cls, objc_sel(OBJC_SEL_PROCESS_INFO));
+    if info.is_null() {
+        return false;
+    }
+    objc_send_bool0(info, objc_sel(OBJC_SEL_IS_LOW_POWER_MODE))
+}
+
+/// Queries the monotonic `changeCount` of the macOS general `NSPasteboard`.
+///
+/// # Returns
+///
+/// - `isize` - Pasteboard change counter, or `-1` when AppKit is unavailable.
+#[must_use]
+pub(crate) fn macos_pasteboard_change_count() -> isize {
+    let pb_cls: *mut c_void = objc_class(OBJC_CLS_NS_PASTEBOARD);
+    let pb: *mut c_void = objc_send_ptr0(pb_cls, objc_sel(OBJC_SEL_GENERAL_PASTEBOARD));
+    if pb.is_null() {
+        return -1;
+    }
+    objc_send_isize0(pb, objc_sel(OBJC_SEL_CHANGE_COUNT))
+}

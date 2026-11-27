@@ -53,6 +53,17 @@ impl HeadlessPlatform {
         self.get_mut_pending_events().push(event);
     }
 
+    /// Enqueues a synthetic `SystemEvent` wrapped as `PlatformEvent::System` for deterministic testing.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable headless platform.
+    /// - `SystemEvent` - System event to inject.
+    pub fn push_system_event(&mut self, event: SystemEvent) {
+        self.get_mut_pending_events()
+            .push(WindowEvent::System(event));
+    }
+
     /// Returns a reference to the last presented `Framebuffer` for `id`.
     ///
     /// # Arguments

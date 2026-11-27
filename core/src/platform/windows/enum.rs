@@ -25,4 +25,16 @@ pub(crate) enum Win32EventPayload {
     KeyUp(KeyCode, Modifiers),
     /// Decoded UTF-16 character input (`WM_CHAR`).
     Text(char),
+    /// Application activation state changed (`WM_ACTIVATEAPP`).
+    Activated(bool),
+    /// Window minimized or restored (`WM_SIZE` `SIZE_MINIMIZED`).
+    Minimized(bool),
+    /// System clipboard contents changed (`WM_CLIPBOARDUPDATE`).
+    ClipboardUpdated,
+    /// System appearance or settings changed (`WM_SETTINGCHANGE` / `WM_THEMECHANGED`).
+    ThemeUpdated,
+    /// System power / battery-saver status changed (`WM_POWERBROADCAST`).
+    PowerStatusChanged(bool),
+    /// Window destroyed (`WM_DESTROY`).
+    Destroyed,
 }

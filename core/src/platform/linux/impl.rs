@@ -18,6 +18,20 @@ impl Default for LinuxPlatform {
     }
 }
 
+/// X11/Wayland system event injection helpers for `LinuxPlatform`.
+impl LinuxPlatform {
+    /// Enqueues a normalized Linux `SystemEvent` to be drained on the next `poll_events()` tick.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable Linux platform backend.
+    /// - `SystemEvent` - System event to enqueue.
+    pub fn push_system_event(&mut self, event: SystemEvent) {
+        self.get_mut_pending_events()
+            .push(WindowEvent::System(event));
+    }
+}
+
 /// `WindowController` implementation for Linux X11 / Wayland.
 impl WindowController for LinuxPlatform {
     /// Applies a `WindowCommand` onto the native X11 or Wayland window.

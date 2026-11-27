@@ -1826,4 +1826,79 @@ impl ReactiveRuntime {
             })
             .unwrap_or(false)
     }
+
+    /// Returns the currently active reactive `ScopeId` on the top of the scope stack, if any.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Reactive runtime reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<ScopeId>` - Active scope identifier or `None` outside `Scope::run`/`Scope::enter`.
+    #[must_use]
+    pub(crate) fn current_scope_id(&self) -> Option<ScopeId> {
+        self.get_scope_stack().last().copied()
+    }
+
+    /// Returns `true` when `candidate` equals `root` or is a live descendant scope of `root`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Reactive runtime reference.
+    /// - `ScopeId` - Scope identifier to test.
+    /// - `ScopeId` - Subtree root scope identifier.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - Whether `candidate` belongs to `root`'s scope hierarchy.
+    #[must_use]
+    pub(crate) fn is_scope_in_subtree(&self, candidate: ScopeId, root: ScopeId) -> bool {
+        if candidate == root {
+            return true;
+        }
+        let mut stack: Vec<ScopeId> = vec![root];
+        while let Some(cur) = stack.pop() {
+            let slot: SlotId = cur.slot();
+            if let Some(entry) = self.get_scopes().get(slot.as_usize())
+                && entry.get_generation() == slot.get_generation()
+                && entry.get_alive()
+            {
+                for child in entry.get_children().iter().copied() {
+                    if child == candidate {
+                        return true;
+                    }
+                    stack.push(child);
+                }
+            }
+        }
+        false
+    }
+
+    /// Returns `true` when `id` itself or any live ancestor scope is currently frozen.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Reactive runtime reference.
+    /// - `ScopeId` - Scope identifier to test.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - Whether `id` is suspended by freezing.
+    #[must_use]
+    pub(crate) fn is_scope_effectively_frozen(&self, id: ScopeId) -> bool {
+        if self.is_scope_frozen(id) {
+            return true;
+        }
+        for (idx, entry) in self.get_scopes().iter().enumerate() {
+            if entry.get_alive() && entry.get_frozen() {
+                let frozen_id: ScopeId =
+                    ScopeId::from_slot(SlotId::new(idx as u32, entry.get_generation()));
+                if self.is_scope_in_subtree(id, frozen_id) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
 }

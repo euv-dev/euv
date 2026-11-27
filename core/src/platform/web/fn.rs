@@ -54,6 +54,44 @@ pub(crate) fn web_write_clipboard(text: &str) -> bool {
     true
 }
 
+/// Queries whether the active browser tab is currently hidden (`document.hidden`).
+///
+/// # Returns
+///
+/// - `bool` - `true` when the page is in a background tab or minimized.
+#[must_use]
+pub(crate) fn web_document_hidden() -> bool {
+    window()
+        .and_then(|w: Window| w.document())
+        .map(|d: Document| d.hidden())
+        .unwrap_or(false)
+}
+
+/// Queries live browser online connectivity via `navigator.onLine`.
+///
+/// # Returns
+///
+/// - `bool` - `true` when the browser reports network availability.
+#[must_use]
+pub(crate) fn web_navigator_online() -> bool {
+    window()
+        .map(|w: Window| w.navigator().on_line())
+        .unwrap_or(true)
+}
+
+/// Queries the browser's primary BCP-47 locale tag via `navigator.language`.
+///
+/// # Returns
+///
+/// - `String` - Locale identifier (fallback `"en-US"`).
+#[must_use]
+pub(crate) fn web_navigator_locale() -> String {
+    window()
+        .and_then(|w: Window| w.navigator().language())
+        .filter(|s: &String| !s.trim().is_empty())
+        .unwrap_or_else(|| DEFAULT_SYSTEM_LOCALE.to_string())
+}
+
 /// Creates and attaches an `HTMLCanvasElement` and its 2D context directly via `web-sys`.
 ///
 /// # Arguments

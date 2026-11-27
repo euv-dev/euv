@@ -599,6 +599,33 @@ pub(crate) fn linux_x11_pump_events(
                                 rec.get_mut_state().set_focused(focused);
                             }
                             out_events.push(WindowEvent::Focused(wid, focused));
+                            let lc_ev: SystemEvent = if focused {
+                                SystemEvent::Foreground
+                            } else {
+                                SystemEvent::Inactive
+                            };
+                            out_events.push(WindowEvent::System(lc_ev));
+                        }
+                    }
+                    X11_UNMAP_NOTIFY => {
+                        let kb: X11KeyOrButtonEvent =
+                            *(&raw as *const X11EventRaw).cast::<X11KeyOrButtonEvent>();
+                        if linux_find_window(kb.window, windows).is_some() {
+                            out_events.push(WindowEvent::System(SystemEvent::Background));
+                        }
+                    }
+                    X11_MAP_NOTIFY => {
+                        let kb: X11KeyOrButtonEvent =
+                            *(&raw as *const X11EventRaw).cast::<X11KeyOrButtonEvent>();
+                        if linux_find_window(kb.window, windows).is_some() {
+                            out_events.push(WindowEvent::System(SystemEvent::Foreground));
+                        }
+                    }
+                    X11_DESTROY_NOTIFY => {
+                        let kb: X11KeyOrButtonEvent =
+                            *(&raw as *const X11EventRaw).cast::<X11KeyOrButtonEvent>();
+                        if linux_find_window(kb.window, windows).is_some() {
+                            out_events.push(WindowEvent::System(SystemEvent::Terminate));
                         }
                     }
                     X11_MOTION_NOTIFY => {

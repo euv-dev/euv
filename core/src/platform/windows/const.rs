@@ -52,8 +52,14 @@ pub(crate) const GDI_VREFRESH: i32 = 116;
 /// Win32 `PM_REMOVE` flag for `PeekMessageW`.
 pub(crate) const PM_REMOVE: u32 = 0x0001;
 
+/// Win32 `WM_DESTROY` message constant.
+pub(crate) const WM_DESTROY: u32 = 0x0002;
+
 /// Win32 `WM_SIZE` message constant.
 pub(crate) const WM_SIZE: u32 = 0x0005;
+
+/// Win32 `SIZE_MINIMIZED` `w_param` value for `WM_SIZE`.
+pub(crate) const SIZE_MINIMIZED: usize = 1;
 
 /// Win32 `WM_SETFOCUS` message constant.
 pub(crate) const WM_SETFOCUS: u32 = 0x0007;
@@ -66,6 +72,24 @@ pub(crate) const WM_PAINT: u32 = 0x000F;
 
 /// Win32 `WM_CLOSE` message constant.
 pub(crate) const WM_CLOSE: u32 = 0x0010;
+
+/// Win32 `WM_SETTINGCHANGE` message constant.
+pub(crate) const WM_SETTINGCHANGE: u32 = 0x001A;
+
+/// Win32 `WM_ACTIVATEAPP` message constant.
+pub(crate) const WM_ACTIVATEAPP: u32 = 0x001C;
+
+/// Win32 `WM_POWERBROADCAST` message constant.
+pub(crate) const WM_POWERBROADCAST: u32 = 0x0218;
+
+/// Win32 `PBT_POWERSTATUSCHANGE` `w_param` value for `WM_POWERBROADCAST`.
+pub(crate) const PBT_POWERSTATUSCHANGE: usize = 0x000A;
+
+/// Win32 `WM_THEMECHANGED` message constant.
+pub(crate) const WM_THEMECHANGED: u32 = 0x031A;
+
+/// Win32 `WM_CLIPBOARDUPDATE` message constant.
+pub(crate) const WM_CLIPBOARDUPDATE: u32 = 0x031D;
 
 /// Win32 `WM_KEYDOWN` message constant.
 pub(crate) const WM_KEYDOWN: u32 = 0x0100;

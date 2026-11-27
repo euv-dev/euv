@@ -1313,8 +1313,8 @@ impl SoftwareRenderer {
                 (
                     row_stride,
                     clip_h as usize,
-                    (clip_x0 as usize) * 4,
-                    (clip_w as usize) * 4,
+                    (restore_spec.x0 as usize) * 4,
+                    (restore_spec.x1.saturating_sub(restore_spec.x0) as usize) * 4,
                 ),
                 restore_spec.scrim_luts,
             );

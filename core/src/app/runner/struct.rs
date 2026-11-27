@@ -187,4 +187,6 @@ pub struct App {
     /// Whether motion animations, smooth scrolling, inertia, or active games were running on the previous frame.
     #[get(type(copy))]
     pub(crate) was_animating: bool,
+    /// Cross-platform lifecycle and system event normalizer deduplicating OS notifications.
+    pub(crate) system_event_normalizer: SystemEventNormalizer,
 }

@@ -107,8 +107,8 @@ pub(crate) const RTLD_LAZY: i32 = 1;
 /// X11 `ZPixmap` image format identifier.
 pub(crate) const X11_Z_PIXMAP: i32 = 2;
 
-/// Combined X11 input mask (`KeyPress | KeyRelease | ButtonPress | ButtonRelease | PointerMotion | Exposure | StructureNotify | FocusChange`).
-pub(crate) const X11_EVENT_MASK: isize = 0x0022_804F;
+/// Combined X11 input mask (`KeyPress | KeyRelease | ButtonPress | ButtonRelease | PointerMotion | Exposure | VisibilityChange | StructureNotify | FocusChange`).
+pub(crate) const X11_EVENT_MASK: isize = 0x0023_804F;
 
 /// X11 `KeyPress` event type.
 pub(crate) const X11_KEY_PRESS: i32 = 2;
@@ -133,6 +133,15 @@ pub(crate) const X11_FOCUS_OUT: i32 = 10;
 
 /// X11 `Expose` event type.
 pub(crate) const X11_EXPOSE: i32 = 12;
+
+/// X11 `DestroyNotify` event type.
+pub(crate) const X11_DESTROY_NOTIFY: i32 = 17;
+
+/// X11 `UnmapNotify` event type.
+pub(crate) const X11_UNMAP_NOTIFY: i32 = 18;
+
+/// X11 `MapNotify` event type.
+pub(crate) const X11_MAP_NOTIFY: i32 = 19;
 
 /// X11 `ConfigureNotify` event type.
 pub(crate) const X11_CONFIGURE_NOTIFY: i32 = 22;

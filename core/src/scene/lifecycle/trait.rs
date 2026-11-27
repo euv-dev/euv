@@ -86,6 +86,56 @@ pub trait Lifecycle {
     /// - `&Self` - Component or page instance reference.
     /// - `&str` - Diagnostic error message.
     fn on_error(&self, _error: &str) {}
+
+    /// Invoked when this component, routed page, or application window becomes visually presented.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Component or page instance reference.
+    fn on_appear(&self) {}
+
+    /// Invoked when this component, routed page, or application window ceases to be visually presented.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Component or page instance reference.
+    fn on_disappear(&self) {}
+
+    /// Invoked when the application returns to active foreground execution.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Component or page instance reference.
+    fn on_foreground(&self) {}
+
+    /// Invoked when the application enters suspended/hidden background execution.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Component or page instance reference.
+    fn on_background(&self) {}
+
+    /// Invoked when the application enters inactive status (occluded, app switcher, or deactivated).
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Component or page instance reference.
+    fn on_inactive(&self) {}
+
+    /// Invoked when the application is terminating gracefully.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Component or page instance reference.
+    fn on_terminate(&self) {}
+
+    /// Invoked for every normalized cross-platform `SystemEvent` delivered while this component is active.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Component or page instance reference.
+    /// - `&SystemEvent` - Normalized cross-platform system event payload.
+    fn on_system_event(&self, _event: &SystemEvent) {}
 }
 
 /// Core declarative component trait unifying `Lifecycle` hooks with framework-managed `Context` rendering.

@@ -755,6 +755,62 @@ impl SceneTree {
         out
     }
 
+    /// Collects all `Lifecycle` observers attached to visible (`Display != None`) nodes across the entire tree.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene tree reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<(NodeId, Rc<dyn Lifecycle>)>` - Visible `(node, lifecycle)` observer pairs in pre-order.
+    #[must_use]
+    pub fn collect_visible_lifecycles(&self) -> Vec<(NodeId, Rc<dyn Lifecycle>)> {
+        let mut out: Vec<(NodeId, Rc<dyn Lifecycle>)> = Vec::new();
+        let mut stack: Vec<NodeId> = vec![self.get_root()];
+        while let Some(current) = stack.pop() {
+            if let Some(node) = self.get_node(current) {
+                if node.get_style().get_layout().get_display() == Display::None {
+                    continue;
+                }
+                for hook in node.lifecycle_observers().into_iter() {
+                    out.push((current, hook));
+                }
+                for child in node.get_children().iter().rev().copied() {
+                    stack.push(child);
+                }
+            }
+        }
+        out
+    }
+
+    /// Collects all reactive `ScopeId`s attached to nodes within the subtree rooted at `root`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene tree reference.
+    /// - `NodeId` - Subtree root handle.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<ScopeId>` - Owned scope identifiers discovered within `root`.
+    #[must_use]
+    pub fn collect_subtree_scope_ids(&self, root: NodeId) -> Vec<ScopeId> {
+        let mut out: Vec<ScopeId> = Vec::new();
+        let mut stack: Vec<NodeId> = vec![root];
+        while let Some(current) = stack.pop() {
+            if let Some(node) = self.get_node(current) {
+                if let Some(scope) = node.owned_scope() {
+                    out.push(scope.id());
+                }
+                for child in node.get_children().iter().rev().copied() {
+                    stack.push(child);
+                }
+            }
+        }
+        out
+    }
+
     /// Cancels any active paint/transform transitions targeting nodes within the subtree rooted at `root`.
     ///
     /// # Arguments
@@ -1506,6 +1562,48 @@ impl SceneHandle {
         dispatch_lifecycle_update(&observers);
     }
 
+    /// Dispatches `SystemEvent::Appear` to all `Lifecycle` observers and scoped hooks owned by `root`'s subtree.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene handle reference.
+    /// - `NodeId` - Page or component subtree root handle becoming visible.
+    pub fn emit_subtree_appear(&self, root: NodeId) {
+        let (observers, scopes): SubtreeLifecycleTargets = self.with_read(
+            |tree: &SceneTree| {
+                (
+                    tree.collect_subtree_lifecycles(root),
+                    tree.collect_subtree_scope_ids(root),
+                )
+            },
+            (Vec::new(), Vec::new()),
+        );
+        let ev: SystemEvent = SystemEvent::Appear;
+        dispatch_lifecycle_system_event(&observers, &ev);
+        dispatch_system_event_to_scopes(&scopes, &ev);
+    }
+
+    /// Dispatches `SystemEvent::Disappear` to all `Lifecycle` observers and scoped hooks owned by `root`'s subtree.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene handle reference.
+    /// - `NodeId` - Page or component subtree root handle ceasing to be visible.
+    pub fn emit_subtree_disappear(&self, root: NodeId) {
+        let (observers, scopes): SubtreeLifecycleTargets = self.with_read(
+            |tree: &SceneTree| {
+                (
+                    tree.collect_subtree_lifecycles(root),
+                    tree.collect_subtree_scope_ids(root),
+                )
+            },
+            (Vec::new(), Vec::new()),
+        );
+        let ev: SystemEvent = SystemEvent::Disappear;
+        dispatch_lifecycle_system_event(&observers, &ev);
+        dispatch_system_event_to_scopes(&scopes, &ev);
+    }
+
     /// Returns `true` if any node transition is currently active.
     ///
     /// # Arguments
@@ -1672,8 +1770,78 @@ impl Context {
             display_refresh_rate: Signal::new(60.0),
             active_touches: Signal::new(Vec::new()),
             exit_requested: Signal::new(false),
+            app_state: Signal::new(AppState::Active),
+            network_status: Signal::new(NetworkStatus::Online),
+            keyboard_visible: Signal::new(false),
+            keyboard_height: Signal::new(0.0),
+            orientation: Signal::new(ScreenOrientation::Landscape),
+            low_power_mode: Signal::new(false),
+            locale: Signal::new(DEFAULT_SYSTEM_LOCALE.to_string()),
+            window_focused: Signal::new(true),
             clock_ms: Rc::new(Cell::new(0)),
         }
+    }
+
+    /// Returns the reactive `Signal<AppState>` tracking canonical cross-platform application lifecycle state.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Context reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Signal<AppState>` - Reactive lifecycle state signal.
+    #[must_use]
+    pub fn app_state_signal(&self) -> Signal<AppState> {
+        self.get_app_state()
+    }
+
+    /// Dispatches a page-level `SystemEvent::Appear` to all currently active non-frozen hooks and visible observers.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Context reference.
+    pub fn emit_page_appear(&self) {
+        let ev: SystemEvent = SystemEvent::Appear;
+        let observers: Vec<(NodeId, Rc<dyn Lifecycle>)> = self
+            .get_scene()
+            .with_read(SceneTree::collect_visible_lifecycles, Vec::new());
+        dispatch_lifecycle_system_event(&observers, &ev);
+        dispatch_system_event_listeners(&ev);
+    }
+
+    /// Dispatches a page-level `SystemEvent::Disappear` to all currently active non-frozen hooks and visible observers.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Context reference.
+    pub fn emit_page_disappear(&self) {
+        let ev: SystemEvent = SystemEvent::Disappear;
+        let observers: Vec<(NodeId, Rc<dyn Lifecycle>)> = self
+            .get_scene()
+            .with_read(SceneTree::collect_visible_lifecycles, Vec::new());
+        dispatch_lifecycle_system_event(&observers, &ev);
+        dispatch_system_event_listeners(&ev);
+    }
+
+    /// Dispatches `SystemEvent::Appear` strictly to `Lifecycle` components and scoped hooks within `root`'s subtree.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Context reference.
+    /// - `NodeId` - Routed page or component subtree root handle becoming active.
+    pub fn emit_subtree_appear(&self, root: NodeId) {
+        self.get_scene().emit_subtree_appear(root);
+    }
+
+    /// Dispatches `SystemEvent::Disappear` strictly to `Lifecycle` components and scoped hooks within `root`'s subtree.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Context reference.
+    /// - `NodeId` - Routed page or component subtree root handle becoming hidden.
+    pub fn emit_subtree_disappear(&self, root: NodeId) {
+        self.get_scene().emit_subtree_disappear(root);
     }
 
     /// Returns the monotonic runtime elapsed clock in milliseconds.

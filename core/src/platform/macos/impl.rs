@@ -8,13 +8,35 @@ impl Default for MacOsPlatform {
     ///
     /// - `Self` - Initialized macOS backend.
     fn default() -> Self {
+        let initial_theme: ThemeMode = macos_system_theme();
+        let initial_low_power: bool = macos_low_power_mode();
+        let initial_pb: isize = macos_pasteboard_change_count();
         Self {
             next_id: 1,
             windows: HashMap::new(),
             pending_events: Vec::new(),
             clipboard_cache: None,
             cached_color_space: 0,
+            last_app_active: true,
+            last_miniaturized: false,
+            last_low_power: initial_low_power,
+            last_pasteboard_count: initial_pb,
+            last_theme: initial_theme,
         }
+    }
+}
+
+/// AppKit system event injection helpers for `MacOsPlatform`.
+impl MacOsPlatform {
+    /// Enqueues a normalized macOS `SystemEvent` to be drained on the next `poll_events()` tick.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable macOS platform backend.
+    /// - `SystemEvent` - System event to enqueue.
+    pub fn push_system_event(&mut self, event: SystemEvent) {
+        self.get_mut_pending_events()
+            .push(WindowEvent::System(event));
     }
 }
 
@@ -349,15 +371,32 @@ impl PlatformBackend for MacOsPlatform {
         let mut pumped: Vec<WindowEvent> = Vec::new();
         macos_pump_events(self.get_windows(), &mut pumped);
         let mut resized_events: Vec<(WindowId, u32, u32, f32)> = Vec::new();
+        let mut focus_events: Vec<(WindowId, bool)> = Vec::new();
         let mut closed_ids: Vec<WindowId> = Vec::new();
+        let mut any_miniaturized: bool = false;
+        let mut primary_wid: Option<WindowId> = None;
         for (id, rec) in self.get_mut_windows().iter_mut() {
+            if primary_wid.is_none() {
+                primary_wid = Some(*id);
+            }
             let win_ptr: *mut c_void = rec.get_ns_window() as *mut c_void;
-            if rec.get_config().get_visible()
-                && !win_ptr.is_null()
-                && !objc_send_bool0(win_ptr, objc_sel(OBJC_SEL_IS_VISIBLE))
-            {
-                closed_ids.push(*id);
-                continue;
+            if !win_ptr.is_null() {
+                let is_mini: bool = objc_send_bool0(win_ptr, objc_sel(OBJC_SEL_IS_MINIATURIZED));
+                if is_mini {
+                    any_miniaturized = true;
+                    continue;
+                }
+                if rec.get_config().get_visible()
+                    && !objc_send_bool0(win_ptr, objc_sel(OBJC_SEL_IS_VISIBLE))
+                {
+                    closed_ids.push(*id);
+                    continue;
+                }
+                let is_key: bool = objc_send_bool0(win_ptr, objc_sel(OBJC_SEL_IS_KEY_WINDOW));
+                if is_key != rec.get_state().get_focused() {
+                    rec.get_mut_state().set_focused(is_key);
+                    focus_events.push((*id, is_key));
+                }
             }
             let view_ptr: *mut c_void = rec.get_ns_view() as *mut c_void;
             if let Some((w, h)) = macos_view_logical_size(view_ptr) {
@@ -384,6 +423,58 @@ impl PlatformBackend for MacOsPlatform {
                     resized_events.push((*id, w, h, scale));
                 }
             }
+        }
+        if any_miniaturized != self.get_last_miniaturized() {
+            self.set_last_miniaturized(any_miniaturized);
+            let lc_ev: SystemEvent = if any_miniaturized {
+                SystemEvent::Background
+            } else {
+                SystemEvent::Foreground
+            };
+            self.get_mut_pending_events()
+                .push(WindowEvent::System(lc_ev));
+        }
+        let app_active: bool = macos_app_is_active();
+        if app_active != self.get_last_app_active() {
+            self.set_last_app_active(app_active);
+            if !any_miniaturized {
+                let act_ev: SystemEvent = if app_active {
+                    SystemEvent::Foreground
+                } else {
+                    SystemEvent::Inactive
+                };
+                self.get_mut_pending_events()
+                    .push(WindowEvent::System(act_ev));
+            }
+        }
+        let cur_theme: ThemeMode = macos_system_theme();
+        if cur_theme != self.get_last_theme() {
+            self.set_last_theme(cur_theme);
+            if let Some(wid) = primary_wid {
+                self.get_mut_pending_events()
+                    .push(WindowEvent::ThemeChanged(wid, cur_theme));
+            } else {
+                self.get_mut_pending_events()
+                    .push(WindowEvent::System(SystemEvent::ThemeChanged(cur_theme)));
+            }
+        }
+        let cur_low_power: bool = macos_low_power_mode();
+        if cur_low_power != self.get_last_low_power() {
+            self.set_last_low_power(cur_low_power);
+            self.get_mut_pending_events().push(WindowEvent::System(
+                SystemEvent::LowPowerModeChanged(cur_low_power),
+            ));
+        }
+        let cur_pb: isize = macos_pasteboard_change_count();
+        let prev_pb: isize = self.get_last_pasteboard_count();
+        if prev_pb >= 0 && cur_pb != prev_pb {
+            self.get_mut_pending_events()
+                .push(WindowEvent::System(SystemEvent::ClipboardChanged));
+        }
+        self.set_last_pasteboard_count(cur_pb);
+        for (id, focused) in focus_events.into_iter() {
+            self.get_mut_pending_events()
+                .push(WindowEvent::Focused(id, focused));
         }
         for (id, w, h, scale) in resized_events.into_iter() {
             self.get_mut_pending_events()

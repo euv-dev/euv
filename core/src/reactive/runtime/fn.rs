@@ -588,6 +588,7 @@ pub fn reactive_stats() -> ReactiveStats {
 
 /// Resets the current thread's reactive runtime to an empty state.
 pub fn reset_reactive_runtime() {
+    reset_system_event_hub();
     with_runtime(
         |rt: &mut ReactiveRuntime| {
             *rt = ReactiveRuntime::default();

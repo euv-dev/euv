@@ -631,3 +631,115 @@ fn selectable_and_selection_color_work_in_style_and_view_macros() {
         .with_read(|tree: &SceneTree| tree.is_node_selectable(target), false);
     assert!(is_sel);
 }
+
+#[derive(Clone)]
+struct MacroSystemLifecycleCard {
+    log: Rc<RefCell<Vec<String>>>,
+}
+
+#[component]
+impl MacroSystemLifecycleCard {
+    fn on_appear(&self) {
+        let Self { log } = self;
+        log.borrow_mut().push("appear".to_string());
+    }
+
+    fn on_disappear(&self) {
+        let Self { log } = self;
+        log.borrow_mut().push("disappear".to_string());
+    }
+
+    fn on_foreground(&self) {
+        let Self { log } = self;
+        log.borrow_mut().push("foreground".to_string());
+    }
+
+    fn on_background(&self) {
+        let Self { log } = self;
+        log.borrow_mut().push("background".to_string());
+    }
+
+    fn on_inactive(&self) {
+        let Self { log } = self;
+        log.borrow_mut().push("inactive".to_string());
+    }
+
+    fn on_terminate(&self) {
+        let Self { log } = self;
+        log.borrow_mut().push("terminate".to_string());
+    }
+
+    fn on_system_event(&self, event: &SystemEvent) {
+        let Self { log } = self;
+        if let SystemEvent::DeepLink(uri) = event {
+            log.borrow_mut().push(format!("deeplink:{uri}"));
+        }
+    }
+
+    fn render(&self) -> NodeId {
+        view! {
+            column {
+                width: Length::Px(200.0)
+                text {
+                    color: TEST_FG
+                    "System Lifecycle Component"
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn component_macro_wires_system_lifecycle_hooks_and_subtree_visibility() {
+    reset_reactive_runtime();
+    let log: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+    let card: MacroSystemLifecycleCard = MacroSystemLifecycleCard { log: log.clone() };
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(320, 200).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let card_c: MacroSystemLifecycleCard = card.clone();
+    let root_id: NodeId = app.mount(move || card_c.mount());
+    let _: FrameStats = app.step_frame().unwrap();
+    app.dispatch_system_event(SystemEvent::Background);
+    assert_eq!(
+        log.borrow().as_slice(),
+        &[
+            "inactive".to_string(),
+            "disappear".to_string(),
+            "background".to_string(),
+        ]
+    );
+    app.dispatch_system_event(SystemEvent::Foreground);
+    assert_eq!(
+        log.borrow().as_slice(),
+        &[
+            "inactive".to_string(),
+            "disappear".to_string(),
+            "background".to_string(),
+            "appear".to_string(),
+            "foreground".to_string(),
+        ]
+    );
+    app.dispatch_system_event(SystemEvent::DeepLink("euv://macro/test".to_string()));
+    app.get_context().emit_subtree_disappear(root_id);
+    app.get_context().emit_subtree_appear(root_id);
+    app.dispatch_system_event(SystemEvent::Terminate);
+    assert_eq!(
+        log.borrow().as_slice(),
+        &[
+            "inactive".to_string(),
+            "disappear".to_string(),
+            "background".to_string(),
+            "appear".to_string(),
+            "foreground".to_string(),
+            "deeplink:euv://macro/test".to_string(),
+            "disappear".to_string(),
+            "appear".to_string(),
+            "inactive".to_string(),
+            "disappear".to_string(),
+            "terminate".to_string(),
+        ]
+    );
+}

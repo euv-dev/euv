@@ -84,4 +84,24 @@ pub struct MacOsPlatform {
     #[get(pub(crate), type(copy))]
     #[set(pub(crate))]
     pub(crate) cached_color_space: usize,
+    /// Last polled `NSApplication.isActive` state for deduplicating foreground/inactive transitions.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) last_app_active: bool,
+    /// Last polled `NSWindow.isMiniaturized` state for background/foreground normalization.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) last_miniaturized: bool,
+    /// Last polled `NSProcessInfo.isLowPowerModeEnabled` flag.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) last_low_power: bool,
+    /// Last polled `NSPasteboard.changeCount` sentinel (`-1` before first poll).
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) last_pasteboard_count: isize,
+    /// Last polled macOS appearance theme for change detection.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) last_theme: ThemeMode,
 }
