@@ -352,12 +352,24 @@ impl Framebuffer {
     /// - `Vec<u8>` - Packed BGRA8 pixel buffer.
     #[must_use]
     pub fn to_bgra_bytes(&self) -> Vec<u8> {
-        let mut out: Vec<u8> = Vec::with_capacity(self.get_pixels().len());
-        for chunk in self.get_pixels().as_chunks::<4>().0.iter() {
-            out.push(chunk[2]);
-            out.push(chunk[1]);
-            out.push(chunk[0]);
-            out.push(chunk[3]);
+        let src: &[u8] = self.get_pixels().as_slice();
+        let len: usize = src.len() & !3usize;
+        let mut out: Vec<u8> = vec![0u8; len];
+        let (src_wide, src_tail): (&[[u8; 16]], &[u8]) = src[..len].as_chunks::<16>();
+        let (dst_wide, dst_tail): (&mut [[u8; 16]], &mut [u8]) = out.as_chunks_mut::<16>();
+        for (s, d) in src_wide.iter().zip(dst_wide.iter_mut()) {
+            *d = [
+                s[2], s[1], s[0], s[3], s[6], s[5], s[4], s[7], s[10], s[9], s[8], s[11], s[14],
+                s[13], s[12], s[15],
+            ];
+        }
+        for (s, d) in src_tail
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .zip(dst_tail.as_chunks_mut::<4>().0.iter_mut())
+        {
+            *d = [s[2], s[1], s[0], s[3]];
         }
         out
     }
@@ -374,30 +386,27 @@ impl Framebuffer {
     #[must_use]
     pub fn fnv1a_hash(&self) -> u64 {
         let bytes: &[u8] = self.get_pixels().as_slice();
-        let mut h0: u64 = FNV1A_OFFSET_BASIS;
-        let mut h1: u64 = FNV1A_OFFSET_BASIS ^ 0x9E37_79B9_7F4A_7C15;
-        let mut h2: u64 = FNV1A_OFFSET_BASIS ^ 0xBF58_476D_1CE4_E5B9;
-        let mut h3: u64 = FNV1A_OFFSET_BASIS ^ 0x94D0_49BB_1331_11EB;
-        let (blocks, tail): (&[[u8; 32]], &[u8]) = bytes.as_chunks::<32>();
-        for blk in blocks.iter() {
-            let w0: u64 = u64::from_le_bytes([
-                blk[0], blk[1], blk[2], blk[3], blk[4], blk[5], blk[6], blk[7],
-            ]);
-            let w1: u64 = u64::from_le_bytes([
-                blk[8], blk[9], blk[10], blk[11], blk[12], blk[13], blk[14], blk[15],
-            ]);
-            let w2: u64 = u64::from_le_bytes([
-                blk[16], blk[17], blk[18], blk[19], blk[20], blk[21], blk[22], blk[23],
-            ]);
-            let w3: u64 = u64::from_le_bytes([
-                blk[24], blk[25], blk[26], blk[27], blk[28], blk[29], blk[30], blk[31],
-            ]);
-            h0 = (h0 ^ w0).wrapping_mul(FNV1A_PRIME);
-            h1 = (h1 ^ w1).wrapping_mul(FNV1A_PRIME);
-            h2 = (h2 ^ w2).wrapping_mul(FNV1A_PRIME);
-            h3 = (h3 ^ w3).wrapping_mul(FNV1A_PRIME);
+        let mut lanes: [u64; 4] = [
+            FNV1A_OFFSET_BASIS,
+            FNV1A_OFFSET_BASIS ^ 0x9E37_79B9_7F4A_7C15,
+            FNV1A_OFFSET_BASIS ^ 0xBF58_476D_1CE4_E5B9,
+            FNV1A_OFFSET_BASIS ^ 0x94D0_49BB_1331_11EB,
+        ];
+        let (blocks32, tail): (&[[u8; 32]], &[u8]) = bytes.as_chunks::<32>();
+        let (lines128, rem32): (&[[[u8; 32]; 4]], &[[u8; 32]]) = blocks32.as_chunks::<4>();
+        for line in lines128.iter() {
+            fold_fnv1a_32(&mut lanes, &line[0]);
+            fold_fnv1a_32(&mut lanes, &line[1]);
+            fold_fnv1a_32(&mut lanes, &line[2]);
+            fold_fnv1a_32(&mut lanes, &line[3]);
         }
-        let mut hash: u64 = h0 ^ h1.rotate_left(13) ^ h2.rotate_left(29) ^ h3.rotate_left(47);
+        for blk in rem32.iter() {
+            fold_fnv1a_32(&mut lanes, blk);
+        }
+        let mut hash: u64 = lanes[0]
+            ^ lanes[1].rotate_left(13)
+            ^ lanes[2].rotate_left(29)
+            ^ lanes[3].rotate_left(47);
         hash = hash.wrapping_mul(FNV1A_PRIME);
         for byte in tail.iter().copied() {
             hash ^= byte as u64;

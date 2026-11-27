@@ -357,3 +357,18 @@ pub(crate) fn fill_span_linear_slice(span: &mut [u8], color: Color) {
         px[3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
     }
 }
+
+/// Folds one 32-byte block (`4 x u64` little-endian words) into the 4 independent FNV-1a hash lanes.
+///
+/// # Arguments
+///
+/// - `&mut [u64; 4]` - Mutable 4-lane FNV-1a hash accumulators.
+/// - `&[u8; 32]` - 32-byte input pixel block.
+#[inline(always)]
+pub(crate) fn fold_fnv1a_32(lanes: &mut [u64; 4], blk: &[u8; 32]) {
+    let (words, _): (&[[u8; 8]], &[u8]) = blk.as_chunks::<8>();
+    lanes[0] = (lanes[0] ^ u64::from_le_bytes(words[0])).wrapping_mul(FNV1A_PRIME);
+    lanes[1] = (lanes[1] ^ u64::from_le_bytes(words[1])).wrapping_mul(FNV1A_PRIME);
+    lanes[2] = (lanes[2] ^ u64::from_le_bytes(words[2])).wrapping_mul(FNV1A_PRIME);
+    lanes[3] = (lanes[3] ^ u64::from_le_bytes(words[3])).wrapping_mul(FNV1A_PRIME);
+}
