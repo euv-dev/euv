@@ -198,6 +198,109 @@ impl EuvRouter {
         }
     }
 
+    /// Extracts the next non-empty `/`-delimited path segment and remaining suffix without allocation.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - Remaining path slice.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<(&str, &str)>` - `(segment, rest)` when another non-empty segment exists.
+    #[inline(always)]
+    fn next_path_segment(mut s: &str) -> Option<(&str, &str)> {
+        while let Some(rest) = s.strip_prefix('/') {
+            s = rest;
+        }
+        if s.is_empty() {
+            return None;
+        }
+        match s.find('/') {
+            Some(idx) => Some((&s[..idx], &s[idx + 1..])),
+            None => Some((s, "")),
+        }
+    }
+
+    /// Compares a static route pattern against `clean_path` ignoring leading, trailing, or duplicate slashes.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - Registered static pattern without `:param` placeholders.
+    /// - `&str` - Cleaned target route path.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when both paths have identical non-empty segments.
+    #[inline(always)]
+    fn static_segments_equal(pattern: &str, clean_path: &str) -> bool {
+        let mut pat_rem: &str = pattern;
+        let mut path_rem: &str = clean_path;
+        loop {
+            match (
+                Self::next_path_segment(pat_rem),
+                Self::next_path_segment(path_rem),
+            ) {
+                (Some((p, pr)), Some((s, sr))) => {
+                    if p != s {
+                        return false;
+                    }
+                    pat_rem = pr;
+                    path_rem = sr;
+                }
+                (None, None) => return true,
+                _ => return false,
+            }
+        }
+    }
+
+    /// Matches a parameterized route pattern containing `:param` segments against `clean_path`, allocating `params` only after a full match.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - Registered route pattern containing at least one `:`.
+    /// - `&str` - Cleaned target route path.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<HashMap<String, String>>` - Extracted parameter map on match, or `None` without heap allocation on mismatch.
+    fn match_param_pattern(pattern: &str, clean_path: &str) -> Option<HashMap<String, String>> {
+        let mut pat_rem: &str = pattern;
+        let mut path_rem: &str = clean_path;
+        let mut param_count: usize = 0;
+        loop {
+            match (
+                Self::next_path_segment(pat_rem),
+                Self::next_path_segment(path_rem),
+            ) {
+                (Some((p, pr)), Some((s, sr))) => {
+                    if p.starts_with(':') {
+                        param_count += 1;
+                    } else if p != s {
+                        return None;
+                    }
+                    pat_rem = pr;
+                    path_rem = sr;
+                }
+                (None, None) => break,
+                _ => return None,
+            }
+        }
+        let mut params: HashMap<String, String> = HashMap::with_capacity(param_count);
+        let mut pat_fill: &str = pattern;
+        let mut path_fill: &str = clean_path;
+        while let (Some((p, pr)), Some((s, sr))) = (
+            Self::next_path_segment(pat_fill),
+            Self::next_path_segment(path_fill),
+        ) {
+            if let Some(key) = p.strip_prefix(':') {
+                let _: Option<String> = params.insert(key.to_string(), s.to_string());
+            }
+            pat_fill = pr;
+            path_fill = sr;
+        }
+        Some(params)
+    }
+
     /// Publishes live cached route lifecycle telemetry (`frozen_count`, `alive_count`, `lifecycle_entries`).
     ///
     /// # Arguments
@@ -205,10 +308,40 @@ impl EuvRouter {
     /// - `&Self` - Router reference.
     /// - `&HashMap<String, EuvCachedPage>` - Active outlet page cache.
     fn publish_lifecycle_telemetry(&self, cache: &HashMap<String, EuvCachedPage>) {
+        let frozen_sig: Signal<usize> = self.get_frozen_count();
+        let alive_sig: Signal<usize> = self.get_alive_count();
+        let entries_sig: Signal<Vec<EuvRouteLifecycleEntry>> = self.get_lifecycle_entries();
+        let want_entries: bool = entries_sig.has_subscribers();
         let mut frozen: usize = 0;
         let mut alive: usize = 0;
-        let mut entries: Vec<EuvRouteLifecycleEntry> = Vec::with_capacity(cache.len());
-        for (path, entry) in cache.iter() {
+        if want_entries {
+            let mut entries: Vec<EuvRouteLifecycleEntry> = Vec::with_capacity(cache.len());
+            for (path, entry) in cache.iter() {
+                if entry.phase == LifecyclePhase::Frozen {
+                    frozen += 1;
+                } else if entry.phase == LifecyclePhase::Mounted
+                    && entry.retention == PageRetention::Alive
+                {
+                    alive += 1;
+                }
+                entries.push(EuvRouteLifecycleEntry {
+                    path: path.clone(),
+                    retention: entry.retention,
+                    phase: entry.phase,
+                    activations: entry.activations,
+                });
+            }
+            entries.sort_by(|a: &EuvRouteLifecycleEntry, b: &EuvRouteLifecycleEntry| {
+                a.get_path().cmp(b.get_path())
+            });
+            batch(|| {
+                let _: bool = frozen_sig.set_if_changed(frozen);
+                let _: bool = alive_sig.set_if_changed(alive);
+                let _: bool = entries_sig.set_if_changed(entries);
+            });
+            return;
+        }
+        for entry in cache.values() {
             if entry.phase == LifecyclePhase::Frozen {
                 frozen += 1;
             } else if entry.phase == LifecyclePhase::Mounted
@@ -216,24 +349,16 @@ impl EuvRouter {
             {
                 alive += 1;
             }
-            entries.push(EuvRouteLifecycleEntry {
-                path: path.clone(),
-                retention: entry.retention,
-                phase: entry.phase,
-                activations: entry.activations,
-            });
         }
-        entries.sort_by(|a: &EuvRouteLifecycleEntry, b: &EuvRouteLifecycleEntry| {
-            a.get_path().cmp(b.get_path())
-        });
-        let frozen_sig: Signal<usize> = self.get_frozen_count();
-        let alive_sig: Signal<usize> = self.get_alive_count();
-        let entries_sig: Signal<Vec<EuvRouteLifecycleEntry>> = self.get_lifecycle_entries();
-        batch(|| {
+        if frozen_sig.has_subscribers() || alive_sig.has_subscribers() {
+            batch(|| {
+                let _: bool = frozen_sig.set_if_changed(frozen);
+                let _: bool = alive_sig.set_if_changed(alive);
+            });
+        } else {
             let _: bool = frozen_sig.set_if_changed(frozen);
             let _: bool = alive_sig.set_if_changed(alive);
-            let _: bool = entries_sig.set_if_changed(entries);
-        });
+        }
     }
 
     /// Pushes `path` onto the navigation history stack (no-op if already on `path`).
@@ -245,12 +370,13 @@ impl EuvRouter {
     pub fn push(&self, path: &str) {
         let mut changed: bool = false;
         if let Ok(mut guard) = self.get_inner().try_borrow_mut() {
-            let cur: String = guard
+            let cur_same: bool = guard
                 .get_history()
                 .get(guard.get_cursor())
-                .cloned()
-                .unwrap_or_default();
-            if cur != path {
+                .map(String::as_str)
+                .unwrap_or("")
+                == path;
+            if !cur_same {
                 let next_idx: usize = guard.get_cursor() + 1;
                 guard.get_mut_history().truncate(next_idx);
                 guard.get_mut_history().push(path.to_string());
@@ -369,38 +495,29 @@ impl EuvRouter {
             None => (raw_path, ""),
         };
         let mut query: HashMap<String, String> = HashMap::new();
-        for pair in query_part.split('&') {
-            if let Some((k, v)) = pair.split_once('=')
-                && !k.is_empty()
-            {
-                let _: Option<String> = query.insert(k.to_string(), v.to_string());
+        if !query_part.is_empty() {
+            for pair in query_part.split('&') {
+                if let Some((k, v)) = pair.split_once('=')
+                    && !k.is_empty()
+                {
+                    let _: Option<String> = query.insert(k.to_string(), v.to_string());
+                }
             }
         }
-        let path_segs: Vec<&str> = clean_path
-            .split('/')
-            .filter(|s: &&str| !s.is_empty())
-            .collect();
         if let Ok(guard) = self.get_inner().try_borrow() {
             for def in guard.get_routes().iter() {
-                let pat_segs: Vec<&str> = def
-                    .get_pattern()
-                    .split('/')
-                    .filter(|s: &&str| !s.is_empty())
-                    .collect();
-                if pat_segs.len() != path_segs.len() {
-                    continue;
-                }
-                let mut params: HashMap<String, String> = HashMap::new();
-                let mut matched: bool = true;
-                for (pat, seg) in pat_segs.iter().zip(path_segs.iter()) {
-                    if let Some(key) = pat.strip_prefix(':') {
-                        let _: Option<String> = params.insert(key.to_string(), (*seg).to_string());
-                    } else if pat != seg {
-                        matched = false;
-                        break;
+                let pat: &str = def.get_pattern().as_str();
+                let params_opt: Option<HashMap<String, String>> = if !pat.as_bytes().contains(&b':')
+                {
+                    if pat == clean_path || Self::static_segments_equal(pat, clean_path) {
+                        Some(HashMap::new())
+                    } else {
+                        None
                     }
-                }
-                if matched {
+                } else {
+                    Self::match_param_pattern(pat, clean_path)
+                };
+                if let Some(params) = params_opt {
                     let EuvRouteDef {
                         builder, retention, ..
                     } = def;
@@ -627,33 +744,32 @@ impl EuvRouterOutlet {
                 }
             })
         });
-        let comp_ret: Option<PageRetention> = env.scene.with_read(
-            |tree: &SceneTree| {
-                tree.get_node(page_node).and_then(|n: &SceneNode| {
-                    n.lifecycle_observers()
-                        .last()
-                        .map(|h: &Rc<dyn Lifecycle>| h.retention_policy())
-                })
-            },
-            None,
-        );
-        let resolved_ret: PageRetention = route_ret.or(comp_ret).unwrap_or(env.default_ret);
         let cur_bg: Option<Color> =
             cur_tokens.map(|t: ThemeTokens| t.get_palette().get_background());
         let host_id: NodeId = env.host;
-        let wrapper: NodeId = env.scene.with_write(
+        let default_ret: PageRetention = env.default_ret;
+        let (wrapper, resolved_ret): (NodeId, PageRetention) = env.scene.with_write(
             |tree: &mut SceneTree| {
-                let mut w_style: Style = Style::default()
-                    .column()
-                    .width(Length::Percent(100.0))
-                    .height(Length::Percent(100.0))
-                    .padding(page_pad)
-                    .align(AlignItems::Center)
-                    .gap(SPACE_LG)
-                    .overflow(Overflow::Scroll)
-                    .z_index(1);
+                let comp_ret: Option<PageRetention> =
+                    tree.get_node(page_node).and_then(|n: &SceneNode| {
+                        n.lifecycle_observers()
+                            .last()
+                            .map(|h: &Rc<dyn Lifecycle>| h.retention_policy())
+                    });
+                let mut w_style: Style = Style::default();
+                let w_layout: &mut LayoutStyle = w_style.get_mut_layout();
+                w_layout
+                    .set_flex_direction(FlexDirection::Column)
+                    .set_width(Length::Percent(100.0))
+                    .set_height(Length::Percent(100.0))
+                    .set_padding(page_pad)
+                    .set_align_items(AlignItems::Center)
+                    .set_row_gap(SPACE_LG)
+                    .set_column_gap(SPACE_LG)
+                    .set_overflow(Overflow::Scroll)
+                    .set_z_index(1);
                 if let Some(bg) = cur_bg {
-                    w_style = w_style.background(bg);
+                    w_style.get_mut_paint().set_background(Some(bg));
                 }
                 if as_preview {
                     w_style
@@ -672,9 +788,9 @@ impl EuvRouterOutlet {
                 tree.attach_scope(w, page_scope);
                 tree.append_child(w, page_node);
                 tree.append_child(host_id, w);
-                w
+                (w, route_ret.or(comp_ret).unwrap_or(default_ret))
             },
-            NodeId::default(),
+            (NodeId::default(), default_ret),
         );
         let phase: LifecyclePhase = if as_preview {
             page_scope.freeze();
@@ -711,16 +827,17 @@ impl EuvRouterOutlet {
     /// - `NodeId` - Mounted router outlet container handle.
     fn render(&self) -> NodeId {
         let mut ctx: Context = current_context();
-        let host: NodeId = ctx.view(
-            Style::default()
-                .column()
-                .flex_grow(1.0)
-                .flex_shrink(1.0)
-                .width(Length::Percent(100.0))
-                .height(Length::Percent(100.0))
-                .min_height(Length::Px(0.0))
-                .overflow(Overflow::Hidden),
-        );
+        let mut host_style: Style = Style::default();
+        host_style
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Column)
+            .set_flex_grow(1.0)
+            .set_flex_shrink(1.0)
+            .set_width(Length::Percent(100.0))
+            .set_height(Length::Percent(100.0))
+            .set_min_height(Length::Px(0.0))
+            .set_overflow(Overflow::Hidden);
+        let host: NodeId = ctx.view(host_style);
         let router: EuvRouter = self.get_router().clone();
         let route_order: Vec<String> = self.get_route_order().clone();
         let vp_sig: Signal<Size> = ctx.get_viewport_size();
@@ -1100,29 +1217,34 @@ impl EuvRouterOutlet {
                     if let Ok(mut rel_slot) = released_drag_cell.try_borrow_mut() {
                         *rel_slot = Some(released.clone());
                     }
-                    scene_drag.start_transition(
-                        NodeTransition::slide_fade(
-                            active_wrapper,
-                            Point::new(released.offset_x, 0.0),
-                            Point::new(0.0, 0.0),
-                            1.0,
-                            1.0,
-                            cancel_dur,
-                            false,
-                        )
-                        .with_easing(Easing::EaseOutCubic),
-                    );
-                    scene_drag.start_transition(
-                        NodeTransition::slide_fade(
-                            released.target_wrapper,
-                            Point::new(start_adj_x, 0.0),
-                            Point::new(end_adj_x, 0.0),
-                            1.0,
-                            1.0,
-                            cancel_dur,
-                            true,
-                        )
-                        .with_easing(Easing::EaseOutCubic),
+                    scene_drag.with_write(
+                        |tree: &mut SceneTree| {
+                            tree.start_transition(
+                                NodeTransition::slide_fade(
+                                    active_wrapper,
+                                    Point::new(released.offset_x, 0.0),
+                                    Point::new(0.0, 0.0),
+                                    1.0,
+                                    1.0,
+                                    cancel_dur,
+                                    false,
+                                )
+                                .with_easing(Easing::EaseOutCubic),
+                            );
+                            tree.start_transition(
+                                NodeTransition::slide_fade(
+                                    released.target_wrapper,
+                                    Point::new(start_adj_x, 0.0),
+                                    Point::new(end_adj_x, 0.0),
+                                    1.0,
+                                    1.0,
+                                    cancel_dur,
+                                    true,
+                                )
+                                .with_easing(Easing::EaseOutCubic),
+                            );
+                        },
+                        (),
                     );
                 }
             });
@@ -1185,19 +1307,19 @@ impl EuvRouterOutlet {
                                             n.set_style(st);
                                         }
                                         tree.mark_dirty(tid, DIRTY_LAYOUT | DIRTY_PAINT);
+                                        tree.start_transition(
+                                            NodeTransition::fade(
+                                                tid,
+                                                1.0,
+                                                0.0,
+                                                DOUBLE_BACK_TOAST_FADE_SECS,
+                                                true,
+                                            )
+                                            .with_delay(DOUBLE_BACK_TOAST_HOLD_SECS)
+                                            .with_easing(Easing::EaseOutCubic),
+                                        );
                                     },
                                     (),
-                                );
-                                scene_back.start_transition(
-                                    NodeTransition::fade(
-                                        tid,
-                                        1.0,
-                                        0.0,
-                                        DOUBLE_BACK_TOAST_FADE_SECS,
-                                        true,
-                                    )
-                                    .with_delay(DOUBLE_BACK_TOAST_HOLD_SECS)
-                                    .with_easing(Easing::EaseOutCubic),
                                 );
                             }
                         }
@@ -1286,44 +1408,54 @@ impl EuvRouterOutlet {
                 } else {
                     0.0
                 };
-                let slide_w: f32 = Self::resolve_slide_width(&scene, host, vp_sig);
-                let (start_exit_tx, start_enter_tx, slide_dur): (f32, f32, f32) = if route_changed
-                    && slide_dir.abs() > 0.01
-                {
-                    if let Some(drag) = active_drag_opt.as_ref()
-                        && drag.target_path == active_path
-                        && (drag.direction - slide_dir).abs() < 0.01
-                    {
-                        let w_used: f32 = drag.width.max(slide_w);
-                        let rem: f32 =
-                            (1.0 - (drag.offset_x.abs() / w_used.max(1.0))).clamp(0.15, 1.0);
-                        let dur: f32 =
-                            (ROUTE_COUPLED_SLIDE_SECS * rem).clamp(0.10, ROUTE_COUPLED_SLIDE_SECS);
-                        (drag.offset_x, drag.offset_x + slide_dir * w_used, dur)
-                    } else {
-                        if let Some(stray) = active_drag_opt.as_ref()
-                            && stray.target_path != active_path
+                let (slide_w, start_exit_tx, start_enter_tx, slide_dur): (f32, f32, f32, f32) =
+                    if route_changed && slide_dir.abs() > 0.01 {
+                        let cur_slide_w: f32 = Self::resolve_slide_width(&scene, host, vp_sig);
+                        if let Some(drag) = active_drag_opt.as_ref()
+                            && drag.target_path == active_path
+                            && (drag.direction - slide_dir).abs() < 0.01
                         {
-                            let sw: NodeId = stray.target_wrapper;
-                            scene.with_write(
-                                |tree: &mut SceneTree| {
-                                    tree.cancel_subtree_transitions(sw);
-                                    if let Some(n) = tree.get_node_mut(sw) {
-                                        let mut st: Style = n.get_style();
-                                        st.get_mut_layout().set_display(Display::None);
-                                        st.get_mut_paint().set_transform(Transform2D::default());
-                                        n.set_style(st);
-                                        tree.mark_dirty(sw, DIRTY_LAYOUT | DIRTY_PAINT);
-                                    }
-                                },
-                                (),
-                            );
+                            let w_used: f32 = drag.width.max(cur_slide_w);
+                            let rem: f32 =
+                                (1.0 - (drag.offset_x.abs() / w_used.max(1.0))).clamp(0.15, 1.0);
+                            let dur: f32 = (ROUTE_COUPLED_SLIDE_SECS * rem)
+                                .clamp(0.10, ROUTE_COUPLED_SLIDE_SECS);
+                            (
+                                cur_slide_w,
+                                drag.offset_x,
+                                drag.offset_x + slide_dir * w_used,
+                                dur,
+                            )
+                        } else {
+                            if let Some(stray) = active_drag_opt.as_ref()
+                                && stray.target_path != active_path
+                            {
+                                let sw: NodeId = stray.target_wrapper;
+                                scene.with_write(
+                                    |tree: &mut SceneTree| {
+                                        tree.cancel_subtree_transitions(sw);
+                                        if let Some(n) = tree.get_node_mut(sw) {
+                                            let mut st: Style = n.get_style();
+                                            st.get_mut_layout().set_display(Display::None);
+                                            st.get_mut_paint()
+                                                .set_transform(Transform2D::default());
+                                            n.set_style(st);
+                                            tree.mark_dirty(sw, DIRTY_LAYOUT | DIRTY_PAINT);
+                                        }
+                                    },
+                                    (),
+                                );
+                            }
+                            (
+                                cur_slide_w,
+                                0.0,
+                                slide_dir * cur_slide_w,
+                                ROUTE_COUPLED_SLIDE_SECS,
+                            )
                         }
-                        (0.0, slide_dir * slide_w, ROUTE_COUPLED_SLIDE_SECS)
-                    }
-                } else {
-                    (0.0, 0.0, ROUTE_COUPLED_SLIDE_SECS)
-                };
+                    } else {
+                        (0.0, 0.0, 0.0, ROUTE_COUPLED_SLIDE_SECS)
+                    };
                 if route_changed && let Some(prev_path) = prev_path_opt {
                     let leave_entry: Option<EuvCachedPage> = cache.try_borrow_mut().ok().and_then(
                         |mut map: RefMut<'_, HashMap<String, EuvCachedPage>>| {
@@ -1410,7 +1542,7 @@ impl EuvRouterOutlet {
                         None
                     };
                     let theme_changed: bool = prev_tok_opt != cur_tokens;
-                    scene.with_write(
+                    let page_obs: Vec<(NodeId, Rc<dyn Lifecycle>)> = scene.with_write(
                         |tree: &mut SceneTree| {
                             if route_changed {
                                 tree.cancel_subtree_transitions(hit.wrapper);
@@ -1438,11 +1570,33 @@ impl EuvRouterOutlet {
                             {
                                 remap_subtree_theme_in_place(tree, hit.wrapper, old_t, new_t);
                             }
+                            if route_changed {
+                                let tr: NodeTransition = if slide_dir.abs() > 0.01 {
+                                    NodeTransition::slide_fade(
+                                        hit.wrapper,
+                                        Point::new(start_enter_tx, 0.0),
+                                        Point::new(0.0, 0.0),
+                                        1.0,
+                                        1.0,
+                                        slide_dur,
+                                        false,
+                                    )
+                                    .with_easing(Easing::EaseOutCubic)
+                                } else {
+                                    NodeTransition::route_enter(hit.wrapper)
+                                };
+                                tree.start_transition(tr);
+                                tree.collect_subtree_lifecycles(hit.page_node)
+                            } else {
+                                Vec::new()
+                            }
                         },
-                        (),
+                        Vec::new(),
                     );
                     if route_changed && hit.phase == LifecyclePhase::Frozen {
-                        scene.resume_subtree(hit.wrapper);
+                        if !page_obs.is_empty() {
+                            dispatch_lifecycle_resume(&page_obs);
+                        }
                         hit.scope.resume();
                     }
                     if let Ok(mut map) = cache.try_borrow_mut()
@@ -1458,23 +1612,10 @@ impl EuvRouterOutlet {
                         }
                     }
                     if route_changed {
-                        scene.activate_subtree(hit.page_node);
+                        if !page_obs.is_empty() {
+                            dispatch_lifecycle_activate(&page_obs);
+                        }
                         mount_env.ctx.emit_subtree_appear(hit.wrapper);
-                        let tr: NodeTransition = if slide_dir.abs() > 0.01 {
-                            NodeTransition::slide_fade(
-                                hit.wrapper,
-                                Point::new(start_enter_tx, 0.0),
-                                Point::new(0.0, 0.0),
-                                1.0,
-                                1.0,
-                                slide_dur,
-                                false,
-                            )
-                            .with_easing(Easing::EaseOutCubic)
-                        } else {
-                            NodeTransition::route_enter(hit.wrapper)
-                        };
-                        scene.start_transition(tr);
                     }
                 } else {
                     if let Some(stale) = cached_hit {
