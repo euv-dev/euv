@@ -321,16 +321,22 @@ impl EuvVirtualList {
         let mut ctx: Context = current_context();
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
-        let list_cfg: Self = self.clone();
-        let scroll_cfg: Self = self.clone();
         let scroll_sig: Signal<f32> = self.get_scroll_y();
+        let total_items: usize = self.get_total_items();
+        let overscan: usize = if self.get_overscan() == 0 {
+            3
+        } else {
+            self.get_overscan()
+        };
         let view_h: f32 = self.resolved_viewport_height().max(1.0);
         let builder_cell: Rc<RefCell<F>> = Rc::new(RefCell::new(row_builder));
         let border_w: f32 = g.get_border_width();
         let inner_view_h: f32 = (view_h - border_w * 2.0).max(1.0);
         let item_h: f32 = self.get_item_height().max(1.0);
-        let total_h: f32 = (self.get_total_items() as f32) * item_h;
+        let vis_count: usize = (view_h / item_h).ceil() as usize;
+        let total_h: f32 = (total_items as f32) * item_h;
         let max_scroll: f32 = (total_h - inner_view_h).max(0.0);
+        let max_scroll_range: f32 = self.max_scroll_y();
         let container: NodeId = view! {
             scroll {
                 style: Style::default().column()
@@ -342,60 +348,147 @@ impl EuvVirtualList {
                 stop_scroll_propagation: true
                 on_scroll: move |ev: &UiEvent| {
                     if let UiEventKind::Scroll(delta) = ev.get_kind() {
-                        let next: f32 = (scroll_cfg.get_scroll_y().get_untracked() + delta.get_y())
-                        .clamp(0.0, max_scroll);
-                        let _: bool = scroll_cfg.get_scroll_y().set_if_changed(next);
+                        let next: f32 =
+                            (scroll_sig.get_untracked() + delta.get_y()).clamp(0.0, max_scroll);
+                        let _: bool = scroll_sig.set_if_changed(next);
                     }
                 }
             }
         };
+        let mut rows_host_style: Style = Style::default();
+        rows_host_style
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Column)
+            .set_width(Length::Percent(100.0));
+        let rows_host: NodeId = ctx.view(rows_host_style);
+        ctx.append(container, rows_host);
         let init_scroll: f32 = scroll_sig.get_untracked().clamp(0.0, max_scroll);
         ctx.set_virtual_scroll(container, init_scroll, total_h);
-        let range_memo: Memo<(usize, usize)> = Memo::new(move || {
-            let _: f32 = scroll_sig.get();
-            list_cfg.visible_range()
-        });
-        let range_for_scroll: Memo<(usize, usize)> = range_memo;
-        let scene_for_scroll: SceneHandle = ctx.get_scene().clone();
         let scene_for_rows: SceneHandle = ctx.get_scene().clone();
         let ctx_for_rows: Context = ctx.clone();
+        let window: Rc<RefCell<VecDeque<(usize, Scope, NodeId)>>> =
+            Rc::new(RefCell::new(VecDeque::new()));
+        let window_effect: Rc<RefCell<VecDeque<(usize, Scope, NodeId)>>> = Rc::clone(&window);
         let (vlist_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            let _: Effect = Effect::new(move || {
-                let (start, end): (usize, usize) = range_memo.get();
-                let cur_scroll: f32 = scroll_sig.get_untracked().clamp(0.0, max_scroll);
-                let local_scroll_y: f32 = (cur_scroll - (start as f32) * item_h).max(0.0);
-                let (child_scope, rows_host): (Scope, NodeId) = Scope::run(|_: Scope| {
+            let window_cleanup: Rc<RefCell<VecDeque<(usize, Scope, NodeId)>>> = Rc::clone(&window);
+            on_cleanup(move || {
+                if let Ok(mut guard) = window_cleanup.try_borrow_mut() {
+                    while let Some((_, row_scope, _)) = guard.pop_front() {
+                        row_scope.dispose();
+                    }
+                }
+            });
+            let mut current_range: (usize, usize) = (0, 0);
+            let mut initialized: bool = false;
+            Effect::new(move || {
+                let raw_scroll: f32 = scroll_sig.get();
+                let cur_scroll: f32 = raw_scroll.clamp(0.0, max_scroll);
+                let (new_start, new_end): (usize, usize) = if total_items == 0 {
+                    (0, 0)
+                } else {
+                    let clamped_for_range: f32 = raw_scroll.clamp(0.0, max_scroll_range);
+                    let first_vis: usize = (clamped_for_range / item_h).floor() as usize;
+                    let start: usize = first_vis.saturating_sub(overscan);
+                    let end: usize = (first_vis + vis_count + overscan).min(total_items);
+                    (start, end)
+                };
+                let local_scroll_y: f32 = (cur_scroll - (new_start as f32) * item_h).max(0.0);
+                if initialized && (new_start, new_end) == current_range {
+                    scene_for_rows.with_write(
+                        |tree: &mut SceneTree| {
+                            tree.set_virtual_scroll(container, cur_scroll, total_h);
+                            tree.set_scroll_offset(container, Point::new(0.0, local_scroll_y));
+                        },
+                        (),
+                    );
+                    return;
+                }
+                let (old_start, old_end): (usize, usize) = current_range;
+                let has_overlap: bool = initialized
+                    && old_start < old_end
+                    && new_start < new_end
+                    && new_start < old_end
+                    && old_start < new_end;
+                let mut retired_scopes: Vec<Scope> = Vec::new();
+                let (prefix_start, prefix_end, suffix_start, suffix_end): (
+                    usize,
+                    usize,
+                    usize,
+                    usize,
+                ) = if has_overlap {
+                    if let Ok(mut guard) = window_effect.try_borrow_mut() {
+                        while let Some(&(idx, _, _)) = guard.front() {
+                            if idx < new_start {
+                                if let Some((_, scope, _)) = guard.pop_front() {
+                                    retired_scopes.push(scope);
+                                }
+                            } else {
+                                break;
+                            }
+                        }
+                        while let Some(&(idx, _, _)) = guard.back() {
+                            if idx >= new_end {
+                                if let Some((_, scope, _)) = guard.pop_back() {
+                                    retired_scopes.push(scope);
+                                }
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                    let keep_start: usize = old_start.max(new_start);
+                    let keep_end: usize = old_end.min(new_end);
+                    (new_start, keep_start, keep_end, new_end)
+                } else {
+                    if let Ok(mut guard) = window_effect.try_borrow_mut() {
+                        retired_scopes.reserve(guard.len());
+                        while let Some((_, scope, _)) = guard.pop_front() {
+                            retired_scopes.push(scope);
+                        }
+                    }
+                    (new_start, new_end, new_end, new_end)
+                };
+                for retired in retired_scopes.into_iter() {
+                    retired.dispose();
+                }
+                let prefix_len: usize = prefix_end.saturating_sub(prefix_start);
+                let suffix_len: usize = suffix_end.saturating_sub(suffix_start);
+                let mut built_prefix: Vec<(usize, Scope, NodeId)> = Vec::with_capacity(prefix_len);
+                let mut built_suffix: Vec<(usize, Scope, NodeId)> = Vec::with_capacity(suffix_len);
+                if prefix_len > 0 || suffix_len > 0 {
                     with_context(ctx_for_rows.clone(), || {
-                        let mut built: Vec<NodeId> = Vec::with_capacity(end.saturating_sub(start));
                         if let Ok(mut build_row) = builder_cell.try_borrow_mut() {
-                            for idx in start..end {
-                                built.push(build_row(idx));
+                            for idx in prefix_start..prefix_end {
+                                let (row_scope, row_node): (Scope, NodeId) =
+                                    Scope::run(|_: Scope| build_row(idx));
+                                built_prefix.push((idx, row_scope, row_node));
+                            }
+                            for idx in suffix_start..suffix_end {
+                                let (row_scope, row_node): (Scope, NodeId) =
+                                    Scope::run(|_: Scope| build_row(idx));
+                                built_suffix.push((idx, row_scope, row_node));
                             }
                         }
-                        view! {
-                            column {
-                                width: Length::Percent(100.0)
-                                ..built
-                            }
-                        }
-                    })
-                });
+                    });
+                }
+                let mut next_children: Vec<NodeId> =
+                    Vec::with_capacity(new_end.saturating_sub(new_start));
+                if let Ok(mut guard) = window_effect.try_borrow_mut() {
+                    for entry in built_prefix.into_iter().rev() {
+                        guard.push_front(entry);
+                    }
+                    for entry in built_suffix.into_iter() {
+                        guard.push_back(entry);
+                    }
+                    for &(_, _, node_id) in guard.iter() {
+                        next_children.push(node_id);
+                    }
+                }
+                current_range = (new_start, new_end);
+                initialized = true;
                 scene_for_rows.with_write(
                     |tree: &mut SceneTree| {
-                        tree.replace_children(container, vec![rows_host]);
-                        tree.attach_scope(rows_host, child_scope);
-                        tree.set_virtual_scroll(container, cur_scroll, total_h);
-                        tree.set_scroll_offset(container, Point::new(0.0, local_scroll_y));
-                    },
-                    (),
-                );
-            });
-            Effect::new(move || {
-                let cur_scroll: f32 = scroll_sig.get().clamp(0.0, max_scroll);
-                let (start, _): (usize, usize) = range_for_scroll.get();
-                let local_scroll_y: f32 = (cur_scroll - (start as f32) * item_h).max(0.0);
-                scene_for_scroll.with_write(
-                    |tree: &mut SceneTree| {
+                        tree.replace_children(rows_host, next_children);
                         tree.set_virtual_scroll(container, cur_scroll, total_h);
                         tree.set_scroll_offset(container, Point::new(0.0, local_scroll_y));
                     },

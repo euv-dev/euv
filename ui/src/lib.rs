@@ -18,7 +18,7 @@ pub use {component::*, hook::*, overlay_stack::*, router::*, theme::*};
 
 use std::{
     cell::{Cell, Ref, RefCell, RefMut},
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     f32::consts::{FRAC_PI_2, TAU},
     mem::take,
     rc::Rc,
