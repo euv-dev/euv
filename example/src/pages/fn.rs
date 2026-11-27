@@ -67,6 +67,7 @@ fn ensure_showcase_routes_registered(state: &ShowcaseState) {
 ///
 /// - `NodeId` - Mounted reactive root container handle.
 pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
+    provide_theme(state.get_theme().clone());
     ensure_showcase_routes_registered(state);
     let global_banner: Signal<ShowcaseGlobalBanner> =
         global_state!(ShowcaseGlobalBanner = ShowcaseGlobalBanner::default());

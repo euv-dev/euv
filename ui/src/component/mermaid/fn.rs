@@ -1069,13 +1069,17 @@ fn layout_flowchart_nodes(fc: &MermaidFlowchart) -> (Vec<Rect>, Size) {
         pad
     };
     let main_gap: f32 = if has_labels {
-        if horiz { 76.0 } else { 64.0 }
+        if horiz { 80.0 } else { 88.0 }
     } else if horiz {
         56.0
     } else {
         48.0
     };
-    let cross_gap: f32 = 28.0;
+    let cross_gap: f32 = if !horiz && bidir_label_w > 0.0 {
+        (bidir_label_w + 48.0).max(28.0)
+    } else {
+        28.0
+    };
     let layer_count: usize = buckets.len();
     let mut layer_main_dim: Vec<f32> = vec![0.0; layer_count];
     let mut layer_cross_span: Vec<f32> = vec![0.0; layer_count];
@@ -1156,6 +1160,101 @@ fn layout_flowchart_nodes(fc: &MermaidFlowchart) -> (Vec<Rect>, Size) {
 fn measure_flowchart(fc: &MermaidFlowchart) -> Size {
     let (_, sz): (Vec<Rect>, Size) = layout_flowchart_nodes(fc);
     sz
+}
+
+/// Checks whether two rectangles overlap when expanded by `pad` logical pixels on each edge.
+///
+/// # Arguments
+///
+/// - `Rect` - Candidate rectangle.
+/// - `Rect` - Existing obstacle rectangle.
+/// - `f32` - Minimum clearance margin in logical pixels.
+///
+/// # Returns
+///
+/// - `bool` - `true` when the rectangles collide within `pad`.
+fn rects_overlap_padded(a: Rect, b: Rect, pad: f32) -> bool {
+    a.get_x() - pad < b.right()
+        && a.right() + pad > b.get_x()
+        && a.get_y() - pad < b.bottom()
+        && a.bottom() + pad > b.get_y()
+}
+
+/// Returns `true` when `cand` collides with any placed edge pill or node box.
+///
+/// # Arguments
+///
+/// - `Rect` - Candidate pill rectangle.
+/// - `&[Rect]` - Previously placed edge label pills.
+/// - `&[Rect]` - Placed diagram node bounding boxes.
+///
+/// # Returns
+///
+/// - `bool` - `true` when any obstacle intersects `cand`.
+fn edge_pill_collides(cand: Rect, placed_pills: &[Rect], node_rects: &[Rect]) -> bool {
+    placed_pills
+        .iter()
+        .any(|p: &Rect| rects_overlap_padded(cand, *p, 4.0))
+        || node_rects
+            .iter()
+            .any(|nr: &Rect| rects_overlap_padded(cand, *nr, 2.0))
+}
+
+/// Resolves a collision-free edge label pill rectangle along connector `p0 -> p1`.
+///
+/// # Arguments
+///
+/// - `Point` - Connector start point.
+/// - `Point` - Connector end point.
+/// - `Rect` - Preferred initial pill rectangle.
+/// - `&[Rect]` - Previously placed edge label pills.
+/// - `&[Rect]` - Placed diagram node bounding boxes.
+///
+/// # Returns
+///
+/// - `Rect` - Final non-overlapping pill rectangle.
+fn resolve_edge_pill_rect(
+    p0: Point,
+    p1: Point,
+    base_pill: Rect,
+    placed_pills: &[Rect],
+    node_rects: &[Rect],
+) -> Rect {
+    if !edge_pill_collides(base_pill, placed_pills, node_rects) {
+        return base_pill;
+    }
+    let pw: f32 = base_pill.get_width();
+    let ph: f32 = base_pill.get_height();
+    let dx: f32 = p1.get_x() - p0.get_x();
+    let dy: f32 = p1.get_y() - p0.get_y();
+    let fractions: [f32; 6] = [0.78, 0.22, 0.72, 0.28, 0.84, 0.16];
+    for t in fractions.into_iter() {
+        let cx: f32 = p0.get_x() + dx * t;
+        let cy: f32 = p0.get_y() + dy * t;
+        let variants: [Rect; 3] = [
+            Rect::new(cx - pw * 0.5, cy - ph * 0.5, pw, ph),
+            Rect::new(cx + 8.0, cy - ph * 0.5, pw, ph),
+            Rect::new(cx - pw - 8.0, cy - ph * 0.5, pw, ph),
+        ];
+        for cand in variants.into_iter() {
+            if !edge_pill_collides(cand, placed_pills, node_rects) {
+                return cand;
+            }
+        }
+    }
+    let mut shifted: Rect = base_pill;
+    for _ in 0..6 {
+        let blocker: Option<Rect> = placed_pills
+            .iter()
+            .copied()
+            .find(|p: &Rect| rects_overlap_padded(shifted, *p, 4.0));
+        if let Some(other) = blocker {
+            shifted = Rect::new(other.right() + 6.0, shifted.get_y(), pw, ph);
+        } else {
+            break;
+        }
+    }
+    shifted
 }
 
 /// Draws a Mermaid flowchart or state diagram onto `dl`.
@@ -1241,6 +1340,7 @@ fn draw_flowchart(
         MermaidFlowDirection::LeftRight | MermaidFlowDirection::RightLeft
     );
     let edge_col: Color = eva.get_function();
+    let mut placed_pills: Vec<Rect> = Vec::with_capacity(fc.get_edges().len());
     for edge in fc.get_edges().iter() {
         let (Some(&u), Some(&v)) = (
             id_map.get(edge.get_from().as_str()),
@@ -1305,7 +1405,9 @@ fn draw_flowchart(
             } else {
                 (mx - lbl_w * 0.5, my - 10.0)
             };
-            let pill: Rect = Rect::new(pill_x, pill_y, lbl_w, 20.0);
+            let base_pill: Rect = Rect::new(pill_x, pill_y, lbl_w, 20.0);
+            let pill: Rect = resolve_edge_pill_rect(p0, p1, base_pill, &placed_pills, &rects);
+            placed_pills.push(pill);
             dl.push(DrawCommand::FillRoundedRect {
                 rect: pill,
                 color: eva.get_header_bg(),

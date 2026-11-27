@@ -2324,8 +2324,8 @@ fn bottom_nav_uses_disciplined_radii_and_slides_active_indicator() {
 #[test]
 fn bottom_nav_active_label_stays_contrasting_after_route_switch_and_dark_toggle() {
     reset_reactive_runtime();
+    clear_provided_theme();
     let theme: UiThemeState = UiThemeState::new(DesignScheme::Shadcn, ThemeMode::Light);
-    provide_theme(theme.clone());
     let init_tokens: ThemeTokens = untracked(|| theme.get_tokens().get());
     let route: Signal<String> = Signal::new("/".to_string());
     let theme_shell: UiThemeState = theme.clone();
@@ -2382,34 +2382,46 @@ fn bottom_nav_active_label_stays_contrasting_after_route_switch_and_dark_toggle(
     let _: FrameStats = app.step_frame().unwrap();
     let dark_tokens: ThemeTokens = untracked(|| theme.get_tokens().get());
     let expected_dark_fg: Color = dark_tokens.get_palette().get_primary_foreground();
+    let expected_dark_primary: Color = dark_tokens.get_palette().get_primary();
     let expected_dark_dock_bg: Color = dark_tokens.get_palette().get_card().with_alpha(244);
-    let (home_color, dock_bg): (Option<Color>, Option<Color>) = app.get_scene().with_read(
-        |tree: &SceneTree| {
-            let mut h_col: Option<Color> = None;
-            let mut d_bg: Option<Color> = None;
-            for n in tree.get_nodes().iter() {
-                if !n.get_alive() {
-                    continue;
+    let (home_color, dock_bg, pill_bg): (Option<Color>, Option<Color>, Option<Color>) =
+        app.get_scene().with_read(
+            |tree: &SceneTree| {
+                let mut h_col: Option<Color> = None;
+                let mut d_bg: Option<Color> = None;
+                let mut p_bg: Option<Color> = None;
+                for n in tree.get_nodes().iter() {
+                    if !n.get_alive() {
+                        continue;
+                    }
+                    let lay: LayoutStyle = n.get_style().get_layout();
+                    let b: Rect = n.get_layout_box().get_bounds();
+                    if lay.get_position() == Position::Fixed
+                        && lay.get_z_index() == Z_INDEX_CHROME
+                        && (b.get_height() - 60.0).abs() < 1.0
+                    {
+                        d_bg = n.get_style().get_paint().background_color();
+                    }
+                    if lay.get_position() == Position::Absolute
+                        && lay.get_z_index() == 0
+                        && (b.get_height() - 46.0).abs() < 1.0
+                        && let Some(&child_id) = n.get_children().first()
+                        && let Some(child_n) = tree.get_node(child_id)
+                    {
+                        p_bg = child_n.get_style().get_paint().background_color();
+                    }
+                    if matches!(n.get_kind(), NodeKind::Text(t) if t == "Home")
+                        && (n.get_style().get_text().get_font_size() - 10.5).abs() < 0.2
+                    {
+                        h_col = Some(n.get_style().get_text().get_color());
+                    }
                 }
-                let lay: LayoutStyle = n.get_style().get_layout();
-                let b: Rect = n.get_layout_box().get_bounds();
-                if lay.get_position() == Position::Fixed
-                    && lay.get_z_index() == Z_INDEX_CHROME
-                    && (b.get_height() - 60.0).abs() < 1.0
-                {
-                    d_bg = n.get_style().get_paint().background_color();
-                }
-                if matches!(n.get_kind(), NodeKind::Text(t) if t == "Home")
-                    && (n.get_style().get_text().get_font_size() - 10.5).abs() < 0.2
-                {
-                    h_col = Some(n.get_style().get_text().get_color());
-                }
-            }
-            (h_col, d_bg)
-        },
-        (None, None),
-    );
+                (h_col, d_bg, p_bg)
+            },
+            (None, None, None),
+        );
     assert_eq!(home_color, Some(expected_dark_fg));
+    assert_eq!(pill_bg, Some(expected_dark_primary));
     assert_eq!(dock_bg, Some(expected_dark_dock_bg));
     clear_provided_theme();
 }
@@ -2418,7 +2430,7 @@ fn bottom_nav_active_label_stays_contrasting_after_route_switch_and_dark_toggle(
 fn mermaid_state_cycle_and_markdown_heading_emoji_and_def_list_render_cleanly() {
     reset_reactive_runtime();
     let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
-    let state_src: &str = "stateDiagram-v2\n    [*] --> Active\n    Active --> Frozen : Leave Route\n    Frozen --> Active : Resume Coalesced\n    Frozen --> [*] : Destroy\n";
+    let state_src: &str = "stateDiagram-v2\n    [*] --> Active\n    Active --> Frozen: Leave Route\n    Frozen --> Active: Resume Coalesced\n    Active --> [*]: Destroy\n";
     let md_src: &str = "# Markdown Studio :rocket:\n\n`PageRetention::Freeze`\n: Suspends inactive routes cleanly.\n\n$$x = 1$$\n";
     let mut win: WindowConfig = WindowConfig::default();
     win.set_size(800, 900).set_render(RenderConfig::software());
@@ -2517,8 +2529,13 @@ fn mermaid_state_cycle_and_markdown_heading_emoji_and_def_list_render_cleanly() 
     let r: Rect = resume_r.expect("Resume Coalesced label must be drawn");
     let d: Rect = destroy_r.expect("Destroy label must be drawn");
     assert!(a.get_y() < f.get_y());
-    assert!(d.get_y() > f.bottom() - 2.0);
-    assert!(l.right() <= r.get_x() || r.right() <= l.get_x());
+    for (x, y) in [(l, r), (l, d), (r, d), (d, a), (d, f)].into_iter() {
+        let hit: bool = x.get_x() < y.right()
+            && x.right() > y.get_x()
+            && x.get_y() < y.bottom()
+            && x.bottom() > y.get_y();
+        assert!(!hit);
+    }
 }
 
 #[derive(Clone, Debug, New)]

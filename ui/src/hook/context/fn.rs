@@ -1,5 +1,26 @@
 use super::*;
 
+/// Returns the thread-local reactive generation signal notified whenever the ambient theme provider changes.
+///
+/// # Returns
+///
+/// - `Signal<u64>` - Live generation counter signal in the active reactive runtime.
+fn theme_provider_signal() -> Signal<u64> {
+    ACTIVE_THEME_GEN.with(|slot: &RefCell<Option<Signal<u64>>>| {
+        if let Ok(guard) = slot.try_borrow()
+            && let Some(sig) = *guard
+            && untracked(|| sig.try_get().is_some())
+        {
+            return sig;
+        }
+        let fresh: Signal<u64> = Signal::new(0);
+        if let Ok(mut guard) = slot.try_borrow_mut() {
+            *guard = Some(fresh);
+        }
+        fresh
+    })
+}
+
 /// Registers the active application `UiThemeState` for reactive in-place theme updates across components.
 ///
 /// # Arguments
@@ -11,6 +32,9 @@ pub fn provide_theme(theme: UiThemeState) {
             *guard = Some(theme);
         }
     });
+    let gen_sig: Signal<u64> = theme_provider_signal();
+    let next_gen: u64 = gen_sig.get_untracked().wrapping_add(1);
+    let _: bool = gen_sig.set(next_gen);
 }
 
 /// Clears any ambient `UiThemeState` registered on the current thread.
@@ -18,6 +42,15 @@ pub fn clear_provided_theme() {
     ACTIVE_THEME_STATE.with(|slot: &RefCell<Option<UiThemeState>>| {
         if let Ok(mut guard) = slot.try_borrow_mut() {
             *guard = None;
+        }
+    });
+    ACTIVE_THEME_GEN.with(|slot: &RefCell<Option<Signal<u64>>>| {
+        if let Ok(guard) = slot.try_borrow()
+            && let Some(sig) = *guard
+            && untracked(|| sig.try_get().is_some())
+        {
+            let next_gen: u64 = sig.get_untracked().wrapping_add(1);
+            let _: bool = sig.set(next_gen);
         }
     });
 }
@@ -50,6 +83,7 @@ pub fn active_theme_state() -> Option<UiThemeState> {
 /// - `ThemeTokens` - Current theme tokens (subscribing the active reactive observer when ambient theme exists).
 #[must_use]
 pub fn use_live_tokens(fallback: ThemeTokens) -> ThemeTokens {
+    let _: u64 = theme_provider_signal().get();
     match active_theme_state() {
         Some(theme) => theme.get_tokens().try_get().unwrap_or(fallback),
         None => fallback,
