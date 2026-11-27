@@ -305,6 +305,28 @@ impl ReactiveRuntime {
         boxed.downcast_ref::<T>().cloned()
     }
 
+    /// Returns whether a live signal slot currently has one or more active subscribers.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Reference to the reactive runtime.
+    /// - `SignalId` - Signal identifier to inspect.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - True when the signal is alive and observed by at least one subscriber.
+    pub(crate) fn signal_has_subscribers(&self, id: SignalId) -> bool {
+        let slot: SlotId = id.slot();
+        self.get_signals()
+            .get(slot.as_usize())
+            .map(|entry: &SignalEntry| {
+                entry.get_generation() == slot.get_generation()
+                    && entry.value.is_some()
+                    && !entry.get_subscribers().is_empty()
+            })
+            .unwrap_or(false)
+    }
+
     /// Writes a new signal value in place and propagates dirty notifications without heap allocations.
     ///
     /// # Arguments

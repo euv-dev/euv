@@ -161,6 +161,24 @@ where
         id
     }
 
+    /// Returns whether this signal currently has at least one active downstream subscriber.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Signal handle to inspect.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - True when the signal is alive and observed by at least one memo or effect.
+    #[must_use]
+    pub fn has_subscribers(&self) -> bool {
+        let id: SignalId = self.id();
+        with_runtime(
+            |rt: &mut ReactiveRuntime| rt.signal_has_subscribers(id),
+            false,
+        )
+    }
+
     /// Records a dependency on this signal in the active observer without cloning its value.
     ///
     /// # Arguments

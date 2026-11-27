@@ -38,6 +38,21 @@ impl SceneNode {
         }
     }
 
+    /// Returns a shared reference to the compiled `Style` without copying by value.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene node reference.
+    ///
+    /// # Returns
+    ///
+    /// - `&Style` - Borrowed compiled style reference.
+    #[must_use]
+    pub fn style_ref(&self) -> &Style {
+        let Self { style, .. } = self;
+        style
+    }
+
     /// Returns the optional parent `NodeId`.
     ///
     /// # Arguments
