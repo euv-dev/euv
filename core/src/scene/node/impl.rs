@@ -341,6 +341,24 @@ impl SceneNode {
         self.extras_mut().get_mut_canvas_painter()
     }
 
+    /// Borrows the optional explicit semantic accessibility metadata attached to this node without cloning.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene node reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<&A11yProps>` - Borrowed accessibility metadata if explicitly configured (`None` in O(1) when `extras` is absent).
+    #[must_use]
+    #[inline(always)]
+    pub fn a11y_props_ref(&self) -> Option<&A11yProps> {
+        let Self { extras, .. } = self;
+        extras
+            .as_deref()
+            .and_then(|ext: &NodeExtras| ext.a11y.as_ref())
+    }
+
     /// Returns the optional explicit semantic accessibility metadata attached to this node.
     ///
     /// # Arguments
@@ -353,10 +371,7 @@ impl SceneNode {
     #[must_use]
     #[inline(always)]
     pub fn a11y_props(&self) -> Option<A11yProps> {
-        let Self { extras, .. } = self;
-        extras
-            .as_deref()
-            .and_then(|ext: &NodeExtras| ext.a11y.clone())
+        self.a11y_props_ref().cloned()
     }
 
     /// Sets the optional semantic accessibility metadata on this node.

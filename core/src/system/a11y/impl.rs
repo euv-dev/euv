@@ -160,88 +160,114 @@ impl A11yTree {
     pub fn from_scene(tree: &SceneTree) -> Self {
         let root: NodeId = tree.get_root();
         let focused_id: Option<NodeId> = tree.get_focus().focused_node();
-        let mut nodes: Vec<A11yNode> = Vec::new();
-        Self::collect_node(tree, root, focused_id, &mut nodes);
+        let initial_cap: usize = (tree.live_node_count() / 2).max(1);
+        let mut nodes: Vec<A11yNode> = Vec::with_capacity(initial_cap);
+        Self::collect_node(tree, root, root, focused_id, &mut nodes);
         Self::new(root, nodes, focused_id)
     }
 
-    /// Recursively collects visible, non-hidden nodes into the flat accessibility list.
+    /// Returns `true` when `node` is visible (`Display != None`) and not marked `hidden` in explicit accessibility extras.
+    ///
+    /// # Arguments
+    ///
+    /// - `&SceneNode` - Candidate scene node reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - Whether the node should be exposed in `A11yTree`.
+    #[must_use]
+    #[inline(always)]
+    fn is_node_exposed(node: &SceneNode) -> bool {
+        if node.style_ref().layout_ref().get_display() == Display::None {
+            return false;
+        }
+        !node.a11y_props_ref().is_some_and(A11yProps::get_hidden)
+    }
+
+    /// Recursively collects visible, non-hidden nodes into the flat accessibility list without cloning styles or child vectors.
     ///
     /// # Arguments
     ///
     /// - `&SceneTree` - Retained UI scene tree.
     /// - `NodeId` - Current node handle.
+    /// - `NodeId` - Scene root node handle.
     /// - `Option<NodeId>` - Active focused node identifier.
     /// - `&mut Vec<A11yNode>` - Output accessible node vector.
     fn collect_node(
         tree: &SceneTree,
         node_id: NodeId,
+        root: NodeId,
         focused_id: Option<NodeId>,
         out: &mut Vec<A11yNode>,
     ) {
         let Some(node) = tree.get_node(node_id) else {
             return;
         };
-        if node.get_style().get_layout().get_display() == Display::None {
+        if node.style_ref().layout_ref().get_display() == Display::None {
             return;
         }
-        let props: A11yProps = node.a11y_props().unwrap_or_else(|| {
-            let mut inferred: A11yProps = match node.get_kind() {
-                NodeKind::Text(t) => A11yProps::new(A11yRole::Text, t.clone()),
-                NodeKind::Input(state) => {
-                    let mut p: A11yProps =
-                        A11yProps::new(A11yRole::TextInput, state.get_placeholder().clone());
-                    p.set_value(state.get_value().clone())
-                        .set_disabled(state.get_disabled());
-                    p
+        let explicit_ref: Option<&A11yProps> = node.a11y_props_ref();
+        if explicit_ref.is_some_and(A11yProps::get_hidden) {
+            return;
+        }
+        let props: A11yProps = match explicit_ref {
+            Some(explicit) => explicit.clone(),
+            None => {
+                let mut inferred: A11yProps = match node.get_kind() {
+                    NodeKind::Text(t) => A11yProps::new(A11yRole::Text, t.clone()),
+                    NodeKind::Input(state) => {
+                        let mut p: A11yProps =
+                            A11yProps::new(A11yRole::TextInput, state.get_placeholder().clone());
+                        p.set_value(state.get_value().clone())
+                            .set_disabled(state.get_disabled());
+                        p
+                    }
+                    NodeKind::Image(_) => A11yProps::new(A11yRole::Image, String::new()),
+                    NodeKind::Canvas => A11yProps::new(A11yRole::Canvas, String::new()),
+                    NodeKind::ScrollView => A11yProps::new(A11yRole::ScrollView, String::new()),
+                    NodeKind::Portal => A11yProps::new(A11yRole::Dialog, String::new()),
+                    NodeKind::View | NodeKind::Fragment => {
+                        let role: A11yRole = if node_id == root {
+                            A11yRole::Window
+                        } else if node
+                            .get_handlers()
+                            .handler_for(&UiEventKind::Click(Point::default()))
+                            .is_some()
+                        {
+                            A11yRole::Button
+                        } else {
+                            A11yRole::Group
+                        };
+                        A11yProps::new(role, String::new())
+                    }
+                };
+                if node.get_interaction().get_focused() {
+                    inferred.set_live_region(A11yLiveRegion::Polite);
                 }
-                NodeKind::Image(_) => A11yProps::new(A11yRole::Image, String::new()),
-                NodeKind::Canvas => A11yProps::new(A11yRole::Canvas, String::new()),
-                NodeKind::ScrollView => A11yProps::new(A11yRole::ScrollView, String::new()),
-                NodeKind::Portal => A11yProps::new(A11yRole::Dialog, String::new()),
-                NodeKind::View | NodeKind::Fragment => {
-                    let role: A11yRole = if node_id == tree.get_root() {
-                        A11yRole::Window
-                    } else if node
-                        .get_handlers()
-                        .handler_for(&UiEventKind::Click(Point::default()))
-                        .is_some()
-                    {
-                        A11yRole::Button
-                    } else {
-                        A11yRole::Group
-                    };
-                    A11yProps::new(role, String::new())
-                }
-            };
-            if node.get_interaction().get_focused() {
-                inferred.set_live_region(A11yLiveRegion::Polite);
+                inferred
             }
-            inferred
-        });
-        if props.get_hidden() {
-            return;
-        }
-        let visible_children: Vec<NodeId> = node
-            .get_children()
-            .iter()
-            .copied()
-            .filter(|cid: &NodeId| {
-                tree.get_node(*cid).is_some_and(|c: &SceneNode| {
-                    c.get_style().get_layout().get_display() != Display::None
-                        && !c.a11y_props().is_some_and(|p: A11yProps| p.get_hidden())
-                })
-            })
-            .collect();
+        };
+        let raw_children: &[NodeId] = node.get_children().as_slice();
+        let visible_children: Vec<NodeId> = if raw_children.is_empty() {
+            Vec::new()
+        } else {
+            let mut vis: Vec<NodeId> = Vec::with_capacity(raw_children.len());
+            for &cid in raw_children {
+                if tree.get_node(cid).is_some_and(Self::is_node_exposed) {
+                    vis.push(cid);
+                }
+            }
+            vis
+        };
         out.push(A11yNode::new(
             node_id,
             props,
             node.get_layout_box().get_bounds(),
             focused_id == Some(node_id),
-            visible_children.clone(),
+            visible_children,
         ));
-        for child_id in visible_children.into_iter() {
-            Self::collect_node(tree, child_id, focused_id, out);
+        for &child_id in raw_children {
+            Self::collect_node(tree, child_id, root, focused_id, out);
         }
     }
 
@@ -289,7 +315,7 @@ impl A11yTree {
     /// - `String` - Newline-delimited semantic role summary.
     #[must_use]
     pub fn format_summary(&self, platform: PlatformKind) -> String {
-        let mut out: String = String::new();
+        let mut out: String = String::with_capacity(self.get_nodes().len().saturating_mul(24));
         for node in self.get_nodes().iter() {
             let role: &str = node.get_props().get_role().native_role_name(platform);
             let label: &str = node.get_props().get_label().as_str();
