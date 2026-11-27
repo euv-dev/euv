@@ -30,6 +30,12 @@ pub(crate) const EUV_FMT_MACRO_MIN_LEN: usize = 4;
 pub(crate) const EUV_FMT_MACRO_MAX_LEN: usize = 12;
 /// Precomputed 128-space indentation buffer for zero-loop bulk indentation slicing.
 pub(crate) const INDENT_SPACES_128: &str = "                                                                                                                                ";
+/// Minimum `.rs` file count before `format_workspace_macros` fans out across worker threads.
+pub(crate) const EUV_FMT_PARALLEL_THRESHOLD: usize = 16;
+/// Maximum scoped worker threads spawned during parallel workspace macro formatting.
+pub(crate) const EUV_FMT_MAX_WORKERS: usize = 8;
+/// Error message returned if a parallel macro-formatting worker thread panics.
+pub(crate) const ERR_FMT_WORKER_PANICKED: &str = "euv fmt worker thread panicked";
 /// Error message returned when `euv fmt --check` detects unformatted macro blocks.
 pub(crate) const ERR_FMT_CHECK_FAILED: &str = "unformatted euv macro blocks found in";
 /// ASCII byte for `!`.

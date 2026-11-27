@@ -24,3 +24,14 @@ pub struct FmtReport {
     /// Relative or display paths of files needing or receiving formatting.
     pub(crate) changed_files: Vec<String>,
 }
+
+/// Per-worker formatting counters and changed paths returned by parallel macro formatting chunks.
+#[derive(Debug, Default, New)]
+pub(crate) struct FmtChunkSummary {
+    /// Number of `.rs` files in this chunk whose macro blocks required reformatting.
+    pub(crate) files_formatted: usize,
+    /// Total `euv` macro blocks normalized in this chunk.
+    pub(crate) macros_formatted: usize,
+    /// Display paths of changed files in deterministic sorted chunk order.
+    pub(crate) changed_files: Vec<String>,
+}

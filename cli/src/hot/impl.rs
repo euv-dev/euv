@@ -98,16 +98,40 @@ impl WatchSnapshot {
         exclude_dir: Option<&Path>,
     ) -> io::Result<Self> {
         let mut entries: BTreeMap<PathBuf, FileStamp> = BTreeMap::new();
-        let canonical_exclude: Option<PathBuf> =
-            exclude_dir.map(|p: &Path| fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf()));
-        if root.exists() {
-            scan_dir_stamps(
-                root,
-                allowed_exts,
-                canonical_exclude.as_deref(),
-                &mut entries,
-            )?;
+        if !root.exists() {
+            return Ok(Self { entries });
         }
+        let Some(ex) = exclude_dir else {
+            scan_dir_stamps(root, allowed_exts, None, None, false, &mut entries)?;
+            return Ok(Self { entries });
+        };
+        let (canonical_exclude, exclude_is_canon): (PathBuf, bool) = match fs::canonicalize(ex) {
+            Ok(canon) => (canon, true),
+            Err(_) => (ex.to_path_buf(), false),
+        };
+        let canonical_root: Option<PathBuf> = if exclude_is_canon {
+            fs::canonicalize(root).ok()
+        } else {
+            None
+        };
+        let (canon_dir, check_real_exclude): (Option<&Path>, bool) =
+            if let Some(cr) = canonical_root.as_deref() {
+                if canonical_exclude.starts_with(cr) || cr.starts_with(&canonical_exclude) {
+                    (Some(cr), true)
+                } else {
+                    (None, false)
+                }
+            } else {
+                (None, true)
+            };
+        scan_dir_stamps(
+            root,
+            allowed_exts,
+            Some(canonical_exclude.as_path()),
+            canon_dir,
+            check_real_exclude,
+            &mut entries,
+        )?;
         Ok(Self { entries })
     }
 
@@ -126,19 +150,36 @@ impl WatchSnapshot {
         let mut added: Vec<String> = Vec::new();
         let mut modified: Vec<String> = Vec::new();
         let mut removed: Vec<String> = Vec::new();
-        for (path, next_stamp) in next.get_entries().iter() {
-            match self.get_entries().get(path) {
-                None => added.push(path.display().to_string()),
-                Some(prev_stamp) if prev_stamp != next_stamp => {
-                    modified.push(path.display().to_string());
+        let mut prev_iter: Peekable<btree_map::Iter<'_, PathBuf, FileStamp>> =
+            self.get_entries().iter().peekable();
+        let mut next_iter: Peekable<btree_map::Iter<'_, PathBuf, FileStamp>> =
+            next.get_entries().iter().peekable();
+        while let (Some(&(prev_path, prev_stamp)), Some(&(next_path, next_stamp))) =
+            (prev_iter.peek(), next_iter.peek())
+        {
+            match prev_path.cmp(next_path) {
+                cmp::Ordering::Less => {
+                    removed.push(prev_path.display().to_string());
+                    let _: Option<(&PathBuf, &FileStamp)> = prev_iter.next();
                 }
-                Some(_) => {}
+                cmp::Ordering::Greater => {
+                    added.push(next_path.display().to_string());
+                    let _: Option<(&PathBuf, &FileStamp)> = next_iter.next();
+                }
+                cmp::Ordering::Equal => {
+                    if prev_stamp != next_stamp {
+                        modified.push(next_path.display().to_string());
+                    }
+                    let _: Option<(&PathBuf, &FileStamp)> = prev_iter.next();
+                    let _: Option<(&PathBuf, &FileStamp)> = next_iter.next();
+                }
             }
         }
-        for path in self.get_entries().keys() {
-            if !next.get_entries().contains_key(path) {
-                removed.push(path.display().to_string());
-            }
+        for (prev_path, _) in prev_iter {
+            removed.push(prev_path.display().to_string());
+        }
+        for (next_path, _) in next_iter {
+            added.push(next_path.display().to_string());
         }
         FileChangeSet::new(added, modified, removed)
     }

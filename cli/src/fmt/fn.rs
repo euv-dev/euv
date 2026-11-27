@@ -156,6 +156,38 @@ pub fn run_unified_base_fmt(target_root: &Path, check: bool) -> io::Result<Unifi
     runtime.block_on(execute_unified_fmt(target_root, check))
 }
 
+/// Formats a contiguous slice of `.rs` files in order, returning chunk counters and changed paths.
+///
+/// # Arguments
+///
+/// - `&[PathBuf]` - Slice of Rust source file paths to process.
+/// - `bool` - When `true`, verifies formatting without writing modified files back to disk.
+///
+/// # Returns
+///
+/// - `io::Result<FmtChunkSummary>` - Chunk formatting counters and changed paths, or I/O error.
+fn format_rs_file_chunk(chunk: &[PathBuf], check: bool) -> io::Result<FmtChunkSummary> {
+    let mut files_formatted: usize = 0;
+    let mut macros_formatted: usize = 0;
+    let mut changed_files: Vec<String> = Vec::new();
+    for file_path in chunk.iter() {
+        let original: String = fs::read_to_string(file_path)?;
+        if let Some((formatted, macro_hits)) = format_euv_macros_if_needed(&original) {
+            files_formatted += 1;
+            macros_formatted += macro_hits.max(1);
+            changed_files.push(file_path.display().to_string());
+            if !check {
+                fs::write(file_path, formatted)?;
+            }
+        }
+    }
+    Ok(FmtChunkSummary::new(
+        files_formatted,
+        macros_formatted,
+        changed_files,
+    ))
+}
+
 /// Formats all `.rs` files under `root` (or a single `.rs` file) in place or in `--check` mode.
 ///
 /// # Arguments
@@ -170,22 +202,66 @@ pub fn format_workspace_macros(root: &Path, check: bool) -> io::Result<FmtReport
     let mut files: Vec<PathBuf> = Vec::new();
     collect_rs_files(root, &mut files)?;
     files.sort();
-    let mut report: FmtReport = FmtReport::new(files.len(), 0, 0, 0, 0, check, Vec::new());
-    for file_path in files.into_iter() {
-        let original: String = fs::read_to_string(&file_path)?;
-        if let Some((formatted, macro_hits)) = format_euv_macros_if_needed(&original) {
-            let next_files: usize = report.get_files_formatted() + 1;
-            let next_macros: usize = report.get_macros_formatted() + macro_hits.max(1);
-            report.set_files_formatted(next_files);
-            report.set_macros_formatted(next_macros);
-            report
-                .get_mut_changed_files()
-                .push(file_path.display().to_string());
-            if !check {
-                fs::write(&file_path, formatted)?;
-            }
+    let files_scanned: usize = files.len();
+    let worker_count: usize = if files_scanned >= EUV_FMT_PARALLEL_THRESHOLD {
+        thread::available_parallelism()
+            .map(NonZeroUsize::get)
+            .unwrap_or(1)
+            .clamp(1, EUV_FMT_MAX_WORKERS)
+            .min(files_scanned)
+    } else {
+        1
+    };
+    let summary: FmtChunkSummary = if worker_count <= 1 {
+        format_rs_file_chunk(&files, check)?
+    } else {
+        let chunk_size: usize = files_scanned.div_ceil(worker_count);
+        let chunk_results: Vec<io::Result<FmtChunkSummary>> =
+            thread::scope(|scope: &Scope<'_, '_>| {
+                let mut handles: Vec<ScopedJoinHandle<'_, io::Result<FmtChunkSummary>>> =
+                    Vec::with_capacity(worker_count);
+                for chunk in files.chunks(chunk_size) {
+                    handles.push(scope.spawn(move || format_rs_file_chunk(chunk, check)));
+                }
+                let mut results: Vec<io::Result<FmtChunkSummary>> =
+                    Vec::with_capacity(handles.len());
+                for handle in handles {
+                    match handle.join() {
+                        Ok(res) => results.push(res),
+                        Err(_) => results.push(Err(Error::other(ERR_FMT_WORKER_PANICKED))),
+                    }
+                }
+                results
+            });
+        let mut total_files: usize = 0;
+        let mut total_macros: usize = 0;
+        let mut all_changed: Vec<String> = Vec::new();
+        for res in chunk_results {
+            let FmtChunkSummary {
+                files_formatted,
+                macros_formatted,
+                changed_files,
+            } = res?;
+            total_files += files_formatted;
+            total_macros += macros_formatted;
+            all_changed.extend(changed_files);
         }
-    }
+        FmtChunkSummary::new(total_files, total_macros, all_changed)
+    };
+    let FmtChunkSummary {
+        files_formatted,
+        macros_formatted,
+        changed_files,
+    } = summary;
+    let report: FmtReport = FmtReport::new(
+        files_scanned,
+        files_formatted,
+        macros_formatted,
+        0,
+        0,
+        check,
+        changed_files,
+    );
     if check && report.get_files_formatted() > 0 {
         return Err(Error::other(format!(
             "{ERR_FMT_CHECK_FAILED}: {}",
@@ -218,9 +294,15 @@ fn collect_rs_files(path: &Path, out: &mut Vec<PathBuf>) -> io::Result<()> {
     for entry_res in fs::read_dir(path)? {
         let entry: DirEntry = entry_res?;
         let child: PathBuf = entry.path();
-        if child.is_dir() {
-            let name: String = entry.file_name().to_string_lossy().into_owned();
-            if name.starts_with('.') || EUV_FMT_SKIP_DIRS.contains(&name.as_str()) {
+        let is_dir: bool = match entry.file_type() {
+            Ok(ft) if ft.is_dir() => true,
+            Ok(ft) if ft.is_file() => false,
+            _ => child.is_dir(),
+        };
+        if is_dir {
+            let file_name: OsString = entry.file_name();
+            let name: Cow<'_, str> = file_name.to_string_lossy();
+            if name.starts_with('.') || EUV_FMT_SKIP_DIRS.contains(&name.as_ref()) {
                 continue;
             }
             collect_rs_files(&child, out)?;

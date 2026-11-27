@@ -614,6 +614,9 @@ fn strip_base_prefix<'a>(path: &'a str, base_url: &str) -> &'a str {
 ///
 /// - `String` - Decoded UTF-8 URL path.
 fn percent_decode_path(input: &str) -> String {
+    if !input.contains('%') {
+        return input.to_string();
+    }
     let bytes: &[u8] = input.as_bytes();
     let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
     let mut i: usize = 0;
@@ -699,22 +702,29 @@ fn resolve_static_file(out_dir: &Path, url_path: &str) -> Option<PathBuf> {
 /// - `&'static str` - Appropriate MIME type string.
 #[must_use]
 pub fn mime_type_for_path(path: &Path) -> &'static str {
-    let ext: String = path
-        .extension()
-        .and_then(|s: &OsStr| s.to_str())
-        .map(str::to_ascii_lowercase)
-        .unwrap_or_default();
-    match ext.as_str() {
-        EXT_HTML => MIME_HTML,
-        EXT_JSON => MIME_JSON,
-        EXT_XML => MIME_XML,
-        EXT_CSS => MIME_CSS,
-        EXT_WASM => MIME_WASM,
-        EXT_SVG => MIME_SVG,
-        EXT_PNG => MIME_PNG,
-        EXT_JPG | EXT_JPEG => MIME_JPEG,
-        EXT_WEBP => MIME_WEBP,
-        _ => MIME_OCTET,
+    let Some(ext) = path.extension().and_then(|s: &OsStr| s.to_str()) else {
+        return MIME_OCTET;
+    };
+    if ext.eq_ignore_ascii_case(EXT_HTML) {
+        MIME_HTML
+    } else if ext.eq_ignore_ascii_case(EXT_JSON) {
+        MIME_JSON
+    } else if ext.eq_ignore_ascii_case(EXT_XML) {
+        MIME_XML
+    } else if ext.eq_ignore_ascii_case(EXT_CSS) {
+        MIME_CSS
+    } else if ext.eq_ignore_ascii_case(EXT_WASM) {
+        MIME_WASM
+    } else if ext.eq_ignore_ascii_case(EXT_SVG) {
+        MIME_SVG
+    } else if ext.eq_ignore_ascii_case(EXT_PNG) {
+        MIME_PNG
+    } else if ext.eq_ignore_ascii_case(EXT_JPG) || ext.eq_ignore_ascii_case(EXT_JPEG) {
+        MIME_JPEG
+    } else if ext.eq_ignore_ascii_case(EXT_WEBP) {
+        MIME_WEBP
+    } else {
+        MIME_OCTET
     }
 }
 
@@ -725,6 +735,8 @@ pub fn mime_type_for_path(path: &Path) -> &'static str {
 /// - `&Path` - Current directory to scan.
 /// - `&[&str]` - Allowed lowercase file extensions.
 /// - `Option<&Path>` - Optional canonical output directory excluded from watching.
+/// - `Option<&Path>` - Canonical path of `dir` when `exclude_dir` lies within `dir`.
+/// - `bool` - Whether non-symlink child directories must be tested against `exclude_dir`.
 /// - `&mut BTreeMap<PathBuf, FileStamp>` - Accumulator map.
 ///
 /// # Returns
@@ -734,13 +746,69 @@ pub(crate) fn scan_dir_stamps(
     dir: &Path,
     allowed_exts: &[&str],
     exclude_dir: Option<&Path>,
+    canon_dir: Option<&Path>,
+    check_real_exclude: bool,
     entries: &mut BTreeMap<PathBuf, FileStamp>,
 ) -> io::Result<()> {
     for entry_res in fs::read_dir(dir)? {
         let entry: DirEntry = entry_res?;
         let path: PathBuf = entry.path();
-        if path.is_dir() {
-            let name: String = entry.file_name().to_string_lossy().into_owned();
+        if let Ok(ft) = entry.file_type() {
+            if ft.is_dir() {
+                let file_name: OsString = entry.file_name();
+                let name: Cow<'_, str> = file_name.to_string_lossy();
+                if should_skip_watch_dir(&name) {
+                    continue;
+                }
+                if check_real_exclude && let Some(excluded) = exclude_dir {
+                    if let Some(cur_canon) = canon_dir {
+                        let child_canon: PathBuf = cur_canon.join(&file_name);
+                        if child_canon == excluded || child_canon.starts_with(excluded) {
+                            continue;
+                        }
+                        let recurse_check: bool = excluded.starts_with(&child_canon);
+                        let next_canon: Option<&Path> =
+                            recurse_check.then_some(child_canon.as_path());
+                        scan_dir_stamps(
+                            &path,
+                            allowed_exts,
+                            exclude_dir,
+                            next_canon,
+                            recurse_check,
+                            entries,
+                        )?;
+                        continue;
+                    }
+                    let canon: PathBuf = fs::canonicalize(&path).unwrap_or_else(|_| path.clone());
+                    if canon == excluded || canon.starts_with(excluded) {
+                        continue;
+                    }
+                }
+                scan_dir_stamps(
+                    &path,
+                    allowed_exts,
+                    exclude_dir,
+                    None,
+                    check_real_exclude,
+                    entries,
+                )?;
+                continue;
+            }
+            if ft.is_file() {
+                if has_allowed_extension(&path, allowed_exts)
+                    && let Ok(meta) = entry.metadata()
+                {
+                    let _: Option<FileStamp> = entries.insert(path, stamp_from_metadata(&meta));
+                }
+                continue;
+            }
+        }
+        let Ok(meta) = fs::metadata(&path) else {
+            continue;
+        };
+        if meta.is_dir() {
+            let file_name: OsString = entry.file_name();
+            let name: Cow<'_, str> = file_name.to_string_lossy();
             if should_skip_watch_dir(&name) {
                 continue;
             }
@@ -749,13 +817,21 @@ pub(crate) fn scan_dir_stamps(
                 if canon == excluded || canon.starts_with(excluded) {
                     continue;
                 }
+                let recurse_check: bool = excluded.starts_with(&canon);
+                let next_canon: Option<&Path> = recurse_check.then_some(canon.as_path());
+                scan_dir_stamps(
+                    &path,
+                    allowed_exts,
+                    exclude_dir,
+                    next_canon,
+                    recurse_check,
+                    entries,
+                )?;
+                continue;
             }
-            scan_dir_stamps(&path, allowed_exts, exclude_dir, entries)?;
-        } else if path.is_file()
-            && has_allowed_extension(&path, allowed_exts)
-            && let Ok(meta) = fs::metadata(&path)
-        {
-            entries.insert(path, stamp_from_metadata(&meta));
+            scan_dir_stamps(&path, allowed_exts, None, None, false, entries)?;
+        } else if meta.is_file() && has_allowed_extension(&path, allowed_exts) {
+            let _: Option<FileStamp> = entries.insert(path, stamp_from_metadata(&meta));
         }
     }
     Ok(())
