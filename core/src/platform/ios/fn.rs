@@ -251,14 +251,39 @@ pub fn ios_system_theme() -> ThemeMode {
     }
 }
 
-/// Allocates a `UIWindow`, `UIView`, and `CAMetalLayer` via direct UIKit / QuartzCore FFI.
+/// Queries the native display maximum refresh rate via `UIScreen.mainScreen.maximumFramesPerSecond`.
+///
+/// # Returns
+///
+/// - `f32` - Active display refresh rate in Hertz (`120.0` on ProMotion iPhones/iPads, `60.0` fallback).
+#[must_use]
+pub fn ios_display_refresh_rate_hz() -> f32 {
+    // SAFETY: Static null-terminated Objective-C class and selector names.
+    let (screen_cls, sel_main, sel_max_fps): (*mut c_void, *mut c_void, *mut c_void) = unsafe {
+        (
+            objc_getClass(UIKIT_CLS_UI_SCREEN.as_ptr().cast::<c_char>()),
+            sel_registerName(UIKIT_SEL_MAIN_SCREEN.as_ptr().cast::<c_char>()),
+            sel_registerName(UIKIT_SEL_MAX_FPS.as_ptr().cast::<c_char>()),
+        )
+    };
+    let screen: *mut c_void = uikit_send_ptr0(screen_cls, sel_main);
+    let hz: isize = uikit_send_isize0(screen, sel_max_fps);
+    if hz >= 24 {
+        (hz as f32).clamp(MIN_REFRESH_RATE_HZ, MAX_REFRESH_RATE_HZ)
+    } else {
+        FALLBACK_REFRESH_RATE_HZ
+    }
+}
+
+/// Allocates a `UIWindow`, `UIView`, and triple-buffered `CAMetalLayer` via direct UIKit / QuartzCore FFI.
 ///
 /// # Returns
 ///
 /// - `(usize, usize, usize)` - Tuple `(ui_window, ui_view, metal_layer)`.
 pub(crate) fn ios_create_native_handles() -> (usize, usize, usize) {
     // SAFETY: Static null-terminated Objective-C names.
-    let (win_cls, view_cls, layer_cls, sel_alloc, sel_init, sel_layer): (
+    let (win_cls, view_cls, layer_cls, sel_alloc, sel_init, sel_layer, sel_max_drawables): (
+        *mut c_void,
         *mut c_void,
         *mut c_void,
         *mut c_void,
@@ -273,11 +298,24 @@ pub(crate) fn ios_create_native_handles() -> (usize, usize, usize) {
             sel_registerName(UIKIT_SEL_ALLOC.as_ptr().cast::<c_char>()),
             sel_registerName(UIKIT_SEL_INIT.as_ptr().cast::<c_char>()),
             sel_registerName(UIKIT_SEL_LAYER.as_ptr().cast::<c_char>()),
+            sel_registerName(UIKIT_SEL_SET_MAX_DRAWABLE_COUNT.as_ptr().cast::<c_char>()),
         )
     };
     let ui_window: *mut c_void = uikit_send_ptr0(uikit_send_ptr0(win_cls, sel_alloc), sel_init);
     let ui_view: *mut c_void = uikit_send_ptr0(uikit_send_ptr0(view_cls, sel_alloc), sel_init);
     let metal_layer: *mut c_void = uikit_send_ptr0(layer_cls, sel_layer);
+    if !metal_layer.is_null() {
+        // SAFETY: `-[CAMetalLayer setMaximumDrawableCount:]` takes `NSUInteger` (`usize`) on 64-bit iOS.
+        unsafe {
+            let func: unsafe extern "C" fn(*mut c_void, *mut c_void, usize) =
+                transmute(objc_msgSend as *const ());
+            func(
+                metal_layer,
+                sel_max_drawables,
+                IOS_METAL_TRIPLE_BUFFER_COUNT,
+            );
+        }
+    }
     (ui_window as usize, ui_view as usize, metal_layer as usize)
 }
 
@@ -339,6 +377,48 @@ pub(crate) fn ios_present_cg_image(
         }
     }
     Ok(())
+}
+
+/// Configures a UIKit `CADisplayLink*` for ProMotion high-refresh rendering via `setPreferredFrameRateRange:` (iOS 15+) or `setPreferredFramesPerSecond:`.
+///
+/// # Arguments
+///
+/// - `usize` - Raw `CADisplayLink*` pointer (`0` when detached).
+/// - `f32` - Target maximum display refresh rate in Hertz (`60.0`..`240.0`).
+pub(crate) fn uikit_configure_display_link_refresh(display_link: usize, max_hz: f32) {
+    if display_link == 0 {
+        return;
+    }
+    let pacing: FramePacingConfig = compute_frame_pacing(max_hz);
+    let range: CaFrameRateRange = CaFrameRateRange {
+        minimum: pacing.get_min_hz(),
+        maximum: pacing.get_max_hz(),
+        preferred: pacing.get_preferred_hz(),
+    };
+    // SAFETY: Checks `respondsToSelector:` before sending iOS 15+ `CAFrameRateRange` or fallback `NSInteger` FPS.
+    unsafe {
+        let link: *mut c_void = display_link as *mut c_void;
+        let sel_responds: *mut c_void =
+            sel_registerName(UIKIT_SEL_RESPONDS_TO_SELECTOR.as_ptr().cast::<c_char>());
+        let sel_range: *mut c_void = sel_registerName(
+            UIKIT_SEL_SET_PREFERRED_FRAME_RATE_RANGE
+                .as_ptr()
+                .cast::<c_char>(),
+        );
+        let responds_fn: unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void) -> i8 =
+            transmute(objc_msgSend as *const ());
+        if responds_fn(link, sel_responds, sel_range) != 0 {
+            let set_range: unsafe extern "C" fn(*mut c_void, *mut c_void, CaFrameRateRange) =
+                transmute(objc_msgSend as *const ());
+            set_range(link, sel_range, range);
+        } else {
+            let sel_fps: *mut c_void =
+                sel_registerName(UIKIT_SEL_SET_PREFERRED_FPS.as_ptr().cast::<c_char>());
+            let set_fps: unsafe extern "C" fn(*mut c_void, *mut c_void, isize) =
+                transmute(objc_msgSend as *const ());
+            set_fps(link, sel_fps, pacing.get_preferred_hz().round() as isize);
+        }
+    }
 }
 
 /// Pauses or resumes a UIKit `CADisplayLink*` via `-[CADisplayLink setPaused:]`.

@@ -39,6 +39,11 @@ pub struct HeadlessPlatform {
     /// Simulated OS theme mode.
     #[get(type(copy))]
     pub(crate) theme: ThemeMode,
+    /// Simulated display refresh rate in Hertz (`60.0` default; supports `90.0`/`120.0`/`144.0`/`240.0` testing).
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) refresh_rate_hz: f32,
     /// Monotonic window ID allocator.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]

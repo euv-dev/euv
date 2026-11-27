@@ -305,7 +305,11 @@ impl PlatformBackend for MacOsPlatform {
         let id: WindowId = WindowId::new(self.get_next_id());
         self.set_next_id(self.get_next_id().wrapping_add(1));
         let scale: f32 = macos_backing_scale_factor();
+        let hz: f32 = macos_window_refresh_rate_hz(ns_window as *mut c_void);
         let mut state: WindowState = WindowState::from_config(id, config, scale);
+        state
+            .get_mut_display()
+            .set_refresh_rate_hz(hz.round() as u32);
         state.set_system_theme(macos_system_theme());
         if config.get_decorations() {
             state.set_safe_area(SafeAreaInsets::new(28.0, 0.0, 0.0, 0.0));

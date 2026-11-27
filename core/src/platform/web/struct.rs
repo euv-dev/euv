@@ -52,6 +52,16 @@ pub struct WebPlatform {
     #[get(pub(crate))]
     #[set(pub(crate))]
     pub(crate) last_locale: String,
+    /// Last measured CSS `env(safe-area-inset-*)` insets in logical CSS pixels.
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) last_safe_area: SafeAreaInsets,
+    /// Measured browser display refresh rate in Hertz (`60.0` default, updated from `requestAnimationFrame` cadence).
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) refresh_rate_hz: f32,
     /// Whether the browser `requestAnimationFrame` loop is paused while hidden/backgrounded.
     #[get(pub(crate), type(copy))]
     #[set(pub(crate))]

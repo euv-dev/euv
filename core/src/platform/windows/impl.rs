@@ -117,10 +117,18 @@ impl WindowController for WindowsPlatform {
                     .push(WindowEvent::RedrawRequested(id));
                 Ok(())
             }
+            WindowCommand::SetFullscreen(id, mode) => {
+                let rec: &mut WindowsWindowRecord = self
+                    .get_mut_windows()
+                    .get_mut(&id)
+                    .ok_or(PlatformError::WindowNotFound(id.get_value()))?;
+                rec.get_mut_config().set_fullscreen(mode);
+                rec.get_mut_state().set_fullscreen(mode);
+                Ok(())
+            }
             WindowCommand::SetPosition(id, _, _)
             | WindowCommand::SetResizable(id, _)
             | WindowCommand::SetDecorations(id, _)
-            | WindowCommand::SetFullscreen(id, _)
             | WindowCommand::SetCursor(id, _)
             | WindowCommand::SetIme(id, _, _)
             | WindowCommand::SetStatusBarStyle(id, _) => {
@@ -178,7 +186,11 @@ impl PlatformBackend for WindowsPlatform {
         self.set_class_registered(registered);
         let id: WindowId = WindowId::new(self.get_next_id());
         self.set_next_id(self.get_next_id().wrapping_add(1));
-        let state: WindowState = WindowState::from_config(id, config, scale);
+        let mut state: WindowState = WindowState::from_config(id, config, scale);
+        let hz: f32 = win32_display_refresh_rate_hz(hwnd);
+        state
+            .get_mut_display()
+            .set_refresh_rate_hz(hz.round() as u32);
         self.get_mut_windows().insert(
             id,
             WindowsWindowRecord {

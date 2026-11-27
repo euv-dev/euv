@@ -1,6 +1,15 @@
 /// HTML tag name created when mounting a cross-platform canvas surface.
 pub(crate) const WEB_CANVAS_TAG: &str = "canvas";
 
+/// HTML tag name used for zero-cost hidden safe-area CSS `env()` measurement probes.
+pub(crate) const WEB_DIV_TAG: &str = "div";
+
+/// Hidden probe style measuring CSS `env(safe-area-inset-left)` as width and `env(safe-area-inset-top)` as height.
+pub(crate) const WEB_SAFE_AREA_TOP_LEFT_STYLE: &str = "position:fixed;top:0;left:0;width:env(safe-area-inset-left,0px);height:env(safe-area-inset-top,0px);pointer-events:none;visibility:hidden;";
+
+/// Hidden probe style measuring CSS `env(safe-area-inset-right)` as width and `env(safe-area-inset-bottom)` as height.
+pub(crate) const WEB_SAFE_AREA_BOTTOM_RIGHT_STYLE: &str = "position:fixed;top:0;left:0;width:env(safe-area-inset-right,0px);height:env(safe-area-inset-bottom,0px);pointer-events:none;visibility:hidden;";
+
 /// Inline style HTML attribute name.
 pub(crate) const WEB_ATTR_STYLE: &str = "style";
 

@@ -15,6 +15,7 @@ impl Default for IosPlatform {
             pending_events: Vec::new(),
             clipboard_cache: None,
             display_link: 0,
+            refresh_rate_hz: ios_display_refresh_rate_hz(),
             pump_paused: false,
         }
     }
@@ -22,7 +23,7 @@ impl Default for IosPlatform {
 
 /// UIKit system event injection and display-link lifecycle helpers for `IosPlatform`.
 impl IosPlatform {
-    /// Attaches a host `CADisplayLink*` pointer so background transitions pause it automatically with zero CPU/GPU wakeups.
+    /// Attaches a host `CADisplayLink*` pointer, unlocking ProMotion refresh range and automatic background pause.
     ///
     /// # Arguments
     ///
@@ -31,8 +32,39 @@ impl IosPlatform {
     pub fn attach_display_link(&mut self, display_link: usize) {
         self.set_display_link(display_link);
         if display_link != 0 {
+            uikit_configure_display_link_refresh(display_link, self.get_refresh_rate_hz());
             uikit_set_display_link_paused(display_link, self.get_pump_paused());
         }
+    }
+
+    /// Updates live safe-area insets across open UIKit windows and enqueues `WindowEvent::SafeAreaChanged`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable iOS/iPadOS platform backend.
+    /// - `SafeAreaInsets` - Resolved safe-area insets in logical points.
+    pub fn update_safe_area(&mut self, insets: SafeAreaInsets) {
+        let mut ids: Vec<WindowId> = Vec::with_capacity(self.get_windows().len());
+        for (&wid, rec) in self.get_mut_windows().iter_mut() {
+            rec.get_mut_state().set_safe_area(insets);
+            ids.push(wid);
+        }
+        for wid in ids.into_iter() {
+            self.get_mut_pending_events()
+                .push(WindowEvent::SafeAreaChanged(wid, insets));
+        }
+    }
+
+    /// Resets transient per-scene UIKit session state on same-process scene disconnect and reconnect.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable iOS/iPadOS platform backend.
+    pub fn reset_session(&mut self) {
+        self.set_display_link(0);
+        self.set_pump_paused(false);
+        self.get_mut_windows().clear();
+        self.get_mut_pending_events().clear();
     }
 
     /// Enqueues a normalized UIKit `SystemEvent` to be drained on the next `poll_events()` tick.
@@ -43,8 +75,8 @@ impl IosPlatform {
     /// - `SystemEvent` - System event forwarded from `UIApplicationDelegate` / `UISceneDelegate`.
     pub fn push_system_event(&mut self, event: SystemEvent) {
         match &event {
-            SystemEvent::Background => self.set_frame_pump_paused(true),
-            SystemEvent::Foreground => self.set_frame_pump_paused(false),
+            SystemEvent::Background | SystemEvent::Terminate => self.set_frame_pump_paused(true),
+            SystemEvent::Appear | SystemEvent::Foreground => self.set_frame_pump_paused(false),
             _ => {}
         }
         self.get_mut_pending_events()
@@ -96,6 +128,21 @@ impl WindowController for IosPlatform {
                 rec.get_mut_config().set_status_bar(style);
                 Ok(())
             }
+            WindowCommand::SetFullscreen(id, mode) => {
+                let rec: &mut IosWindowRecord = self
+                    .get_mut_windows()
+                    .get_mut(&id)
+                    .ok_or(PlatformError::WindowNotFound(id.get_value()))?;
+                rec.get_mut_config().set_fullscreen(mode);
+                rec.get_mut_state().set_fullscreen(mode);
+                let arg: &str = if mode == FullscreenMode::Windowed {
+                    FULLSCREEN_ACTION_OFF
+                } else {
+                    FULLSCREEN_ACTION_ON
+                };
+                let _: bool = dispatch_native_action(NATIVE_ACTION_FULLSCREEN, arg, "");
+                Ok(())
+            }
             WindowCommand::SetRenderMode(id, mode) => {
                 let rec: &mut IosWindowRecord = self
                     .get_mut_windows()
@@ -122,7 +169,6 @@ impl WindowController for IosPlatform {
             | WindowCommand::SetResizable(id, _)
             | WindowCommand::SetDecorations(id, _)
             | WindowCommand::SetAlwaysOnTop(id, _)
-            | WindowCommand::SetFullscreen(id, _)
             | WindowCommand::SetVisible(id, _)
             | WindowCommand::SetCursor(id, _)
             | WindowCommand::SetIme(id, _, _) => {
@@ -163,7 +209,7 @@ impl PlatformBackend for IosPlatform {
         PlatformCapabilities::for_platform(self.get_resolved_kind())
     }
 
-    /// Creates a UIKit window scene with safe-area insets tailored to iPhone vs iPadOS.
+    /// Creates a UIKit window scene with safe-area insets and ProMotion refresh metadata tailored to iPhone vs iPadOS.
     ///
     /// # Arguments
     ///
@@ -179,7 +225,12 @@ impl PlatformBackend for IosPlatform {
         let id: WindowId = WindowId::new(self.get_next_id());
         self.set_next_id(self.get_next_id().wrapping_add(1));
         let scale: f32 = ios_screen_scale();
+        let hz: f32 = ios_display_refresh_rate_hz();
+        self.set_refresh_rate_hz(hz);
         let mut state: WindowState = WindowState::from_config(id, config, scale);
+        state
+            .get_mut_display()
+            .set_refresh_rate_hz(hz.round() as u32);
         state.set_system_theme(ios_system_theme());
         let safe_area: SafeAreaInsets = if is_ipad {
             SafeAreaInsets::new(
@@ -346,5 +397,18 @@ impl PlatformBackend for IosPlatform {
     /// - `ThemeMode` - Active system appearance.
     fn system_theme(&self) -> ThemeMode {
         ios_system_theme()
+    }
+
+    /// Queries the native iOS / iPadOS ProMotion display maximum refresh rate in Hertz.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Platform reference.
+    ///
+    /// # Returns
+    ///
+    /// - `f32` - Active display maximum refresh rate in Hertz (`120.0` on ProMotion devices).
+    fn display_refresh_rate_hz(&self) -> f32 {
+        ios_display_refresh_rate_hz()
     }
 }

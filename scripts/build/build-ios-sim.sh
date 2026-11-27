@@ -46,7 +46,7 @@ use std::ffi::{CStr, CString, c_char};
 use euv::{
     App, ImeEvent, KeyCode, KeyEvent, MemoryPressure, Modifiers, NativeSystemFont, NetworkStatus,
     PlatformKind, PointerEvent, RenderMode, SafeAreaInsets, SystemEvent, SystemTheme, WindowEvent,
-    WindowId, register_native_action_bridge,
+    WindowId, register_native_action_bridge, reset_reactive_runtime,
 };
 use euv_example::{ShowcaseState, create_showcase_app_for_platform};
 
@@ -86,8 +86,13 @@ pub extern "C" fn euv_ios_create(
     scale: f32,
     is_ipad: i32,
     refresh_hz: f32,
+    safe_top: f32,
+    safe_right: f32,
+    safe_bottom: f32,
+    safe_left: f32,
 ) -> *mut EuvIosHandle {
     register_native_action_bridge(ios_native_action_bridge);
+    reset_reactive_runtime();
     let platform: PlatformKind = if is_ipad != 0 {
         PlatformKind::IpadOs
     } else {
@@ -106,19 +111,52 @@ pub extern "C" fn euv_ios_create(
     let ph: u32 = phys_height.max(200);
     let s: f32 = scale.clamp(1.0, 4.5);
     app.set_exact_physical_viewport(pw, ph, s);
-    let _ = app.step_game_frame(1.0 / hz);
-    let mut handle = Box::new(EuvIosHandle {
+    app.dispatch_window_event(WindowEvent::SafeAreaChanged(
+        wid,
+        SafeAreaInsets::new(
+            safe_top.max(0.0),
+            safe_right.max(0.0),
+            safe_bottom.max(0.0),
+            safe_left.max(0.0),
+        ),
+    ));
+    let handle = Box::new(EuvIosHandle {
         app,
         _state: state,
         wid,
         width: 0,
         height: 0,
     });
-    if let Some(fb) = handle.app.get_renderer().framebuffer() {
-        handle.width = fb.get_width();
-        handle.height = fb.get_height();
-    }
     Box::into_raw(handle)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_destroy(handle: *mut EuvIosHandle) {
+    if handle.is_null() {
+        return;
+    }
+    let boxed: Box<EuvIosHandle> = unsafe { Box::from_raw(handle) };
+    drop(boxed);
+    reset_reactive_runtime();
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_is_running(handle: *mut EuvIosHandle) -> i32 {
+    if handle.is_null() {
+        return 0;
+    }
+    let h: &EuvIosHandle = unsafe { &*handle };
+    if h.app.get_running() { 1 } else { 0 }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_update_refresh_rate(handle: *mut EuvIosHandle, refresh_hz: f32) {
+    if handle.is_null() {
+        return;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    h.app
+        .update_display_refresh_rate_hz(refresh_hz.clamp(24.0, 480.0));
 }
 
 #[unsafe(no_mangle)]
@@ -415,6 +453,10 @@ pub unsafe extern "C" fn euv_ios_step(
     out_ptr: *mut *const u8,
     out_w: *mut u32,
     out_h: *mut u32,
+    out_dx: *mut u32,
+    out_dy: *mut u32,
+    out_dw: *mut u32,
+    out_dh: *mut u32,
 ) -> i32 {
     if handle.is_null() {
         return 0;
@@ -423,12 +465,39 @@ pub unsafe extern "C" fn euv_ios_step(
     let Ok(stats) = h.app.step_game_frame(dt.clamp(1.0 / 480.0, 0.05)) else {
         return 0;
     };
-    let changed: bool = stats.get_pixels_shaded() > 0 || h.width == 0;
+    let prev_w: u32 = h.width;
+    let prev_h: u32 = h.height;
+    let changed: bool = stats.get_pixels_shaded() > 0 || prev_w == 0;
+    let mut dx: u32 = 0;
+    let mut dy: u32 = 0;
+    let mut dw: u32 = 0;
+    let mut dh: u32 = 0;
     if let Some(fb) = h.app.get_renderer().framebuffer() {
-        h.width = fb.get_width();
-        h.height = fb.get_height();
+        let w: u32 = fb.get_width();
+        let ht: u32 = fb.get_height();
+        h.width = w;
+        h.height = ht;
         if !out_ptr.is_null() {
             unsafe { *out_ptr = fb.get_pixels().as_ptr() };
+        }
+        dw = w;
+        dh = ht;
+        if prev_w == w && prev_h == ht {
+            let dmg = h.app.last_frame_damage();
+            if !dmg.get_full_damage()
+                && let Some(r) = dmg.resolve(w, ht)
+            {
+                let rx0: u32 = (r.get_x().floor().max(0.0) as u32).min(w);
+                let ry0: u32 = (r.get_y().floor().max(0.0) as u32).min(ht);
+                let rx1: u32 = (r.right().ceil().max(0.0) as u32).clamp(rx0, w);
+                let ry1: u32 = (r.bottom().ceil().max(0.0) as u32).clamp(ry0, ht);
+                if rx1 > rx0 && ry1 > ry0 {
+                    dx = rx0;
+                    dy = ry0;
+                    dw = rx1 - rx0;
+                    dh = ry1 - ry0;
+                }
+            }
         }
     } else if !out_ptr.is_null() {
         unsafe { *out_ptr = std::ptr::null() };
@@ -439,6 +508,18 @@ pub unsafe extern "C" fn euv_ios_step(
     if !out_h.is_null() {
         unsafe { *out_h = h.height };
     }
+    if !out_dx.is_null() {
+        unsafe { *out_dx = dx };
+    }
+    if !out_dy.is_null() {
+        unsafe { *out_dy = dy };
+    }
+    if !out_dw.is_null() {
+        unsafe { *out_dw = dw };
+    }
+    if !out_dh.is_null() {
+        unsafe { *out_dh = dh };
+    }
     if changed { 1 } else { 0 }
 }
 EOF
@@ -446,14 +527,32 @@ EOF
 cat > "${BUILD_DIR}/main.m" <<'EOF'
 #import <UIKit/UIKit.h>
 #import <CoreGraphics/CoreGraphics.h>
+#import <Metal/Metal.h>
 #import <QuartzCore/QuartzCore.h>
 #import <UserNotifications/UserNotifications.h>
 #include <stdint.h>
 
+@class EuvViewController;
+
 @interface EuvCanvasView : UIView <UIKeyInput>
 @property (nonatomic, assign) BOOL keyboardVisible;
+@property (nonatomic, assign) BOOL immersiveFullscreen;
+- (void)setDisplayLinkPaused:(BOOL)paused;
+- (void)ensureLiveSession;
+- (void)shutdownSession;
+- (void)syncSafeArea;
+- (void)syncViewportScaleAndBounds;
+- (void)presentFrameWithDt:(float)dt force:(BOOL)force;
 @end
+
+@interface EuvViewController : UIViewController
+@property (nonatomic, strong) EuvCanvasView *canvasView;
+@property (nonatomic, assign) BOOL immersiveFullscreen;
+- (void)applyImmersiveFullscreen:(BOOL)enabled;
+@end
+
 static __weak EuvCanvasView *gEuvActiveCanvasView = nil;
+static __weak EuvViewController *gEuvActiveViewController = nil;
 
 int32_t euv_ios_invoke_native_action(const char *kind, const char *arg1, const char *arg2) {
     NSString *k = kind ? [NSString stringWithUTF8String:kind] : @"";
@@ -473,6 +572,15 @@ int32_t euv_ios_invoke_native_action(const char *kind, const char *arg1, const c
                     [v resignFirstResponder];
                 }
             }
+        } else if ([k isEqualToString:@"fullscreen"]) {
+            BOOL enableFs = [a1 isEqualToString:@"on"];
+            EuvViewController *vc = gEuvActiveViewController;
+            if (vc) {
+                [vc applyImmersiveFullscreen:enableFs];
+            } else if (gEuvActiveCanvasView) {
+                gEuvActiveCanvasView.immersiveFullscreen = enableFs;
+                [gEuvActiveCanvasView syncSafeArea];
+            }
         } else if ([k isEqualToString:@"clipboard"]) {
             if (a2.length > 0) {
                 [UIPasteboard generalPasteboard].string = a2;
@@ -487,7 +595,7 @@ int32_t euv_ios_invoke_native_action(const char *kind, const char *arg1, const c
                                   completionHandler:^(BOOL granted, NSError * _Nullable err) {
                 if (granted) {
                     UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
-                    content.title = a1.length > 0 ? a1 : @"Euv Showcase";
+                    content.title = a1.length > 0 ? a1 : @"Euv Studio";
                     content.body = a2.length > 0 ? a2 : @"Native iOS notification dispatched";
                     UNNotificationRequest *req = [UNNotificationRequest requestWithIdentifier:[[NSUUID UUID] UUIDString] content:content trigger:nil];
                     [center addNotificationRequest:req withCompletionHandler:nil];
@@ -499,7 +607,10 @@ int32_t euv_ios_invoke_native_action(const char *kind, const char *arg1, const c
 }
 
 typedef struct EuvIosHandle EuvIosHandle;
-extern EuvIosHandle *euv_ios_create(uint32_t phys_width, uint32_t phys_height, float scale, int32_t is_ipad, float refresh_hz);
+extern EuvIosHandle *euv_ios_create(uint32_t phys_width, uint32_t phys_height, float scale, int32_t is_ipad, float refresh_hz, float safe_top, float safe_right, float safe_bottom, float safe_left);
+extern void euv_ios_destroy(EuvIosHandle *handle);
+extern int32_t euv_ios_is_running(EuvIosHandle *handle);
+extern void euv_ios_update_refresh_rate(EuvIosHandle *handle, float refresh_hz);
 extern void euv_ios_ime_disabled(EuvIosHandle *handle);
 extern void euv_ios_system_lifecycle(EuvIosHandle *handle, int32_t tag);
 extern void euv_ios_focus(EuvIosHandle *handle, int32_t focused);
@@ -520,17 +631,23 @@ extern void euv_ios_touch_cancel(EuvIosHandle *handle, uint64_t pointer_id);
 extern void euv_ios_touch_sync(EuvIosHandle *handle, const uint64_t *ids, size_t count);
 extern void euv_ios_text_input(EuvIosHandle *handle, const char *text);
 extern void euv_ios_key_down(EuvIosHandle *handle, int32_t key_tag);
-extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_ptr, uint32_t *out_w, uint32_t *out_h);
+extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_ptr, uint32_t *out_w, uint32_t *out_h, uint32_t *out_dx, uint32_t *out_dy, uint32_t *out_dw, uint32_t *out_dh);
 
 @interface EuvCanvasView ()
 @property (nonatomic, assign) EuvIosHandle *handle;
 @property (nonatomic, strong) CADisplayLink *displayLink;
 @property (nonatomic, assign) CFTimeInterval lastTimestamp;
 @property (nonatomic, assign) CGColorSpaceRef colorSpace;
+@property (nonatomic, strong) id<MTLDevice> metalDevice;
+@property (nonatomic, strong) id<MTLCommandQueue> metalQueue;
+@property (nonatomic, strong) id<MTLTexture> stagingTexture;
+@property (nonatomic, assign) uint32_t stagingW;
+@property (nonatomic, assign) uint32_t stagingH;
 @property (nonatomic, assign) CGFloat lastLogicalW;
 @property (nonatomic, assign) CGFloat lastLogicalH;
 @property (nonatomic, assign) CGFloat lastScale;
 @property (nonatomic, assign) float targetRefreshHz;
+@property (nonatomic, assign) UIEdgeInsets lastDispatchedSafeArea;
 @property (nonatomic, assign) uint64_t renderedFrames;
 @property (nonatomic, assign) double accumRenderMs;
 @property (nonatomic, assign) double maxRenderMs;
@@ -539,8 +656,91 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
 
 @implementation EuvCanvasView
 
-- (void)dealloc {
++ (Class)layerClass {
+    return [CAMetalLayer class];
+}
+
+- (void)shutdownSession {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+    if (_displayLink) {
+        [_displayLink invalidate];
+        _displayLink = nil;
+    }
+    if (gEuvActiveCanvasView == self) {
+        gEuvActiveCanvasView = nil;
+    }
+    if (_handle) {
+        EuvIosHandle *closing = _handle;
+        _handle = NULL;
+        euv_ios_touch_cancel(closing, 0);
+        euv_ios_system_lifecycle(closing, 6);
+        euv_ios_destroy(closing);
+    }
+    _stagingTexture = nil;
+    _stagingW = 0;
+    _stagingH = 0;
+}
+
+- (void)ensureLiveSession {
+    if (_handle && euv_ios_is_running(_handle) != 0) {
+        return;
+    }
+    if (_handle) {
+        EuvIosHandle *stale = _handle;
+        _handle = NULL;
+        euv_ios_destroy(stale);
+    }
+    CGFloat rawScale = self.traitCollection.displayScale > 0
+        ? self.traitCollection.displayScale
+        : (self.window.screen.scale > 0 ? self.window.screen.scale : UIScreen.mainScreen.scale);
+    CGFloat scale = fmin(4.5, rawScale);
+    CGFloat w = self.bounds.size.width > 0 ? self.bounds.size.width : 393.0;
+    CGFloat h = self.bounds.size.height > 0 ? self.bounds.size.height : 852.0;
+    uint32_t physW = (uint32_t)llround(w * scale);
+    uint32_t physH = (uint32_t)llround(h * scale);
+    int32_t isIpad = (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) ? 1 : 0;
+    UIEdgeInsets initSafe = [self resolveEffectiveSafeArea];
+    _lastDispatchedSafeArea = initSafe;
+    _handle = euv_ios_create(
+        physW,
+        physH,
+        (float)scale,
+        isIpad,
+        _targetRefreshHz,
+        (float)initSafe.top,
+        (float)initSafe.right,
+        (float)initSafe.bottom,
+        (float)initSafe.left
+    );
+    [self syncThemeTrait];
+}
+
+- (void)dealloc {
+    [self shutdownSession];
+    if (_colorSpace) {
+        CGColorSpaceRelease(_colorSpace);
+        _colorSpace = NULL;
+    }
+}
+
+- (void)setDisplayLinkPaused:(BOOL)paused {
+    if (_displayLink) {
+        _displayLink.paused = paused;
+        if (!paused) {
+            _lastTimestamp = 0.0;
+        }
+    }
+}
+
+- (float)nominalFrameDt {
+    float hz = _targetRefreshHz >= 24.0f ? _targetRefreshHz : 60.0f;
+    return 1.0f / hz;
+}
+
+- (void)onStatusBarOrCaptureChanged:(NSNotification *)note {
+    (void)note;
+    [self syncSafeArea];
+    [self presentFrameWithDt:[self nominalFrameDt] force:YES];
 }
 
 - (void)onKeyboardWillShow:(NSNotification *)note {
@@ -602,13 +802,57 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
     euv_ios_theme(_handle, isDark ? 1 : 0);
 }
 
+- (UIEdgeInsets)resolveEffectiveSafeArea {
+    if (_immersiveFullscreen) {
+        return UIEdgeInsetsZero;
+    }
+    UIEdgeInsets insets = self.safeAreaInsets;
+    if (self.window) {
+        UIEdgeInsets winInsets = self.window.safeAreaInsets;
+        if (winInsets.top > insets.top) insets.top = winInsets.top;
+        if (winInsets.right > insets.right) insets.right = winInsets.right;
+        if (winInsets.bottom > insets.bottom) insets.bottom = winInsets.bottom;
+        if (winInsets.left > insets.left) insets.left = winInsets.left;
+        if (self.window.windowScene && self.window.windowScene.statusBarManager) {
+            CGFloat sbH = self.window.windowScene.statusBarManager.statusBarFrame.size.height;
+            if (sbH > insets.top) {
+                insets.top = sbH;
+            }
+        }
+    }
+    if (@available(iOS 26.0, *)) {
+        UIViewLayoutRegion *region = [UIViewLayoutRegion safeAreaLayoutRegionWithCornerAdaptation:UIViewLayoutRegionAdaptivityAxisVertical];
+        UIEdgeInsets adapted = [self edgeInsetsForLayoutRegion:region];
+        if (adapted.top > insets.top) insets.top = adapted.top;
+        if (adapted.right > insets.right) insets.right = adapted.right;
+        if (adapted.bottom > insets.bottom) insets.bottom = adapted.bottom;
+        if (adapted.left > insets.left) insets.left = adapted.left;
+    }
+    BOOL isIpad = (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad);
+    if (isIpad) {
+        if (insets.top < 24.0) {
+            insets.top = 40.0;
+        }
+    } else if (insets.top < 20.0) {
+        CGFloat screenH = fmax(UIScreen.mainScreen.bounds.size.width, UIScreen.mainScreen.bounds.size.height);
+        insets.top = (screenH >= 812.0) ? 47.0 : 20.0;
+        if (insets.bottom < 1.0 && screenH >= 812.0) {
+            insets.bottom = 34.0;
+        }
+    }
+    return insets;
+}
+
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
-        self.backgroundColor = [UIColor whiteColor];
+        self.backgroundColor = [UIColor systemBackgroundColor];
+        self.opaque = YES;
         self.multipleTouchEnabled = YES;
         gEuvActiveCanvasView = self;
         _keyboardVisible = NO;
+        _immersiveFullscreen = NO;
+        _lastDispatchedSafeArea = UIEdgeInsetsMake(-1, -1, -1, -1);
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(onKeyboardWillShow:)
                                                      name:UIKeyboardWillShowNotification
@@ -633,11 +877,32 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
                                                  selector:@selector(onLocaleChanged:)
                                                      name:NSCurrentLocaleDidChangeNotification
                                                    object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(onStatusBarOrCaptureChanged:)
+                                                     name:UIScreenCapturedDidChangeNotification
+                                                   object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(onStatusBarOrCaptureChanged:)
+                                                     name:UIApplicationDidChangeStatusBarFrameNotification
+                                                   object:nil];
         _colorSpace = CGColorSpaceCreateDeviceRGB();
         CGFloat scale = fmin(4.5, UIScreen.mainScreen.scale);
         self.layer.contentsScale = scale;
         self.layer.magnificationFilter = kCAFilterNearest;
         self.layer.minificationFilter = kCAFilterLinear;
+        if ([self.layer isKindOfClass:[CAMetalLayer class]]) {
+            _metalDevice = MTLCreateSystemDefaultDevice();
+            if (_metalDevice) {
+                CAMetalLayer *ml = (CAMetalLayer *)self.layer;
+                ml.device = _metalDevice;
+                ml.pixelFormat = MTLPixelFormatRGBA8Unorm;
+                ml.framebufferOnly = NO;
+                ml.maximumDrawableCount = 3;
+                ml.presentsWithTransaction = NO;
+                ml.contentsScale = scale;
+                _metalQueue = [_metalDevice newCommandQueue];
+            }
+        }
         NSInteger maxHz = UIScreen.mainScreen.maximumFramesPerSecond;
         if (maxHz < 60) maxHz = 120;
         _targetRefreshHz = (float)maxHz;
@@ -646,18 +911,31 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
         uint32_t physW = (uint32_t)llround(w * scale);
         uint32_t physH = (uint32_t)llround(h * scale);
         int32_t isIpad = (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) ? 1 : 0;
-        _handle = euv_ios_create(physW, physH, (float)scale, isIpad, _targetRefreshHz);
+        UIEdgeInsets initSafe = [self resolveEffectiveSafeArea];
+        _lastDispatchedSafeArea = initSafe;
+        _handle = euv_ios_create(
+            physW,
+            physH,
+            (float)scale,
+            isIpad,
+            _targetRefreshHz,
+            (float)initSafe.top,
+            (float)initSafe.right,
+            (float)initSafe.bottom,
+            (float)initSafe.left
+        );
         if (@available(iOS 17.0, *)) {
             [self registerForTraitChanges:@[UITraitDisplayScale.class] withTarget:self action:@selector(syncViewportScaleAndBounds)];
             [self registerForTraitChanges:@[UITraitUserInterfaceStyle.class] withTarget:self action:@selector(syncThemeTrait)];
         }
         [self syncThemeTrait];
-        [self syncSafeArea];
-        [self presentFrameWithDt:(1.0f / _targetRefreshHz) force:YES];
+        [self presentFrameWithDt:[self nominalFrameDt] force:YES];
         _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(onDisplayLink:)];
         if (@available(iOS 15.0, *)) {
             float minHz = (_targetRefreshHz >= 120.0f) ? 80.0f : 60.0f;
             _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(minHz, _targetRefreshHz, _targetRefreshHz);
+        } else {
+            _displayLink.preferredFramesPerSecond = (NSInteger)_targetRefreshHz;
         }
         [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
     }
@@ -666,25 +944,21 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
 
 - (void)syncSafeArea {
     if (!_handle) return;
-    UIEdgeInsets insets = self.safeAreaInsets;
-    if (@available(iOS 26.0, *)) {
-        UIViewLayoutRegion *region = [UIViewLayoutRegion safeAreaLayoutRegionWithCornerAdaptation:UIViewLayoutRegionAdaptivityAxisVertical];
-        UIEdgeInsets adapted = [self edgeInsetsForLayoutRegion:region];
-        if (adapted.top > insets.top) insets.top = adapted.top;
-        if (adapted.right > insets.right) insets.right = adapted.right;
-        if (adapted.bottom > insets.bottom) insets.bottom = adapted.bottom;
-        if (adapted.left > insets.left) insets.left = adapted.left;
+    UIEdgeInsets insets = [self resolveEffectiveSafeArea];
+    if (fabs(insets.top - _lastDispatchedSafeArea.top) < 0.25
+        && fabs(insets.right - _lastDispatchedSafeArea.right) < 0.25
+        && fabs(insets.bottom - _lastDispatchedSafeArea.bottom) < 0.25
+        && fabs(insets.left - _lastDispatchedSafeArea.left) < 0.25) {
+        return;
     }
-    if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad && insets.top < 40.0) {
-        insets.top = 40.0;
-    }
+    _lastDispatchedSafeArea = insets;
     euv_ios_set_safe_area(_handle, (float)insets.top, (float)insets.right, (float)insets.bottom, (float)insets.left);
 }
 
 - (void)safeAreaInsetsDidChange {
     [super safeAreaInsetsDidChange];
     [self syncSafeArea];
-    [self presentFrameWithDt:1.0f / 60.0f force:YES];
+    [self presentFrameWithDt:[self nominalFrameDt] force:YES];
 }
 
 - (void)didMoveToWindow {
@@ -692,6 +966,23 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
     if (!self.window && _handle) {
         euv_ios_touch_cancel(_handle, 0);
         return;
+    }
+    if (self.window.screen) {
+        NSInteger maxHz = self.window.screen.maximumFramesPerSecond;
+        if (maxHz >= 60 && fabs((float)maxHz - _targetRefreshHz) > 0.5f) {
+            _targetRefreshHz = (float)maxHz;
+            if (_handle) {
+                euv_ios_update_refresh_rate(_handle, _targetRefreshHz);
+            }
+            if (_displayLink) {
+                if (@available(iOS 15.0, *)) {
+                    float minHz = (_targetRefreshHz >= 120.0f) ? 80.0f : 60.0f;
+                    _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(minHz, _targetRefreshHz, _targetRefreshHz);
+                } else {
+                    _displayLink.preferredFramesPerSecond = (NSInteger)_targetRefreshHz;
+                }
+            }
+        }
     }
     [self syncViewportScaleAndBounds];
 }
@@ -715,9 +1006,14 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
     self.layer.contentsScale = scale;
     uint32_t physW = (uint32_t)llround(self.bounds.size.width * scale);
     uint32_t physH = (uint32_t)llround(self.bounds.size.height * scale);
+    if ([self.layer isKindOfClass:[CAMetalLayer class]]) {
+        CAMetalLayer *ml = (CAMetalLayer *)self.layer;
+        ml.contentsScale = scale;
+        ml.drawableSize = CGSizeMake(physW, physH);
+    }
     euv_ios_resize(_handle, physW, physH, (float)scale);
     [self syncSafeArea];
-    [self presentFrameWithDt:1.0f / 60.0f force:YES];
+    [self presentFrameWithDt:[self nominalFrameDt] force:YES];
 }
 
 - (void)layoutSubviews {
@@ -753,24 +1049,92 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
     [self presentFrameWithDt:dt force:NO];
 }
 
+- (BOOL)presentMetalPixels:(const uint8_t *)pixels width:(uint32_t)w height:(uint32_t)h dirtyX:(uint32_t)dx dirtyY:(uint32_t)dy dirtyW:(uint32_t)dw dirtyH:(uint32_t)dh forceFull:(BOOL)forceFull {
+    if (!_metalDevice || !_metalQueue || ![self.layer isKindOfClass:[CAMetalLayer class]]) {
+        return NO;
+    }
+    CAMetalLayer *ml = (CAMetalLayer *)self.layer;
+    if ((uint32_t)llround(ml.drawableSize.width) != w || (uint32_t)llround(ml.drawableSize.height) != h) {
+        ml.drawableSize = CGSizeMake(w, h);
+    }
+    BOOL fullUpload = forceFull || !_stagingTexture || _stagingW != w || _stagingH != h || dw == 0 || dh == 0;
+    if (!_stagingTexture || _stagingW != w || _stagingH != h) {
+        MTLTextureDescriptor *desc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                                                        width:w
+                                                                                       height:h
+                                                                                    mipmapped:NO];
+        desc.usage = MTLTextureUsageShaderRead;
+        desc.storageMode = MTLStorageModeShared;
+        _stagingTexture = [_metalDevice newTextureWithDescriptor:desc];
+        _stagingW = w;
+        _stagingH = h;
+        fullUpload = YES;
+    }
+    if (!_stagingTexture) {
+        return NO;
+    }
+    NSUInteger rowBytes = (NSUInteger)w * 4;
+    if (fullUpload) {
+        [_stagingTexture replaceRegion:MTLRegionMake2D(0, 0, w, h)
+                           mipmapLevel:0
+                             withBytes:pixels
+                           bytesPerRow:rowBytes];
+    } else {
+        uint32_t cx = dx < w ? dx : 0;
+        uint32_t cy = dy < h ? dy : 0;
+        uint32_t cw = (cx + dw <= w) ? dw : (w - cx);
+        uint32_t ch = (cy + dh <= h) ? dh : (h - cy);
+        const uint8_t *subPtr = pixels + ((size_t)cy * (size_t)w + (size_t)cx) * 4;
+        [_stagingTexture replaceRegion:MTLRegionMake2D(cx, cy, cw, ch)
+                           mipmapLevel:0
+                             withBytes:subPtr
+                           bytesPerRow:rowBytes];
+    }
+    id<CAMetalDrawable> drawable = [ml nextDrawable];
+    if (!drawable || !drawable.texture) {
+        return NO;
+    }
+    if (drawable.texture.width != w || drawable.texture.height != h) {
+        return NO;
+    }
+    id<MTLCommandBuffer> cmd = [_metalQueue commandBuffer];
+    id<MTLBlitCommandEncoder> blit = [cmd blitCommandEncoder];
+    [blit copyFromTexture:_stagingTexture
+              sourceSlice:0
+              sourceLevel:0
+             sourceOrigin:MTLOriginMake(0, 0, 0)
+               sourceSize:MTLSizeMake(w, h, 1)
+                toTexture:drawable.texture
+         destinationSlice:0
+         destinationLevel:0
+        destinationOrigin:MTLOriginMake(0, 0, 0)];
+    [blit endEncoding];
+    [cmd presentDrawable:drawable];
+    [cmd commit];
+    return YES;
+}
+
 - (void)presentFrameWithDt:(float)dt force:(BOOL)force {
     if (!_handle) return;
     CFTimeInterval t0 = CACurrentMediaTime();
     const uint8_t *pixels = NULL;
-    uint32_t w = 0, h = 0;
-    int32_t changed = euv_ios_step(_handle, dt, &pixels, &w, &h);
+    uint32_t w = 0, h = 0, dx = 0, dy = 0, dw = 0, dh = 0;
+    int32_t changed = euv_ios_step(_handle, dt, &pixels, &w, &h, &dx, &dy, &dw, &dh);
     if ((changed || force) && pixels && w > 0 && h > 0) {
-        size_t bytes = (size_t)w * (size_t)h * 4;
-        NSData *copyData = [NSData dataWithBytes:pixels length:bytes];
-        CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)copyData);
-        CGBitmapInfo info = kCGBitmapByteOrder32Big | kCGImageAlphaLast;
-        CGImageRef img = CGImageCreate(w, h, 8, 32, (size_t)w * 4, _colorSpace, info, provider, NULL, false, kCGRenderingIntentDefault);
-        if (img) {
-            self.layer.contents = (__bridge id)img;
-            self.layer.contentsGravity = kCAGravityResize;
-            CGImageRelease(img);
+        BOOL metalOk = [self presentMetalPixels:pixels width:w height:h dirtyX:dx dirtyY:dy dirtyW:dw dirtyH:dh forceFull:force];
+        if (!metalOk) {
+            size_t bytes = (size_t)w * (size_t)h * 4;
+            NSData *copyData = [NSData dataWithBytes:pixels length:bytes];
+            CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)copyData);
+            CGBitmapInfo info = kCGBitmapByteOrder32Big | kCGImageAlphaLast;
+            CGImageRef img = CGImageCreate(w, h, 8, 32, (size_t)w * 4, _colorSpace, info, provider, NULL, false, kCGRenderingIntentDefault);
+            if (img) {
+                self.layer.contents = (__bridge id)img;
+                self.layer.contentsGravity = kCAGravityResize;
+                CGImageRelease(img);
+            }
+            CGDataProviderRelease(provider);
         }
-        CGDataProviderRelease(provider);
         double renderMs = (CACurrentMediaTime() - t0) * 1000.0;
         _renderedFrames += 1;
         _accumRenderMs += renderMs;
@@ -779,8 +1143,8 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
         if (renderMs > budgetMs) _droppedFrames += 1;
         if (_renderedFrames % 60 == 0) {
             double avg = _accumRenderMs / 60.0;
-            NSLog(@"[euv-fps] ios rendered=%llu avg=%.2fms max=%.2fms dropped=%llu res=%ux%u",
-                _renderedFrames, avg, _maxRenderMs, _droppedFrames, w, h);
+            NSLog(@"[euv-fps] ios rendered=%llu avg=%.2fms max=%.2fms dropped=%llu target=%.0fHz res=%ux%u",
+                _renderedFrames, avg, _maxRenderMs, _droppedFrames, _targetRefreshHz, w, h);
             _accumRenderMs = 0.0;
             _maxRenderMs = 0.0;
         }
@@ -835,6 +1199,19 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
         euv_ios_touch_cancel(_handle, (uint64_t)(uintptr_t)t);
     }
     [self syncLiveTouchesFromEvent:event];
+    BOOL anyLive = NO;
+    if (event) {
+        for (UITouch *t in event.allTouches) {
+            UITouchPhase phase = t.phase;
+            if (phase == UITouchPhaseBegan || phase == UITouchPhaseMoved || phase == UITouchPhaseStationary) {
+                anyLive = YES;
+                break;
+            }
+        }
+    }
+    if (!anyLive) {
+        euv_ios_touch_cancel(_handle, 0);
+    }
 }
 
 - (BOOL)canBecomeFirstResponder {
@@ -864,17 +1241,45 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
 
 @end
 
-@interface EuvViewController : UIViewController
-@property (nonatomic, strong) EuvCanvasView *canvasView;
-@end
-
 @implementation EuvViewController
 
 - (void)loadView {
+    gEuvActiveViewController = self;
     CGRect initialFrame = UIScreen.mainScreen.bounds;
     self.canvasView = [[EuvCanvasView alloc] initWithFrame:initialFrame];
     self.canvasView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     self.view = self.canvasView;
+}
+
+- (void)applyImmersiveFullscreen:(BOOL)enabled {
+    self.immersiveFullscreen = enabled;
+    self.canvasView.immersiveFullscreen = enabled;
+    [self setNeedsStatusBarAppearanceUpdate];
+    [self setNeedsUpdateOfHomeIndicatorAutoHidden];
+    [self.canvasView syncSafeArea];
+    [self.canvasView presentFrameWithDt:(1.0f / (self.canvasView.targetRefreshHz > 0.0f ? self.canvasView.targetRefreshHz : 60.0f)) force:YES];
+}
+
+- (BOOL)prefersStatusBarHidden {
+    return self.immersiveFullscreen;
+}
+
+- (BOOL)prefersHomeIndicatorAutoHidden {
+    return self.immersiveFullscreen;
+}
+
+- (UIStatusBarAnimation)preferredStatusBarUpdateAnimation {
+    return UIStatusBarAnimationFade;
+}
+
+- (void)viewSafeAreaInsetsDidChange {
+    [super viewSafeAreaInsetsDidChange];
+    [self.canvasView syncSafeArea];
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    [self.canvasView syncViewportScaleAndBounds];
 }
 
 - (void)viewDidLayoutSubviews {
@@ -917,7 +1322,7 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
         windowScene.sizeRestrictions.maximumSize = CGSizeMake(CGFLOAT_MAX, CGFLOAT_MAX);
     }
     self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
-    self.window.backgroundColor = [UIColor whiteColor];
+    self.window.backgroundColor = [UIColor systemBackgroundColor];
     self.window.rootViewController = [[EuvViewController alloc] init];
     [self.window makeKeyAndVisible];
     [self syncWindowGeometry:windowScene];
@@ -930,8 +1335,13 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
     (void)scene;
     if (self.window && [self.window.rootViewController isKindOfClass:[EuvViewController class]]) {
         EuvViewController *vc = (EuvViewController *)self.window.rootViewController;
-        if (vc.canvasView && vc.canvasView.handle) {
-            euv_ios_system_lifecycle(vc.canvasView.handle, 1);
+        if (vc.canvasView) {
+            [vc.canvasView ensureLiveSession];
+            if (vc.canvasView.handle) {
+                [vc.canvasView setDisplayLinkPaused:NO];
+                euv_ios_system_lifecycle(vc.canvasView.handle, 1);
+                [vc.canvasView syncSafeArea];
+            }
         }
     }
 }
@@ -942,11 +1352,30 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
     }
     if (self.window && [self.window.rootViewController isKindOfClass:[EuvViewController class]]) {
         EuvViewController *vc = (EuvViewController *)self.window.rootViewController;
-        if (vc.canvasView && vc.canvasView.handle) {
-            euv_ios_system_lifecycle(vc.canvasView.handle, 3);
-            euv_ios_focus(vc.canvasView.handle, 1);
+        if (vc.canvasView) {
+            [vc.canvasView ensureLiveSession];
+            if (vc.canvasView.handle) {
+                [vc.canvasView setDisplayLinkPaused:NO];
+                euv_ios_system_lifecycle(vc.canvasView.handle, 3);
+                euv_ios_focus(vc.canvasView.handle, 1);
+                [vc.canvasView syncSafeArea];
+            }
         }
     }
+}
+
+- (void)sceneDidDisconnect:(UIScene *)scene {
+    (void)scene;
+    if (self.window && [self.window.rootViewController isKindOfClass:[EuvViewController class]]) {
+        EuvViewController *vc = (EuvViewController *)self.window.rootViewController;
+        if (vc.canvasView) {
+            [vc.canvasView shutdownSession];
+        }
+        if (gEuvActiveViewController == vc) {
+            gEuvActiveViewController = nil;
+        }
+    }
+    self.window = nil;
 }
 
 - (void)sceneWillResignActive:(UIScene *)scene {
@@ -966,6 +1395,7 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
     if (self.window && [self.window.rootViewController isKindOfClass:[EuvViewController class]]) {
         EuvViewController *vc = (EuvViewController *)self.window.rootViewController;
         if (vc.canvasView && vc.canvasView.handle) {
+            [vc.canvasView setDisplayLinkPaused:YES];
             euv_ios_system_lifecycle(vc.canvasView.handle, 5);
         }
     }
@@ -1027,7 +1457,7 @@ cat > "${BUILD_DIR}/Info.plist" <<'EOF'
 <plist version="1.0">
 <dict>
     <key>CFBundleDevelopmentRegion</key><string>en</string>
-    <key>CFBundleDisplayName</key><string>Euv Showcase</string>
+    <key>CFBundleDisplayName</key><string>Euv Studio</string>
     <key>CFBundleExecutable</key><string>EuvShowcase</string>
     <key>CFBundleIconFiles</key>
     <array>
@@ -1047,7 +1477,7 @@ cat > "${BUILD_DIR}/Info.plist" <<'EOF'
     </dict>
     <key>CFBundleIdentifier</key><string>vip.ltpp.euv.showcase</string>
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-    <key>CFBundleName</key><string>EuvShowcase</string>
+    <key>CFBundleName</key><string>Euv Studio</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>0.44.0</string>
     <key>CFBundleVersion</key><string>6</string>

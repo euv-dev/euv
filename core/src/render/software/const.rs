@@ -57,11 +57,11 @@ pub(crate) const BAND_WORKER_MAX_THREADS: usize = 16;
 
 /// Short spin-loop iterations performed by idle band workers before parking on the condition variable.
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) const BAND_WORKER_SPIN_LIMIT: u32 = 32;
+pub(crate) const BAND_WORKER_SPIN_LIMIT: u32 = 256;
 
 /// Short spin-loop iterations performed by the calling thread before parking on `wake_caller`.
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) const BAND_CALLER_SPIN_LIMIT: u32 = 32;
+pub(crate) const BAND_CALLER_SPIN_LIMIT: u32 = 256;
 
 /// Maximum damaged pixel area executed directly on the calling thread without touching `BandWorkerPool`.
 #[cfg(not(target_arch = "wasm32"))]

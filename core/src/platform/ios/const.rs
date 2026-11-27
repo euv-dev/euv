@@ -46,6 +46,24 @@ pub(crate) const UIKIT_SEL_SET_CONTENTS: &str = "setContents:\0";
 /// Objective-C selector for `setPaused:` on `CADisplayLink`.
 pub(crate) const UIKIT_SEL_SET_PAUSED: &str = "setPaused:\0";
 
+/// Objective-C selector for `maximumFramesPerSecond` on `UIScreen`.
+pub(crate) const UIKIT_SEL_MAX_FPS: &str = "maximumFramesPerSecond\0";
+
+/// Objective-C selector for `setMaximumDrawableCount:` on `CAMetalLayer`.
+pub(crate) const UIKIT_SEL_SET_MAX_DRAWABLE_COUNT: &str = "setMaximumDrawableCount:\0";
+
+/// Objective-C selector for `setPreferredFramesPerSecond:` on `CADisplayLink`.
+pub(crate) const UIKIT_SEL_SET_PREFERRED_FPS: &str = "setPreferredFramesPerSecond:\0";
+
+/// Objective-C selector for `setPreferredFrameRateRange:` on `CADisplayLink` (iOS 15+).
+pub(crate) const UIKIT_SEL_SET_PREFERRED_FRAME_RATE_RANGE: &str = "setPreferredFrameRateRange:\0";
+
+/// Objective-C selector for `respondsToSelector:`.
+pub(crate) const UIKIT_SEL_RESPONDS_TO_SELECTOR: &str = "respondsToSelector:\0";
+
+/// Triple-buffered drawable count for `CAMetalLayer` eliminating 120Hz ProMotion frame stalls.
+pub(crate) const IOS_METAL_TRIPLE_BUFFER_COUNT: usize = 3;
+
 /// `UIUserInterfaceIdiomPad` enum integer value (`1`).
 pub(crate) const UI_USER_INTERFACE_IDIOM_PAD: isize = 1;
 

@@ -18,6 +18,8 @@ impl Default for WebPlatform {
             last_online: web_navigator_online(),
             last_theme: web_system_theme(),
             last_locale: web_navigator_locale(),
+            last_safe_area: SafeAreaInsets::default(),
+            refresh_rate_hz: FALLBACK_REFRESH_RATE_HZ,
             pump_paused: initial_hidden,
         }
     }
@@ -25,6 +27,51 @@ impl Default for WebPlatform {
 
 /// Browser system event injection helpers for `WebPlatform`.
 impl WebPlatform {
+    /// Updates the measured browser `requestAnimationFrame` refresh rate across open web windows.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable web platform backend.
+    /// - `f32` - Measured browser presentation rate in Hertz.
+    pub fn update_refresh_rate_hz(&mut self, hz: f32) {
+        let pacing: FramePacingConfig = compute_frame_pacing(hz);
+        let preferred_hz: f32 = pacing.get_preferred_hz();
+        self.set_refresh_rate_hz(preferred_hz);
+        let rounded: u32 = preferred_hz.round() as u32;
+        for rec in self.get_mut_windows().values_mut() {
+            rec.get_mut_state()
+                .get_mut_display()
+                .set_refresh_rate_hz(rounded);
+        }
+    }
+
+    /// Re-queries CSS `env(safe-area-inset-*)` and dispatches `WindowEvent::SafeAreaChanged` when changed.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable web platform backend.
+    pub fn sync_safe_area(&mut self) {
+        let measured: SafeAreaInsets = web_query_safe_area_insets();
+        if measured != self.get_last_safe_area() {
+            self.set_last_safe_area(measured);
+            let mut ids: Vec<WindowId> = Vec::with_capacity(self.get_windows().len());
+            for (&wid, rec) in self.get_mut_windows().iter_mut() {
+                let effective: SafeAreaInsets =
+                    if rec.get_state().get_fullscreen() == FullscreenMode::Windowed {
+                        measured
+                    } else {
+                        SafeAreaInsets::default()
+                    };
+                rec.get_mut_state().set_safe_area(effective);
+                ids.push(wid);
+            }
+            for wid in ids.into_iter() {
+                self.get_mut_pending_events()
+                    .push(WindowEvent::SafeAreaChanged(wid, measured));
+            }
+        }
+    }
+
     /// Enqueues a browser `SystemEvent` (e.g. from DOM visibility/focus/online/hashchange listeners).
     ///
     /// # Arguments
@@ -123,6 +170,29 @@ impl WindowController for WebPlatform {
                     .set_logical_height((phys_h as f32) / live_dpr);
                 rec.get_mut_state().set_physical_width(phys_w);
                 rec.get_mut_state().set_physical_height(phys_h);
+                self.sync_safe_area();
+                Ok(())
+            }
+            WindowCommand::SetFullscreen(id, mode) => {
+                let want_fs: bool = mode != FullscreenMode::Windowed;
+                let next_safe: SafeAreaInsets = if want_fs {
+                    SafeAreaInsets::default()
+                } else {
+                    web_query_safe_area_insets()
+                };
+                {
+                    let rec: &mut WebWindowRecord = self
+                        .get_mut_windows()
+                        .get_mut(&id)
+                        .ok_or(PlatformError::WindowNotFound(id.get_value()))?;
+                    rec.get_mut_config().set_fullscreen(mode);
+                    rec.get_mut_state().set_fullscreen(mode);
+                    rec.get_mut_state().set_safe_area(next_safe);
+                }
+                self.set_last_safe_area(next_safe);
+                self.get_mut_pending_events()
+                    .push(WindowEvent::SafeAreaChanged(id, next_safe));
+                web_set_fullscreen(want_fs);
                 Ok(())
             }
             WindowCommand::SetRenderMode(id, mode) => {
@@ -181,7 +251,6 @@ impl WindowController for WebPlatform {
             | WindowCommand::SetResizable(id, _)
             | WindowCommand::SetDecorations(id, _)
             | WindowCommand::SetAlwaysOnTop(id, _)
-            | WindowCommand::SetFullscreen(id, _)
             | WindowCommand::SetVisible(id, _)
             | WindowCommand::SetIme(id, _, _)
             | WindowCommand::SetStatusBarStyle(id, _) => {
@@ -247,6 +316,16 @@ impl PlatformBackend for WebPlatform {
         state.set_logical_width((phys_w as f32) / dpr);
         state.set_logical_height((phys_h as f32) / dpr);
         state.set_system_theme(web_system_theme());
+        let safe_area: SafeAreaInsets = if config.get_fullscreen() == FullscreenMode::Windowed {
+            web_query_safe_area_insets()
+        } else {
+            SafeAreaInsets::default()
+        };
+        state.set_safe_area(safe_area);
+        state
+            .get_mut_display()
+            .set_refresh_rate_hz(self.get_refresh_rate_hz().round() as u32);
+        self.set_last_safe_area(safe_area);
         self.get_mut_windows().insert(
             id,
             WebWindowRecord {
@@ -468,5 +547,18 @@ impl PlatformBackend for WebPlatform {
     /// - `ThemeMode` - Active appearance mode.
     fn system_theme(&self) -> ThemeMode {
         web_system_theme()
+    }
+
+    /// Returns the measured browser display refresh rate in Hertz.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Platform reference.
+    ///
+    /// # Returns
+    ///
+    /// - `f32` - Active browser presentation cadence in Hertz.
+    fn display_refresh_rate_hz(&self) -> f32 {
+        self.get_refresh_rate_hz()
     }
 }

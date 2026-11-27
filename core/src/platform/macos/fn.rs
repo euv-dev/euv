@@ -1022,7 +1022,8 @@ pub(crate) fn macos_install_live_resize_timer(
         release: null(),
         copy_description: null(),
     };
-    let interval: f64 = 1.0 / (macos_display_refresh_rate_hz().clamp(60.0, 360.0) as f64);
+    let interval: f64 =
+        1.0 / f64::from(macos_display_refresh_rate_hz().clamp(60.0, MAX_REFRESH_RATE_HZ));
     // SAFETY: CoreFoundation run-loop timer APIs called on the main AppKit thread.
     unsafe {
         let fire_date: f64 = CFAbsoluteTimeGetCurrent() + interval;
@@ -1067,7 +1068,8 @@ pub(crate) fn macos_set_live_resize_timer_paused(timer: *mut c_void, paused: boo
     let next_fire: f64 = if paused {
         1.0e15
     } else {
-        let interval: f64 = 1.0 / (macos_display_refresh_rate_hz().clamp(60.0, 360.0) as f64);
+        let interval: f64 =
+            1.0 / f64::from(macos_display_refresh_rate_hz().clamp(60.0, MAX_REFRESH_RATE_HZ));
         // SAFETY: `CFAbsoluteTimeGetCurrent` is thread-safe and returns monotonic CF seconds.
         unsafe { CFAbsoluteTimeGetCurrent() + interval }
     };
@@ -1186,6 +1188,35 @@ pub(crate) fn macos_create_native_window(
     let title_ns: *mut c_void = macos_ns_string(config.get_title());
     if !title_ns.is_null() {
         let _: *mut c_void = objc_send_ptr1(ns_window, objc_sel(OBJC_SEL_SET_TITLE), title_ns);
+    }
+    let color_cls: *mut c_void = objc_class(OBJC_CLS_NS_COLOR);
+    if !color_cls.is_null() {
+        let is_dark: bool = match config.preferred_theme_value() {
+            Some(ThemeMode::Dark) => true,
+            Some(ThemeMode::Light) => false,
+            None => macos_system_theme() == ThemeMode::Dark,
+        };
+        let (r, g, b): (f64, f64, f64) = if is_dark {
+            (9.0 / 255.0, 9.0 / 255.0, 11.0 / 255.0)
+        } else {
+            (250.0 / 255.0, 250.0 / 255.0, 250.0 / 255.0)
+        };
+        // SAFETY: `+[NSColor colorWithSRGBRed:green:blue:alpha:]` takes four `CGFloat` (`f64`) args on 64-bit macOS.
+        let bg_color: *mut c_void = unsafe {
+            let func: unsafe extern "C" fn(
+                *mut c_void,
+                *mut c_void,
+                f64,
+                f64,
+                f64,
+                f64,
+            ) -> *mut c_void = transmute(objc_msgSend as *const ());
+            func(color_cls, objc_sel(OBJC_SEL_COLOR_WITH_SRGB), r, g, b, 1.0)
+        };
+        if !bg_color.is_null() {
+            let _: *mut c_void =
+                objc_send_ptr1(ns_window, objc_sel(OBJC_SEL_SET_BACKGROUND_COLOR), bg_color);
+        }
     }
     if config.get_decorations() {
         objc_send_void_bool(ns_window, objc_sel(OBJC_SEL_SET_TITLEBAR_TRANSPARENT), true);

@@ -29,6 +29,16 @@ pub struct AndroidWindowRecord {
     /// Raw `ANativeWindow*` pointer provided by `NativeActivity` / `SurfaceView`.
     #[get(type(copy))]
     pub(crate) native_window: usize,
+    /// Last configured `ANativeWindow` buffer width to skip redundant `setBuffersGeometry` calls.
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) surface_width: u32,
+    /// Last configured `ANativeWindow` buffer height to skip redundant `setBuffersGeometry` calls.
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) surface_height: u32,
 }
 
 /// Direct Android NDK (`ANativeWindow` / `AInput` / Vulkan / OpenGL ES) platform backend.
@@ -45,6 +55,11 @@ pub struct AndroidPlatform {
     /// Detected display density scale factor (`dpi / 160.0`).
     #[get(type(copy))]
     pub(crate) density_scale: f32,
+    /// Active hardware display refresh rate in Hertz (`90.0`/`120.0`/`144.0`+ on high-refresh phones).
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) refresh_rate_hz: f32,
     /// Active Android surface window records.
     pub(crate) windows: HashMap<WindowId, AndroidWindowRecord>,
     /// Queued touch, key, IME, and lifecycle events.
