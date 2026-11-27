@@ -18,7 +18,16 @@ impl LayoutEngine {
         let space: AvailableSpace = AvailableSpace::root(viewport);
         let mut stats: LayoutStats = LayoutStats::default();
         self.get_mut_children_scratch().clear();
+        self.get_mut_flow_scratch().clear();
+        self.get_mut_abs_scratch().clear();
+        self.get_mut_flex_items_scratch().clear();
+        self.get_mut_flex_lines_scratch().clear();
         self.layout_node(tree, root_id, space, &mut stats);
+        debug_assert!(self.get_children_scratch().is_empty());
+        debug_assert!(self.get_flow_scratch().is_empty());
+        debug_assert!(self.get_abs_scratch().is_empty());
+        debug_assert!(self.get_flex_items_scratch().is_empty());
+        debug_assert!(self.get_flex_lines_scratch().is_empty());
         self.set_last_stats(stats);
         stats
     }
@@ -296,8 +305,8 @@ impl LayoutEngine {
         let inner_avail: Size = frame.get_inner_avail();
         let viewport: Size = frame.get_viewport();
         let content_origin: Point = frame.get_content_origin();
-        let mut flow_children: Vec<NodeId> = Vec::with_capacity(child_count);
-        let mut abs_children: Vec<NodeId> = Vec::new();
+        let flow_start: usize = self.get_flow_scratch().len();
+        let abs_start: usize = self.get_abs_scratch().len();
         for idx in child_start..child_end {
             let child_id: NodeId = self.get_children_scratch()[idx];
             if let Some(child_node) = tree.get_node(child_id) {
@@ -312,25 +321,37 @@ impl LayoutEngine {
                     continue;
                 }
                 match child_layout.get_position() {
-                    Position::Relative => flow_children.push(child_id),
-                    Position::Absolute | Position::Fixed => abs_children.push(child_id),
+                    Position::Relative => self.get_mut_flow_scratch().push(child_id),
+                    Position::Absolute | Position::Fixed => {
+                        self.get_mut_abs_scratch().push(child_id)
+                    }
                 }
             }
         }
+        let flow_end: usize = self.get_flow_scratch().len();
+        let abs_end: usize = self.get_abs_scratch().len();
         let flow_size: Size = match parent_layout.get_display() {
-            Display::Grid => self.layout_grid(tree, &flow_children, frame, stats),
-            Display::Block => {
-                self.layout_flex(tree, &flow_children, frame, FlexDirection::Column, stats)
-            }
+            Display::Grid => self.layout_grid(tree, flow_start, flow_end, frame, stats),
+            Display::Block => self.layout_flex(
+                tree,
+                flow_start,
+                flow_end,
+                frame,
+                FlexDirection::Column,
+                stats,
+            ),
             Display::Flex | Display::None => self.layout_flex(
                 tree,
-                &flow_children,
+                flow_start,
+                flow_end,
                 frame,
                 parent_layout.get_flex_direction(),
                 stats,
             ),
         };
-        for abs_id in abs_children.into_iter() {
+        self.get_mut_flow_scratch().truncate(flow_start);
+        for abs_idx in abs_start..abs_end {
+            let abs_id: NodeId = self.get_abs_scratch()[abs_idx];
             let child_layout_opt: Option<LayoutStyle> = tree
                 .get_node(abs_id)
                 .map(|node: &SceneNode| node.style_ref().get_layout());
@@ -388,6 +409,7 @@ impl LayoutEngine {
                 AvailableSpace::new(ref_size.get_width(), ref_size.get_height(), viewport, x, y);
             let _: Size = self.layout_node(tree, abs_id, abs_space, stats);
         }
+        self.get_mut_abs_scratch().truncate(abs_start);
         flow_size
     }
 
@@ -395,9 +417,10 @@ impl LayoutEngine {
     ///
     /// # Arguments
     ///
-    /// - `&Self` - Layout engine reference.
+    /// - `&Self` - Mutable layout engine reference.
     /// - `&mut SceneTree` - Mutable scene tree.
-    /// - `&[NodeId]` - Normal-flow children.
+    /// - `usize` - Inclusive start index into `flow_scratch`.
+    /// - `usize` - Exclusive end index into `flow_scratch`.
     /// - `ContainerFrame` - Container constraints and origin.
     /// - `FlexDirection` - Effective main-axis direction.
     /// - `&mut LayoutStats` - Mutable telemetry counters.
@@ -408,12 +431,14 @@ impl LayoutEngine {
     fn layout_flex(
         &mut self,
         tree: &mut SceneTree,
-        children: &[NodeId],
+        flow_start: usize,
+        flow_end: usize,
         frame: ContainerFrame,
         direction: FlexDirection,
         stats: &mut LayoutStats,
     ) -> Size {
-        if children.is_empty() {
+        let count_all: usize = flow_end.saturating_sub(flow_start);
+        if count_all == 0 {
             return Size::default();
         }
         let parent_layout: LayoutStyle = frame.get_parent_layout();
@@ -445,11 +470,8 @@ impl LayoutEngine {
         } else {
             inner_avail.get_width()
         };
-        let mut measured_sizes: Vec<(NodeId, Size, LayoutStyle)> =
-            Vec::with_capacity(children.len());
-        let mut ordered: Vec<NodeId> = children.to_vec();
         if is_reverse {
-            ordered.reverse();
+            self.get_mut_flow_scratch()[flow_start..flow_end].reverse();
         }
         let wrap_enabled: bool = parent_layout.get_flex_wrap() == FlexWrap::Wrap;
         if !wrap_enabled
@@ -458,7 +480,8 @@ impl LayoutEngine {
         {
             let mut single_pass_ok: bool = true;
             let mut has_stretched_auto: bool = false;
-            for child_id in ordered.iter().copied() {
+            for flow_idx in flow_start..flow_end {
+                let child_id: NodeId = self.get_flow_scratch()[flow_idx];
                 let child_layout: LayoutStyle = tree
                     .get_node(child_id)
                     .map(|node: &SceneNode| node.style_ref().get_layout())
@@ -494,13 +517,9 @@ impl LayoutEngine {
             if single_pass_ok {
                 let mut main_cursor: f32 = 0.0;
                 let mut max_cross: f32 = 0.0;
-                let count: usize = ordered.len();
-                let mut child_records: Vec<(NodeId, LayoutStyle, Size)> = if has_stretched_auto {
-                    Vec::with_capacity(count)
-                } else {
-                    Vec::new()
-                };
-                for (idx, child_id) in ordered.iter().copied().enumerate() {
+                let records_start: usize = self.get_flex_items_scratch().len();
+                for offset in 0..count_all {
+                    let child_id: NodeId = self.get_flow_scratch()[flow_start + offset];
                     let child_layout: LayoutStyle = tree
                         .get_node(child_id)
                         .map(|node: &SceneNode| node.style_ref().get_layout())
@@ -564,7 +583,11 @@ impl LayoutEngine {
                         node.get_mut_layout_box().set_bounds(b);
                     }
                     if has_stretched_auto {
-                        child_records.push((child_id, child_layout, Size::new(target_w, target_h)));
+                        self.get_mut_flex_items_scratch().push((
+                            child_id,
+                            Size::new(target_w, target_h),
+                            child_layout,
+                        ));
                     }
                     if is_row {
                         main_cursor += target_w + margin.horizontal();
@@ -573,12 +596,15 @@ impl LayoutEngine {
                         main_cursor += target_h + margin.vertical();
                         max_cross = max_cross.max(target_w + margin.horizontal());
                     }
-                    if idx + 1 < count {
+                    if offset + 1 < count_all {
                         main_cursor += main_gap;
                     }
                 }
+                let records_end: usize = self.get_flex_items_scratch().len();
                 if has_stretched_auto && max_cross > cross_avail + 0.5 {
-                    for (child_id, child_layout, child_size) in child_records.into_iter() {
+                    for rec_idx in records_start..records_end {
+                        let (child_id, child_size, child_layout): (NodeId, Size, LayoutStyle) =
+                            self.get_flex_items_scratch()[rec_idx];
                         let align: AlignItems = match child_layout.get_align_self() {
                             AlignSelf::Auto => parent_layout.get_align_items(),
                             AlignSelf::Stretch => AlignItems::Stretch,
@@ -598,6 +624,7 @@ impl LayoutEngine {
                         }
                     }
                 }
+                self.get_mut_flex_items_scratch().truncate(records_start);
                 return if is_row {
                     Size::new(main_cursor, max_cross)
                 } else {
@@ -605,8 +632,10 @@ impl LayoutEngine {
                 };
             }
         }
+        let items_start: usize = self.get_flex_items_scratch().len();
         let mut total_grow: f32 = 0.0;
-        for child_id in ordered.iter().copied() {
+        for flow_idx in flow_start..flow_end {
+            let child_id: NodeId = self.get_flow_scratch()[flow_idx];
             let child_layout: LayoutStyle = tree
                 .get_node(child_id)
                 .map(|node: &SceneNode| node.style_ref().get_layout())
@@ -644,55 +673,64 @@ impl LayoutEngine {
                 );
                 self.layout_node(tree, child_id, probe_space, stats)
             };
-            measured_sizes.push((child_id, child_size, child_layout));
+            self.get_mut_flex_items_scratch()
+                .push((child_id, child_size, child_layout));
         }
-        let mut lines: Vec<Vec<(NodeId, Size, LayoutStyle)>> = Vec::new();
-        let mut current_line: Vec<(NodeId, Size, LayoutStyle)> = Vec::new();
+        let items_end: usize = self.get_flex_items_scratch().len();
+        let lines_start: usize = self.get_flex_lines_scratch().len();
+        let mut cur_line_start: usize = items_start;
         let mut line_main: f32 = 0.0;
-        for item in measured_sizes.into_iter() {
+        for item_idx in items_start..items_end {
+            let (_, item_size, item_layout): (NodeId, Size, LayoutStyle) =
+                self.get_flex_items_scratch()[item_idx];
             let item_main: f32 = if is_row {
-                item.1.get_width() + item.2.get_margin().horizontal()
+                item_size.get_width() + item_layout.get_margin().horizontal()
             } else {
-                item.1.get_height() + item.2.get_margin().vertical()
+                item_size.get_height() + item_layout.get_margin().vertical()
             };
-            let needed: f32 = if current_line.is_empty() {
+            let line_empty: bool = item_idx == cur_line_start;
+            let needed: f32 = if line_empty {
                 item_main
             } else {
                 line_main + main_gap + item_main
             };
-            if wrap_enabled && !current_line.is_empty() && needed > main_avail && main_avail > 0.0 {
-                lines.push(take(&mut current_line));
+            if wrap_enabled && !line_empty && needed > main_avail && main_avail > 0.0 {
+                self.get_mut_flex_lines_scratch()
+                    .push((cur_line_start, item_idx));
+                cur_line_start = item_idx;
                 line_main = item_main;
-                current_line.push(item);
             } else {
                 line_main = needed;
-                current_line.push(item);
             }
         }
-        if !current_line.is_empty() {
-            lines.push(current_line);
+        if cur_line_start < items_end {
+            self.get_mut_flex_lines_scratch()
+                .push((cur_line_start, items_end));
         }
+        let lines_end: usize = self.get_flex_lines_scratch().len();
         let mut cross_cursor: f32 = 0.0;
         let mut max_main_extent: f32 = 0.0;
-        let line_count: usize = lines.len();
-        for (line_idx, mut line) in lines.into_iter().enumerate() {
-            let count: usize = line.len();
+        let line_count: usize = lines_end.saturating_sub(lines_start);
+        for line_offset in 0..line_count {
+            let (line_start, line_end): (usize, usize) =
+                self.get_flex_lines_scratch()[lines_start + line_offset];
+            let count: usize = line_end.saturating_sub(line_start);
             let gaps_total: f32 = if count > 1 {
                 main_gap * ((count - 1) as f32)
             } else {
                 0.0
             };
-            let used_main: f32 =
-                line.iter()
-                    .fold(0.0_f32, |acc: f32, item: &(NodeId, Size, LayoutStyle)| {
-                        let sz: f32 = if is_row {
-                            item.1.get_width() + item.2.get_margin().horizontal()
-                        } else {
-                            item.1.get_height() + item.2.get_margin().vertical()
-                        };
-                        acc + sz
-                    })
-                    + gaps_total;
+            let mut used_main: f32 = gaps_total;
+            for item_idx in line_start..line_end {
+                let (_, item_size, item_layout): (NodeId, Size, LayoutStyle) =
+                    self.get_flex_items_scratch()[item_idx];
+                let sz: f32 = if is_row {
+                    item_size.get_width() + item_layout.get_margin().horizontal()
+                } else {
+                    item_size.get_height() + item_layout.get_margin().vertical()
+                };
+                used_main += sz;
+            }
             let has_definite_or_grow: bool = frame.get_definite_width() || total_grow > 0.0;
             let effective_main_avail: f32 = if is_row {
                 if has_definite_or_grow || wrap_enabled {
@@ -715,7 +753,9 @@ impl LayoutEngine {
             };
             let free_main: f32 = (effective_main_avail - used_main).max(0.0);
             if total_grow > 0.0 && free_main > 0.0 && !wrap_enabled {
-                for item in line.iter_mut() {
+                for item_idx in line_start..line_end {
+                    let item: &mut (NodeId, Size, LayoutStyle) =
+                        &mut self.get_mut_flex_items_scratch()[item_idx];
                     let grow: f32 = item.2.get_flex_grow();
                     if grow > 0.0 {
                         let extra: f32 = free_main * (grow / total_grow);
@@ -728,23 +768,25 @@ impl LayoutEngine {
                 }
             }
             if !wrap_enabled {
-                for item in line.iter_mut() {
-                    let auto_cross: bool = item.2.get_flex_grow() > 0.0
+                for item_idx in line_start..line_end {
+                    let (item_id, item_size, item_layout): (NodeId, Size, LayoutStyle) =
+                        self.get_flex_items_scratch()[item_idx];
+                    let auto_cross: bool = item_layout.get_flex_grow() > 0.0
                         && if is_row {
-                            item.2.get_height() == Length::Auto
+                            item_layout.get_height() == Length::Auto
                         } else {
-                            item.2.get_width() == Length::Auto
+                            item_layout.get_width() == Length::Auto
                         };
                     if auto_cross {
                         let probe_w: f32 = if is_row {
-                            item.1.get_width()
+                            item_size.get_width()
                         } else {
                             cross_avail
                         };
                         let probe_h: f32 = if is_row {
                             cross_avail
                         } else {
-                            item.1.get_height()
+                            item_size.get_height()
                         };
                         let probe_sp: AvailableSpace = AvailableSpace::new(
                             probe_w,
@@ -753,26 +795,33 @@ impl LayoutEngine {
                             content_origin.get_x(),
                             content_origin.get_y(),
                         );
-                        let measured: Size = self.layout_node(tree, item.0, probe_sp, stats);
+                        let measured: Size = self.layout_node(tree, item_id, probe_sp, stats);
+                        let slot: &mut (NodeId, Size, LayoutStyle) =
+                            &mut self.get_mut_flex_items_scratch()[item_idx];
                         if is_row {
-                            item.1.set_height(measured.get_height());
+                            slot.1.set_height(measured.get_height());
                         } else {
-                            item.1.set_width(measured.get_width());
+                            slot.1.set_width(measured.get_width());
                         }
                     }
                 }
             }
-            let final_used_main: f32 =
-                line.iter()
-                    .fold(0.0_f32, |acc: f32, item: &(NodeId, Size, LayoutStyle)| {
-                        let sz: f32 = if is_row {
-                            item.1.get_width() + item.2.get_margin().horizontal()
-                        } else {
-                            item.1.get_height() + item.2.get_margin().vertical()
-                        };
-                        acc + sz
-                    })
-                    + gaps_total;
+            let mut final_used_main: f32 = gaps_total;
+            let mut line_cross: f32 = 0.0;
+            for item_idx in line_start..line_end {
+                let (_, item_size, item_layout): (NodeId, Size, LayoutStyle) =
+                    self.get_flex_items_scratch()[item_idx];
+                if is_row {
+                    final_used_main +=
+                        item_size.get_width() + item_layout.get_margin().horizontal();
+                    line_cross = line_cross
+                        .max(item_size.get_height() + item_layout.get_margin().vertical());
+                } else {
+                    final_used_main += item_size.get_height() + item_layout.get_margin().vertical();
+                    line_cross = line_cross
+                        .max(item_size.get_width() + item_layout.get_margin().horizontal());
+                }
+            }
             let rem: f32 = (effective_main_avail - final_used_main).max(0.0);
             let (mut main_cursor, extra_step): (f32, f32) =
                 match parent_layout.get_justify_content() {
@@ -795,16 +844,6 @@ impl LayoutEngine {
                         (slot, slot)
                     }
                 };
-            let line_cross: f32 =
-                line.iter()
-                    .fold(0.0_f32, |acc: f32, item: &(NodeId, Size, LayoutStyle)| {
-                        let c: f32 = if is_row {
-                            item.1.get_height() + item.2.get_margin().vertical()
-                        } else {
-                            item.1.get_width() + item.2.get_margin().horizontal()
-                        };
-                        acc.max(c)
-                    });
             let definite_cross: bool = !is_row || frame.get_definite_height();
             let effective_line_cross: f32 = if line_count == 1 && !wrap_enabled && definite_cross {
                 line_cross.max(cross_avail)
@@ -812,7 +851,9 @@ impl LayoutEngine {
                 line_cross
             };
             let mut actual_line_cross: f32 = line_cross;
-            for (idx, (child_id, child_size, child_layout)) in line.into_iter().enumerate() {
+            for idx in 0..count {
+                let (child_id, child_size, child_layout): (NodeId, Size, LayoutStyle) =
+                    self.get_flex_items_scratch()[line_start + idx];
                 let margin: Edges = child_layout.get_margin();
                 let item_cross: f32 = if is_row {
                     child_size.get_height()
@@ -943,10 +984,12 @@ impl LayoutEngine {
             }
             max_main_extent = max_main_extent.max(final_used_main);
             cross_cursor += actual_line_cross;
-            if line_idx + 1 < line_count {
+            if line_offset + 1 < line_count {
                 cross_cursor += cross_gap;
             }
         }
+        self.get_mut_flex_lines_scratch().truncate(lines_start);
+        self.get_mut_flex_items_scratch().truncate(items_start);
         if is_row {
             Size::new(max_main_extent, cross_cursor)
         } else {
@@ -958,9 +1001,10 @@ impl LayoutEngine {
     ///
     /// # Arguments
     ///
-    /// - `&Self` - Layout engine reference.
+    /// - `&Self` - Mutable layout engine reference.
     /// - `&mut SceneTree` - Mutable scene tree.
-    /// - `&[NodeId]` - Grid child handles.
+    /// - `usize` - Inclusive start index into `flow_scratch`.
+    /// - `usize` - Exclusive end index into `flow_scratch`.
     /// - `ContainerFrame` - Grid container constraints and origin.
     /// - `&mut LayoutStats` - Mutable telemetry counters.
     ///
@@ -970,11 +1014,12 @@ impl LayoutEngine {
     fn layout_grid(
         &mut self,
         tree: &mut SceneTree,
-        children: &[NodeId],
+        flow_start: usize,
+        flow_end: usize,
         frame: ContainerFrame,
         stats: &mut LayoutStats,
     ) -> Size {
-        if children.is_empty() {
+        if flow_start >= flow_end {
             return Size::default();
         }
         let parent_layout: LayoutStyle = frame.get_parent_layout();
@@ -987,11 +1032,12 @@ impl LayoutEngine {
         let total_col_gaps: f32 = col_gap * ((cols.saturating_sub(1)) as f32);
         let col_w: f32 = ((inner_avail.get_width() - total_col_gaps) / (cols as f32)).max(0.0);
         let mut y_cursor: f32 = 0.0;
-        let mut idx: usize = 0;
-        while idx < children.len() {
-            let row_end: usize = (idx + cols).min(children.len());
+        let mut idx: usize = flow_start;
+        while idx < flow_end {
+            let row_end: usize = (idx + cols).min(flow_end);
             let mut row_h: f32 = 0.0;
-            for (col_idx, child_id) in children[idx..row_end].iter().copied().enumerate() {
+            for col_idx in 0..(row_end - idx) {
+                let child_id: NodeId = self.get_flow_scratch()[idx + col_idx];
                 let x: f32 = content_origin.get_x() + (col_idx as f32) * (col_w + col_gap);
                 let y: f32 = content_origin.get_y() + y_cursor;
                 let auto_w: bool = tree
@@ -1009,7 +1055,8 @@ impl LayoutEngine {
                 }
                 row_h = row_h.max(child_size.get_height());
             }
-            for child_id in children[idx..row_end].iter().copied() {
+            for pos in idx..row_end {
+                let child_id: NodeId = self.get_flow_scratch()[pos];
                 if let Some(node) = tree.get_node_mut(child_id) {
                     let mut b: Rect = node.get_layout_box().get_bounds();
                     if b.get_height() < row_h {
@@ -1019,7 +1066,7 @@ impl LayoutEngine {
                 }
             }
             y_cursor += row_h;
-            if row_end < children.len() {
+            if row_end < flow_end {
                 y_cursor += row_gap;
             }
             idx = row_end;

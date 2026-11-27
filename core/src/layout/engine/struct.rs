@@ -14,6 +14,26 @@ pub struct LayoutEngine {
     #[get_mut(pub(crate))]
     #[set(skip)]
     pub(crate) children_scratch: Vec<NodeId>,
+    /// Reusable flat stack storing normal-flow child handles across recursive `layout_children` frames.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(skip)]
+    pub(crate) flow_scratch: Vec<NodeId>,
+    /// Reusable flat stack storing absolute/fixed overlay child handles across recursive `layout_children` frames.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(skip)]
+    pub(crate) abs_scratch: Vec<NodeId>,
+    /// Reusable flat stack storing measured flex child records across recursive `layout_flex` frames.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(skip)]
+    pub(crate) flex_items_scratch: Vec<(NodeId, Size, LayoutStyle)>,
+    /// Reusable flat stack storing contiguous `(start, end)` line slices into `flex_items_scratch`.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(skip)]
+    pub(crate) flex_lines_scratch: Vec<(usize, usize)>,
     /// Bounded 2-way set-associative cache of measured text sizes for layout passes.
     #[get(skip)]
     #[get_mut(pub(crate))]
