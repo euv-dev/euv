@@ -492,19 +492,21 @@ impl PaintPass {
             let Some(node) = tree.get_node(id) else {
                 break;
             };
-            let style: Style = node.get_style();
-            let paint: PaintStyle = style.get_paint();
+            let style: &Style = node.style_ref();
+            let paint: &PaintStyle = &style.paint;
             let is_scrim: bool = matches!(node.get_kind(), NodeKind::Portal)
-                || style.get_layout().get_position() == Position::Fixed;
+                || style.layout.get_position() == Position::Fixed;
             let is_transparent_canvas: bool =
                 matches!(node.get_kind(), NodeKind::Canvas) && paint.background_color().is_none();
-            let is_interactive: bool = paint.get_cursor() == CursorIcon::Pointer
-                || node
-                    .get_handlers()
-                    .handler_for(&UiEventKind::Click(Point::default()))
-                    .is_some();
-            if !is_scrim && !is_transparent_canvas && is_interactive {
-                return Some(id);
+            if !is_scrim && !is_transparent_canvas {
+                let is_interactive: bool = paint.get_cursor() == CursorIcon::Pointer
+                    || node
+                        .get_handlers()
+                        .handler_for(&UiEventKind::Click(Point::default()))
+                        .is_some();
+                if is_interactive {
+                    return Some(id);
+                }
             }
             cursor = node.parent_id();
         }
@@ -576,8 +578,8 @@ impl PaintPass {
         let Some(node) = tree.get_node(node_id) else {
             return;
         };
-        let style: Style = node.get_style();
-        let layout: LayoutStyle = style.get_layout();
+        let style: &Style = node.style_ref();
+        let layout: &LayoutStyle = &style.layout;
         if layout.get_display() == Display::None {
             return;
         }
@@ -588,42 +590,45 @@ impl PaintPass {
             portal_queue.push((layout.get_z_index(), portal_queue.len(), node_id));
             return;
         }
-        let hovered: bool = node.get_interaction().get_hovered();
-        let pressed: bool = node.get_interaction().get_pressed();
-        let mut paint: PaintStyle = if hovered {
-            node.hover_paint().unwrap_or(style.get_paint())
-        } else {
-            style.get_paint()
-        };
-        let is_scrim: bool =
-            matches!(node.get_kind(), NodeKind::Portal) || layout.get_position() == Position::Fixed;
-        let is_interactive: bool = paint.get_cursor() == CursorIcon::Pointer
-            || node
-                .get_handlers()
-                .handler_for(&UiEventKind::Click(Point::default()))
-                .is_some();
-        let is_transparent_canvas: bool =
-            matches!(node.get_kind(), NodeKind::Canvas) && paint.background_color().is_none();
+        let interaction: InteractionState = node.get_interaction();
+        let hovered: bool = interaction.get_hovered();
+        let pressed: bool = interaction.get_pressed();
         let hover_visual: bool = hovered && active_hover_target == Some(node_id);
-        if is_interactive
-            && !is_scrim
-            && !is_transparent_canvas
-            && node.hover_paint().is_none()
-            && (hover_visual || pressed)
+        let mut paint_owned: Option<PaintStyle> = if hovered { node.hover_paint() } else { None };
+        if (hover_visual || pressed)
+            && paint_owned.is_none()
+            && (hovered || node.hover_paint().is_none())
         {
-            paint.set_background(Self::interactive_tint(
-                paint.background_color(),
-                hover_visual,
-                pressed,
-            ));
+            let base_paint: &PaintStyle = &style.paint;
+            let is_scrim: bool = matches!(node.get_kind(), NodeKind::Portal)
+                || layout.get_position() == Position::Fixed;
+            let is_transparent_canvas: bool = matches!(node.get_kind(), NodeKind::Canvas)
+                && base_paint.background_color().is_none();
+            if !is_scrim && !is_transparent_canvas {
+                let is_interactive: bool = base_paint.get_cursor() == CursorIcon::Pointer
+                    || node
+                        .get_handlers()
+                        .handler_for(&UiEventKind::Click(Point::default()))
+                        .is_some();
+                if is_interactive {
+                    let mut tinted: PaintStyle = *base_paint;
+                    tinted.set_background(Self::interactive_tint(
+                        tinted.background_color(),
+                        hover_visual,
+                        pressed,
+                    ));
+                    paint_owned = Some(tinted);
+                }
+            }
         }
+        let paint: &PaintStyle = paint_owned.as_ref().unwrap_or(&style.paint);
         let opacity: f32 = (parent_opacity * paint.get_opacity()).clamp(0.0, 1.0);
         if opacity <= 0.0 {
             return;
         }
         let scale: f32 = display_list.get_scale_factor().max(0.5);
         let inv_scale: f32 = 1.0 / scale;
-        let raw_bounds: Rect = node.get_layout_box().get_bounds();
+        let raw_bounds: Rect = node.layout_box.get_bounds();
         let transform: Transform2D = paint.get_transform();
         let tx_phys: f32 = (transform.get_translate_x() * scale).round();
         let ty_phys: f32 = (transform.get_translate_y() * scale).round();
@@ -706,7 +711,7 @@ impl PaintPass {
                     border,
                 });
             }
-            if node.get_interaction().get_focused()
+            if interaction.get_focused()
                 && let Some(mut ring) = paint.focus_ring_border()
             {
                 ring.set_color(ring.get_color().multiply_alpha(opacity));
@@ -726,9 +731,9 @@ impl PaintPass {
             }
             match node.get_kind() {
                 NodeKind::Text(text) => {
-                    let mut text_style: TextStyle = style.get_text();
+                    let mut text_style: TextStyle = style.text;
                     text_style.set_color(text_style.get_color().multiply_alpha(opacity));
-                    let content_b: Rect = node.get_layout_box().get_content_bounds();
+                    let content_b: Rect = node.layout_box.get_content_bounds();
                     let cx0: f32 = (content_b.get_x() * scale).round();
                     let cy0: f32 = (content_b.get_y() * scale).round();
                     let shifted_content: Rect = Rect::new(
@@ -766,9 +771,9 @@ impl PaintPass {
                     });
                 }
                 NodeKind::Input(input_state) => {
-                    let mut text_style: TextStyle = style.get_text();
+                    let mut text_style: TextStyle = style.text;
                     let is_empty_value: bool = input_state.get_value().is_empty();
-                    let is_focused: bool = node.get_interaction().get_focused();
+                    let is_focused: bool = interaction.get_focused();
                     let rendered_text: String = if is_empty_value {
                         text_style.set_color(text_style.get_color().multiply_alpha(opacity * 0.55));
                         input_state.get_placeholder().clone()
@@ -779,7 +784,7 @@ impl PaintPass {
                         text_style.set_color(text_style.get_color().multiply_alpha(opacity));
                         input_state.get_value().clone()
                     };
-                    let content_b: Rect = node.get_layout_box().get_content_bounds();
+                    let content_b: Rect = node.layout_box.get_content_bounds();
                     let cx0: f32 = (content_b.get_x() * scale).round();
                     let cy0: f32 = (content_b.get_y() * scale).round();
                     let shifted_content: Rect = Rect::new(
@@ -839,7 +844,7 @@ impl PaintPass {
                             text: caret_text,
                             style: text_style,
                             caret_height: caret_h,
-                            color: style.get_text().get_color().multiply_alpha(opacity),
+                            color: style.text.get_color().multiply_alpha(opacity),
                             multiline: input_state.get_multiline(),
                         });
                     }
@@ -924,7 +929,7 @@ impl PaintPass {
                 display_list.push(DrawCommand::PushClip(clip_rect));
             }
         }
-        let raw_node_scroll: Point = node.get_layout_box().get_scroll_offset();
+        let raw_node_scroll: Point = node.layout_box.get_scroll_offset();
         let scroll_x_phys: f32 = (raw_node_scroll.get_x() * scale).round();
         let scroll_y_phys: f32 = (raw_node_scroll.get_y() * scale).round();
         let child_offset_phys: Point =
@@ -933,7 +938,7 @@ impl PaintPass {
         let needs_z_sort: bool = raw_children.len() > 1
             && raw_children.iter().copied().any(|cid: NodeId| {
                 tree.get_node(cid)
-                    .map(|c: &SceneNode| c.get_style().get_layout().get_z_index() != 0)
+                    .map(|c: &SceneNode| c.style_ref().layout.get_z_index() != 0)
                     .unwrap_or(false)
             });
         if !needs_z_sort {
@@ -955,7 +960,7 @@ impl PaintPass {
                 .enumerate()
                 .filter_map(|(idx, cid): (usize, NodeId)| {
                     tree.get_node(cid)
-                        .map(|c: &SceneNode| (c.get_style().get_layout().get_z_index(), idx, cid))
+                        .map(|c: &SceneNode| (c.style_ref().layout.get_z_index(), idx, cid))
                 })
                 .collect();
             sorted_children.sort_by(|a: &(i32, usize, NodeId), b: &(i32, usize, NodeId)| {
@@ -977,7 +982,7 @@ impl PaintPass {
         let show_scrollbar: bool = vp.get_width().min(vp.get_height()) >= 540.0;
         if show_scrollbar && layout.get_overflow() == Overflow::Scroll && bounds.get_height() > 24.0
         {
-            let lbox: LayoutBox = node.get_layout_box();
+            let lbox: &LayoutBox = &node.layout_box;
             let border_w: f32 = paint.get_border().get_width();
             let inner_x: f32 = bounds.get_x() + border_w;
             let inner_y: f32 = bounds.get_y() + border_w;
