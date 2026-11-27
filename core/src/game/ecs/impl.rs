@@ -402,7 +402,7 @@ impl GameWorld {
         }
     }
 
-    /// Decrements `ttl_secs` across all time-limited entities and despawns expired ones.
+    /// Decrements `ttl_secs` across all time-limited entities and despawns expired ones in-place without heap allocation.
     ///
     /// # Arguments
     ///
@@ -413,28 +413,31 @@ impl GameWorld {
     ///
     /// - `usize` - Number of entities expired and despawned.
     pub fn tick_lifetimes(&mut self, dt_secs: f32) -> usize {
-        let mut expired: Vec<EntityId> = Vec::new();
-        for slot in self.get_mut_entities().iter_mut() {
+        let Self {
+            entities,
+            free_list,
+            live_count,
+            tick,
+            ..
+        } = self;
+        let mut removed: usize = 0;
+        for (idx, slot) in entities.iter_mut().enumerate() {
             if !slot.get_alive() {
                 continue;
             }
             if let Some(rem) = slot.ttl_value() {
                 let next: f32 = rem - dt_secs;
                 if next <= 0.0 {
-                    expired.push(slot.get_id());
+                    slot.set_alive(false);
+                    free_list.push(idx as u32);
+                    removed += 1;
                 } else {
                     slot.set_ttl_secs(Some(next));
                 }
             }
         }
-        let mut removed: usize = 0;
-        for id in expired.into_iter() {
-            if self.despawn(id) {
-                removed += 1;
-            }
-        }
-        let next_tick: u64 = self.get_tick().wrapping_add(1);
-        self.set_tick(next_tick);
+        *live_count = live_count.saturating_sub(removed);
+        *tick = tick.wrapping_add(1);
         removed
     }
 
