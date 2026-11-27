@@ -19,12 +19,6 @@ pub(crate) const IME_ACTION_SHOW: &str = "show";
 /// Native action argument instructing the host OS to dismiss the system soft keyboard / IME.
 pub(crate) const IME_ACTION_HIDE: &str = "hide";
 
-/// Native action argument enabling OS-level immersive fullscreen system-bar hiding.
-pub(crate) const FULLSCREEN_ACTION_ON: &str = "on";
-
-/// Native action argument disabling OS-level immersive fullscreen and restoring system bars.
-pub(crate) const FULLSCREEN_ACTION_OFF: &str = "off";
-
 /// Inactive scrollbar thumb drag axis sentinel.
 pub(crate) const SCROLLBAR_AXIS_NONE: u8 = 0;
 
