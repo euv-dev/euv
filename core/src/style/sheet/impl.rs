@@ -50,6 +50,249 @@ impl Style {
         text
     }
 
+    /// Mutates the embedded `LayoutStyle` directly in place without copying `Style` by value.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable style reference.
+    /// - `F` - In-place mutation closure receiving `&mut LayoutStyle`.
+    ///
+    /// # Returns
+    ///
+    /// - `&mut Self` - Mutable style reference for chaining.
+    #[inline(always)]
+    pub fn mutate_layout<F>(&mut self, update: F) -> &mut Self
+    where
+        F: FnOnce(&mut LayoutStyle),
+    {
+        update(self.get_mut_layout());
+        self
+    }
+
+    /// Mutates the embedded `PaintStyle` directly in place without copying `Style` by value.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable style reference.
+    /// - `F` - In-place mutation closure receiving `&mut PaintStyle`.
+    ///
+    /// # Returns
+    ///
+    /// - `&mut Self` - Mutable style reference for chaining.
+    #[inline(always)]
+    pub fn mutate_paint<F>(&mut self, update: F) -> &mut Self
+    where
+        F: FnOnce(&mut PaintStyle),
+    {
+        update(self.get_mut_paint());
+        self
+    }
+
+    /// Mutates the embedded `TextStyle` directly in place without copying `Style` by value.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable style reference.
+    /// - `F` - In-place mutation closure receiving `&mut TextStyle`.
+    ///
+    /// # Returns
+    ///
+    /// - `&mut Self` - Mutable style reference for chaining.
+    #[inline(always)]
+    pub fn mutate_text<F>(&mut self, update: F) -> &mut Self
+    where
+        F: FnOnce(&mut TextStyle),
+    {
+        update(self.get_mut_text());
+        self
+    }
+
+    /// Sets the flex container axis direction directly in place without copying `Style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable style reference.
+    /// - `FlexDirection` - Target flex axis direction.
+    ///
+    /// # Returns
+    ///
+    /// - `&mut Self` - Mutable style reference for chaining.
+    #[inline(always)]
+    pub fn set_direction_in_place(&mut self, direction: FlexDirection) -> &mut Self {
+        let layout: &mut LayoutStyle = self.get_mut_layout();
+        if layout.get_display() != Display::None {
+            layout.set_display(Display::Flex);
+        }
+        layout.set_flex_direction(direction);
+        self
+    }
+
+    /// Configures a horizontal flex row directly in place without copying `Style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable style reference.
+    ///
+    /// # Returns
+    ///
+    /// - `&mut Self` - Mutable style reference for chaining.
+    #[inline(always)]
+    pub fn set_row_in_place(&mut self) -> &mut Self {
+        self.set_direction_in_place(FlexDirection::Row)
+    }
+
+    /// Configures a vertical flex column directly in place without copying `Style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable style reference.
+    ///
+    /// # Returns
+    ///
+    /// - `&mut Self` - Mutable style reference for chaining.
+    #[inline(always)]
+    pub fn set_column_in_place(&mut self) -> &mut Self {
+        self.set_direction_in_place(FlexDirection::Column)
+    }
+
+    /// Configures a grid layout directly in place without copying `Style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable style reference.
+    /// - `u16` - Number of grid columns (clamped to at least 1).
+    ///
+    /// # Returns
+    ///
+    /// - `&mut Self` - Mutable style reference for chaining.
+    #[inline(always)]
+    pub fn set_grid_in_place(&mut self, columns: u16) -> &mut Self {
+        let layout: &mut LayoutStyle = self.get_mut_layout();
+        if layout.get_display() != Display::None {
+            layout.set_display(Display::Grid);
+        }
+        layout.set_grid_columns(columns.max(1));
+        self
+    }
+
+    /// Sets uniform row and column gaps directly in place without copying `Style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable style reference.
+    /// - `f32` - Gap in logical pixels.
+    ///
+    /// # Returns
+    ///
+    /// - `&mut Self` - Mutable style reference for chaining.
+    #[inline(always)]
+    pub fn set_gap_in_place(&mut self, gap: f32) -> &mut Self {
+        let clamped: f32 = gap.max(0.0);
+        let layout: &mut LayoutStyle = self.get_mut_layout();
+        layout.set_row_gap(clamped);
+        layout.set_column_gap(clamped);
+        self
+    }
+
+    /// Sets solid background fill color directly in place without copying `Style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable style reference.
+    /// - `Color` - Background color.
+    ///
+    /// # Returns
+    ///
+    /// - `&mut Self` - Mutable style reference for chaining.
+    #[inline(always)]
+    pub fn set_background_in_place(&mut self, color: Color) -> &mut Self {
+        self.get_mut_paint().set_background(Some(color));
+        self
+    }
+
+    /// Sets border stroke width and color directly in place without copying `Style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable style reference.
+    /// - `f32` - Border width in logical pixels.
+    /// - `Color` - Border color.
+    ///
+    /// # Returns
+    ///
+    /// - `&mut Self` - Mutable style reference for chaining.
+    #[inline(always)]
+    pub fn set_border_in_place(&mut self, width: f32, color: Color) -> &mut Self {
+        self.get_mut_paint()
+            .set_border(Border::new(width.max(0.0), color));
+        self
+    }
+
+    /// Sets uniform corner radius directly in place without copying `Style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable style reference.
+    /// - `f32` - Corner radius in logical pixels.
+    ///
+    /// # Returns
+    ///
+    /// - `&mut Self` - Mutable style reference for chaining.
+    #[inline(always)]
+    pub fn set_radius_in_place(&mut self, radius: f32) -> &mut Self {
+        self.get_mut_paint()
+            .set_radius(CornerRadius::all(radius.max(0.0)));
+        self
+    }
+
+    /// Sets opacity in `[0.0, 1.0]` directly in place without copying `Style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable style reference.
+    /// - `f32` - Opacity factor.
+    ///
+    /// # Returns
+    ///
+    /// - `&mut Self` - Mutable style reference for chaining.
+    #[inline(always)]
+    pub fn set_opacity_in_place(&mut self, opacity: f32) -> &mut Self {
+        self.get_mut_paint().set_opacity(opacity.clamp(0.0, 1.0));
+        self
+    }
+
+    /// Sets foreground text color directly in place without copying `Style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable style reference.
+    /// - `Color` - Text color.
+    ///
+    /// # Returns
+    ///
+    /// - `&mut Self` - Mutable style reference for chaining.
+    #[inline(always)]
+    pub fn set_color_in_place(&mut self, color: Color) -> &mut Self {
+        self.get_mut_text().set_color(color);
+        self
+    }
+
+    /// Sets font size in logical pixels directly in place without copying `Style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable style reference.
+    /// - `f32` - Font size in pixels.
+    ///
+    /// # Returns
+    ///
+    /// - `&mut Self` - Mutable style reference for chaining.
+    #[inline(always)]
+    pub fn set_font_size_in_place(&mut self, size: f32) -> &mut Self {
+        self.get_mut_text().set_font_size(size.max(6.0));
+        self
+    }
+
     /// Applies any strongly-typed `StyleApply` value (e.g. `AlignItems::Center`, `Overflow::Hidden`, `Shadow`) to this style.
     ///
     /// # Arguments
@@ -82,10 +325,7 @@ impl Style {
     #[must_use]
     #[inline(always)]
     pub fn direction(mut self, direction: FlexDirection) -> Self {
-        if self.get_layout().get_display() != Display::None {
-            self.get_mut_layout().set_display(Display::Flex);
-        }
-        self.get_mut_layout().set_flex_direction(direction);
+        let _: &mut Self = self.set_direction_in_place(direction);
         self
     }
 
@@ -135,10 +375,7 @@ impl Style {
     #[must_use]
     #[inline(always)]
     pub fn row(mut self) -> Self {
-        if self.get_layout().get_display() != Display::None {
-            self.get_mut_layout().set_display(Display::Flex);
-        }
-        self.get_mut_layout().set_flex_direction(FlexDirection::Row);
+        let _: &mut Self = self.set_row_in_place();
         self
     }
 
@@ -154,11 +391,7 @@ impl Style {
     #[must_use]
     #[inline(always)]
     pub fn column(mut self) -> Self {
-        if self.get_layout().get_display() != Display::None {
-            self.get_mut_layout().set_display(Display::Flex);
-        }
-        self.get_mut_layout()
-            .set_flex_direction(FlexDirection::Column);
+        let _: &mut Self = self.set_column_in_place();
         self
     }
 
@@ -175,10 +408,7 @@ impl Style {
     #[must_use]
     #[inline(always)]
     pub fn grid(mut self, columns: u16) -> Self {
-        if self.get_layout().get_display() != Display::None {
-            self.get_mut_layout().set_display(Display::Grid);
-        }
-        self.get_mut_layout().set_grid_columns(columns.max(1));
+        let _: &mut Self = self.set_grid_in_place(columns);
         self
     }
 
@@ -401,9 +631,7 @@ impl Style {
     #[must_use]
     #[inline(always)]
     pub fn gap(mut self, gap: f32) -> Self {
-        let clamped: f32 = gap.max(0.0);
-        self.get_mut_layout().set_row_gap(clamped);
-        self.get_mut_layout().set_column_gap(clamped);
+        let _: &mut Self = self.set_gap_in_place(gap);
         self
     }
 
@@ -517,7 +745,7 @@ impl Style {
     #[must_use]
     #[inline(always)]
     pub fn background(mut self, color: Color) -> Self {
-        self.get_mut_paint().set_background(Some(color));
+        let _: &mut Self = self.set_background_in_place(color);
         self
     }
 
@@ -552,8 +780,7 @@ impl Style {
     #[must_use]
     #[inline(always)]
     pub fn border(mut self, width: f32, color: Color) -> Self {
-        self.get_mut_paint()
-            .set_border(Border::new(width.max(0.0), color));
+        let _: &mut Self = self.set_border_in_place(width, color);
         self
     }
 
@@ -570,8 +797,7 @@ impl Style {
     #[must_use]
     #[inline(always)]
     pub fn radius(mut self, radius: f32) -> Self {
-        self.get_mut_paint()
-            .set_radius(CornerRadius::all(radius.max(0.0)));
+        let _: &mut Self = self.set_radius_in_place(radius);
         self
     }
 
@@ -622,7 +848,7 @@ impl Style {
     #[must_use]
     #[inline(always)]
     pub fn opacity(mut self, opacity: f32) -> Self {
-        self.get_mut_paint().set_opacity(opacity.clamp(0.0, 1.0));
+        let _: &mut Self = self.set_opacity_in_place(opacity);
         self
     }
 
@@ -673,7 +899,7 @@ impl Style {
     #[must_use]
     #[inline(always)]
     pub fn color(mut self, color: Color) -> Self {
-        self.get_mut_text().set_color(color);
+        let _: &mut Self = self.set_color_in_place(color);
         self
     }
 
@@ -690,7 +916,7 @@ impl Style {
     #[must_use]
     #[inline(always)]
     pub fn font_size(mut self, size: f32) -> Self {
-        self.get_mut_text().set_font_size(size.max(6.0));
+        let _: &mut Self = self.set_font_size_in_place(size);
         self
     }
 

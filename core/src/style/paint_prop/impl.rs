@@ -39,6 +39,102 @@ impl Default for PaintStyle {
     }
 }
 
+/// Exact fixed-point alpha scaling and visibility helpers for `Shadow`.
+impl Shadow {
+    /// Returns a copy of this shadow with its tint alpha scaled by `opacity` in `[0.0, 1.0]`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Source drop shadow.
+    /// - `f32` - Opacity multiplier clamped to `[0.0, 1.0]`.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Shadow with exact fixed-point scaled tint alpha.
+    #[must_use]
+    #[inline(always)]
+    pub fn with_opacity(&self, opacity: f32) -> Self {
+        if opacity >= 1.0 {
+            return *self;
+        }
+        let Self {
+            offset_x,
+            offset_y,
+            blur_radius,
+            spread_radius,
+            color,
+        } = *self;
+        Self {
+            offset_x,
+            offset_y,
+            blur_radius,
+            spread_radius,
+            color: color.multiply_alpha(opacity),
+        }
+    }
+
+    /// Returns a copy of this shadow with its tint alpha scaled by an 8-bit integer factor `0..=255`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Source drop shadow.
+    /// - `u8` - 8-bit integer alpha multiplier (`0` = transparent, `255` = unchanged).
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Shadow with exact fixed-point scaled tint alpha.
+    #[must_use]
+    #[inline(always)]
+    pub const fn with_alpha_u8(&self, alpha_scale: u8) -> Self {
+        let Self {
+            offset_x,
+            offset_y,
+            blur_radius,
+            spread_radius,
+            color,
+        } = *self;
+        Self {
+            offset_x,
+            offset_y,
+            blur_radius,
+            spread_radius,
+            color: color.multiply_alpha_u8(alpha_scale),
+        }
+    }
+
+    /// Returns `true` when this shadow has non-zero alpha and non-zero visual extent.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Drop shadow to inspect.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when the shadow contributes visible pixels.
+    #[must_use]
+    #[inline(always)]
+    pub const fn is_visible(&self) -> bool {
+        let Self {
+            offset_x,
+            offset_y,
+            blur_radius,
+            spread_radius,
+            color,
+        } = *self;
+        let Color { a, .. } = color;
+        if a == 0 {
+            return false;
+        }
+        if blur_radius > 0.0 {
+            return true;
+        }
+        if spread_radius > 0.0 {
+            return true;
+        }
+        offset_x != 0.0 || offset_y != 0.0
+    }
+}
+
 /// Inspection helpers for `Transform2D`.
 impl Transform2D {
     /// Returns true when the transform is the exact identity transform.
