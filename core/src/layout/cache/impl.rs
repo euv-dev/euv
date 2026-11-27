@@ -12,6 +12,7 @@ impl AvailableSpace {
     ///
     /// - `Self` - Root available space at `(0, 0)`.
     #[must_use]
+    #[inline(always)]
     pub fn root(viewport: Size) -> Self {
         Self::new(
             viewport.get_width(),
@@ -34,10 +35,50 @@ impl AvailableSpace {
     ///
     /// - `Self` - Updated available space with stretch flags applied.
     #[must_use]
+    #[inline(always)]
     pub fn with_stretch(mut self, stretch_width: bool, stretch_height: bool) -> Self {
         self.set_stretch_width(stretch_width);
         self.set_stretch_height(stretch_height);
         self
+    }
+
+    /// Checks whether this cached layout constraint matches `incoming` size, viewport, and stretch flags.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Previously cached layout constraint.
+    /// - `Self` - Incoming layout constraint for the current pass.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when cached node dimensions can be reused without recomputing layout.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn can_reuse(&self, incoming: Self) -> bool {
+        self.get_stretch_width() == incoming.get_stretch_width()
+            && self.get_stretch_height() == incoming.get_stretch_height()
+            && (self.get_width() - incoming.get_width()).abs() <= 0.01
+            && (self.get_height() - incoming.get_height()).abs() <= 0.01
+            && (self.get_viewport().get_width() - incoming.get_viewport().get_width()).abs() <= 0.01
+            && (self.get_viewport().get_height() - incoming.get_viewport().get_height()).abs()
+                <= 0.01
+    }
+
+    /// Checks whether this cached layout constraint shares the same logical origin as `incoming`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Previously cached layout constraint.
+    /// - `Self` - Incoming layout constraint for the current pass.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when subtree translation can be skipped completely.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn same_origin(&self, incoming: Self) -> bool {
+        (self.get_origin_x() - incoming.get_origin_x()).abs() <= 0.001
+            && (self.get_origin_y() - incoming.get_origin_y()).abs() <= 0.001
     }
 }
 
