@@ -1129,16 +1129,16 @@ impl SceneTree {
             let children_opt: Option<Vec<NodeId>> = match self.get_node_mut(current) {
                 Some(node) => {
                     node.set_alive(false);
-                    if let Some(scope) = node.owned_scope() {
-                        scopes.push(scope);
+                    if node.has_extras() {
+                        if let Some(scope) = node.owned_scope() {
+                            scopes.push(scope);
+                        }
+                        for hook in node.take_lifecycles().into_iter() {
+                            observers.push((current, hook));
+                        }
+                        node.clear_extras();
                     }
-                    for hook in node.take_lifecycles().into_iter() {
-                        observers.push((current, hook));
-                    }
-                    node.set_scope(None);
                     node.set_parent(None);
-                    node.set_canvas_painter(None);
-                    node.set_handlers(EventHandlers::default());
                     let next_gen: u32 = node.get_generation().wrapping_add(1).max(1);
                     node.set_generation(next_gen);
                     Some(take(node.get_mut_children()))

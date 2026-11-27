@@ -34,49 +34,15 @@ pub struct InteractionState {
     pub(crate) pressed: bool,
 }
 
-/// Retained scene node stored contiguously inside `SceneTree`.
-#[derive(CustomDebug, Data)]
-pub struct SceneNode {
-    /// Generation tag matching live `NodeId` handles.
-    #[get(type(copy))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub(crate) generation: u32,
-    /// Whether this arena slot is currently occupied.
-    #[get(type(copy))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub(crate) alive: bool,
-    /// Semantic kind and node-specific payload.
-    pub(crate) kind: NodeKind,
-    /// Compiled layout, paint, and typography style.
-    #[get(type(copy))]
-    pub(crate) style: Style,
+/// Lazily allocated cold optional metadata boxed out of `SceneNode` to keep the hot node arena compact.
+#[derive(CustomDebug, Data, Default)]
+pub(crate) struct NodeExtras {
     /// Optional hover paint override for zero-layout-cost hover feedback.
     #[get(skip)]
     pub(crate) hover_style: Option<PaintStyle>,
-    /// Computed layout box and scroll offsets.
-    #[get(type(copy))]
-    pub(crate) layout_box: LayoutBox,
-    /// Cached previous layout constraints for clean-subtree O(1) skipping.
-    #[get(skip)]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub(crate) last_constraint: Option<AvailableSpace>,
-    /// Surgical dirty bitmask.
-    #[get(type(copy))]
-    pub(crate) dirty: DirtyFlags,
-    /// Parent node handle if attached to the tree.
-    #[get(skip)]
-    pub(crate) parent: Option<NodeId>,
-    /// Ordered child node handles.
-    pub(crate) children: Vec<NodeId>,
     /// Optional reconciliation key for keyed list items.
     #[get(skip)]
     pub(crate) key: Option<String>,
-    /// Interactive focus/hover/pressed state.
-    #[get(type(copy))]
-    pub(crate) interaction: InteractionState,
     /// Event callbacks attached to this node.
     pub(crate) handlers: EventHandlers,
     /// Optional reactive ownership scope disposed when this node is removed.
@@ -96,4 +62,49 @@ pub struct SceneNode {
     #[debug(skip)]
     #[get(skip)]
     pub(crate) lifecycles: Vec<Rc<dyn Lifecycle>>,
+}
+
+/// Retained scene node stored contiguously inside `SceneTree`.
+#[derive(CustomDebug, Data)]
+pub struct SceneNode {
+    /// Generation tag matching live `NodeId` handles.
+    #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) generation: u32,
+    /// Whether this arena slot is currently occupied.
+    #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) alive: bool,
+    /// Semantic kind and node-specific payload.
+    pub(crate) kind: NodeKind,
+    /// Compiled layout, paint, and typography style.
+    #[get(type(copy))]
+    pub(crate) style: Style,
+    /// Computed layout box and scroll offsets.
+    #[get(type(copy))]
+    pub(crate) layout_box: LayoutBox,
+    /// Cached previous layout constraints for clean-subtree O(1) skipping.
+    #[get(skip)]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) last_constraint: Option<AvailableSpace>,
+    /// Surgical dirty bitmask.
+    #[get(type(copy))]
+    pub(crate) dirty: DirtyFlags,
+    /// Parent node handle if attached to the tree.
+    #[get(skip)]
+    pub(crate) parent: Option<NodeId>,
+    /// Ordered child node handles.
+    pub(crate) children: Vec<NodeId>,
+    /// Interactive focus/hover/pressed state.
+    #[get(type(copy))]
+    pub(crate) interaction: InteractionState,
+    /// Lazily boxed cold optional metadata (handlers, hover style, a11y, lifecycles, scope, canvas, key, virtual scroll).
+    #[debug(skip)]
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) extras: Option<Box<NodeExtras>>,
 }
