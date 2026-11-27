@@ -128,3 +128,24 @@ pub(crate) struct FlexItemRecord {
     /// Packed boolean flags (`FLEX_ITEM_*`) describing child sizing constraints and probe state.
     pub(crate) flags: u16,
 }
+
+/// Shared axis and container parameters passed to `LayoutEngine::layout_flex_line`.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FlexLineContext {
+    /// Enclosing flex container constraints and origin.
+    pub(crate) frame: ContainerFrame,
+    /// `true` when main axis is horizontal (`Row`/`RowReverse`).
+    pub(crate) is_row: bool,
+    /// `true` when multi-line flex wrapping is enabled.
+    pub(crate) wrap_enabled: bool,
+    /// Main-axis gap between adjacent items in logical pixels.
+    pub(crate) main_gap: f32,
+    /// Inner available main-axis extent of the container.
+    pub(crate) main_avail: f32,
+    /// Inner available cross-axis extent of the container.
+    pub(crate) cross_avail: f32,
+    /// Aggregate `flex_grow` sum across items in the container.
+    pub(crate) total_grow: f32,
+    /// Total number of flex lines in the container.
+    pub(crate) line_count: usize,
+}
