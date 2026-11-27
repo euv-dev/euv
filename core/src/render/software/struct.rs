@@ -35,6 +35,21 @@ pub(crate) struct RoundedClipMask {
     pub(crate) radius: CornerRadius,
 }
 
+/// Pre-positioned glyph instance resolved once per frame on the main thread for zero-lookup band blitting.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct PositionedGlyph {
+    /// Direct arena slot index into `GlyphAtlas::entries`.
+    pub(crate) glyph_idx: u32,
+    /// Rounded physical X coordinate of the glyph's left edge.
+    pub(crate) x: i32,
+    /// Rounded physical Y coordinate of the glyph's top edge.
+    pub(crate) y: i32,
+    /// Cached glyph bitmap width in physical pixels for fast band culling.
+    pub(crate) width: u16,
+    /// Cached glyph bitmap height in physical pixels for fast band culling.
+    pub(crate) height: u16,
+}
+
 /// Shared read-only frame dispatch state consumed lock-free by persistent band workers during a single `render` call.
 #[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug)]
@@ -51,10 +66,14 @@ pub(crate) struct BandJob {
     pub(crate) prepped_ptr: usize,
     /// Length of the pre-processed `PreppedCommand` slice.
     pub(crate) prepped_len: usize,
-    /// Base address of the pre-measured `TextLayoutResult` slice.
-    pub(crate) layouts_ptr: usize,
-    /// Length of the pre-measured `TextLayoutResult` slice.
-    pub(crate) layouts_len: usize,
+    /// Base address of the per-frame pre-positioned `PositionedGlyph` slice.
+    pub(crate) glyphs_ptr: usize,
+    /// Length of the per-frame pre-positioned `PositionedGlyph` slice.
+    pub(crate) glyphs_len: usize,
+    /// Base address of the per-frame pre-computed `TextCaret` rectangle slice.
+    pub(crate) caret_rects_ptr: usize,
+    /// Length of the per-frame pre-computed `TextCaret` rectangle slice.
+    pub(crate) caret_rects_len: usize,
     /// Base address of the per-frame active `RoundedClipMask` slice.
     pub(crate) rounded_clips_ptr: usize,
     /// Length of the per-frame active `RoundedClipMask` slice.
@@ -143,9 +162,15 @@ pub(crate) struct PreppedCommand {
     /// Optional opaque inner horizontal-span cutout for a `BoxShadow` followed immediately by an opaque `FillRoundedRect`.
     #[get(type(copy))]
     pub(crate) opaque_cutout_v: Rect,
-    /// Optional index into the per-frame pre-resolved `TextLayoutResult` slice (`u32::MAX` when unused).
+    /// Start index into the per-frame `PositionedGlyph` slice for `TextRun` commands (`0` when unused).
     #[get(type(copy))]
-    pub(crate) text_layout_idx: u32,
+    pub(crate) glyph_run_start: u32,
+    /// Count of pre-positioned glyphs for `TextRun` commands (`0` when unused).
+    #[get(type(copy))]
+    pub(crate) glyph_run_len: u32,
+    /// Optional index into the per-frame pre-resolved `TextCaret` rectangle slice (`u32::MAX` when unused).
+    #[get(type(copy))]
+    pub(crate) caret_rect_idx: u32,
     /// Start index into the per-frame `RoundedClipMask` slice (`0` when unused).
     #[get(type(copy))]
     pub(crate) rounded_clip_start: u32,
@@ -238,4 +263,19 @@ pub struct SoftwareRenderer {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) rounded_clips_scratch: Vec<RoundedClipMask>,
+    /// Reusable flat buffer of pre-positioned glyphs emitted once per frame for zero-lookup band rasterization.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) positioned_glyphs_scratch: Vec<PositionedGlyph>,
+    /// Reusable line buffer for single-lookup `Center`/`Right` text alignment positioning.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) line_glyphs_scratch: Vec<(u32, f32, u16, u16)>,
+    /// Reusable buffer of pre-computed physical caret rectangles for `DrawCommand::TextCaret`.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) caret_rects_scratch: Vec<Rect>,
 }

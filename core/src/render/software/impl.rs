@@ -117,7 +117,7 @@ impl BandWorkerPool {
     /// - `(&mut [u8], u32, u32, u32, usize)` - Tuple `(pixels, width, y_offset, height, start_byte_offset)`.
     /// - `&[DrawCommand]` - Display list commands.
     /// - `&[PreppedCommand]` - Pre-clipped command table.
-    /// - `(&[TextLayoutResult], &[RoundedClipMask])` - Pre-measured text layouts and active rounded clip masks.
+    /// - `(&[PositionedGlyph], &[Rect], &[RoundedClipMask])` - Pre-positioned glyphs, caret rectangles, and active rounded clip masks.
     /// - `&GlyphAtlas` - Shared read-only glyph atlas.
     /// - `(f32, AntialiasingMode, Option<&[u8]>)` - Tuple of `(scale, antialiasing, optional_base_restore)`.
     ///
@@ -128,13 +128,12 @@ impl BandWorkerPool {
         slice_spec: (&mut [u8], u32, u32, u32, usize),
         commands: &[DrawCommand],
         prepped: &[PreppedCommand],
-        aux: (&[TextLayoutResult], &[RoundedClipMask]),
+        aux: (&[PositionedGlyph], &[Rect], &[RoundedClipMask]),
         atlas: &GlyphAtlas,
         render_opts: (f32, AntialiasingMode, Option<&[u8]>),
     ) -> usize {
         let (pixels, width, y_offset, height, start_byte): (&mut [u8], u32, u32, u32, usize) =
             slice_spec;
-        let (layouts, rounded_clips): (&[TextLayoutResult], &[RoundedClipMask]) = aux;
         let (scale, aa, base_restore): (f32, AntialiasingMode, Option<&[u8]>) = render_opts;
         if let Some(src_buf) = base_restore {
             let end_byte: usize = start_byte + pixels.len();
@@ -148,15 +147,7 @@ impl BandWorkerPool {
             height,
             pixels,
         };
-        SoftwareRenderer::render_band(
-            &mut band,
-            commands,
-            prepped,
-            layouts,
-            rounded_clips,
-            atlas,
-            (scale, aa),
-        )
+        SoftwareRenderer::render_band(&mut band, commands, prepped, aux, atlas, (scale, aa))
     }
 
     /// Returns total participating rasterizer threads (background workers plus the calling main thread).
@@ -178,7 +169,7 @@ impl BandWorkerPool {
     /// - `&mut Framebuffer` - Target mutable framebuffer.
     /// - `(u32, u32, usize, usize)` - Tuple `(clip_y0, clip_y1, strip_count, max_workers)`.
     /// - `(&[DrawCommand], &[PreppedCommand])` - Display list commands and pre-clipped command table.
-    /// - `(&[TextLayoutResult], &[RoundedClipMask])` - Pre-measured text layouts and active rounded clip masks.
+    /// - `(&[PositionedGlyph], &[Rect], &[RoundedClipMask])` - Pre-positioned glyphs, caret rectangles, and active rounded clip masks.
     /// - `&GlyphAtlas` - Shared read-only glyph atlas.
     /// - `(f32, AntialiasingMode, Option<&[u8]>)` - Tuple of `(scale, antialiasing, optional_base_restore)`.
     ///
@@ -190,7 +181,7 @@ impl BandWorkerPool {
         framebuffer: &mut Framebuffer,
         band_range: (u32, u32, usize, usize),
         cmd_slices: (&[DrawCommand], &[PreppedCommand]),
-        aux: (&[TextLayoutResult], &[RoundedClipMask]),
+        aux: (&[PositionedGlyph], &[Rect], &[RoundedClipMask]),
         atlas: &GlyphAtlas,
         render_opts: (f32, AntialiasingMode, Option<&[u8]>),
     ) -> usize {
@@ -202,7 +193,11 @@ impl BandWorkerPool {
         } = self;
         let (y0, y1, band_count, max_workers): (u32, u32, usize, usize) = band_range;
         let (commands, prepped): (&[DrawCommand], &[PreppedCommand]) = cmd_slices;
-        let (layouts, rounded_clips): (&[TextLayoutResult], &[RoundedClipMask]) = aux;
+        let (positioned_glyphs, caret_rects, rounded_clips): (
+            &[PositionedGlyph],
+            &[Rect],
+            &[RoundedClipMask],
+        ) = aux;
         let (scale, aa, base_restore): (f32, AntialiasingMode, Option<&[u8]>) = render_opts;
         let fb_w: u32 = framebuffer.get_width();
         let fb_h: u32 = framebuffer.get_height();
@@ -225,7 +220,7 @@ impl BandWorkerPool {
                 (slice, fb_w, start_y, total_rows, start_byte),
                 commands,
                 prepped,
-                (layouts, rounded_clips),
+                aux,
                 atlas,
                 (scale, aa, base_restore),
             );
@@ -235,7 +230,7 @@ impl BandWorkerPool {
                 (slice, fb_w, start_y, total_rows, start_byte),
                 commands,
                 prepped,
-                (layouts, rounded_clips),
+                aux,
                 atlas,
                 (scale, aa, base_restore),
             );
@@ -277,8 +272,10 @@ impl BandWorkerPool {
             commands_len: commands.len(),
             prepped_ptr: prepped.as_ptr() as usize,
             prepped_len: prepped.len(),
-            layouts_ptr: layouts.as_ptr() as usize,
-            layouts_len: layouts.len(),
+            glyphs_ptr: positioned_glyphs.as_ptr() as usize,
+            glyphs_len: positioned_glyphs.len(),
+            caret_rects_ptr: caret_rects.as_ptr() as usize,
+            caret_rects_len: caret_rects.len(),
             rounded_clips_ptr: rounded_clips.as_ptr() as usize,
             rounded_clips_len: rounded_clips.len(),
             atlas_ptr: (atlas as *const GlyphAtlas) as usize,
@@ -394,21 +391,6 @@ impl TextLayoutCache {
     pub(crate) fn len(&self) -> usize {
         let Self { entries, .. } = self;
         entries.len()
-    }
-
-    /// Returns the contiguous read-only arena slice of cached `TextLayoutResult` entries.
-    ///
-    /// # Arguments
-    ///
-    /// - `&Self` - Cache reference.
-    ///
-    /// # Returns
-    ///
-    /// - `&[TextLayoutResult]` - Contiguous arena slice indexed by `PreppedCommand::text_layout_idx`.
-    #[must_use]
-    pub(crate) fn entries(&self) -> &[TextLayoutResult] {
-        let Self { entries, .. } = self;
-        entries.as_slice()
     }
 
     /// Returns the cached `TextLayoutResult` stored at arena index `idx`, if valid.
@@ -612,6 +594,9 @@ impl SoftwareRenderer {
             base_cache_pixels: Vec::new(),
             prepped_scratch: Vec::with_capacity(64),
             rounded_clips_scratch: Vec::with_capacity(16),
+            positioned_glyphs_scratch: Vec::with_capacity(256),
+            line_glyphs_scratch: Vec::with_capacity(64),
+            caret_rects_scratch: Vec::with_capacity(4),
         }
     }
 
@@ -668,17 +653,15 @@ impl SoftwareRenderer {
             if cache_hit {
                 self.prepare_frame_range(
                     display_list,
-                    split,
-                    commands.len(),
+                    (split, commands.len()),
                     root_clip,
-                    scale,
-                    phys_h,
+                    (phys_w, phys_h, scale),
                 );
                 let pixels_shaded: usize =
                     self.execute_prepared_bands(commands, root_clip, (phys_w, phys_h, scale), true);
                 return (tiles_updated, pixels_shaded.max(1));
             }
-            self.prepare_frame_range(display_list, 0, split, root_clip, scale, phys_h);
+            self.prepare_frame_range(display_list, (0, split), root_clip, (phys_w, phys_h, scale));
             let base_shaded: usize =
                 self.execute_prepared_bands(commands, root_clip, (phys_w, phys_h, scale), false);
             let base_stable: bool = base_hash != 0 && self.get_prev_base_hash() == base_hash;
@@ -703,11 +686,9 @@ impl SoftwareRenderer {
             }
             self.prepare_frame_range(
                 display_list,
-                split,
-                commands.len(),
+                (split, commands.len()),
                 root_clip,
-                scale,
-                phys_h,
+                (phys_w, phys_h, scale),
             );
             let portal_shaded: usize =
                 self.execute_prepared_bands(commands, root_clip, (phys_w, phys_h, scale), false);
@@ -717,7 +698,12 @@ impl SoftwareRenderer {
             self.set_base_cache_hash(0);
             self.set_prev_base_hash(0);
         }
-        self.prepare_frame_range(display_list, 0, commands.len(), root_clip, scale, phys_h);
+        self.prepare_frame_range(
+            display_list,
+            (0, commands.len()),
+            root_clip,
+            (phys_w, phys_h, scale),
+        );
         let pixels_shaded: usize =
             self.execute_prepared_bands(commands, root_clip, (phys_w, phys_h, scale), false);
         (tiles_updated, pixels_shaded)
@@ -753,14 +739,16 @@ impl SoftwareRenderer {
             glyph_atlas,
             base_cache_pixels,
             prepped_scratch,
-            text_layout_cache,
+            positioned_glyphs_scratch,
+            caret_rects_scratch,
             rounded_clips_scratch,
             antialiasing,
             ..
         } = self;
         let aa: AntialiasingMode = *antialiasing;
         let prepped_slice: &[PreppedCommand] = prepped_scratch.as_slice();
-        let layouts_slice: &[TextLayoutResult] = text_layout_cache.entries();
+        let glyphs_slice: &[PositionedGlyph] = positioned_glyphs_scratch.as_slice();
+        let caret_rects_slice: &[Rect] = caret_rects_scratch.as_slice();
         let rounded_clips_slice: &[RoundedClipMask] = rounded_clips_scratch.as_slice();
         let atlas_ref: &GlyphAtlas = glyph_atlas;
         let base_restore: Option<&[u8]> = if restore_base_cache {
@@ -790,7 +778,7 @@ impl SoftwareRenderer {
                             desired_threads.saturating_sub(1),
                         ),
                         (commands, prepped_slice),
-                        (layouts_slice, rounded_clips_slice),
+                        (glyphs_slice, caret_rects_slice, rounded_clips_slice),
                         atlas_ref,
                         (scale, aa, base_restore),
                     );
@@ -806,8 +794,7 @@ impl SoftwareRenderer {
                 &mut band,
                 commands,
                 prepped_slice,
-                layouts_slice,
-                rounded_clips_slice,
+                (glyphs_slice, caret_rects_slice, rounded_clips_slice),
                 atlas_ref,
                 (scale, aa),
             )
@@ -825,34 +812,31 @@ impl SoftwareRenderer {
                 &mut band,
                 commands,
                 prepped_slice,
-                layouts_slice,
-                rounded_clips_slice,
+                (glyphs_slice, caret_rects_slice, rounded_clips_slice),
                 atlas_ref,
                 (scale, aa),
             )
         }
     }
 
-    /// Runs a lightweight main-thread pre-pass over `commands[start_idx..end_idx]` into reusable scratch buffers to resolve clips, opaque shadow cutouts, cached text layouts, and warm `GlyphAtlas`.
+    /// Runs a lightweight main-thread pre-pass over `commands[range.0..range.1]` into reusable scratch buffers to resolve clips, opaque shadow cutouts, cached text layouts, and pre-positioned glyphs.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable software renderer.
     /// - `&DisplayList` - Incoming command stream.
-    /// - `usize` - Inclusive start index into `display_list.get_commands()`.
-    /// - `usize` - Exclusive end index into `display_list.get_commands()`.
+    /// - `(usize, usize)` - Command slice `(start_idx, end_idx)` into `display_list.get_commands()`.
     /// - `Rect` - Root physical damage clip rectangle.
-    /// - `f32` - Active DPI scale factor.
-    /// - `u32` - Framebuffer physical height.
+    /// - `(u32, u32, f32)` - Tuple `(phys_w, phys_h, scale)`.
     fn prepare_frame_range(
         &mut self,
         display_list: &DisplayList,
-        start_idx: usize,
-        end_idx: usize,
+        range: (usize, usize),
         root_clip: Rect,
-        scale: f32,
-        phys_h: u32,
+        dims: (u32, u32, f32),
     ) {
+        let (start_idx, end_idx): (usize, usize) = range;
+        let (phys_w, phys_h, scale): (u32, u32, f32) = dims;
         let commands: &[DrawCommand] = display_list.get_commands().as_slice();
         let clamped_end: usize = end_idx.min(commands.len());
         let clamped_start: usize = start_idx.min(clamped_end);
@@ -865,11 +849,16 @@ impl SoftwareRenderer {
             rounded_clip_stack,
             prepped_scratch: prepped,
             rounded_clips_scratch: rounded_clips,
+            positioned_glyphs_scratch: positioned_glyphs,
+            line_glyphs_scratch: line_scratch,
+            caret_rects_scratch: caret_rects,
             ..
         } = self;
         prepped.clear();
         prepped.reserve(clamped_end - clamped_start);
         rounded_clips.clear();
+        positioned_glyphs.clear();
+        caret_rects.clear();
         clip_stack.clear();
         clip_stack.push(root_clip);
         rounded_clip_stack.clear();
@@ -926,7 +915,9 @@ impl SoftwareRenderer {
                             y1,
                             opaque_cutout_h: Rect::default(),
                             opaque_cutout_v: Rect::default(),
-                            text_layout_idx: u32::MAX,
+                            glyph_run_start: 0,
+                            glyph_run_len: 0,
+                            caret_rect_idx: u32::MAX,
                             rounded_clip_start: rc_start,
                             rounded_clip_len: rc_len,
                         });
@@ -953,7 +944,9 @@ impl SoftwareRenderer {
                                 y1,
                                 opaque_cutout_h: Rect::default(),
                                 opaque_cutout_v: Rect::default(),
-                                text_layout_idx: u32::MAX,
+                                glyph_run_start: 0,
+                                glyph_run_len: 0,
+                                caret_rect_idx: u32::MAX,
                                 rounded_clip_start: rc_start,
                                 rounded_clip_len: rc_len,
                             });
@@ -1001,7 +994,9 @@ impl SoftwareRenderer {
                                 y1,
                                 opaque_cutout_h: cut_h,
                                 opaque_cutout_v: cut_v,
-                                text_layout_idx: u32::MAX,
+                                glyph_run_start: 0,
+                                glyph_run_len: 0,
+                                caret_rect_idx: u32::MAX,
                                 rounded_clip_start: rc_start,
                                 rounded_clip_len: rc_len,
                             });
@@ -1035,18 +1030,22 @@ impl SoftwareRenderer {
                         text_layout_cache.get_or_insert_with(key_hash, width_key, || {
                             measurer.measure(text, *style, Some(max_w))
                         });
-                    let phys_font_size: f32 = style.get_font_size() * scale;
-                    if let Some(layout) = text_layout_cache.get(layout_idx) {
-                        for line in layout.get_lines().iter() {
-                            for ch in line.get_text().chars() {
-                                if ch != ' ' {
-                                    let key: GlyphKey =
-                                        GlyphKey::from_text_style(ch, phys_font_size, *style);
-                                    let _: &RasterizedGlyph =
-                                        glyph_atlas.get_or_rasterize_with(key, font_provider);
-                                }
-                            }
-                        }
+                    let (glyph_run_start, glyph_run_len): (u32, u32) =
+                        if let Some(layout) = text_layout_cache.get(layout_idx) {
+                            Self::resolve_text_run_glyphs(
+                                layout,
+                                *rect,
+                                *style,
+                                (active_clip, phys_w, phys_h, scale),
+                                (glyph_atlas, font_provider),
+                                positioned_glyphs,
+                                line_scratch,
+                            )
+                        } else {
+                            (0, 0)
+                        };
+                    if glyph_run_len == 0 {
+                        continue;
                     }
                     let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
                         rounded_clip_stack.as_slice(),
@@ -1060,18 +1059,21 @@ impl SoftwareRenderer {
                         y1,
                         opaque_cutout_h: Rect::default(),
                         opaque_cutout_v: Rect::default(),
-                        text_layout_idx: layout_idx,
+                        glyph_run_start,
+                        glyph_run_len,
+                        caret_rect_idx: u32::MAX,
                         rounded_clip_start: rc_start,
                         rounded_clip_len: rc_len,
                     });
                 }
                 DrawCommand::TextCaret {
+                    text_rect,
                     content_rect,
                     text,
                     style,
+                    caret_height,
                     color,
                     multiline,
-                    ..
                 } => {
                     if color.get_a() == 0 {
                         continue;
@@ -1096,19 +1098,15 @@ impl SoftwareRenderer {
                         text_layout_cache.get_or_insert_with(key_hash, width_key, || {
                             measurer.measure(text, *style, max_w)
                         });
-                    let phys_font_size: f32 = style.get_font_size() * scale;
-                    if let Some(layout) = text_layout_cache.get(layout_idx) {
-                        for line in layout.get_lines().iter() {
-                            for ch in line.get_text().chars() {
-                                if ch != ' ' {
-                                    let key: GlyphKey =
-                                        GlyphKey::from_text_style(ch, phys_font_size, *style);
-                                    let _: &RasterizedGlyph =
-                                        glyph_atlas.get_or_rasterize_with(key, font_provider);
-                                }
-                            }
-                        }
-                    }
+                    let caret_rect: Rect = Self::resolve_text_caret_rect(
+                        text_layout_cache.get(layout_idx),
+                        (*text_rect, *content_rect),
+                        *style,
+                        (*caret_height, scale, *multiline),
+                        (glyph_atlas, font_provider),
+                    );
+                    let caret_rect_idx: u32 = caret_rects.len() as u32;
+                    caret_rects.push(caret_rect);
                     let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
                         rounded_clip_stack.as_slice(),
                         rounded_clips,
@@ -1121,7 +1119,9 @@ impl SoftwareRenderer {
                         y1,
                         opaque_cutout_h: Rect::default(),
                         opaque_cutout_v: Rect::default(),
-                        text_layout_idx: layout_idx,
+                        glyph_run_start: 0,
+                        glyph_run_len: 0,
+                        caret_rect_idx,
                         rounded_clip_start: rc_start,
                         rounded_clip_len: rc_len,
                     });
@@ -1152,7 +1152,9 @@ impl SoftwareRenderer {
                                 y1,
                                 opaque_cutout_h: Rect::default(),
                                 opaque_cutout_v: Rect::default(),
-                                text_layout_idx: u32::MAX,
+                                glyph_run_start: 0,
+                                glyph_run_len: 0,
+                                caret_rect_idx: u32::MAX,
                                 rounded_clip_start: rc_start,
                                 rounded_clip_len: rc_len,
                             });
@@ -1183,7 +1185,9 @@ impl SoftwareRenderer {
                                 y1,
                                 opaque_cutout_h: Rect::default(),
                                 opaque_cutout_v: Rect::default(),
-                                text_layout_idx: u32::MAX,
+                                glyph_run_start: 0,
+                                glyph_run_len: 0,
+                                caret_rect_idx: u32::MAX,
                                 rounded_clip_start: rc_start,
                                 rounded_clip_len: rc_len,
                             });
@@ -1213,7 +1217,9 @@ impl SoftwareRenderer {
                                 y1,
                                 opaque_cutout_h: Rect::default(),
                                 opaque_cutout_v: Rect::default(),
-                                text_layout_idx: u32::MAX,
+                                glyph_run_start: 0,
+                                glyph_run_len: 0,
+                                caret_rect_idx: u32::MAX,
                                 rounded_clip_start: rc_start,
                                 rounded_clip_len: rc_len,
                             });
@@ -1222,6 +1228,350 @@ impl SoftwareRenderer {
                 }
             }
         }
+    }
+
+    /// Resolves and positions every visible glyph of a `TextRun` once on the main thread using direct ASCII slot tables.
+    ///
+    /// # Arguments
+    ///
+    /// - `&TextLayoutResult` - Cached wrapped lines for the text run.
+    /// - `Rect` - Logical text bounding box.
+    /// - `TextStyle` - Typography style.
+    /// - `(Rect, u32, u32, f32)` - Tuple `(active_clip, phys_w, phys_h, scale)`.
+    /// - `(&mut GlyphAtlas, &NativeSystemFont)` - Mutable glyph atlas and system font provider.
+    /// - `&mut Vec<PositionedGlyph>` - Frame-wide flat output buffer for pre-positioned glyphs.
+    /// - `&mut Vec<(u32, f32, u16, u16)>` - Reusable single-line scratch buffer for `Center`/`Right` alignment.
+    ///
+    /// # Returns
+    ///
+    /// - `(u32, u32)` - `(start_index, count)` range inside `out_glyphs`.
+    fn resolve_text_run_glyphs(
+        layout: &TextLayoutResult,
+        rect: Rect,
+        style: TextStyle,
+        clip_dims: (Rect, u32, u32, f32),
+        atlas_and_font: (&mut GlyphAtlas, &NativeSystemFont),
+        out_glyphs: &mut Vec<PositionedGlyph>,
+        line_scratch: &mut Vec<(u32, f32, u16, u16)>,
+    ) -> (u32, u32) {
+        let (clip, phys_w, phys_h, scale): (Rect, u32, u32, f32) = clip_dims;
+        let (glyph_atlas, font_provider): (&mut GlyphAtlas, &NativeSystemFont) = atlas_and_font;
+        let clip_x0: i32 = clip.get_x().ceil().max(0.0) as i32;
+        let clip_y0: i32 = (clip.get_y().ceil().max(0.0) as i32).min(phys_h as i32);
+        let clip_x1: i32 = (clip.right().floor().max(0.0) as i32).min(phys_w as i32);
+        let clip_y1: i32 = (clip.bottom().floor().max(0.0) as i32).min(phys_h as i32);
+        if clip_x0 >= clip_x1 || clip_y0 >= clip_y1 {
+            return (0, 0);
+        }
+        let phys_font_size: f32 = style.get_font_size() * scale;
+        let size_tenths: u16 = (phys_font_size.clamp(6.0, 256.0) * 10.0 + 0.5) as u16;
+        let bold: bool = style.get_weight().is_bold();
+        let monospace: bool = style.get_family() == FontFamily::Monospace;
+        let italic: bool = style.get_italic();
+        let key_meta: (u16, bool, bool, bool) = (size_tenths, bold, monospace, italic);
+        let ascii_table_idx: usize =
+            glyph_atlas.ascii_table_index(size_tenths, bold, monospace, italic);
+        let line_h_phys: f32 = layout.get_line_height_px() * scale;
+        let box_w_phys: f32 = rect.get_width() * scale;
+        let letter_sp: f32 = style.get_letter_spacing() * scale;
+        let space_step: f32 = measure_char_advance(' ', style) * scale + letter_sp;
+        let base_x_phys: f32 = (rect.get_x() * scale).round();
+        let base_y_phys: f32 = (rect.get_y() * scale).round();
+        let clip_x1_f: f32 = clip_x1 as f32;
+        let clip_y0_f: f32 = clip_y0 as f32;
+        let clip_y1_f: f32 = clip_y1 as f32;
+        let align: TextAlign = style.get_align();
+        let run_start: u32 = out_glyphs.len() as u32;
+        for (line_idx, line) in layout.get_lines().iter().enumerate() {
+            let line_off_y: f32 = ((line_idx as f32) * line_h_phys).round();
+            let pen_y: f32 = base_y_phys + line_off_y;
+            if (pen_y + line_h_phys) < clip_y0_f || pen_y > clip_y1_f {
+                continue;
+            }
+            let line_str: &str = line.get_text().as_str();
+            if align == TextAlign::Left {
+                let mut pen_x: f32 = base_x_phys;
+                if line_str.is_ascii() {
+                    for &byte in line_str.as_bytes() {
+                        if byte == b' ' {
+                            pen_x += space_step;
+                            continue;
+                        }
+                        if pen_x > clip_x1_f {
+                            break;
+                        }
+                        let slot: u32 = glyph_atlas.get_or_rasterize_ascii_slot_with(
+                            ascii_table_idx,
+                            byte,
+                            key_meta,
+                            font_provider,
+                        );
+                        let glyph: &RasterizedGlyph = glyph_atlas.glyph_by_slot(slot);
+                        let adv_phys: f32 = (glyph.get_advance() as f32).max(1.0) + letter_sp;
+                        let gx0: i32 = pen_x.round() as i32;
+                        let gw: i32 = glyph.get_width() as i32;
+                        if gx0 + gw > clip_x0 && gx0 < clip_x1 {
+                            let gh: u32 = glyph.get_height();
+                            let glyph_v_off: f32 = ((line_h_phys - (gh as f32)) * 0.5).round();
+                            let gy0: i32 = (pen_y + glyph_v_off) as i32;
+                            if gy0 < clip_y1 && gy0 + (gh as i32) > clip_y0 {
+                                out_glyphs.push(PositionedGlyph {
+                                    glyph_idx: slot,
+                                    x: gx0,
+                                    y: gy0,
+                                    width: (gw as u32).min(u16::MAX as u32) as u16,
+                                    height: gh.min(u16::MAX as u32) as u16,
+                                });
+                            }
+                        }
+                        pen_x += adv_phys;
+                    }
+                } else {
+                    for ch in line_str.chars() {
+                        if ch == ' ' {
+                            pen_x += space_step;
+                            continue;
+                        }
+                        if pen_x > clip_x1_f {
+                            break;
+                        }
+                        let slot: u32 = if ch.is_ascii() {
+                            glyph_atlas.get_or_rasterize_ascii_slot_with(
+                                ascii_table_idx,
+                                ch as u8,
+                                key_meta,
+                                font_provider,
+                            )
+                        } else {
+                            let key: GlyphKey = GlyphKey {
+                                codepoint: ch,
+                                size_tenths,
+                                bold,
+                                monospace,
+                                italic,
+                            };
+                            glyph_atlas.get_or_rasterize_slot_with(key, font_provider)
+                        };
+                        let glyph: &RasterizedGlyph = glyph_atlas.glyph_by_slot(slot);
+                        let adv_phys: f32 = (glyph.get_advance() as f32).max(1.0) + letter_sp;
+                        let gx0: i32 = pen_x.round() as i32;
+                        let gw: i32 = glyph.get_width() as i32;
+                        if gx0 + gw > clip_x0 && gx0 < clip_x1 {
+                            let gh: u32 = glyph.get_height();
+                            let glyph_v_off: f32 = ((line_h_phys - (gh as f32)) * 0.5).round();
+                            let gy0: i32 = (pen_y + glyph_v_off) as i32;
+                            if gy0 < clip_y1 && gy0 + (gh as i32) > clip_y0 {
+                                out_glyphs.push(PositionedGlyph {
+                                    glyph_idx: slot,
+                                    x: gx0,
+                                    y: gy0,
+                                    width: (gw as u32).min(u16::MAX as u32) as u16,
+                                    height: gh.min(u16::MAX as u32) as u16,
+                                });
+                            }
+                        }
+                        pen_x += adv_phys;
+                    }
+                }
+            } else {
+                line_scratch.clear();
+                let mut line_w_phys: f32 = 0.0;
+                if line_str.is_ascii() {
+                    for &byte in line_str.as_bytes() {
+                        if byte == b' ' {
+                            line_w_phys += space_step;
+                            line_scratch.push((u32::MAX, space_step, 0, 0));
+                        } else {
+                            let slot: u32 = glyph_atlas.get_or_rasterize_ascii_slot_with(
+                                ascii_table_idx,
+                                byte,
+                                key_meta,
+                                font_provider,
+                            );
+                            let glyph: &RasterizedGlyph = glyph_atlas.glyph_by_slot(slot);
+                            let adv_phys: f32 = (glyph.get_advance() as f32).max(1.0) + letter_sp;
+                            line_w_phys += adv_phys;
+                            line_scratch.push((
+                                slot,
+                                adv_phys,
+                                glyph.get_width().min(u16::MAX as u32) as u16,
+                                glyph.get_height().min(u16::MAX as u32) as u16,
+                            ));
+                        }
+                    }
+                } else {
+                    for ch in line_str.chars() {
+                        if ch == ' ' {
+                            line_w_phys += space_step;
+                            line_scratch.push((u32::MAX, space_step, 0, 0));
+                        } else {
+                            let slot: u32 = if ch.is_ascii() {
+                                glyph_atlas.get_or_rasterize_ascii_slot_with(
+                                    ascii_table_idx,
+                                    ch as u8,
+                                    key_meta,
+                                    font_provider,
+                                )
+                            } else {
+                                let key: GlyphKey = GlyphKey {
+                                    codepoint: ch,
+                                    size_tenths,
+                                    bold,
+                                    monospace,
+                                    italic,
+                                };
+                                glyph_atlas.get_or_rasterize_slot_with(key, font_provider)
+                            };
+                            let glyph: &RasterizedGlyph = glyph_atlas.glyph_by_slot(slot);
+                            let adv_phys: f32 = (glyph.get_advance() as f32).max(1.0) + letter_sp;
+                            line_w_phys += adv_phys;
+                            line_scratch.push((
+                                slot,
+                                adv_phys,
+                                glyph.get_width().min(u16::MAX as u32) as u16,
+                                glyph.get_height().min(u16::MAX as u32) as u16,
+                            ));
+                        }
+                    }
+                }
+                let align_x: f32 = if align == TextAlign::Center {
+                    ((box_w_phys - line_w_phys) * 0.5).max(0.0)
+                } else {
+                    (box_w_phys - line_w_phys).max(0.0)
+                };
+                let mut pen_x: f32 = base_x_phys + align_x.round();
+                for &(slot, adv_phys, gw_u16, gh_u16) in line_scratch.iter() {
+                    if slot == u32::MAX {
+                        pen_x += adv_phys;
+                        continue;
+                    }
+                    if pen_x > clip_x1_f {
+                        break;
+                    }
+                    let gx0: i32 = pen_x.round() as i32;
+                    let gw: i32 = gw_u16 as i32;
+                    let gh: i32 = gh_u16 as i32;
+                    if gx0 + gw > clip_x0 && gx0 < clip_x1 {
+                        let glyph_v_off: f32 = ((line_h_phys - (gh as f32)) * 0.5).round();
+                        let gy0: i32 = (pen_y + glyph_v_off) as i32;
+                        if gy0 < clip_y1 && gy0 + gh > clip_y0 {
+                            out_glyphs.push(PositionedGlyph {
+                                glyph_idx: slot,
+                                x: gx0,
+                                y: gy0,
+                                width: gw_u16,
+                                height: gh_u16,
+                            });
+                        }
+                    }
+                    pen_x += adv_phys;
+                }
+            }
+        }
+        let run_len: u32 = (out_glyphs.len() as u32).saturating_sub(run_start);
+        (run_start, run_len)
+    }
+
+    /// Precomputes the exact physical pixel rectangle for `DrawCommand::TextCaret` using direct ASCII slot lookup.
+    ///
+    /// # Arguments
+    ///
+    /// - `Option<&TextLayoutResult>` - Cached wrapped text layout, if present.
+    /// - `(Rect, Rect)` - Tuple `(text_rect, content_rect)` in logical pixels.
+    /// - `TextStyle` - Typography style.
+    /// - `(f32, f32, bool)` - Tuple `(caret_height, scale, multiline)`.
+    /// - `(&mut GlyphAtlas, &NativeSystemFont)` - Mutable glyph atlas and system font provider.
+    ///
+    /// # Returns
+    ///
+    /// - `Rect` - Physical pixel caret rectangle ready for band rasterization.
+    #[must_use]
+    fn resolve_text_caret_rect(
+        layout_opt: Option<&TextLayoutResult>,
+        rects: (Rect, Rect),
+        style: TextStyle,
+        caret_opts: (f32, f32, bool),
+        atlas_and_font: (&mut GlyphAtlas, &NativeSystemFont),
+    ) -> Rect {
+        let (text_rect, content_rect): (Rect, Rect) = rects;
+        let (caret_height, scale, multiline): (f32, f32, bool) = caret_opts;
+        let (glyph_atlas, font_provider): (&mut GlyphAtlas, &NativeSystemFont) = atlas_and_font;
+        let phys_font_size: f32 = style.get_font_size() * scale;
+        let size_tenths: u16 = (phys_font_size.clamp(6.0, 256.0) * 10.0 + 0.5) as u16;
+        let bold: bool = style.get_weight().is_bold();
+        let monospace: bool = style.get_family() == FontFamily::Monospace;
+        let italic: bool = style.get_italic();
+        let key_meta: (u16, bool, bool, bool) = (size_tenths, bold, monospace, italic);
+        let letter_sp: f32 = style.get_letter_spacing() * scale;
+        let space_step: f32 = measure_char_advance(' ', style) * scale + letter_sp;
+        let (last_w_phys, line_idx, line_h_phys): (f32, usize, f32) =
+            if let Some(layout) = layout_opt {
+                let lh: f32 = layout.get_line_height_px() * scale;
+                let idx: usize = layout.get_lines().len().saturating_sub(1);
+                let w_phys: f32 = if let Some(line) = layout.get_lines().last() {
+                    let ascii_table_idx: usize =
+                        glyph_atlas.ascii_table_index(size_tenths, bold, monospace, italic);
+                    let mut acc: f32 = 0.0;
+                    for ch in line.get_text().chars() {
+                        if ch == ' ' {
+                            acc += space_step;
+                        } else {
+                            let slot: u32 = if ch.is_ascii() {
+                                glyph_atlas.get_or_rasterize_ascii_slot_with(
+                                    ascii_table_idx,
+                                    ch as u8,
+                                    key_meta,
+                                    font_provider,
+                                )
+                            } else {
+                                let key: GlyphKey = GlyphKey {
+                                    codepoint: ch,
+                                    size_tenths,
+                                    bold,
+                                    monospace,
+                                    italic,
+                                };
+                                glyph_atlas.get_or_rasterize_slot_with(key, font_provider)
+                            };
+                            let adv: f32 =
+                                (glyph_atlas.glyph_by_slot(slot).get_advance() as f32).max(1.0);
+                            acc += adv + letter_sp;
+                        }
+                    }
+                    acc
+                } else {
+                    0.0
+                };
+                (w_phys, idx, lh)
+            } else {
+                (
+                    0.0,
+                    0,
+                    (style.get_font_size() * style.get_line_height()).max(1.0) * scale,
+                )
+            };
+        let caret_h_phys: f32 = (caret_height * scale).max(2.0);
+        let caret_w_phys: f32 = (1.5 * scale).max(1.5);
+        let max_x: f32 =
+            (content_rect.right() * scale - caret_w_phys - 1.0).max(content_rect.get_x() * scale);
+        let caret_x_phys: f32 = (text_rect.get_x() * scale + last_w_phys + 1.5 * scale).min(max_x);
+        let caret_y_phys: f32 = if multiline {
+            let raw_y: f32 = content_rect.get_y() * scale
+                + (line_idx as f32) * line_h_phys
+                + ((line_h_phys - caret_h_phys) * 0.5).max(0.0);
+            raw_y
+                .min(content_rect.bottom() * scale - caret_h_phys)
+                .max(content_rect.get_y() * scale)
+        } else {
+            content_rect.get_y() * scale
+                + ((content_rect.get_height() * scale - caret_h_phys) * 0.5).max(0.0)
+        };
+        Rect::new(
+            caret_x_phys.round(),
+            caret_y_phys.round(),
+            caret_w_phys.round().max(1.0),
+            caret_h_phys.round().max(2.0),
+        )
     }
 
     /// Collects active rounded clip masks intersecting `vis` into `out` and returns their `(start, len)` span.
@@ -1307,8 +1657,7 @@ impl SoftwareRenderer {
     /// - `&mut PixelBand<'_>` - Disjoint mutable horizontal pixel band.
     /// - `&[DrawCommand]` - Full frame draw command slice.
     /// - `&[PreppedCommand]` - Pre-clipped command list.
-    /// - `&[TextLayoutResult]` - Pre-measured text layouts.
-    /// - `&[RoundedClipMask]` - Active rounded-rectangle clip masks referenced by prepped commands.
+    /// - `(&[PositionedGlyph], &[Rect], &[RoundedClipMask])` - Pre-positioned glyphs, caret rectangles, and active rounded-rectangle clip masks.
     /// - `&GlyphAtlas` - Immutable pre-warmed glyph atlas.
     /// - `(f32, AntialiasingMode)` - Tuple `(scale, antialiasing)`.
     ///
@@ -1319,11 +1668,15 @@ impl SoftwareRenderer {
         band: &mut PixelBand<'_>,
         commands: &[DrawCommand],
         prepped: &[PreppedCommand],
-        text_layouts: &[TextLayoutResult],
-        rounded_clips: &[RoundedClipMask],
+        aux: (&[PositionedGlyph], &[Rect], &[RoundedClipMask]),
         glyph_atlas: &GlyphAtlas,
         render_opts: (f32, AntialiasingMode),
     ) -> usize {
+        let (positioned_glyphs, caret_rects, rounded_clips): (
+            &[PositionedGlyph],
+            &[Rect],
+            &[RoundedClipMask],
+        ) = aux;
         let (scale, aa): (f32, AntialiasingMode) = render_opts;
         let band_y0: u32 = band.y_offset();
         let band_y1: u32 = band.y_end();
@@ -1466,15 +1819,14 @@ impl SoftwareRenderer {
                         (item.get_opaque_cutout_h(), item.get_opaque_cutout_v()),
                     )
                 }
-                DrawCommand::TextRun { rect, style, .. } => {
-                    let lidx: usize = item.get_text_layout_idx() as usize;
-                    if let Some(layout) = text_layouts.get(lidx) {
+                DrawCommand::TextRun { style, .. } => {
+                    let g_start: usize = item.get_glyph_run_start() as usize;
+                    let g_len: usize = item.get_glyph_run_len() as usize;
+                    if let Some(run_slice) = positioned_glyphs.get(g_start..g_start + g_len) {
                         Self::raster_text_run_band(
                             band,
-                            *rect,
-                            layout,
-                            *style,
-                            scale,
+                            run_slice,
+                            style.get_color(),
                             active_clip,
                             glyph_atlas,
                         )
@@ -1482,90 +1834,21 @@ impl SoftwareRenderer {
                         0
                     }
                 }
-                DrawCommand::TextCaret {
-                    text_rect,
-                    content_rect,
-                    style,
-                    caret_height,
-                    color,
-                    multiline,
-                    ..
-                } => {
-                    let lidx: usize = item.get_text_layout_idx() as usize;
-                    let phys_font_size: f32 = style.get_font_size() * scale;
-                    let letter_sp: f32 = style.get_letter_spacing() * scale;
-                    let space_adv: f32 = measure_char_advance(' ', *style) * scale;
-                    let glyphs: &HashMap<GlyphKey, RasterizedGlyph> = glyph_atlas.get_glyphs();
-                    let (last_w_phys, line_idx, line_h_phys): (f32, usize, f32) =
-                        if let Some(layout) = text_layouts.get(lidx) {
-                            let lh: f32 = layout.get_line_height_px() * scale;
-                            let idx: usize = layout.get_lines().len().saturating_sub(1);
-                            let w_phys: f32 = layout
-                                .get_lines()
-                                .last()
-                                .map(|line: &TextLine| {
-                                    let mut acc: f32 = 0.0;
-                                    for ch in line.get_text().chars() {
-                                        if ch == ' ' {
-                                            acc += space_adv + letter_sp;
-                                        } else {
-                                            let key: GlyphKey = GlyphKey::from_text_style(
-                                                ch,
-                                                phys_font_size,
-                                                *style,
-                                            );
-                                            let adv: f32 = glyphs
-                                                .get(&key)
-                                                .map(|g: &RasterizedGlyph| {
-                                                    (g.get_advance() as f32).max(1.0)
-                                                })
-                                                .unwrap_or(space_adv);
-                                            acc += adv + letter_sp;
-                                        }
-                                    }
-                                    acc
-                                })
-                                .unwrap_or(0.0);
-                            (w_phys, idx, lh)
-                        } else {
-                            (
-                                0.0,
-                                0,
-                                (style.get_font_size() * style.get_line_height()).max(1.0) * scale,
-                            )
-                        };
-                    let caret_h_phys: f32 = (caret_height * scale).max(2.0);
-                    let caret_w_phys: f32 = (1.5 * scale).max(1.5);
-                    let max_x: f32 = (content_rect.right() * scale - caret_w_phys - 1.0)
-                        .max(content_rect.get_x() * scale);
-                    let caret_x_phys: f32 =
-                        (text_rect.get_x() * scale + last_w_phys + 1.5 * scale).min(max_x);
-                    let caret_y_phys: f32 = if *multiline {
-                        let raw_y: f32 = content_rect.get_y() * scale
-                            + (line_idx as f32) * line_h_phys
-                            + ((line_h_phys - caret_h_phys) * 0.5).max(0.0);
-                        raw_y
-                            .min(content_rect.bottom() * scale - caret_h_phys)
-                            .max(content_rect.get_y() * scale)
+                DrawCommand::TextCaret { color, .. } => {
+                    let cidx: usize = item.get_caret_rect_idx() as usize;
+                    if let Some(&caret_rect) = caret_rects.get(cidx) {
+                        Self::raster_rounded_rect(
+                            band,
+                            caret_rect,
+                            *color,
+                            CornerRadius::all(0.5 * scale),
+                            Border::default(),
+                            active_clip,
+                            aa,
+                        )
                     } else {
-                        content_rect.get_y() * scale
-                            + ((content_rect.get_height() * scale - caret_h_phys) * 0.5).max(0.0)
-                    };
-                    let caret_rect: Rect = Rect::new(
-                        caret_x_phys.round(),
-                        caret_y_phys.round(),
-                        caret_w_phys.round().max(1.0),
-                        caret_h_phys.round().max(2.0),
-                    );
-                    Self::raster_rounded_rect(
-                        band,
-                        caret_rect,
-                        *color,
-                        CornerRadius::all(0.5 * scale),
-                        Border::default(),
-                        active_clip,
-                        aa,
-                    )
+                        0
+                    }
                 }
                 DrawCommand::Image {
                     rect,
@@ -2334,15 +2617,13 @@ impl SoftwareRenderer {
         shaded
     }
 
-    /// Rasterizes a pre-measured UTF-8 text run into `band` using the immutable pre-warmed `GlyphAtlas`.
+    /// Rasterizes a pre-positioned glyph slice into `band` using direct slot indexing with zero HashMap lookups.
     ///
     /// # Arguments
     ///
     /// - `&mut PixelBand<'_>` - Target pixel band.
-    /// - `Rect` - Logical text bounding box.
-    /// - `&TextLayoutResult` - Pre-measured wrapped lines.
-    /// - `TextStyle` - Typography style.
-    /// - `f32` - Active DPI scale factor.
+    /// - `&[PositionedGlyph]` - Pre-positioned glyph instances for this text run.
+    /// - `Color` - Foreground text color.
     /// - `Rect` - Active physical clip bounds.
     /// - `&GlyphAtlas` - Read-only pre-warmed glyph atlas.
     ///
@@ -2351,17 +2632,11 @@ impl SoftwareRenderer {
     /// - `usize` - Shaded pixel count.
     fn raster_text_run_band(
         band: &mut PixelBand<'_>,
-        rect: Rect,
-        layout: &TextLayoutResult,
-        style: TextStyle,
-        scale: f32,
+        positioned_glyphs: &[PositionedGlyph],
+        color: Color,
         clip: Rect,
         glyph_atlas: &GlyphAtlas,
     ) -> usize {
-        let phys_font_size: f32 = style.get_font_size() * scale;
-        let line_h_phys: f32 = layout.get_line_height_px() * scale;
-        let box_w_phys: f32 = rect.get_width() * scale;
-        let color: Color = style.get_color();
         let fb_w: i32 = band.width() as i32;
         let band_y0: i32 = band.y_offset() as i32;
         let band_y1: i32 = band.y_end() as i32;
@@ -2372,80 +2647,35 @@ impl SoftwareRenderer {
         if clip_x0 >= clip_x1 || clip_y0 >= clip_y1 {
             return 0;
         }
-        let letter_sp: f32 = style.get_letter_spacing() * scale;
-        let space_adv: f32 = measure_char_advance(' ', style) * scale;
-        let glyphs: &HashMap<GlyphKey, RasterizedGlyph> = glyph_atlas.get_glyphs();
-        let base_x_phys: f32 = (rect.get_x() * scale).round();
-        let base_y_phys: f32 = (rect.get_y() * scale).round();
         let mut shaded: usize = 0;
-        for (line_idx, line) in layout.get_lines().iter().enumerate() {
-            let line_off_y: f32 = ((line_idx as f32) * line_h_phys).round();
-            let pen_y: f32 = base_y_phys + line_off_y;
-            if (pen_y + line_h_phys) < (clip_y0 as f32) || pen_y > (clip_y1 as f32) {
+        for pg in positioned_glyphs.iter() {
+            let gy0: i32 = pg.y;
+            let gh: i32 = pg.height as i32;
+            if gy0 >= clip_y1 || gy0 + gh <= clip_y0 {
                 continue;
             }
-            let align_x: f32 = match style.get_align() {
-                TextAlign::Left => 0.0,
-                TextAlign::Center | TextAlign::Right => {
-                    let mut line_w_phys: f32 = 0.0;
-                    for ch in line.get_text().chars() {
-                        if ch == ' ' {
-                            line_w_phys += space_adv + letter_sp;
-                        } else {
-                            let key: GlyphKey =
-                                GlyphKey::from_text_style(ch, phys_font_size, style);
-                            let adv: f32 = glyphs
-                                .get(&key)
-                                .map(|g: &RasterizedGlyph| (g.get_advance() as f32).max(1.0))
-                                .unwrap_or(space_adv);
-                            line_w_phys += adv + letter_sp;
-                        }
-                    }
-                    if style.get_align() == TextAlign::Center {
-                        ((box_w_phys - line_w_phys) * 0.5).max(0.0)
-                    } else {
-                        (box_w_phys - line_w_phys).max(0.0)
-                    }
+            let gx0: i32 = pg.x;
+            let gw: i32 = pg.width as i32;
+            if gx0 >= clip_x1 || gx0 + gw <= clip_x0 {
+                continue;
+            }
+            let glyph: &RasterizedGlyph = glyph_atlas.glyph_by_slot(pg.glyph_idx);
+            let py_start: i32 = (clip_y0 - gy0).max(0);
+            let py_end: i32 = (clip_y1 - gy0).min(gh);
+            let px_start: i32 = (clip_x0 - gx0).max(0);
+            let px_end: i32 = (clip_x1 - gx0).min(gw);
+            if py_start < py_end && px_start < px_end {
+                let cov_bytes: &[u8] = glyph.get_coverage().as_slice();
+                let gw_usize: usize = gw as usize;
+                let dx: u32 = (gx0 + px_start) as u32;
+                let start_u: usize = px_start as usize;
+                let end_u: usize = px_end as usize;
+                for py in py_start..py_end {
+                    let dy: u32 = (gy0 + py) as u32;
+                    let row_off: usize = (py as usize) * gw_usize;
+                    let row_slice: &[u8] = &cov_bytes[row_off + start_u..row_off + end_u];
+                    shaded += band.blend_glyph_row(dx, dy, row_slice, color);
                 }
-            };
-            let mut pen_x: f32 = base_x_phys + align_x.round();
-            for ch in line.get_text().chars() {
-                if ch == ' ' {
-                    pen_x += space_adv + letter_sp;
-                    continue;
-                }
-                if pen_x > (clip_x1 as f32) {
-                    break;
-                }
-                let key: GlyphKey = GlyphKey::from_text_style(ch, phys_font_size, style);
-                let Some(glyph) = glyphs.get(&key) else {
-                    pen_x += space_adv + letter_sp;
-                    continue;
-                };
-                let adv_phys: f32 = (glyph.get_advance() as f32).max(1.0) + letter_sp;
-                let gx0: i32 = pen_x.round() as i32;
-                let glyph_v_off: f32 = ((line_h_phys - (glyph.get_height() as f32)) * 0.5).round();
-                let gy0: i32 = (pen_y + glyph_v_off) as i32;
-                let gw: i32 = glyph.get_width() as i32;
-                let gh: i32 = glyph.get_height() as i32;
-                let py_start: i32 = (clip_y0 - gy0).max(0);
-                let py_end: i32 = (clip_y1 - gy0).min(gh);
-                let px_start: i32 = (clip_x0 - gx0).max(0);
-                let px_end: i32 = (clip_x1 - gx0).min(gw);
-                if py_start < py_end && px_start < px_end {
-                    let cov_bytes: &[u8] = glyph.get_coverage().as_slice();
-                    let gw_usize: usize = gw as usize;
-                    let dx: u32 = (gx0 + px_start) as u32;
-                    let start_u: usize = px_start as usize;
-                    let end_u: usize = px_end as usize;
-                    for py in py_start..py_end {
-                        let dy: u32 = (gy0 + py) as u32;
-                        let row_off: usize = (py as usize) * gw_usize;
-                        let row_slice: &[u8] = &cov_bytes[row_off + start_u..row_off + end_u];
-                        shaded += band.blend_glyph_row(dx, dy, row_slice, color);
-                    }
-                }
-                pen_x += adv_phys;
             }
         }
         shaded

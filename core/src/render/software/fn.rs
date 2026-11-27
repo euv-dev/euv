@@ -668,8 +668,10 @@ pub(crate) fn run_band_job_loop(job: &BandJob) {
         unsafe { from_raw_parts(job.commands_ptr as *const DrawCommand, job.commands_len) };
     let prepped: &[PreppedCommand] =
         unsafe { from_raw_parts(job.prepped_ptr as *const PreppedCommand, job.prepped_len) };
-    let layouts: &[TextLayoutResult] =
-        unsafe { from_raw_parts(job.layouts_ptr as *const TextLayoutResult, job.layouts_len) };
+    let positioned_glyphs: &[PositionedGlyph] =
+        unsafe { from_raw_parts(job.glyphs_ptr as *const PositionedGlyph, job.glyphs_len) };
+    let caret_rects: &[Rect] =
+        unsafe { from_raw_parts(job.caret_rects_ptr as *const Rect, job.caret_rects_len) };
     let rounded_clips: &[RoundedClipMask] = unsafe {
         from_raw_parts(
             job.rounded_clips_ptr as *const RoundedClipMask,
@@ -702,8 +704,7 @@ pub(crate) fn run_band_job_loop(job: &BandJob) {
             &mut band,
             commands,
             prepped,
-            layouts,
-            rounded_clips,
+            (positioned_glyphs, caret_rects, rounded_clips),
             atlas,
             (job.scale, job.aa),
         );
