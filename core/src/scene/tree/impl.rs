@@ -47,6 +47,22 @@ impl SceneTree {
         portal_nodes.as_slice()
     }
 
+    /// Returns `true` when at least one live `NodeKind::Portal` or `Position::Fixed` node is registered.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene tree reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - Whether any top-layer portal or fixed node exists in the scene.
+    #[must_use]
+    #[inline(always)]
+    pub fn has_portal_nodes(&self) -> bool {
+        let Self { portal_nodes, .. } = self;
+        !portal_nodes.is_empty()
+    }
+
     /// Synchronizes `id` membership in `portal_nodes` whenever a top-layer node is created, mutated, or disposed.
     ///
     /// # Arguments
@@ -387,8 +403,8 @@ impl SceneTree {
     pub fn set_style(&mut self, id: NodeId, style: Style) {
         let (dirty_mask, portal_update): (u16, Option<bool>) = match self.get_node_mut(id) {
             Some(node) => {
-                let prev: Style = node.get_style();
-                if prev == style {
+                let prev: &Style = node.style_ref();
+                if *prev == style {
                     return;
                 }
                 let mut mask: u16 = DIRTY_PAINT;
@@ -897,14 +913,28 @@ impl SceneTree {
     /// - `NodeId` - Mutated node handle.
     /// - `u16` - Dirty flag bits to set.
     pub fn mark_dirty(&mut self, id: NodeId, mask: u16) {
-        let (prev_bits, mut parent_opt): (u16, Option<NodeId>) = match self.get_node_mut(id) {
-            Some(node) => {
-                let prev: u16 = node.get_dirty().get_bits();
-                node.get_mut_dirty().insert(mask);
-                (prev, node.parent_id())
-            }
-            None => return,
-        };
+        let check_portal: bool = (mask & DIRTY_LAYOUT) != 0;
+        let (prev_bits, mut parent_opt, portal_state): (u16, Option<NodeId>, Option<bool>) =
+            match self.get_node_mut(id) {
+                Some(node) => {
+                    let prev: u16 = node.get_dirty().get_bits();
+                    node.get_mut_dirty().insert(mask);
+                    let portal_opt: Option<bool> = if check_portal {
+                        let is_portal: bool = matches!(node.get_kind(), NodeKind::Portal)
+                            || node.style_ref().get_layout().get_position() == Position::Fixed;
+                        Some(is_portal)
+                    } else {
+                        None
+                    };
+                    (prev, node.parent_id(), portal_opt)
+                }
+                None => return,
+            };
+        if let Some(is_portal) = portal_state
+            && (is_portal || self.has_portal_nodes())
+        {
+            self.sync_portal_registration(id, is_portal);
+        }
         if (mask & DIRTY_FULL_DAMAGE_MASK) != 0 {
             self.set_full_damage_pending(true);
         } else if !self.get_full_damage_pending()

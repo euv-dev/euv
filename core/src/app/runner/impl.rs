@@ -1053,16 +1053,14 @@ impl App {
             Vec<usize>,
         ) = scene.with_read(
             |tree: &SceneTree| {
+                let registered_portals: &[NodeId] = tree.portal_nodes();
                 let mut portals: Vec<(bool, Rect)> = Vec::new();
-                for (idx, n) in tree.get_nodes().iter().enumerate() {
-                    if !n.get_alive() {
-                        continue;
-                    }
-                    if matches!(n.get_kind(), NodeKind::Portal)
-                        || n.get_style().get_layout().get_position() == Position::Fixed
-                    {
-                        let nid: NodeId = NodeId::new(idx as u32, n.get_generation());
-                        if tree.is_node_visible(nid) {
+                if !registered_portals.is_empty() {
+                    portals.reserve(registered_portals.len());
+                    for &nid in registered_portals {
+                        if let Some(n) = tree.get_node(nid)
+                            && tree.is_node_visible(nid)
+                        {
                             let is_dirty: bool = n.get_dirty().get_bits() != DIRTY_NONE;
                             let bounds: Rect = tree
                                 .node_screen_bounds(nid)
