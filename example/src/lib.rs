@@ -5,6 +5,7 @@
 //! 17 design schemes, virtualized lists, and overlays.
 
 mod app;
+mod charts;
 mod pages;
 mod state;
 mod stress;
@@ -13,7 +14,7 @@ mod stress;
 #[path = "../tests/mod.rs"]
 mod tests;
 
-pub use {app::*, pages::*, state::*, stress::*};
+pub use {app::*, charts::*, pages::*, state::*, stress::*};
 
 #[cfg(debug_assertions)]
 use euv_automation::AI_SCHEMA_PROTOCOL_VERSION;

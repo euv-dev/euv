@@ -184,6 +184,9 @@ impl ShowcaseState {
             media_loaded: Rc::new(Cell::new(false)),
             wasm_registry_loaded: Rc::new(Cell::new(false)),
             stress_loaded: Rc::new(Cell::new(false)),
+            charts_loaded: Rc::new(Cell::new(false)),
+            charts_category_idx: Signal::new(0),
+            charts_event_log: Signal::new(CHARTS_EVENT_READY.to_string()),
         }
     }
 
@@ -227,6 +230,15 @@ impl ShowcaseState {
             return;
         }
         let _: bool = self.get_stress_results().set(default_stress_results());
+    }
+
+    /// Lazily marks ECharts Studio hydrated on first `/charts` visit so Frame 1 incurs zero chart option allocations.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Reactive showcase state reference.
+    pub fn ensure_charts_loaded(&self) {
+        let _: bool = self.get_charts_loaded().replace(true);
     }
 
     /// Registers genuine executable partial, global, and fault-case `.wasm` binaries into `registry`.
@@ -334,6 +346,7 @@ impl ShowcaseState {
     pub fn breadcrumb_for_route(route: &str) -> String {
         let title: &str = match route {
             ROUTE_OVERVIEW => NAV_TITLE_HOME,
+            ROUTE_CHARTS => NAV_TITLE_CHARTS,
             ROUTE_LAB => NAV_TITLE_LAB,
             ROUTE_MARKDOWN => NAV_TITLE_MARKDOWN,
             ROUTE_FORMS => NAV_TITLE_FORMS,
@@ -569,6 +582,8 @@ impl ShowcaseState {
     pub fn nav_items() -> Vec<EuvNavItem> {
         vec![
             EuvNavItem::new(ROUTE_OVERVIEW.to_string(), NAV_LABEL_OVERVIEW.to_string())
+                .section(NAV_SEC_WORKSPACE),
+            EuvNavItem::new(ROUTE_CHARTS.to_string(), NAV_LABEL_CHARTS.to_string())
                 .section(NAV_SEC_WORKSPACE),
             EuvNavItem::new(ROUTE_LAB.to_string(), NAV_LABEL_LAB.to_string())
                 .section(NAV_SEC_WORKSPACE),

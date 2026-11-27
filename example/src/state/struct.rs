@@ -370,6 +370,14 @@ pub struct ShowcaseState {
     pub(crate) wasm_registry_loaded: Rc<Cell<bool>>,
     /// Guard flag ensuring Stress Lab workload catalog hydrates lazily on first `/stress` visit.
     pub(crate) stress_loaded: Rc<Cell<bool>>,
+    /// Guard flag ensuring ECharts Studio 20-series catalog hydrates lazily on first `/charts` visit.
+    pub(crate) charts_loaded: Rc<Cell<bool>>,
+    /// Active category filter index on `/charts` (`0=All`, `1=Cartesian`, `2=Financial`, `3=Radial`, `4=Hierarchy`, `5=Geo & Flow`).
+    #[get(type(copy))]
+    pub(crate) charts_category_idx: Signal<usize>,
+    /// Live interaction readout updated when hovering, clicking, toggling legends, or dragging DataZoom on `/charts`.
+    #[get(type(copy))]
+    pub(crate) charts_event_log: Signal<String>,
 }
 
 /// Full-featured 2D arcade arena scene powered by `GameWorld`, `PhysicsWorld2D`, `Camera2D`, `ParticleSystem`, `TileMap`, `ActionMap`, and `AudioBus`.

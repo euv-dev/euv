@@ -20,7 +20,7 @@ style! {
     }
 }
 
-/// Registers all 15 showcase routes lazily onto `router` using typed `#[component(retention = Freeze)]` pages.
+/// Registers all 16 showcase routes lazily onto `router` using typed `#[component(retention = Freeze)]` pages.
 ///
 /// # Arguments
 ///
@@ -29,8 +29,9 @@ fn ensure_showcase_routes_registered(state: &ShowcaseState) {
     if state.get_router_ready().replace(true) {
         return;
     }
-    let all_routes: [(&'static str, &'static str); 15] = [
+    let all_routes: [(&'static str, &'static str); 16] = [
         (ROUTE_OVERVIEW, NAV_LABEL_OVERVIEW),
+        (ROUTE_CHARTS, NAV_LABEL_CHARTS),
         (ROUTE_MARKDOWN, NAV_LABEL_MARKDOWN),
         (ROUTE_REACTIVE, NAV_LABEL_REACTIVE),
         (ROUTE_RENDER, NAV_LABEL_RENDER),
@@ -131,6 +132,7 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                     CMD_ITEM_STRESS.to_string(),
                     CMD_ITEM_WINDOW.to_string(),
                     CMD_ITEM_THEMES.to_string(),
+                    CMD_ITEM_CHARTS.to_string(),
                     CMD_ITEM_TOGGLE_MODE.to_string(),
                 ];
                 let cmd_sel: Signal<Option<usize>> = Signal::new(None);
@@ -175,6 +177,9 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                                 }
                                 8 => {
                                     let _: bool = cmd_route.set_if_changed(ROUTE_THEMES.to_string());
+                                }
+                                9 => {
+                                    let _: bool = cmd_route.set_if_changed(ROUTE_CHARTS.to_string());
                                 }
                                 _ => {
                                     cmd_state.toggle_theme_mode();
@@ -287,6 +292,7 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                                 ROUTE_LAB.to_string(),
                                 ROUTE_STRESS.to_string(),
                                 ROUTE_GAME_3D.to_string(),
+                                ROUTE_CHARTS.to_string(),
                                 ROUTE_FORMS.to_string(),
                                 ROUTE_MEDIA.to_string(),
                                 ROUTE_OVERLAYS.to_string(),
@@ -578,6 +584,7 @@ pub(crate) fn mount_route_by_name(
     tokens: ThemeTokens,
 ) -> NodeId {
     match route {
+        ROUTE_CHARTS => mount_charts_page(state, tokens),
         ROUTE_MARKDOWN => mount_markdown_page(state, tokens),
         ROUTE_REACTIVE => mount_reactive_page(state, tokens),
         ROUTE_RENDER => mount_render_page(state, tokens),
@@ -620,7 +627,13 @@ pub fn mount_overview_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
     let local_counter: LocalState<u32> = local_state!(1_u32);
     let global_banner: Signal<ShowcaseGlobalBanner> =
         global_state!(ShowcaseGlobalBanner = ShowcaseGlobalBanner::default());
-    let dir_items: [(&str, &str, &str, &str); 14] = [
+    let dir_items: [(&str, &str, &str, &str); 15] = [
+        (
+            ROUTE_CHARTS,
+            HOME_DIR_TAG_CH,
+            NAV_LABEL_CHARTS,
+            HOME_DIR_DESC_CH,
+        ),
         (
             ROUTE_MARKDOWN,
             HOME_DIR_TAG_MD,
@@ -799,6 +812,9 @@ pub fn mount_overview_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
     let on_open_markdown = move |_: &UiEvent| {
         let _: bool = route_sig.set_if_changed(ROUTE_MARKDOWN.to_string());
     };
+    let on_open_charts = move |_: &UiEvent| {
+        let _: bool = route_sig.set_if_changed(ROUTE_CHARTS.to_string());
+    };
     let on_open_3d = move |_: &UiEvent| {
         let _: bool = route_sig.set_if_changed(ROUTE_GAME_3D.to_string());
     };
@@ -918,8 +934,14 @@ pub fn mount_overview_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
                 }
                 EuvActionRow {
                     EuvButton {
+                        label: BTN_OPEN_CHARTS.to_string()
+                        tokens: tokens
+                        on_click: on_open_charts
+                    }
+                    EuvButton {
                         label: BTN_OPEN_MARKDOWN.to_string()
                         tokens: tokens
+                        secondary()
                         on_click: on_open_markdown
                     }
                     EuvButton {
