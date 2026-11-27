@@ -2,6 +2,54 @@ use super::*;
 
 /// Fluent zero-allocation builder methods for `Style`.
 impl Style {
+    /// Returns a shared reference to the embedded `LayoutStyle` without copying by value.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Style reference.
+    ///
+    /// # Returns
+    ///
+    /// - `&LayoutStyle` - Borrowed layout style reference.
+    #[must_use]
+    #[inline(always)]
+    pub fn layout_ref(&self) -> &LayoutStyle {
+        let Self { layout, .. } = self;
+        layout
+    }
+
+    /// Returns a shared reference to the embedded `PaintStyle` without copying by value.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Style reference.
+    ///
+    /// # Returns
+    ///
+    /// - `&PaintStyle` - Borrowed paint style reference.
+    #[must_use]
+    #[inline(always)]
+    pub fn paint_ref(&self) -> &PaintStyle {
+        let Self { paint, .. } = self;
+        paint
+    }
+
+    /// Returns a shared reference to the embedded `TextStyle` without copying by value.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Style reference.
+    ///
+    /// # Returns
+    ///
+    /// - `&TextStyle` - Borrowed typography style reference.
+    #[must_use]
+    #[inline(always)]
+    pub fn text_ref(&self) -> &TextStyle {
+        let Self { text, .. } = self;
+        text
+    }
+
     /// Applies any strongly-typed `StyleApply` value (e.g. `AlignItems::Center`, `Overflow::Hidden`, `Shadow`) to this style.
     ///
     /// # Arguments

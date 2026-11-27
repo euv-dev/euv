@@ -425,7 +425,44 @@ impl SceneTree {
         self.mark_dirty(parent, DIRTY_CHILDREN_CHANGE_MASK);
     }
 
-    /// Surgically updates a node's `Style`, only marking layout dirty when `LayoutStyle` changed.
+    /// Computes the minimal dirty bitmask and optional portal update comparing `prev` and `next` styles by reference.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Style` - Previous compiled style reference.
+    /// - `&Style` - Candidate replacement style reference.
+    /// - `bool` - Whether the target node is already `NodeKind::Portal`.
+    ///
+    /// # Returns
+    ///
+    /// - `(u16, Option<bool>)` - Tuple `(dirty_mask, portal_update)`; `dirty_mask == DIRTY_NONE` on no-op writes.
+    #[inline]
+    fn diff_style_change(prev: &Style, next: &Style, is_portal_kind: bool) -> (u16, Option<bool>) {
+        let layout_changed: bool = prev.layout_ref() != next.layout_ref();
+        let text_metrics_changed: bool = !prev.text_ref().same_layout_metrics(next.text_ref());
+        if layout_changed || text_metrics_changed {
+            let prev_fixed: bool = prev.layout_ref().get_position() == Position::Fixed;
+            let next_fixed: bool = next.layout_ref().get_position() == Position::Fixed;
+            let portal_update: Option<bool> = if !is_portal_kind && prev_fixed != next_fixed {
+                Some(next_fixed)
+            } else {
+                None
+            };
+            let layout_bits: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+            let visual_bits: u16 = DIRTY_TEXT | DIRTY_PAINT;
+            let mask: u16 = layout_bits | visual_bits;
+            return (mask, portal_update);
+        }
+        let paint_changed: bool = prev.paint_ref() != next.paint_ref();
+        let text_visual_changed: bool = prev.text_ref() != next.text_ref();
+        if paint_changed || text_visual_changed {
+            (DIRTY_PAINT, None)
+        } else {
+            (DIRTY_NONE, None)
+        }
+    }
+
+    /// Surgically updates a node's `Style`, marking only `DIRTY_PAINT` for pure paint changes and skipping no-op writes.
     ///
     /// # Arguments
     ///
@@ -435,26 +472,12 @@ impl SceneTree {
     pub fn set_style(&mut self, id: NodeId, style: Style) {
         let (dirty_mask, portal_update): (u16, Option<bool>) = match self.get_node_mut(id) {
             Some(node) => {
-                let prev: &Style = node.style_ref();
-                if *prev == style {
+                let is_portal_kind: bool = matches!(node.get_kind(), NodeKind::Portal);
+                let (mask, update): (u16, Option<bool>) =
+                    Self::diff_style_change(node.style_ref(), &style, is_portal_kind);
+                if mask == DIRTY_NONE {
                     return;
                 }
-                let mut mask: u16 = DIRTY_PAINT;
-                let prev_layout: LayoutStyle = prev.get_layout();
-                let next_layout: LayoutStyle = style.get_layout();
-                if prev_layout != next_layout
-                    || !prev.get_text().same_layout_metrics(&style.get_text())
-                {
-                    mask |= DIRTY_LAYOUT | DIRTY_TEXT;
-                }
-                let is_portal_kind: bool = matches!(node.get_kind(), NodeKind::Portal);
-                let prev_fixed: bool = prev_layout.get_position() == Position::Fixed;
-                let next_fixed: bool = next_layout.get_position() == Position::Fixed;
-                let update: Option<bool> = if !is_portal_kind && prev_fixed != next_fixed {
-                    Some(next_fixed)
-                } else {
-                    None
-                };
                 node.set_style(style);
                 (mask, update)
             }
@@ -464,6 +487,42 @@ impl SceneTree {
             self.sync_portal_registration(id, is_portal);
         }
         self.mark_dirty(id, dirty_mask);
+    }
+
+    /// Mutates a node's `Style` in place and marks the minimal dirty mask (`DIRTY_PAINT` vs layout) only if changed.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable scene tree.
+    /// - `NodeId` - Target node handle.
+    /// - `F` - In-place style mutator closure receiving `&mut Style`.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when the node existed and its style changed.
+    pub fn mutate_style<F>(&mut self, id: NodeId, mutator: F) -> bool
+    where
+        F: FnOnce(&mut Style),
+    {
+        let (dirty_mask, portal_update): (u16, Option<bool>) = match self.get_node_mut(id) {
+            Some(node) => {
+                let is_portal_kind: bool = matches!(node.get_kind(), NodeKind::Portal);
+                let prev: Style = *node.style_ref();
+                mutator(node.get_mut_style());
+                let (mask, update): (u16, Option<bool>) =
+                    Self::diff_style_change(&prev, node.style_ref(), is_portal_kind);
+                if mask == DIRTY_NONE {
+                    return false;
+                }
+                (mask, update)
+            }
+            None => return false,
+        };
+        if let Some(is_portal) = portal_update {
+            self.sync_portal_registration(id, is_portal);
+        }
+        self.mark_dirty(id, dirty_mask);
+        true
     }
 
     /// Surgically updates the UTF-8 string of a `NodeKind::Text` node.
@@ -476,7 +535,7 @@ impl SceneTree {
     pub fn set_text(&mut self, id: NodeId, text: String) {
         let (changed, fixed_size): (bool, bool) = match self.get_node_mut(id) {
             Some(node) => {
-                let layout: LayoutStyle = node.get_style().get_layout();
+                let layout: &LayoutStyle = node.style_ref().layout_ref();
                 let has_fixed: bool = matches!(layout.get_width(), Length::Px(_))
                     && matches!(layout.get_height(), Length::Px(_));
                 match node.get_mut_kind() {
@@ -682,16 +741,15 @@ impl SceneTree {
         let (opacity, transform): (f32, Transform2D) = transition.sample();
         let mut unhidden: bool = false;
         if let Some(node) = self.get_node_mut(target) {
-            let mut style: Style = node.get_style();
+            let style: &mut Style = node.get_mut_style();
             if !transition.get_hide_on_complete()
-                && style.get_layout().get_display() == Display::None
+                && style.layout_ref().get_display() == Display::None
             {
                 style.get_mut_layout().set_display(Display::Flex);
                 unhidden = true;
             }
             style.get_mut_paint().set_opacity(opacity);
             style.get_mut_paint().set_transform(transform);
-            node.set_style(style);
         }
         if unhidden {
             let layout_dirty: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
@@ -867,7 +925,7 @@ impl SceneTree {
         let mut stack: Vec<NodeId> = vec![self.get_root()];
         while let Some(current) = stack.pop() {
             if let Some(node) = self.get_node(current) {
-                if node.get_style().get_layout().get_display() == Display::None {
+                if node.style_ref().layout_ref().get_display() == Display::None {
                     continue;
                 }
                 for hook in node.lifecycle_observers().into_iter() {
@@ -1283,7 +1341,7 @@ impl SceneTree {
             let Some(node) = self.get_node(cur) else {
                 return false;
             };
-            let text_style: TextStyle = node.get_style().get_text();
+            let text_style: &TextStyle = node.style_ref().text_ref();
             if text_style.get_selectable() {
                 return true;
             }
@@ -1312,7 +1370,7 @@ impl SceneTree {
             let Some(node) = self.get_node(cur) else {
                 break;
             };
-            if let Some(color) = node.get_style().get_text().selection_color() {
+            if let Some(color) = node.style_ref().text_ref().selection_color() {
                 return color;
             }
             cursor = node.parent_id();
@@ -1582,6 +1640,24 @@ impl SceneHandle {
         finalize_disposed_subtree(scopes, observers);
     }
 
+    /// Mutates a node's `Style` in place under one write lock, marking only minimal dirty flags when changed.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene handle reference.
+    /// - `NodeId` - Target node handle.
+    /// - `F` - In-place style mutator closure receiving `&mut Style`.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when the node existed and its style changed.
+    pub fn mutate_style<F>(&self, id: NodeId, mutator: F) -> bool
+    where
+        F: FnOnce(&mut Style),
+    {
+        self.with_write(|tree: &mut SceneTree| tree.mutate_style(id, mutator), false)
+    }
+
     /// Freezes a subtree visually (`Display::None`), cancels its transitions, and dispatches `Lifecycle::on_freeze` outside any scene borrow.
     ///
     /// # Arguments
@@ -1593,12 +1669,20 @@ impl SceneHandle {
             |tree: &mut SceneTree| {
                 let obs: Vec<(NodeId, Rc<dyn Lifecycle>)> = tree.collect_subtree_lifecycles(root);
                 tree.cancel_subtree_transitions(root);
-                if let Some(node) = tree.get_node_mut(root) {
-                    let mut st: Style = node.get_style();
-                    st.get_mut_layout().set_display(Display::None);
-                    node.set_style(st);
+                let changed: bool = if let Some(node) = tree.get_node_mut(root) {
+                    let layout: &mut LayoutStyle = node.get_mut_style().get_mut_layout();
+                    if layout.get_display() == Display::None {
+                        false
+                    } else {
+                        layout.set_display(Display::None);
+                        true
+                    }
+                } else {
+                    false
+                };
+                if changed {
+                    tree.mark_dirty(root, DIRTY_LAYOUT | DIRTY_PAINT);
                 }
-                tree.mark_dirty(root, DIRTY_LAYOUT | DIRTY_PAINT);
                 obs
             },
             Vec::new(),
@@ -1620,9 +1704,9 @@ impl SceneHandle {
                 tree.cancel_subtree_transitions(root);
                 let mut demoted_fixed: bool = false;
                 if let Some(node) = tree.get_node_mut(root) {
-                    let mut st: Style = node.get_style();
-                    demoted_fixed = !matches!(node.get_kind(), NodeKind::Portal)
-                        && st.get_layout().get_position() == Position::Fixed;
+                    let is_portal: bool = matches!(node.get_kind(), NodeKind::Portal);
+                    let st: &mut Style = node.get_mut_style();
+                    demoted_fixed = !is_portal && st.layout_ref().get_position() == Position::Fixed;
                     st.get_mut_layout()
                         .set_position(Position::Absolute)
                         .set_top(Some(0.0))
@@ -1631,7 +1715,6 @@ impl SceneHandle {
                         .set_left(Some(0.0))
                         .set_z_index(0);
                     st.get_mut_paint().set_pointer_events(PointerEvents::None);
-                    node.set_style(st);
                 }
                 if demoted_fixed {
                     tree.sync_portal_registration(root, false);
@@ -1654,14 +1737,19 @@ impl SceneHandle {
     pub fn resume_subtree(&self, root: NodeId) {
         let observers: Vec<(NodeId, Rc<dyn Lifecycle>)> = self.with_write(
             |tree: &mut SceneTree| {
+                let mut unhidden: bool = false;
                 if let Some(node) = tree.get_node_mut(root) {
-                    let mut st: Style = node.get_style();
-                    if st.get_layout().get_display() == Display::None {
-                        st.get_mut_layout().set_display(Display::Flex);
-                        node.set_style(st);
+                    let layout: &mut LayoutStyle = node.get_mut_style().get_mut_layout();
+                    if layout.get_display() == Display::None {
+                        layout.set_display(Display::Flex);
+                        unhidden = true;
                     }
                 }
-                tree.mark_dirty(root, DIRTY_LAYOUT | DIRTY_PAINT);
+                if unhidden {
+                    tree.mark_dirty(root, DIRTY_LAYOUT | DIRTY_PAINT);
+                } else {
+                    tree.mark_dirty(root, DIRTY_PAINT);
+                }
                 tree.collect_subtree_lifecycles(root)
             },
             Vec::new(),
@@ -2381,10 +2469,9 @@ impl Context {
                 if let Some(node) = tree.get_node_mut(node_id) {
                     node.get_mut_handlers().set_on_click(Some(handler));
                     node.get_mut_interaction().set_focusable(true);
-                    if node.get_style().get_paint().get_cursor() == CursorIcon::Default {
-                        let mut style: Style = node.get_style();
-                        style.get_mut_paint().set_cursor(CursorIcon::Pointer);
-                        node.set_style(style);
+                    let paint: &mut PaintStyle = node.get_mut_style().get_mut_paint();
+                    if paint.get_cursor() == CursorIcon::Default {
+                        paint.set_cursor(CursorIcon::Pointer);
                     }
                 }
             },
@@ -2470,10 +2557,9 @@ impl Context {
             |tree: &mut SceneTree| {
                 if let Some(node) = tree.get_node_mut(node_id) {
                     node.get_mut_handlers().set_on_pointer_down(Some(handler));
-                    if node.get_style().get_paint().get_cursor() == CursorIcon::Default {
-                        let mut style: Style = node.get_style();
-                        style.get_mut_paint().set_cursor(CursorIcon::Pointer);
-                        node.set_style(style);
+                    let paint: &mut PaintStyle = node.get_mut_style().get_mut_paint();
+                    if paint.get_cursor() == CursorIcon::Default {
+                        paint.set_cursor(CursorIcon::Pointer);
                     }
                 }
             },
