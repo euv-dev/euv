@@ -830,6 +830,83 @@ impl ReactiveRuntime {
         (true, should_flush)
     }
 
+    /// Writes a signal value and propagates dirtiness without checking flush state, returning whether subscribers existed.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable reference to the reactive runtime.
+    /// - `SignalId` - Signal identifier to update.
+    /// - `T` - Replacement value.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when the signal was alive and had at least one downstream subscriber.
+    fn write_signal_no_flush<T>(&mut self, id: SignalId, value: T) -> bool
+    where
+        T: 'static,
+    {
+        let slot: SlotId = id.slot();
+        let idx: usize = slot.as_usize();
+        let Some(entry) = self.get_mut_signals().get_mut(idx) else {
+            return false;
+        };
+        let stale: bool = entry.get_generation() != slot.get_generation();
+        if stale || entry.value.is_none() {
+            return false;
+        }
+        if let Some(existing) = entry
+            .value
+            .as_mut()
+            .and_then(|boxed: &mut Box<dyn Any>| boxed.downcast_mut::<T>())
+        {
+            *existing = value;
+        } else {
+            entry.set_value(Some(Box::new(value)));
+        }
+        let next_ver: u64 = entry.get_version().wrapping_add(1);
+        entry.set_version(next_ver);
+        let has_subs: bool = !entry.get_subscribers().is_empty();
+        let next_clock: u64 = self.get_clock().wrapping_add(1);
+        self.set_clock(next_clock);
+        if has_subs {
+            self.mark_signal_subscribers_dirty(idx);
+        }
+        has_subs
+    }
+
+    /// Atomically updates an optional deselected and newly selected `Selector` signal pair in one runtime borrow.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable reference to the reactive runtime.
+    /// - `Option<SignalId>` - Previously selected key signal to set to `false`, if any.
+    /// - `Option<SignalId>` - Newly selected key signal to set to `true`, if any.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when at least one signal had subscribers and effects must be flushed now.
+    pub(crate) fn write_selector_pair(
+        &mut self,
+        old_id: Option<SignalId>,
+        new_id: Option<SignalId>,
+    ) -> bool {
+        let mut any_subs: bool = false;
+        if let Some(id) = old_id
+            && self.write_signal_no_flush(id, false)
+        {
+            any_subs = true;
+        }
+        if let Some(id) = new_id
+            && self.write_signal_no_flush(id, true)
+        {
+            any_subs = true;
+        }
+        any_subs
+            && self.get_batch_depth() == 0
+            && !self.get_flushing()
+            && !self.get_pending_effects().is_empty()
+    }
+
     /// Writes a new signal value in place only when it differs from the stored value.
     ///
     /// # Arguments
