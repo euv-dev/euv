@@ -29,6 +29,10 @@ pub struct EventHandlers {
     #[debug(skip)]
     #[get(skip)]
     pub(crate) on_pointer_up: Option<UiEventHandler>,
+    /// Pointer cancel callback invoked when OS or gesture arbitration aborts an active press.
+    #[debug(skip)]
+    #[get(skip)]
+    pub(crate) on_pointer_cancel: Option<UiEventHandler>,
     /// Pointer enter callback.
     #[debug(skip)]
     #[get(skip)]

@@ -11,6 +11,8 @@ pub enum UiEventKind {
     PointerMove(Point),
     /// Pointer release.
     PointerUp(Point),
+    /// Pointer interaction cancelled by OS or gesture arbitration.
+    PointerCancel,
     /// Pointer entered node bounds.
     PointerEnter,
     /// Pointer exited node bounds.

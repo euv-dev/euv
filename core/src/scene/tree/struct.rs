@@ -154,6 +154,16 @@ pub struct Context {
     /// Whether the primary application window currently holds keyboard/input focus.
     #[get(type(copy))]
     pub(crate) window_focused: Signal<bool>,
+    /// Reactive flag indicating whether immersive fullscreen mode is active across app chrome and OS system bars.
+    #[get(type(copy))]
+    #[set(skip)]
+    pub(crate) immersive_fullscreen: Signal<bool>,
+    /// Nested immersive fullscreen entry counter enabling balanced RAII enter/exit calls.
+    #[debug(skip)]
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) fullscreen_depth: Rc<Cell<u32>>,
     /// Monotonic runtime clock in milliseconds advanced deterministically by `App` frame steps.
     #[debug(skip)]
     #[get(skip)]

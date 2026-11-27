@@ -732,8 +732,9 @@ fn nested_bidirectional_scroll_container_scrolls_both_axes_and_chains_leftover_t
         after_hbar_drag_x > 220.0 && after_hbar_drag_x < inner_max_x - 80.0,
         "dragging horizontal scrollbar must move scroll_x into middle range: got {after_hbar_drag_x}"
     );
-    let touch_start: Point = Point::new(inner_screen.get_x() + 220.0, inner_screen.get_y() + 60.0);
-    let touch_end: Point = Point::new(inner_screen.get_x() + 140.0, inner_screen.get_y() + 60.0);
+    let touch_y: f32 = (inner_screen.get_y().max(0.0) + inner_screen.bottom() - 14.0) * 0.5;
+    let touch_start: Point = Point::new(inner_screen.get_x() + 220.0, touch_y);
+    let touch_end: Point = Point::new(inner_screen.get_x() + 140.0, touch_y);
     app.dispatch_window_event(WindowEvent::PointerDown(
         wid,
         PointerEvent::new(

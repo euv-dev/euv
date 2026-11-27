@@ -78,8 +78,11 @@ fn is_active_top_layer_portal(tree: &SceneTree, root: NodeId, portal_id: NodeId)
     let Some(node) = tree.get_node(portal_id) else {
         return false;
     };
-    let Style { layout, .. } = node.style_ref();
-    if layout.get_display() == Display::None {
+    let Style { layout, paint, .. } = node.style_ref();
+    if layout.get_display() == Display::None
+        || paint.get_pointer_events() == PointerEvents::None
+        || paint.get_opacity() <= 0.001
+    {
         return false;
     }
     let is_portal: bool =
@@ -96,9 +99,14 @@ fn is_active_top_layer_portal(tree: &SceneTree, root: NodeId, portal_id: NodeId)
             return false;
         };
         let Style {
-            layout: playout, ..
+            layout: playout,
+            paint: ppaint,
+            ..
         } = pnode.style_ref();
-        if playout.get_display() == Display::None {
+        if playout.get_display() == Display::None
+            || ppaint.get_pointer_events() == PointerEvents::None
+            || ppaint.get_opacity() <= 0.001
+        {
             return false;
         }
         let parent_is_portal: bool = matches!(pnode.get_kind(), NodeKind::Portal)
@@ -268,7 +276,10 @@ fn hit_test_resolved(
     in_portal_pass: bool,
 ) -> Option<NodeId> {
     let Style { layout, paint, .. } = node.style_ref();
-    if layout.get_display() == Display::None || paint.get_pointer_events() == PointerEvents::None {
+    if layout.get_display() == Display::None
+        || paint.get_pointer_events() == PointerEvents::None
+        || paint.get_opacity() <= 0.001
+    {
         return None;
     }
     let is_portal: bool =
@@ -319,7 +330,8 @@ fn hit_test_resolved(
                     ..
                 } = single_node.style_ref();
                 let c_hidden: bool = c_layout.get_display() == Display::None
-                    || c_paint.get_pointer_events() == PointerEvents::None;
+                    || c_paint.get_pointer_events() == PointerEvents::None
+                    || c_paint.get_opacity() <= 0.001;
                 let c_portal: bool = matches!(single_node.get_kind(), NodeKind::Portal)
                     || c_layout.get_position() == Position::Fixed;
                 if !c_hidden && (in_portal_pass || !c_portal) {

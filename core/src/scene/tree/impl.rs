@@ -122,6 +122,15 @@ impl SceneTree {
         if next_created > DIRTY_PAINT_FULL_THRESHOLD {
             self.set_full_damage_pending(true);
             self.set_full_damage_overflow(true);
+            self.get_mut_dirty_paint_nodes().clear();
+        } else if !self.get_full_damage_pending() {
+            if self.get_dirty_paint_nodes().len() >= DIRTY_PAINT_FULL_THRESHOLD {
+                self.set_full_damage_pending(true);
+                self.set_full_damage_overflow(true);
+                self.get_mut_dirty_paint_nodes().clear();
+            } else {
+                self.get_mut_dirty_paint_nodes().push(id);
+            }
         }
         let next_rev: u64 = self.get_revision().wrapping_add(1);
         self.set_revision(next_rev);
@@ -536,8 +545,14 @@ impl SceneTree {
         } else if pre_paint {
             self.record_node_logical_damage(id);
         }
+        let hiding_now: bool = style.layout_ref().get_display() == Display::None
+            || style.paint_ref().get_opacity() <= 0.001
+            || style.paint_ref().get_pointer_events() == PointerEvents::None;
         if let Some(node) = self.get_node_mut(id) {
             node.set_style(style);
+        }
+        if hiding_now {
+            self.clear_subtree_hover(id);
         }
         if let Some(is_portal) = portal_update {
             self.sync_portal_registration(id, is_portal);
@@ -587,8 +602,14 @@ impl SceneTree {
                 self.record_node_logical_damage(id);
             }
         }
+        let hiding_now: bool = next.layout_ref().get_display() == Display::None
+            || next.paint_ref().get_opacity() <= 0.001
+            || next.paint_ref().get_pointer_events() == PointerEvents::None;
         if let Some(node) = self.get_node_mut(id) {
             node.set_style(next);
+        }
+        if hiding_now {
+            self.clear_subtree_hover(id);
         }
         if let Some(is_portal) = portal_update {
             self.sync_portal_registration(id, is_portal);
@@ -1088,7 +1109,7 @@ impl SceneTree {
         any_updated
     }
 
-    /// Clears transient hover/active flags throughout the subtree rooted at `root` when an overlay hides.
+    /// Clears transient hover, pressed, and focus flags throughout the subtree rooted at `root` when a node hides.
     ///
     /// # Arguments
     ///
@@ -1097,10 +1118,20 @@ impl SceneTree {
     fn clear_subtree_hover(&mut self, root: NodeId) {
         let mut stack: Vec<NodeId> = vec![root];
         while let Some(id) = stack.pop() {
+            if self.get_focus().hovered_node() == Some(id) {
+                self.get_mut_focus().set_hovered(None);
+            }
+            if self.get_focus().pressed_node() == Some(id) {
+                self.get_mut_focus().set_pressed(None);
+            }
+            if self.get_focus().focused_node() == Some(id) {
+                self.get_mut_focus().set_focused(None);
+            }
             let children_opt: Option<Vec<NodeId>> = match self.get_node_mut(id) {
                 Some(node) => {
                     node.get_mut_interaction().set_hovered(false);
                     node.get_mut_interaction().set_pressed(false);
+                    node.get_mut_interaction().set_focused(false);
                     if node.get_children().is_empty() {
                         None
                     } else {
@@ -1341,7 +1372,7 @@ impl SceneTree {
         self.set_revision(next_rev);
     }
 
-    /// Returns `true` when `id` and every ancestor up to the root are alive, non-`Display::None`, and have positive opacity.
+    /// Returns `true` when `id` and every ancestor up to the root are alive, attached, non-`Display::None`, and visibly opaque.
     ///
     /// # Arguments
     ///
@@ -1353,6 +1384,7 @@ impl SceneTree {
     /// - `bool` - Whether the node is visibly rendered in the scene.
     #[must_use]
     pub fn is_node_visible(&self, id: NodeId) -> bool {
+        let root: NodeId = self.get_root();
         let mut cursor: Option<NodeId> = Some(id);
         while let Some(cur) = cursor {
             let Some(node) = self.get_node(cur) else {
@@ -1360,13 +1392,16 @@ impl SceneTree {
             };
             let style: &Style = node.style_ref();
             if style.get_layout().get_display() == Display::None
-                || style.get_paint().get_opacity() <= 0.0
+                || style.get_paint().get_opacity() <= 0.001
             {
                 return false;
             }
+            if cur == root {
+                return true;
+            }
             cursor = node.parent_id();
         }
-        true
+        false
     }
 
     /// Collects the tight physical damage region from dirty paint/scroll nodes in O(dirty) and clears paint dirty flags.
@@ -1558,6 +1593,15 @@ impl SceneTree {
             self.set_live_count(next_live);
             if !self.portal_nodes().is_empty() {
                 self.sync_portal_registration(current, false);
+            }
+            if self.get_focus().focused_node() == Some(current) {
+                self.get_mut_focus().set_focused(None);
+            }
+            if self.get_focus().hovered_node() == Some(current) {
+                self.get_mut_focus().set_hovered(None);
+            }
+            if self.get_focus().pressed_node() == Some(current) {
+                self.get_mut_focus().set_pressed(None);
             }
             if self
                 .text_selection()
@@ -1980,6 +2024,7 @@ impl SceneHandle {
                     false
                 };
                 if changed {
+                    tree.clear_subtree_hover(root);
                     tree.mark_dirty(root, DIRTY_LAYOUT | DIRTY_PAINT);
                 }
                 obs
@@ -2015,6 +2060,7 @@ impl SceneHandle {
                         .set_z_index(0);
                     st.get_mut_paint().set_pointer_events(PointerEvents::None);
                 }
+                tree.clear_subtree_hover(root);
                 if demoted_fixed {
                     tree.sync_portal_registration(root, false);
                 }
@@ -2302,7 +2348,116 @@ impl Context {
             low_power_mode: Signal::new(false),
             locale: Signal::new(DEFAULT_SYSTEM_LOCALE.to_string()),
             window_focused: Signal::new(true),
+            immersive_fullscreen: Signal::new(false),
+            fullscreen_depth: Rc::new(Cell::new(0)),
             clock_ms: Rc::new(Cell::new(0)),
+        }
+    }
+
+    /// Returns the reactive `Signal<SafeAreaInsets>` updated on cold start, orientation changes, and Dynamic/Atomic Island updates.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Context reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Signal<SafeAreaInsets>` - Reactive safe-area insets signal.
+    #[must_use]
+    pub fn safe_area_signal(&self) -> Signal<SafeAreaInsets> {
+        self.get_safe_area()
+    }
+
+    /// Reads the current `SafeAreaInsets` reactively, subscribing the enclosing `Effect` or `Memo`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Context reference.
+    ///
+    /// # Returns
+    ///
+    /// - `SafeAreaInsets` - Active safe-area insets in logical pixels.
+    #[must_use]
+    pub fn safe_area(&self) -> SafeAreaInsets {
+        self.get_safe_area().get()
+    }
+
+    /// Returns the reactive `Signal<bool>` indicating whether immersive fullscreen mode is active.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Context reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Signal<bool>` - Reactive immersive fullscreen state signal.
+    #[must_use]
+    pub fn immersive_fullscreen_signal(&self) -> Signal<bool> {
+        self.get_immersive_fullscreen()
+    }
+
+    /// Reads whether immersive fullscreen mode is currently active, subscribing the enclosing reactive scope.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Context reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` while immersive fullscreen is active.
+    #[must_use]
+    pub fn is_immersive_fullscreen(&self) -> bool {
+        self.get_immersive_fullscreen().get()
+    }
+
+    /// Explicitly sets immersive fullscreen state across both reactive UI chrome and OS system bars.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Context reference.
+    /// - `bool` - `true` to enter immersive fullscreen; `false` to exit and restore bars.
+    pub fn set_immersive_fullscreen(&self, enabled: bool) {
+        let Self {
+            fullscreen_depth, ..
+        } = self;
+        if enabled {
+            if fullscreen_depth.get() == 0 {
+                fullscreen_depth.set(1);
+            }
+            let _: bool = self.get_immersive_fullscreen().set_if_changed(true);
+        } else {
+            fullscreen_depth.set(0);
+            let _: bool = self.get_immersive_fullscreen().set_if_changed(false);
+        }
+    }
+
+    /// Increments the nested immersive fullscreen entry count and activates fullscreen mode.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Context reference.
+    pub fn enter_immersive_fullscreen(&self) {
+        let Self {
+            fullscreen_depth, ..
+        } = self;
+        let next: u32 = fullscreen_depth.get().saturating_add(1);
+        fullscreen_depth.set(next);
+        let _: bool = self.get_immersive_fullscreen().set_if_changed(true);
+    }
+
+    /// Decrements the nested immersive fullscreen entry count and restores bars when the count reaches zero.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Context reference.
+    pub fn exit_immersive_fullscreen(&self) {
+        let Self {
+            fullscreen_depth, ..
+        } = self;
+        let next: u32 = fullscreen_depth.get().saturating_sub(1);
+        fullscreen_depth.set(next);
+        if next == 0 {
+            let _: bool = self.get_immersive_fullscreen().set_if_changed(false);
         }
     }
 
@@ -2906,6 +3061,28 @@ impl Context {
             |tree: &mut SceneTree| {
                 if let Some(node) = tree.get_node_mut(node_id) {
                     node.get_mut_handlers().set_on_pointer_up(Some(handler));
+                }
+            },
+            (),
+        );
+    }
+
+    /// Registers a pointer-cancel handler on `node_id` invoked when OS or gesture arbitration cancels a press.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Build context.
+    /// - `NodeId` - Target node handle.
+    /// - `F` - Pointer-cancel callback closure receiving `UiEventKind::PointerCancel`.
+    pub fn on_pointer_cancel<F>(&mut self, node_id: NodeId, callback: F)
+    where
+        F: FnMut(&UiEvent) + 'static,
+    {
+        let handler: UiEventHandler = Rc::new(RefCell::new(callback));
+        self.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                if let Some(node) = tree.get_node_mut(node_id) {
+                    node.get_mut_handlers().set_on_pointer_cancel(Some(handler));
                 }
             },
             (),
