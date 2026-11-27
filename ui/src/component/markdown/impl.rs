@@ -1,5 +1,36 @@
 use super::*;
 
+/// Zero-allocation language resolver for `CodeLang`.
+impl CodeLang {
+    /// Resolves a raw language hint string into its `CodeLang` variant without heap allocation.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - Raw language hint (e.g. `"rust"`, `"JSON"`, `"diff"`).
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Pre-resolved `CodeLang` variant.
+    #[inline(always)]
+    #[must_use]
+    pub fn from_name(language: &str) -> Self {
+        let trimmed: &str = language.trim();
+        if trimmed.eq_ignore_ascii_case(CODE_LANG_RUST) {
+            Self::Rust
+        } else if trimmed.eq_ignore_ascii_case(CODE_LANG_DIFF) {
+            Self::Diff
+        } else if trimmed.eq_ignore_ascii_case(CODE_LANG_JSON) {
+            Self::Json
+        } else if trimmed.eq_ignore_ascii_case(CODE_LANG_TOML) {
+            Self::Toml
+        } else if trimmed.eq_ignore_ascii_case(CODE_LANG_YAML) {
+            Self::Yaml
+        } else {
+            Self::Generic
+        }
+    }
+}
+
 /// Exact VS Code `Eva Light Bold` / `Eva Dark Bold` palette resolution for `CodeThemePalette`.
 impl CodeThemePalette {
     /// Resolves the exact VS Code `Eva Light Bold` or `Eva Dark Bold` palette for `mode`.
@@ -250,6 +281,7 @@ impl EuvCodeBlock {
             language.trim().to_string()
         };
         let display_lang: String = resolved_lang.to_ascii_uppercase();
+        let code_lang: CodeLang = CodeLang::from_name(&resolved_lang);
         let header_title: String = filename.unwrap_or_else(|| eva.get_theme_name().to_string());
         let copied_sig: Signal<bool> = Signal::new(false);
         let code_for_copy: String = code.clone();
@@ -275,7 +307,7 @@ impl EuvCodeBlock {
                     .count();
                 let trimmed_line: &str = &expanded_line[leading_spaces..];
                 let indent_px: f32 = (leading_spaces as f32) * mono_cell_w;
-                let spans: Vec<CodeSpan> = tokenize_code_line(trimmed_line, &resolved_lang);
+                let spans: Vec<CodeSpan> = tokenize_code_line_with_lang(trimmed_line, code_lang);
                 let mut merged: Vec<(String, Color, FontWeight, bool)> =
                     Vec::with_capacity(spans.len());
                 for sp in spans.into_iter() {

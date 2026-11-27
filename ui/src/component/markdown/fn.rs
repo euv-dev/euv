@@ -1,22 +1,183 @@
 use super::*;
 
-/// Tokenizes a single source-code line into syntax-highlighted `CodeSpan` runs for VS Code Eva theming.
+/// Returns the first non-ASCII-whitespace byte at or after `from`, if any.
+///
+/// # Arguments
+///
+/// - `&[u8]` - Source line UTF-8 bytes.
+/// - `usize` - Starting byte offset.
+///
+/// # Returns
+///
+/// - `Option<u8>` - First non-whitespace byte after `from`.
+#[inline(always)]
+fn next_non_ws_byte(bytes: &[u8], from: usize) -> Option<u8> {
+    let mut idx: usize = from;
+    while idx < bytes.len() {
+        let b: u8 = bytes[idx];
+        if !b.is_ascii_whitespace() {
+            return Some(b);
+        }
+        idx += 1;
+    }
+    None
+}
+
+/// Returns the last non-ASCII-whitespace byte strictly before `before`, if any.
+///
+/// # Arguments
+///
+/// - `&[u8]` - Source line UTF-8 bytes.
+/// - `usize` - Exclusive upper byte offset.
+///
+/// # Returns
+///
+/// - `Option<u8>` - Closest preceding non-whitespace byte.
+#[inline(always)]
+fn prev_non_ws_byte(bytes: &[u8], before: usize) -> Option<u8> {
+    let mut idx: usize = before;
+    while idx > 0 {
+        idx -= 1;
+        let b: u8 = bytes[idx];
+        if !b.is_ascii_whitespace() {
+            return Some(b);
+        }
+    }
+    None
+}
+
+/// Classifies a non-empty identifier slice into its exact Eva Bold `CodeTokenKind` in O(1) via jump-table matching.
+///
+/// # Arguments
+///
+/// - `&str` - Identifier token slice.
+/// - `&[u8]` - Full line UTF-8 bytes for lazy neighbor punctuation lookup.
+/// - `usize` - Identifier start byte offset in `bytes`.
+/// - `usize` - Identifier exclusive end byte offset in `bytes`.
+/// - `CodeLang` - Pre-resolved language hint.
+///
+/// # Returns
+///
+/// - `CodeTokenKind` - Exact syntax token classification.
+#[inline(always)]
+fn classify_code_ident(
+    word: &str,
+    bytes: &[u8],
+    start: usize,
+    end: usize,
+    lang: CodeLang,
+) -> CodeTokenKind {
+    let first_byte: u8 = bytes[start];
+    if first_byte.is_ascii_uppercase() {
+        return match word {
+            KW_CTRL_SELF_UPPER => CodeTokenKind::Control,
+            KW_CONST_NONE | KW_CONST_SOME | KW_CONST_OK => CodeTokenKind::Constant,
+            KW_CONST_ERR | KW_CONST_NAN | KW_CONST_INFINITY => CodeTokenKind::Constant,
+            KW_CONST_TRUE_PY | KW_CONST_FALSE_PY => CodeTokenKind::Constant,
+            KW_RES_RESULT | KW_RES_OPTION => CodeTokenKind::Property,
+            _ => CodeTokenKind::Type,
+        };
+    }
+    let word_len: usize = word.len();
+    if (2..=9).contains(&word_len) && first_byte != CODE_BYTE_UNDERSCORE {
+        let matched: Option<CodeTokenKind> = match word {
+            KW_FN | KW_LET | KW_MUT | KW_PUB | KW_MOD => Some(CodeTokenKind::Keyword),
+            KW_STRUCT | KW_ENUM | KW_TRAIT | KW_IMPL => Some(CodeTokenKind::Keyword),
+            KW_CONST | KW_STATIC | KW_TYPE | KW_REF => Some(CodeTokenKind::Keyword),
+            KW_ASYNC | KW_FUNCTION | KW_CLASS => Some(CodeTokenKind::Keyword),
+            KW_INTERFACE | KW_VAR | KW_DEF | KW_LAMBDA => Some(CodeTokenKind::Keyword),
+            KW_LOCAL | KW_TABLE | KW_CREATE => Some(CodeTokenKind::Keyword),
+            KW_CTRL_USE | KW_CTRL_FOR | KW_CTRL_IN => Some(CodeTokenKind::Control),
+            KW_CTRL_WHILE | KW_CTRL_LOOP | KW_CTRL_IF => Some(CodeTokenKind::Control),
+            KW_CTRL_ELSE | KW_CTRL_MATCH | KW_CTRL_RETURN => Some(CodeTokenKind::Control),
+            KW_CTRL_BREAK | KW_CTRL_CONTINUE => Some(CodeTokenKind::Control),
+            KW_CTRL_WHERE | KW_CTRL_AS | KW_CTRL_MOVE => Some(CodeTokenKind::Control),
+            KW_CTRL_AWAIT | KW_CTRL_UNSAFE => Some(CodeTokenKind::Control),
+            KW_CTRL_EXTERN | KW_CTRL_CRATE | KW_CTRL_SUPER => Some(CodeTokenKind::Control),
+            KW_CTRL_SELF | KW_CTRL_DYN | KW_CTRL_EXPORT => Some(CodeTokenKind::Control),
+            KW_CTRL_IMPORT | KW_CTRL_FROM => Some(CodeTokenKind::Control),
+            KW_CTRL_DEFAULT | KW_CTRL_NEW | KW_CTRL_TRY => Some(CodeTokenKind::Control),
+            KW_CTRL_CATCH | KW_CTRL_THROW => Some(CodeTokenKind::Control),
+            KW_CTRL_FINALLY | KW_CTRL_SWITCH => Some(CodeTokenKind::Control),
+            KW_CTRL_CASE | KW_CTRL_WITH | KW_CTRL_YIELD => Some(CodeTokenKind::Control),
+            KW_CTRL_PASS | KW_CTRL_ELIF | KW_CTRL_AND => Some(CodeTokenKind::Control),
+            KW_CTRL_OR | KW_CTRL_NOT | KW_CTRL_SELECT => Some(CodeTokenKind::Control),
+            KW_CTRL_INSERT | KW_CTRL_UPDATE => Some(CodeTokenKind::Control),
+            KW_CTRL_DELETE | KW_CTRL_ECHO | KW_CTRL_THEN => Some(CodeTokenKind::Control),
+            KW_CTRL_FI | KW_CTRL_DONE | KW_CTRL_DO => Some(CodeTokenKind::Control),
+            KW_CONST_TRUE | KW_CONST_FALSE => Some(CodeTokenKind::Constant),
+            KW_CONST_NULL | KW_CONST_UNDEFINED => Some(CodeTokenKind::Constant),
+            KW_PRIM_BOOL | KW_PRIM_CHAR | KW_PRIM_STR => Some(CodeTokenKind::PrimitiveType),
+            KW_PRIM_U8 | KW_PRIM_U16 | KW_PRIM_U32 => Some(CodeTokenKind::PrimitiveType),
+            KW_PRIM_U64 | KW_PRIM_U128 | KW_PRIM_USIZE => Some(CodeTokenKind::PrimitiveType),
+            KW_PRIM_I8 | KW_PRIM_I16 | KW_PRIM_I32 => Some(CodeTokenKind::PrimitiveType),
+            KW_PRIM_I64 | KW_PRIM_I128 | KW_PRIM_ISIZE => Some(CodeTokenKind::PrimitiveType),
+            KW_PRIM_F32 | KW_PRIM_F64 | KW_PRIM_NUMBER => Some(CodeTokenKind::PrimitiveType),
+            KW_PRIM_STRING | KW_PRIM_BOOLEAN => Some(CodeTokenKind::PrimitiveType),
+            KW_PRIM_VOID | KW_PRIM_ANY => Some(CodeTokenKind::PrimitiveType),
+            _ => None,
+        };
+        if let Some(kind) = matched {
+            return kind;
+        }
+    }
+    let next_non_ws: Option<u8> = next_non_ws_byte(bytes, end);
+    if next_non_ws == Some(CODE_BYTE_LPAREN) {
+        return CodeTokenKind::Function;
+    }
+    if prev_non_ws_byte(bytes, start) == Some(CODE_BYTE_DOT)
+        || (next_non_ws == Some(CODE_BYTE_COLON) && matches!(lang, CodeLang::Toml | CodeLang::Yaml))
+    {
+        return CodeTokenKind::Property;
+    }
+    CodeTokenKind::Plain
+}
+
+/// Extends or flushes a byte-range pending span to coalesce adjacent same-kind tokens with zero intermediate allocations.
+///
+/// # Arguments
+///
+/// - `&mut Vec<CodeSpan>` - Destination span buffer.
+/// - `&mut Option<(usize, usize, CodeTokenKind)>` - Pending coalesced byte range.
+/// - `&str` - Source line string.
+/// - `usize` - Token start byte offset.
+/// - `usize` - Token exclusive end byte offset.
+/// - `CodeTokenKind` - Token syntax classification.
+#[inline(always)]
+fn push_merged_code_span(
+    out: &mut Vec<CodeSpan>,
+    pending: &mut Option<(usize, usize, CodeTokenKind)>,
+    line: &str,
+    start: usize,
+    end: usize,
+    kind: CodeTokenKind,
+) {
+    if let Some((p_start, p_end, p_kind)) = *pending {
+        if p_kind == kind && p_end == start {
+            *pending = Some((p_start, end, p_kind));
+            return;
+        }
+        out.push(CodeSpan::new(line[p_start..p_end].to_string(), p_kind));
+    }
+    *pending = Some((start, end, kind));
+}
+
+/// Tokenizes a single source-code line into coalesced syntax-highlighted `CodeSpan` runs using a pre-resolved `CodeLang`.
 ///
 /// # Arguments
 ///
 /// - `&str` - Source line to tokenize.
-/// - `&str` - Language hint (`"rust"`, `"ts"`, `"json"`, `"toml"`, `"bash"`, `"diff"`, etc.).
+/// - `CodeLang` - Pre-resolved language hint.
 ///
 /// # Returns
 ///
-/// - `Vec<CodeSpan>` - Contiguous syntax-classified spans covering the full line.
+/// - `Vec<CodeSpan>` - Contiguous coalesced syntax-classified spans covering the full line.
 #[must_use]
-pub fn tokenize_code_line(line: &str, language: &str) -> Vec<CodeSpan> {
+pub fn tokenize_code_line_with_lang(line: &str, lang: CodeLang) -> Vec<CodeSpan> {
     if line.is_empty() {
         return vec![CodeSpan::new(" ".to_string(), CodeTokenKind::Plain)];
     }
-    let lang: String = language.trim().to_ascii_lowercase();
-    if lang == CODE_LANG_DIFF {
+    if lang == CodeLang::Diff {
         if line.starts_with('+') && !line.starts_with("+++") {
             return vec![CodeSpan::new(line.to_string(), CodeTokenKind::DiffAdd)];
         }
@@ -37,15 +198,16 @@ pub fn tokenize_code_line(line: &str, language: &str) -> Vec<CodeSpan> {
     let bytes: &[u8] = line.as_bytes();
     let len: usize = bytes.len();
     let mut i: usize = 0;
-    let mut out: Vec<CodeSpan> = Vec::new();
+    let mut out: Vec<CodeSpan> = Vec::with_capacity((len / 8).clamp(2, 16));
+    let mut pending: Option<(usize, usize, CodeTokenKind)> = None;
     while i < len {
         let ch: u8 = bytes[i];
         if ch == CODE_BYTE_SLASH && i + 1 < len && bytes[i + 1] == CODE_BYTE_SLASH {
-            out.push(CodeSpan::new(line[i..].to_string(), CodeTokenKind::Comment));
+            push_merged_code_span(&mut out, &mut pending, line, i, len, CodeTokenKind::Comment);
             break;
         }
         if ch == CODE_BYTE_SQUOTE
-            && lang == CODE_LANG_RUST
+            && lang == CodeLang::Rust
             && i + 1 < len
             && (bytes[i + 1].is_ascii_alphabetic() || bytes[i + 1] == CODE_BYTE_UNDERSCORE)
             && (i + 2 >= len || bytes[i + 2] != CODE_BYTE_SQUOTE)
@@ -56,10 +218,7 @@ pub fn tokenize_code_line(line: &str, language: &str) -> Vec<CodeSpan> {
             {
                 i += 1;
             }
-            out.push(CodeSpan::new(
-                line[start..i].to_string(),
-                CodeTokenKind::Macro,
-            ));
+            push_merged_code_span(&mut out, &mut pending, line, start, i, CodeTokenKind::Macro);
             continue;
         }
         if ch == CODE_BYTE_DQUOTE || ch == CODE_BYTE_SQUOTE || ch == CODE_BYTE_BACKTICK {
@@ -77,19 +236,20 @@ pub fn tokenize_code_line(line: &str, language: &str) -> Vec<CodeSpan> {
                 }
                 i += 1;
             }
-            let slice: &str = &line[start..i];
-            let mut look: usize = i;
-            while look < len && bytes[look] == CODE_BYTE_SPACE {
-                look += 1;
-            }
-            let is_json_key: bool =
-                lang == CODE_LANG_JSON && look < len && bytes[look] == CODE_BYTE_COLON;
-            let kind: CodeTokenKind = if is_json_key {
-                CodeTokenKind::Property
+            let kind: CodeTokenKind = if lang == CodeLang::Json {
+                let mut look: usize = i;
+                while look < len && bytes[look] == CODE_BYTE_SPACE {
+                    look += 1;
+                }
+                if look < len && bytes[look] == CODE_BYTE_COLON {
+                    CodeTokenKind::Property
+                } else {
+                    CodeTokenKind::String
+                }
             } else {
                 CodeTokenKind::String
             };
-            out.push(CodeSpan::new(slice.to_string(), kind));
+            push_merged_code_span(&mut out, &mut pending, line, start, i, kind);
             continue;
         }
         if ch.is_ascii_digit() {
@@ -102,10 +262,14 @@ pub fn tokenize_code_line(line: &str, language: &str) -> Vec<CodeSpan> {
             {
                 i += 1;
             }
-            out.push(CodeSpan::new(
-                line[start..i].to_string(),
+            push_merged_code_span(
+                &mut out,
+                &mut pending,
+                line,
+                start,
+                i,
                 CodeTokenKind::Number,
-            ));
+            );
             continue;
         }
         if ch.is_ascii_alphabetic() || ch == CODE_BYTE_UNDERSCORE {
@@ -117,80 +281,59 @@ pub fn tokenize_code_line(line: &str, language: &str) -> Vec<CodeSpan> {
             }
             if i < len && bytes[i] == CODE_BYTE_BANG {
                 i += 1;
-                out.push(CodeSpan::new(
-                    line[start..i].to_string(),
-                    CodeTokenKind::Macro,
-                ));
+                push_merged_code_span(&mut out, &mut pending, line, start, i, CodeTokenKind::Macro);
                 continue;
             }
             let word: &str = &line[start..i];
-            let next_non_ws: Option<u8> = line[i..].bytes().find(|b: &u8| !b.is_ascii_whitespace());
-            let prev_non_ws: Option<u8> = line[..start]
-                .bytes()
-                .rev()
-                .find(|b: &u8| !b.is_ascii_whitespace());
-            let kind: CodeTokenKind = if CODE_KEYWORDS.contains(&word) {
-                CodeTokenKind::Keyword
-            } else if CODE_CONTROL_KEYWORDS.contains(&word) {
-                CodeTokenKind::Control
-            } else if CODE_CONSTANTS.contains(&word) {
-                CodeTokenKind::Constant
-            } else if CODE_PRIMITIVE_TYPES.contains(&word) {
-                CodeTokenKind::PrimitiveType
-            } else if CODE_RESULT_TYPES.contains(&word) {
-                CodeTokenKind::Property
-            } else if CODE_TYPES.contains(&word)
-                || word
-                    .chars()
-                    .next()
-                    .map(|c: char| c.is_ascii_uppercase())
-                    .unwrap_or(false)
-            {
-                CodeTokenKind::Type
-            } else if next_non_ws == Some(CODE_BYTE_LPAREN) {
-                CodeTokenKind::Function
-            } else if prev_non_ws == Some(CODE_BYTE_DOT)
-                || (next_non_ws == Some(CODE_BYTE_COLON)
-                    && (lang == CODE_LANG_TOML || lang == CODE_LANG_YAML))
-            {
-                CodeTokenKind::Property
-            } else {
-                CodeTokenKind::Plain
-            };
-            out.push(CodeSpan::new(word.to_string(), kind));
+            let kind: CodeTokenKind = classify_code_ident(word, bytes, start, i, lang);
+            push_merged_code_span(&mut out, &mut pending, line, start, i, kind);
             continue;
         }
         if ch.is_ascii_whitespace() {
             let start: usize = i;
+            i += 1;
             while i < len && bytes[i].is_ascii_whitespace() {
                 i += 1;
             }
-            out.push(CodeSpan::new(
-                line[start..i].to_string(),
-                CodeTokenKind::Plain,
-            ));
+            push_merged_code_span(&mut out, &mut pending, line, start, i, CodeTokenKind::Plain);
             continue;
         }
         let start: usize = i;
-        let ch_len: usize = line[i..].chars().next().map(char::len_utf8).unwrap_or(1);
-        i += ch_len;
-        let sym: &str = &line[start..i];
-        let kind: CodeTokenKind = if matches!(
-            sym,
-            "(" | ")" | "{" | "}" | "[" | "]" | "," | ";" | "." | ":"
-        ) {
-            CodeTokenKind::Punctuation
-        } else if matches!(
-            sym,
-            "=" | "+" | "-" | "*" | "/" | ">" | "<" | "!" | "&" | "|" | "^" | "%"
-        ) {
-            CodeTokenKind::Operator
+        let kind: CodeTokenKind = if ch < 0x80 {
+            i += 1;
+            match ch {
+                b'(' | b')' | b'{' | b'}' | b'[' | b']' => CodeTokenKind::Punctuation,
+                b',' | b';' | b'.' | b':' => CodeTokenKind::Punctuation,
+                b'=' | b'+' | b'-' | b'*' | b'/' | b'>' => CodeTokenKind::Operator,
+                b'<' | b'!' | b'&' | b'|' | b'^' | b'%' => CodeTokenKind::Operator,
+                _ => CodeTokenKind::Plain,
+            }
         } else {
+            let ch_len: usize = line[i..].chars().next().map(char::len_utf8).unwrap_or(1);
+            i += ch_len;
             CodeTokenKind::Plain
         };
-        out.push(CodeSpan::new(sym.to_string(), kind));
+        push_merged_code_span(&mut out, &mut pending, line, start, i, kind);
+    }
+    if let Some((p_start, p_end, p_kind)) = pending {
+        out.push(CodeSpan::new(line[p_start..p_end].to_string(), p_kind));
     }
     out
+}
+
+/// Tokenizes a single source-code line into syntax-highlighted `CodeSpan` runs for VS Code Eva theming.
+///
+/// # Arguments
+///
+/// - `&str` - Source line to tokenize.
+/// - `&str` - Language hint (`"rust"`, `"ts"`, `"json"`, `"toml"`, `"bash"`, `"diff"`, etc.).
+///
+/// # Returns
+///
+/// - `Vec<CodeSpan>` - Contiguous syntax-classified spans covering the full line.
+#[must_use]
+pub fn tokenize_code_line(line: &str, language: &str) -> Vec<CodeSpan> {
+    tokenize_code_line_with_lang(line, CodeLang::from_name(language))
 }
 
 /// Parses rich inline Markdown formatting (`**bold**`, `*italic*`, `~~strike~~`, `` `code` ``, `[links](url)`, `<kbd>Key</kbd>`).

@@ -1,5 +1,23 @@
 use super::*;
 
+/// Pre-resolved syntax language used by the Eva code tokenizer without per-line string allocations.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+pub enum CodeLang {
+    /// Generic programming language syntax.
+    #[default]
+    Generic,
+    /// Rust source syntax (`"rust"`).
+    Rust,
+    /// Unified diff patch syntax (`"diff"`).
+    Diff,
+    /// JSON object/array syntax (`"json"`).
+    Json,
+    /// TOML key-value configuration syntax (`"toml"`).
+    Toml,
+    /// YAML key-value configuration syntax (`"yaml"`).
+    Yaml,
+}
+
 /// Syntax token classification mapped directly to VS Code `Eva Light Bold` / `Eva Dark Bold` TextMate scopes.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub enum CodeTokenKind {
