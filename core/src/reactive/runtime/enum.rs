@@ -43,3 +43,25 @@ pub(crate) enum SmallSubList<T> {
     /// Heap-backed fallback used when three or more items are present.
     Many(Vec<T>),
 }
+
+/// Fused single-borrow preparation outcome for reading a typed `Memo<T>`.
+pub(crate) enum MemoReadPrep<T> {
+    /// Target memo slot is disposed or invalid.
+    Dead,
+    /// Memo was already `NodeState::Clean`; dependency tracked and value cloned in one borrow.
+    Ready(Option<T>),
+    /// Memo is `NodeState::Dirty`; compute closure and prior value staged with tracking frame pushed.
+    Compute(StagedMemo),
+    /// Memo is `NodeState::Check`; upstream dependencies extracted for pull verification.
+    Check(SmallSubList<DependencyId>),
+}
+
+/// Fused single-borrow preparation outcome for `evaluate_memo`.
+pub(crate) enum MemoEvalPrep {
+    /// Memo is already `NodeState::Clean` or disposed and requires no work.
+    Clean,
+    /// Memo is `NodeState::Dirty`; compute closure and prior value staged with tracking frame pushed.
+    Compute(StagedMemo),
+    /// Memo is `NodeState::Check`; upstream dependencies extracted for pull verification.
+    Check(SmallSubList<DependencyId>),
+}

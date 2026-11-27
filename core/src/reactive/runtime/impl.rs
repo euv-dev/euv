@@ -410,6 +410,52 @@ where
     }
 }
 
+/// Panic-safe tracking guard helpers.
+impl TrackingGuard {
+    /// Creates an armed `TrackingGuard` protecting the newly pushed observer frame.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Armed unwind guard.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn new() -> Self {
+        Self { active: true }
+    }
+
+    /// Disarms the guard before normal completion pops the tracking frame explicitly.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable guard reference.
+    #[inline(always)]
+    pub(crate) fn disarm(&mut self) {
+        let Self { active } = self;
+        *active = false;
+    }
+}
+
+/// Unwind cleanup popping any leaked observer frame if a reactive computation panics.
+impl Drop for TrackingGuard {
+    /// Pops the leaked frame from `observer_stack` when unwinding while still armed.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable guard being dropped.
+    fn drop(&mut self) {
+        let Self { active } = self;
+        if *active {
+            with_runtime(
+                |rt: &mut ReactiveRuntime| {
+                    let _: Option<Option<(SubscriberId, usize)>> =
+                        rt.get_mut_observer_stack().pop();
+                },
+                (),
+            );
+        }
+    }
+}
+
 /// Default initialization for `ReactiveRuntime`.
 impl Default for ReactiveRuntime {
     /// Creates an empty reactive runtime with preallocated arena buffers.

@@ -123,46 +123,7 @@ where
     /// - `Option<T>` - Current computed value if alive.
     #[must_use]
     pub fn try_get(&self) -> Option<T> {
-        let id: MemoId = self.id();
-        let slot: SlotId = id.slot();
-        let fast_hit: Option<Option<T>> = with_runtime(
-            |rt: &mut ReactiveRuntime| {
-                let entry: &MemoEntry = rt.get_memos().get(slot.as_usize())?;
-                if entry.get_generation() != slot.get_generation() {
-                    return Some(None);
-                }
-                if entry.get_state() != NodeState::Clean {
-                    return None;
-                }
-                let val: Option<T> = entry
-                    .value
-                    .as_ref()
-                    .and_then(|boxed: &Box<dyn Any>| boxed.downcast_ref::<T>())
-                    .cloned();
-                rt.track_dependency(DependencyId::Memo(id));
-                Some(val)
-            },
-            None,
-        );
-        if let Some(result) = fast_hit {
-            return result;
-        }
-        evaluate_memo(id);
-        with_runtime(
-            |rt: &mut ReactiveRuntime| {
-                rt.track_dependency(DependencyId::Memo(id));
-                let entry: &MemoEntry = rt.get_memos().get(slot.as_usize())?;
-                if entry.get_generation() != slot.get_generation() {
-                    return None;
-                }
-                entry
-                    .value
-                    .as_ref()
-                    .and_then(|boxed: &Box<dyn Any>| boxed.downcast_ref::<T>())
-                    .cloned()
-            },
-            None,
-        )
+        read_memo_fused::<T>(self.id())
     }
 
     /// Evaluates the memo if stale and returns the value or `T::default()` if disposed.

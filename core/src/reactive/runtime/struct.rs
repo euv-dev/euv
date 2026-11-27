@@ -279,3 +279,10 @@ pub struct ReactiveStats {
     #[get(type(copy))]
     pub(crate) clock: u64,
 }
+
+/// Panic-safe RAII guard that pops an active tracking frame from `observer_stack` on unwind.
+#[derive(Debug)]
+pub(crate) struct TrackingGuard {
+    /// Remains `true` until normal completion disarms the guard before committing.
+    pub(crate) active: bool,
+}
