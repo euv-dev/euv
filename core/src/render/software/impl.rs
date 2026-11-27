@@ -5526,7 +5526,49 @@ impl SoftwareRenderer {
         shaded
     }
 
-    /// Rasterizes a solid filled triangle using fast signed-edge classification and edge-only 4x4 RGSS.
+    /// Solves the 1D horizontal interval `[s_min, s_max]` where all three linear edge distances satisfy `d_i(s) >= thresh`.
+    ///
+    /// # Arguments
+    ///
+    /// - `[f32; 3]` - Edge distances `[d0, d1, d2]` evaluated at scanline reference `px_base`.
+    /// - `[f32; 3]` - Per-pixel horizontal edge distance steps `[a0, a1, a2]`.
+    /// - `f32` - Distance threshold (`-0.86` for outer rim, `+0.86` for solid interior).
+    /// - `f32` - Upper horizontal offset bound `(clip_x1 - clip_x0) as f32`.
+    ///
+    /// # Returns
+    ///
+    /// - `(f32, f32)` - Active offset interval `(s_min, s_max)` (`s_min > s_max` when empty).
+    #[inline(always)]
+    #[must_use]
+    fn solve_triangle_scanline_interval(
+        d_base: [f32; 3],
+        a_step: [f32; 3],
+        thresh: f32,
+        max_s: f32,
+    ) -> (f32, f32) {
+        let mut s_min: f32 = 0.0;
+        let mut s_max: f32 = max_s;
+        for idx in 0..3usize {
+            let a: f32 = a_step[idx];
+            let d: f32 = d_base[idx];
+            if a > 1e-6 {
+                let bound: f32 = (thresh - d) / a;
+                if bound > s_min {
+                    s_min = bound;
+                }
+            } else if a < -1e-6 {
+                let bound: f32 = (thresh - d) / a;
+                if bound < s_max {
+                    s_max = bound;
+                }
+            } else if d < thresh {
+                return (1.0, 0.0);
+            }
+        }
+        (s_min, s_max)
+    }
+
+    /// Rasterizes a solid filled triangle using scanline edge-interval solving, LUT interior span fills, and edge-only 4x4 RGSS.
     ///
     /// # Arguments
     ///
@@ -5553,8 +5595,13 @@ impl SoftwareRenderer {
         if color.get_a() == 0 {
             return 0;
         }
-        let area: f32 = (p1.get_x() - p0.get_x()) * (p2.get_y() - p0.get_y())
-            - (p1.get_y() - p0.get_y()) * (p2.get_x() - p0.get_x());
+        let dx0: f32 = p1.get_x() - p0.get_x();
+        let dy0: f32 = p1.get_y() - p0.get_y();
+        let dx1: f32 = p2.get_x() - p1.get_x();
+        let dy1: f32 = p2.get_y() - p1.get_y();
+        let dx2: f32 = p0.get_x() - p2.get_x();
+        let dy2: f32 = p0.get_y() - p2.get_y();
+        let area: f32 = dx0 * (p2.get_y() - p0.get_y()) - dy0 * (p2.get_x() - p0.get_x());
         if area.abs() < 1e-5 {
             return 0;
         }
@@ -5573,25 +5620,14 @@ impl SoftwareRenderer {
         let clip_x1: u32 = (vis.right().ceil().max(0.0) as u32).min(fb_w);
         let y0: u32 = (vis.get_y().floor().max(0.0) as u32).clamp(band_y0, band_y1);
         let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).clamp(band_y0, band_y1);
-        let edges: [(Point, Point); 3] = [(p0, p1), (p1, p2), (p2, p0)];
-        let sign: f32 = if area > 0.0 { 1.0 } else { -1.0 };
-        let inv_l0: f32 = sign
-            / (p1.get_x() - p0.get_x())
-                .hypot(p1.get_y() - p0.get_y())
-                .max(1e-5);
-        let inv_l1: f32 = sign
-            / (p2.get_x() - p1.get_x())
-                .hypot(p2.get_y() - p1.get_y())
-                .max(1e-5);
-        let inv_l2: f32 = sign
-            / (p0.get_x() - p2.get_x())
-                .hypot(p0.get_y() - p2.get_y())
-                .max(1e-5);
-        let base_alpha: f32 = (color.get_a() as f32) * (1.0 / 255.0);
-        let mut shaded: usize = 0;
-        for y in y0..y1 {
-            let py: f32 = (y as f32) + 0.5;
-            if aa == AntialiasingMode::None {
+        if clip_x0 >= clip_x1 || y0 >= y1 {
+            return 0;
+        }
+        if aa == AntialiasingMode::None {
+            let edges: [(Point, Point); 3] = [(p0, p1), (p1, p2), (p2, p0)];
+            let mut shaded: usize = 0;
+            for y in y0..y1 {
+                let py: f32 = (y as f32) + 0.5;
                 let mut min_ix: f32 = f32::INFINITY;
                 let mut max_ix: f32 = f32::NEG_INFINITY;
                 for (a, b) in edges.iter() {
@@ -5612,42 +5648,123 @@ impl SoftwareRenderer {
                         shaded += (sx1 - sx0) as usize;
                     }
                 }
-                continue;
             }
-            for x in clip_x0..clip_x1 {
-                let px: f32 = (x as f32) + 0.5;
-                let d0: f32 = ((p1.get_x() - p0.get_x()) * (py - p0.get_y())
-                    - (p1.get_y() - p0.get_y()) * (px - p0.get_x()))
-                    * inv_l0;
-                if d0 < -0.85 {
-                    continue;
-                }
-                let d1: f32 = ((p2.get_x() - p1.get_x()) * (py - p1.get_y())
-                    - (p2.get_y() - p1.get_y()) * (px - p1.get_x()))
-                    * inv_l1;
-                if d1 < -0.85 {
-                    continue;
-                }
-                let d2: f32 = ((p0.get_x() - p2.get_x()) * (py - p2.get_y())
-                    - (p0.get_y() - p2.get_y()) * (px - p2.get_x()))
-                    * inv_l2;
-                if d2 < -0.85 {
-                    continue;
-                }
-                if d0 > 0.85 && d1 > 0.85 && d2 > 0.85 {
-                    band.blend_pixel_linear_dithered(x, y, color, 0.0);
-                    shaded += 1;
-                    continue;
-                }
-                let cov: f32 = triangle_supersampled_coverage(px, py, p0, p1, p2);
-                if cov >= 0.999 {
-                    band.blend_pixel_linear_dithered(x, y, color, 0.0);
-                    shaded += 1;
-                } else if cov > 0.0 {
-                    band.blend_pixel_f32_dithered(x, y, color, base_alpha * cov, 0.0);
-                    shaded += 1;
+            return shaded;
+        }
+        let sign: f32 = if area > 0.0 { 1.0 } else { -1.0 };
+        let inv_l0: f32 = sign / dx0.hypot(dy0).max(1e-5);
+        let inv_l1: f32 = sign / dx1.hypot(dy1).max(1e-5);
+        let inv_l2: f32 = sign / dx2.hypot(dy2).max(1e-5);
+        let a_step: [f32; 3] = [-dy0 * inv_l0, -dy1 * inv_l1, -dy2 * inv_l2];
+        let b_step: [f32; 3] = [dx0 * inv_l0, dx1 * inv_l1, dx2 * inv_l2];
+        let base_alpha: f32 = (color.get_a() as f32) * (1.0 / 255.0);
+        let lin_rgb: [f32; 3] = [
+            SRGB_TO_LIN_LUT[color.get_r() as usize],
+            SRGB_TO_LIN_LUT[color.get_g() as usize],
+            SRGB_TO_LIN_LUT[color.get_b() as usize],
+        ];
+        let interior_luts: Option<RgbaLutQuad> =
+            if color.get_a() < 255 && (area.abs() * 0.5) >= 256.0 {
+                Some(build_linear_blend_luts(color))
+            } else {
+                None
+            };
+        let px_base: f32 = (clip_x0 as f32) + 0.5;
+        let max_s: f32 = (clip_x1 - clip_x0) as f32;
+        let py_start: f32 = (y0 as f32) + 0.5;
+        let mut d_row: [f32; 3] = [
+            (dx0 * (py_start - p0.get_y()) - dy0 * (px_base - p0.get_x())) * inv_l0,
+            (dx1 * (py_start - p1.get_y()) - dy1 * (px_base - p1.get_x())) * inv_l1,
+            (dx2 * (py_start - p2.get_y()) - dy2 * (px_base - p2.get_x())) * inv_l2,
+        ];
+        let edge_deltas: [(f32, f32); 3] = [(dx0, dy0), (dx1, dy1), (dx2, dy2)];
+        let verts: (Point, Point, Point) = (p0, p1, p2);
+        let mut shaded: usize = 0;
+        for y in y0..y1 {
+            let py: f32 = (y as f32) + 0.5;
+            let (out_min, out_max): (f32, f32) =
+                Self::solve_triangle_scanline_interval(d_row, a_step, -0.86, max_s);
+            if out_min <= out_max {
+                let k_out0: u32 = out_min.floor().max(0.0) as u32;
+                let k_out1: u32 = (out_max.ceil().max(0.0) as u32).saturating_add(1);
+                let row_x0: u32 = clip_x0.saturating_add(k_out0).clamp(clip_x0, clip_x1);
+                let row_x1: u32 = clip_x0.saturating_add(k_out1).clamp(row_x0, clip_x1);
+                if row_x0 < row_x1 {
+                    let (in_min, in_max): (f32, f32) =
+                        Self::solve_triangle_scanline_interval(d_row, a_step, 0.86, max_s);
+                    let (in_x0, in_x1): (u32, u32) = if in_min <= in_max && in_max >= 0.0 {
+                        let k_in0: u32 = in_min.ceil().max(0.0) as u32;
+                        let k_in1: u32 = (in_max.floor().max(0.0) as u32).saturating_add(1);
+                        let ix0: u32 = clip_x0.saturating_add(k_in0).clamp(row_x0, row_x1);
+                        let ix1: u32 = clip_x0.saturating_add(k_in1).clamp(ix0, row_x1);
+                        (ix0, ix1)
+                    } else {
+                        (row_x1, row_x1)
+                    };
+                    if in_x0 < in_x1 {
+                        if let Some(ref luts) = interior_luts {
+                            band.fill_span_linear_luts(in_x0, in_x1, y, luts);
+                        } else {
+                            band.fill_span_linear(in_x0, in_x1, y, color);
+                        }
+                        shaded += (in_x1 - in_x0) as usize;
+                    }
+                    if (row_x0 < in_x0 || in_x1 < row_x1)
+                        && let Some(row) = band.row_slice_mut(y)
+                    {
+                        let mut rim_spans: [(u32, u32); 2] = [(row_x0, in_x0), (in_x1, row_x1)];
+                        if in_x0 >= in_x1 {
+                            rim_spans = [(row_x0, row_x1), (row_x1, row_x1)];
+                        }
+                        for (sx0, sx1) in rim_spans.into_iter() {
+                            if sx0 >= sx1 {
+                                continue;
+                            }
+                            let s0: f32 = (sx0 - clip_x0) as f32;
+                            let mut d0: f32 = d_row[0] + a_step[0] * s0;
+                            let mut d1: f32 = d_row[1] + a_step[1] * s0;
+                            let mut d2: f32 = d_row[2] + a_step[2] * s0;
+                            for x in sx0..sx1 {
+                                if d0 >= -0.85 && d1 >= -0.85 && d2 >= -0.85 {
+                                    if d0 > 0.85 && d1 > 0.85 && d2 > 0.85 {
+                                        blend_row_pixel_linear_precomputed(row, x, color, lin_rgb);
+                                        shaded += 1;
+                                    } else {
+                                        let px: f32 = (x as f32) + 0.5;
+                                        let cov: f32 = triangle_supersampled_coverage_precomputed(
+                                            (px, py),
+                                            verts,
+                                            edge_deltas,
+                                            sign,
+                                        );
+                                        if cov >= 0.999 {
+                                            blend_row_pixel_linear_precomputed(
+                                                row, x, color, lin_rgb,
+                                            );
+                                            shaded += 1;
+                                        } else if cov > 0.0 {
+                                            blend_row_pixel_f32_precomputed(
+                                                row,
+                                                x,
+                                                color,
+                                                lin_rgb,
+                                                base_alpha * cov,
+                                            );
+                                            shaded += 1;
+                                        }
+                                    }
+                                }
+                                d0 += a_step[0];
+                                d1 += a_step[1];
+                                d2 += a_step[2];
+                            }
+                        }
+                    }
                 }
             }
+            d_row[0] += b_step[0];
+            d_row[1] += b_step[1];
+            d_row[2] += b_step[2];
         }
         shaded
     }

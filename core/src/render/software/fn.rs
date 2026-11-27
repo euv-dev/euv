@@ -378,6 +378,56 @@ pub fn circle_supersampled_coverage(dx: f32, dy: f32, radius: f32) -> f32 {
     (hits as f32) * 0.0625
 }
 
+/// Evaluates 4x4 rotated-grid supersampled coverage for a triangle using precomputed signed edge deltas.
+///
+/// # Arguments
+///
+/// - `(f32, f32)` - Pixel center `(px, py)` in physical coordinates.
+/// - `(Point, Point, Point)` - Triangle vertices `(p0, p1, p2)`.
+/// - `[(f32, f32); 3]` - Precomputed edge deltas `[(dx0, dy0), (dx1, dy1), (dx2, dy2)]`.
+/// - `f32` - Triangle winding sign (`1.0` or `-1.0`).
+///
+/// # Returns
+///
+/// - `f32` - Exact 4x4 RGSS subpixel coverage in `[0.0, 1.0]`.
+#[inline(always)]
+#[must_use]
+pub(crate) fn triangle_supersampled_coverage_precomputed(
+    pt: (f32, f32),
+    verts: (Point, Point, Point),
+    edge_deltas: [(f32, f32); 3],
+    sign: f32,
+) -> f32 {
+    let (px, py): (f32, f32) = pt;
+    let (p0, p1, p2): (Point, Point, Point) = verts;
+    let (dx0, dy0): (f32, f32) = edge_deltas[0];
+    let (dx1, dy1): (f32, f32) = edge_deltas[1];
+    let (dx2, dy2): (f32, f32) = edge_deltas[2];
+    let p0x: f32 = p0.get_x();
+    let p0y: f32 = p0.get_y();
+    let p1x: f32 = p1.get_x();
+    let p1y: f32 = p1.get_y();
+    let p2x: f32 = p2.get_x();
+    let p2y: f32 = p2.get_y();
+    let grid: [f32; 4] = [-0.375, -0.125, 0.125, 0.375];
+    let mut hits: u32 = 0;
+    for (row_idx, &oy) in grid.iter().enumerate() {
+        let jx: f32 = if row_idx & 1 == 0 { -0.0625 } else { 0.0625 };
+        let base_x: f32 = px + jx;
+        let sy: f32 = py + oy;
+        for (col_idx, &ox) in grid.iter().enumerate() {
+            let jy: f32 = if col_idx & 1 == 0 { 0.0625 } else { -0.0625 };
+            let sx: f32 = base_x + ox;
+            let sample_y: f32 = sy + jy;
+            let e0: f32 = (dx0 * (sample_y - p0y) - dy0 * (sx - p0x)) * sign;
+            let e1: f32 = (dx1 * (sample_y - p1y) - dy1 * (sx - p1x)) * sign;
+            let e2: f32 = (dx2 * (sample_y - p2y) - dy2 * (sx - p2x)) * sign;
+            hits += u32::from(e0 >= 0.0 && e1 >= 0.0 && e2 >= 0.0);
+        }
+    }
+    (hits as f32) * 0.0625
+}
+
 /// Evaluates 4x4 rotated-grid supersampled coverage for a triangle at physical pixel `(px, py)`.
 ///
 /// # Arguments
