@@ -29,6 +29,16 @@ pub struct SceneTree {
     #[get_mut(pub(crate))]
     #[set(skip)]
     pub(crate) portal_nodes: Vec<NodeId>,
+    /// Bounded list of nodes marked paint/scroll dirty since the last `collect_paint_damage` pass.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) dirty_paint_nodes: Vec<NodeId>,
+    /// Flag raised when structural/layout mutations or >64 dirty nodes require full viewport damage.
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) full_damage_pending: bool,
     /// Active native text selection state on a selectable `NodeKind::Text` node, if any.
     #[get(skip)]
     #[get_mut(skip)]

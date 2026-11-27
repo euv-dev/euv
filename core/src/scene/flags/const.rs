@@ -46,3 +46,6 @@ pub(crate) const DIRTY_ANCESTOR_PAINT_TRIGGER: u16 =
 pub(crate) const DIRTY_FULL_DAMAGE_MASK: u16 = DIRTY_LAYOUT + DIRTY_CHILDREN + DIRTY_TEXT;
 
 pub(crate) const DIRTY_PAINT_CLEAR_MASK: u16 = DIRTY_PAINT + DIRTY_SUBTREE_PAINT + DIRTY_SCROLL;
+
+/// Maximum per-frame surgical dirty paint nodes tracked before promoting to full viewport damage.
+pub(crate) const DIRTY_PAINT_FULL_THRESHOLD: usize = 64;

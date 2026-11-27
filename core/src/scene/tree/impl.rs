@@ -22,6 +22,8 @@ impl Default for SceneTree {
             transitions: Vec::new(),
             caret_visible: true,
             portal_nodes: Vec::new(),
+            dirty_paint_nodes: Vec::new(),
+            full_damage_pending: true,
             text_selection: None,
         }
     }
@@ -90,6 +92,7 @@ impl SceneTree {
         if is_portal {
             self.get_mut_portal_nodes().push(id);
         }
+        self.set_full_damage_pending(true);
         let next_rev: u64 = self.get_revision().wrapping_add(1);
         self.set_revision(next_rev);
         id
@@ -535,19 +538,53 @@ impl SceneTree {
     pub fn node_screen_bounds(&self, id: NodeId) -> Option<Rect> {
         let node: &SceneNode = self.get_node(id)?;
         let raw: Rect = node.get_layout_box().get_bounds();
-        let off: Point = self.ancestor_scroll_offset(id);
-        let tr: Transform2D = node.get_style().get_paint().get_transform();
+        let (off, tx, ty, sx, sy): (Point, f32, f32, f32, f32) =
+            self.node_scroll_and_transform(node);
+        Some(Rect::new(
+            raw.get_x() - off.get_x() + tx,
+            raw.get_y() - off.get_y() + ty,
+            raw.get_width() * sx,
+            raw.get_height() * sy,
+        ))
+    }
+
+    /// Computes accumulated ancestor scroll offset and combined 2D transform for `node` in a single ancestor walk.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene tree reference.
+    /// - `&SceneNode` - Borrowed target scene node.
+    ///
+    /// # Returns
+    ///
+    /// - `(Point, f32, f32, f32, f32)` - Tuple `(scroll_offset, tx, ty, scale_x, scale_y)`.
+    #[inline]
+    fn node_scroll_and_transform(&self, node: &SceneNode) -> (Point, f32, f32, f32, f32) {
+        let style: &Style = node.style_ref();
+        let tr: Transform2D = style.get_paint().get_transform();
         let mut tx: f32 = tr.get_translate_x();
         let mut ty: f32 = tr.get_translate_y();
+        let sx_scale: f32 = tr.get_scale_x();
+        let sy_scale: f32 = tr.get_scale_y();
+        let start_top_layer: bool = matches!(node.get_kind(), NodeKind::Portal)
+            || style.get_layout().get_position() == Position::Fixed;
+        let mut scroll_x: f32 = 0.0;
+        let mut scroll_y: f32 = 0.0;
         let mut cursor: Option<NodeId> = node.parent_id();
         while let Some(pid) = cursor {
             if let Some(pnode) = self.get_node(pid) {
-                let ptr: Transform2D = pnode.get_style().get_paint().get_transform();
+                let pstyle: &Style = pnode.style_ref();
+                let ptr: Transform2D = pstyle.get_paint().get_transform();
                 tx += ptr.get_translate_x();
                 ty += ptr.get_translate_y();
-                if matches!(pnode.get_kind(), NodeKind::Portal)
-                    || pnode.get_style().get_layout().get_position() == Position::Fixed
-                {
+                if !start_top_layer {
+                    let off: Point = pnode.get_layout_box().get_scroll_offset();
+                    scroll_x += off.get_x();
+                    scroll_y += off.get_y();
+                }
+                let parent_top_layer: bool = matches!(pnode.get_kind(), NodeKind::Portal)
+                    || pstyle.get_layout().get_position() == Position::Fixed;
+                if parent_top_layer {
                     break;
                 }
                 cursor = pnode.parent_id();
@@ -555,12 +592,7 @@ impl SceneTree {
                 break;
             }
         }
-        Some(Rect::new(
-            raw.get_x() - off.get_x() + tx,
-            raw.get_y() - off.get_y() + ty,
-            raw.get_width() * tr.get_scale_x(),
-            raw.get_height() * tr.get_scale_y(),
-        ))
+        (Point::new(scroll_x, scroll_y), tx, ty, sx_scale, sy_scale)
     }
 
     /// Starts or smoothly retargets a paint/transform transition on `transition.get_node()`.
@@ -865,13 +897,27 @@ impl SceneTree {
     /// - `NodeId` - Mutated node handle.
     /// - `u16` - Dirty flag bits to set.
     pub fn mark_dirty(&mut self, id: NodeId, mask: u16) {
-        let mut parent_opt: Option<NodeId> = match self.get_node_mut(id) {
+        let (prev_bits, mut parent_opt): (u16, Option<NodeId>) = match self.get_node_mut(id) {
             Some(node) => {
+                let prev: u16 = node.get_dirty().get_bits();
                 node.get_mut_dirty().insert(mask);
-                node.parent_id()
+                (prev, node.parent_id())
             }
             None => return,
         };
+        if (mask & DIRTY_FULL_DAMAGE_MASK) != 0 {
+            self.set_full_damage_pending(true);
+        } else if !self.get_full_damage_pending()
+            && (mask & (DIRTY_PAINT | DIRTY_SCROLL)) != 0
+            && (prev_bits & (DIRTY_PAINT | DIRTY_SCROLL)) == 0
+        {
+            if self.get_dirty_paint_nodes().len() >= DIRTY_PAINT_FULL_THRESHOLD {
+                self.set_full_damage_pending(true);
+                self.get_mut_dirty_paint_nodes().clear();
+            } else {
+                self.get_mut_dirty_paint_nodes().push(id);
+            }
+        }
         let mut ancestor_mask: u16 = DIRTY_NONE;
         if (mask & DIRTY_ANCESTOR_LAYOUT_TRIGGER) != 0 {
             ancestor_mask |= DIRTY_SUBTREE_LAYOUT;
@@ -896,46 +942,6 @@ impl SceneTree {
         self.set_revision(next_rev);
     }
 
-    /// Computes accumulated ancestor scroll offset for `id` (zero for top-layer `Portal`/`Fixed` nodes).
-    ///
-    /// # Arguments
-    ///
-    /// - `&Self` - Scene tree reference.
-    /// - `NodeId` - Target node handle.
-    ///
-    /// # Returns
-    ///
-    /// - `Point` - Total scroll offset applied to `id`.
-    fn ancestor_scroll_offset(&self, id: NodeId) -> Point {
-        let Some(start) = self.get_node(id) else {
-            return Point::default();
-        };
-        if matches!(start.get_kind(), NodeKind::Portal)
-            || start.get_style().get_layout().get_position() == Position::Fixed
-        {
-            return Point::default();
-        }
-        let mut sx: f32 = 0.0;
-        let mut sy: f32 = 0.0;
-        let mut cursor: Option<NodeId> = start.parent_id();
-        while let Some(pid) = cursor {
-            if let Some(pnode) = self.get_node(pid) {
-                let off: Point = pnode.get_layout_box().get_scroll_offset();
-                sx += off.get_x();
-                sy += off.get_y();
-                if matches!(pnode.get_kind(), NodeKind::Portal)
-                    || pnode.get_style().get_layout().get_position() == Position::Fixed
-                {
-                    break;
-                }
-                cursor = pnode.parent_id();
-            } else {
-                break;
-            }
-        }
-        Point::new(sx, sy)
-    }
-
     /// Returns `true` when `id` and every ancestor up to the root are alive, non-`Display::None`, and have positive opacity.
     ///
     /// # Arguments
@@ -953,8 +959,9 @@ impl SceneTree {
             let Some(node) = self.get_node(cur) else {
                 return false;
             };
-            if node.get_style().get_layout().get_display() == Display::None
-                || node.get_style().get_paint().get_opacity() <= 0.0
+            let style: &Style = node.style_ref();
+            if style.get_layout().get_display() == Display::None
+                || style.get_paint().get_opacity() <= 0.0
             {
                 return false;
             }
@@ -963,7 +970,7 @@ impl SceneTree {
         true
     }
 
-    /// Collects the tight physical damage region from dirty paint/scroll nodes and clears paint dirty flags.
+    /// Collects the tight physical damage region from dirty paint/scroll nodes in O(dirty) and clears paint dirty flags.
     ///
     /// # Arguments
     ///
@@ -974,22 +981,31 @@ impl SceneTree {
     ///
     /// - `DamageRegion` - Minimal damaged region, full damage on structural/layout change, or clean when idle.
     pub fn collect_paint_damage(&mut self, scale: f32) -> DamageRegion {
-        let mut full: bool = false;
-        let mut dirty_ids: Vec<(NodeId, Rect, f32)> = Vec::new();
-        for (idx, node) in self.get_nodes().iter().enumerate() {
-            if !node.get_alive() {
-                continue;
-            }
-            let bits: u16 = node.get_dirty().get_bits();
-            if (bits & DIRTY_FULL_DAMAGE_MASK) != 0 {
-                full = true;
-                break;
-            }
-            if (bits & (DIRTY_PAINT | DIRTY_SCROLL)) != 0 {
-                let b: Rect = node.get_layout_box().get_bounds();
-                if b.get_width() > 0.0 && b.get_height() > 0.0 {
+        let clear_mask: u16 = DIRTY_PAINT_CLEAR_MASK;
+        if !self.get_full_damage_pending() && self.get_dirty_paint_nodes().is_empty() {
+            return DamageRegion::default();
+        }
+        let mut full: bool = self.get_full_damage_pending();
+        let mut region: DamageRegion = DamageRegion::default();
+        if !full {
+            let dirty_len: usize = self.get_dirty_paint_nodes().len();
+            for i in 0..dirty_len {
+                let nid: NodeId = self.get_dirty_paint_nodes()[i];
+                let Some(node) = self.get_node(nid) else {
+                    continue;
+                };
+                let bits: u16 = node.get_dirty().get_bits();
+                if (bits & DIRTY_FULL_DAMAGE_MASK) != 0 {
+                    full = true;
+                    break;
+                }
+                if (bits & (DIRTY_PAINT | DIRTY_SCROLL)) == 0 {
+                    continue;
+                }
+                let raw_bounds: Rect = node.get_layout_box().get_bounds();
+                if raw_bounds.get_width() > 0.0 && raw_bounds.get_height() > 0.0 {
                     let mut margin: f32 = 10.0;
-                    if let Some(shadow) = node.get_style().get_paint().box_shadow() {
+                    if let Some(shadow) = node.style_ref().get_paint().box_shadow() {
                         margin = margin.max(
                             shadow.get_blur_radius()
                                 + shadow.get_spread_radius()
@@ -997,49 +1013,68 @@ impl SceneTree {
                                 + 4.0,
                         );
                     }
-                    let nid: NodeId = NodeId::new(idx as u32, node.get_generation());
-                    dirty_ids.push((nid, b, margin));
+                    let (off, tx, ty, sx, sy): (Point, f32, f32, f32, f32) =
+                        self.node_scroll_and_transform(node);
+                    let base_x: f32 = raw_bounds.get_x() - off.get_x();
+                    let base_y: f32 = raw_bounds.get_y() - off.get_y();
+                    let base_phys: Rect = Rect::new(
+                        ((base_x - margin) * scale).floor(),
+                        ((base_y - margin) * scale).floor(),
+                        ((raw_bounds.get_width() + margin * 2.0) * scale).ceil(),
+                        ((raw_bounds.get_height() + margin * 2.0) * scale).ceil(),
+                    );
+                    region.add_rect(base_phys);
+                    let shifted_x: bool = tx != 0.0 || sx != 1.0;
+                    let shifted_y: bool = ty != 0.0 || sy != 1.0;
+                    if shifted_x || shifted_y {
+                        let shifted_phys: Rect = Rect::new(
+                            ((base_x + tx - margin) * scale).floor(),
+                            ((base_y + ty - margin) * scale).floor(),
+                            ((raw_bounds.get_width() * sx + margin * 2.0) * scale).ceil(),
+                            ((raw_bounds.get_height() * sy + margin * 2.0) * scale).ceil(),
+                        );
+                        region.add_rect(shifted_phys);
+                    }
                 } else if (bits & DIRTY_PAINT) != 0 {
                     full = true;
                     break;
                 }
             }
         }
-        let mut damage: DamageRegion = if full {
-            DamageRegion::full()
-        } else {
-            let mut region: DamageRegion = DamageRegion::default();
-            for (nid, raw_bounds, margin) in dirty_ids.into_iter() {
-                let off: Point = self.ancestor_scroll_offset(nid);
-                let base_phys: Rect = Rect::new(
-                    ((raw_bounds.get_x() - off.get_x() - margin) * scale).floor(),
-                    ((raw_bounds.get_y() - off.get_y() - margin) * scale).floor(),
-                    ((raw_bounds.get_width() + margin * 2.0) * scale).ceil(),
-                    ((raw_bounds.get_height() + margin * 2.0) * scale).ceil(),
-                );
-                region.add_rect(base_phys);
-                if let Some(screen_bounds) = self.node_screen_bounds(nid) {
-                    let shifted_phys: Rect = Rect::new(
-                        ((screen_bounds.get_x() - margin) * scale).floor(),
-                        ((screen_bounds.get_y() - margin) * scale).floor(),
-                        ((screen_bounds.get_width() + margin * 2.0) * scale).ceil(),
-                        ((screen_bounds.get_height() + margin * 2.0) * scale).ceil(),
-                    );
-                    region.add_rect(shifted_phys);
+        if !full {
+            let dirty_len: usize = self.get_dirty_paint_nodes().len();
+            for i in 0..dirty_len {
+                let nid: NodeId = self.get_dirty_paint_nodes()[i];
+                let mut parent_opt: Option<NodeId> = match self.get_node_mut(nid) {
+                    Some(node) => {
+                        node.get_mut_dirty().remove(clear_mask);
+                        node.parent_id()
+                    }
+                    None => None,
+                };
+                while let Some(ancestor_id) = parent_opt {
+                    if let Some(ancestor) = self.get_node_mut(ancestor_id) {
+                        if (ancestor.get_dirty().get_bits() & DIRTY_SUBTREE_PAINT) == 0 {
+                            break;
+                        }
+                        ancestor.get_mut_dirty().remove(DIRTY_SUBTREE_PAINT);
+                        parent_opt = ancestor.parent_id();
+                    } else {
+                        break;
+                    }
                 }
             }
-            region
-        };
-        let clear_mask: u16 = DIRTY_PAINT_CLEAR_MASK;
+            self.get_mut_dirty_paint_nodes().clear();
+            return region;
+        }
+        self.set_full_damage_pending(false);
+        self.get_mut_dirty_paint_nodes().clear();
         for node in self.get_mut_nodes().iter_mut() {
             if node.get_alive() && (node.get_dirty().get_bits() & clear_mask) != 0 {
                 node.get_mut_dirty().remove(clear_mask);
             }
         }
-        if full {
-            damage.set_full_damage(true);
-        }
-        damage
+        DamageRegion::full()
     }
 
     /// Recursively detaches and recycles `id`, returning all owned `Scope`s and `Lifecycle` observers for borrow-safe finalization.
