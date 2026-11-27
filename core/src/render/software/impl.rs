@@ -5261,7 +5261,7 @@ impl SoftwareRenderer {
         shaded
     }
 
-    /// Rasterizes an anti-aliased line segment between `from` and `to`.
+    /// Rasterizes an anti-aliased line segment between `from` and `to` using oriented scanline X-bounds and squared-distance rejection.
     ///
     /// # Arguments
     ///
@@ -5285,6 +5285,9 @@ impl SoftwareRenderer {
         clip: Rect,
         aa: AntialiasingMode,
     ) -> usize {
+        if color.get_a() == 0 {
+            return 0;
+        }
         let half_w: f32 = width * 0.5;
         let min_x: f32 = from.get_x().min(to.get_x()) - half_w - 1.0;
         let min_y: f32 = from.get_y().min(to.get_y()) - half_w - 1.0;
@@ -5294,9 +5297,6 @@ impl SoftwareRenderer {
         else {
             return 0;
         };
-        let dx: f32 = to.get_x() - from.get_x();
-        let dy: f32 = to.get_y() - from.get_y();
-        let len_sq: f32 = (dx * dx + dy * dy).max(1e-6);
         let fb_w: u32 = band.width();
         let band_y0: u32 = band.y_offset();
         let band_y1: u32 = band.y_end();
@@ -5304,21 +5304,68 @@ impl SoftwareRenderer {
         let y0: u32 = (vis.get_y().floor().max(0.0) as u32).clamp(band_y0, band_y1);
         let x1: u32 = (vis.right().ceil().max(0.0) as u32).min(fb_w);
         let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).clamp(band_y0, band_y1);
+        if x0 >= x1 || y0 >= y1 {
+            return 0;
+        }
+        let fx0: f32 = from.get_x();
+        let fy0: f32 = from.get_y();
+        let dx: f32 = to.get_x() - fx0;
+        let dy: f32 = to.get_y() - fy0;
+        let len_sq: f32 = (dx * dx + dy * dy).max(1e-6);
+        let inv_len_sq: f32 = 1.0 / len_sq;
+        let outer_r: f32 = half_w + 0.9;
+        let outer_r_sq: f32 = outer_r * outer_r;
+        let inner_r: f32 = (half_w - 0.9).max(0.0);
+        let inner_r_sq: f32 = inner_r * inner_r;
+        let has_inner: bool = half_w > 0.9;
+        let use_oriented_x: bool = dy.abs() > 1e-4;
+        let slope_x_per_y: f32 = if use_oriented_x { dx / dy } else { 0.0 };
+        let x_pad: f32 = if use_oriented_x {
+            outer_r * (len_sq.sqrt() / dy.abs()) + 0.5
+        } else {
+            0.0
+        };
+        let base_alpha: f32 = (color.get_a() as f32) * (1.0 / 255.0);
+        let lin_rgb: [f32; 3] = [
+            SRGB_TO_LIN_LUT[color.get_r() as usize],
+            SRGB_TO_LIN_LUT[color.get_g() as usize],
+            SRGB_TO_LIN_LUT[color.get_b() as usize],
+        ];
         let mut shaded: usize = 0;
         for y in y0..y1 {
             let py: f32 = (y as f32) + 0.5;
-            for x in x0..x1 {
+            let py_off: f32 = py - fy0;
+            let (row_x0, row_x1): (u32, u32) = if use_oriented_x {
+                let x_center: f32 = fx0 + py_off * slope_x_per_y;
+                let rx0: u32 = ((x_center - x_pad).floor().max(0.0) as u32).clamp(x0, x1);
+                let rx1: u32 = ((x_center + x_pad).ceil().max(0.0) as u32).clamp(rx0, x1);
+                (rx0, rx1)
+            } else {
+                (x0, x1)
+            };
+            if row_x0 >= row_x1 {
+                continue;
+            }
+            let Some(row) = band.row_slice_mut(y) else {
+                continue;
+            };
+            let py_dy: f32 = py_off * dy;
+            for x in row_x0..row_x1 {
                 let px: f32 = (x as f32) + 0.5;
-                let t: f32 = (((px - from.get_x()) * dx + (py - from.get_y()) * dy) / len_sq)
-                    .clamp(0.0, 1.0);
-                let proj_x: f32 = from.get_x() + t * dx;
-                let proj_y: f32 = from.get_y() + t * dy;
-                let dist: f32 =
-                    ((px - proj_x) * (px - proj_x) + (py - proj_y) * (py - proj_y)).sqrt() - half_w;
-                let cov: f32 = sdf_coverage(dist, aa);
+                let t: f32 = (((px - fx0) * dx + py_dy) * inv_len_sq).clamp(0.0, 1.0);
+                let dpx: f32 = px - (fx0 + t * dx);
+                let dpy: f32 = py - (fy0 + t * dy);
+                let dist_sq: f32 = dpx * dpx + dpy * dpy;
+                if dist_sq >= outer_r_sq {
+                    continue;
+                }
+                let cov: f32 = if has_inner && dist_sq <= inner_r_sq {
+                    1.0
+                } else {
+                    sdf_coverage(dist_sq.sqrt() - half_w, aa)
+                };
                 if cov > 0.0 {
-                    let alpha_f: f32 = ((color.get_a() as f32) * (1.0 / 255.0)) * cov;
-                    band.blend_pixel_f32_dithered(x, y, color, alpha_f, 0.0);
+                    blend_row_pixel_f32_precomputed(row, x, color, lin_rgb, base_alpha * cov);
                     shaded += 1;
                 }
             }
@@ -5326,7 +5373,7 @@ impl SoftwareRenderer {
         shaded
     }
 
-    /// Rasterizes an analytical SDF anti-aliased filled circle with 4x4 RGSS perimeter sampling.
+    /// Rasterizes an analytical SDF anti-aliased filled circle with LUT interior chord fills and tight 4x4 RGSS rim sampling.
     ///
     /// # Arguments
     ///
@@ -5367,14 +5414,36 @@ impl SoftwareRenderer {
         let y0: u32 = (vis.get_y().floor().max(0.0) as u32).clamp(band_y0, band_y1);
         let x1: u32 = (vis.right().ceil().max(0.0) as u32).min(fb_w);
         let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).clamp(band_y0, band_y1);
-        let outer_r: f32 = radius + 1.0;
-        let inner_r: f32 = (radius - 1.0).max(0.0);
+        if x0 >= x1 || y0 >= y1 {
+            return 0;
+        }
+        let outer_r: f32 = if aa == AntialiasingMode::None {
+            radius + 0.5
+        } else {
+            radius + 0.65
+        };
+        let inner_r: f32 = if aa == AntialiasingMode::None {
+            (radius - 0.5).max(0.0)
+        } else {
+            (radius - 0.65).max(0.0)
+        };
         let outer_r2: f32 = outer_r * outer_r;
         let inner_r2: f32 = inner_r * inner_r;
+        let r2: f32 = radius * radius;
         let cx: f32 = center.get_x();
         let cy: f32 = center.get_y();
-        let mut shaded: usize = 0;
         let base_alpha: f32 = (color.get_a() as f32) * (1.0 / 255.0);
+        let lin_rgb: [f32; 3] = [
+            SRGB_TO_LIN_LUT[color.get_r() as usize],
+            SRGB_TO_LIN_LUT[color.get_g() as usize],
+            SRGB_TO_LIN_LUT[color.get_b() as usize],
+        ];
+        let interior_luts: Option<RgbaLutQuad> = if color.get_a() < 255 && radius >= 12.0 {
+            Some(build_linear_blend_luts(color))
+        } else {
+            None
+        };
+        let mut shaded: usize = 0;
         for y in y0..y1 {
             let dy: f32 = (y as f32) + 0.5 - cy;
             let dy2: f32 = dy * dy;
@@ -5383,49 +5452,72 @@ impl SoftwareRenderer {
             }
             let out_dx: f32 = (outer_r2 - dy2).sqrt();
             let row_x0: u32 = ((cx - out_dx).floor().max(0.0) as u32).clamp(x0, x1);
-            let row_x1: u32 = ((cx + out_dx).ceil().max(0.0) as u32).clamp(x0, x1);
-            if dy2 < inner_r2 && inner_r > 1.0 {
+            let row_x1: u32 = ((cx + out_dx).ceil().max(0.0) as u32).clamp(row_x0, x1);
+            if row_x0 >= row_x1 {
+                continue;
+            }
+            if dy2 < inner_r2 && inner_r > 0.65 {
                 let in_dx: f32 = (inner_r2 - dy2).sqrt();
                 let in_x0: u32 = ((cx - in_dx).ceil().max(0.0) as u32).clamp(row_x0, row_x1);
-                let in_x1: u32 = ((cx + in_dx).floor().max(0.0) as u32).clamp(row_x0, row_x1);
-                for x in row_x0..in_x0 {
-                    let dx: f32 = (x as f32) + 0.5 - cx;
-                    let cov: f32 = if aa == AntialiasingMode::None {
-                        sdf_coverage((dx * dx + dy2).sqrt() - radius, aa)
-                    } else {
-                        circle_supersampled_coverage(dx, dy, radius)
-                    };
-                    if cov > 0.0 {
-                        band.blend_pixel_f32_dithered(x, y, color, base_alpha * cov, 0.0);
-                        shaded += 1;
-                    }
-                }
+                let in_x1: u32 = ((cx + in_dx).floor().max(0.0) as u32).clamp(in_x0, row_x1);
                 if in_x0 < in_x1 {
-                    band.fill_span_linear(in_x0, in_x1, y, color);
+                    if let Some(ref luts) = interior_luts {
+                        band.fill_span_linear_luts(in_x0, in_x1, y, luts);
+                    } else {
+                        band.fill_span_linear(in_x0, in_x1, y, color);
+                    }
                     shaded += (in_x1 - in_x0) as usize;
                 }
-                for x in in_x1..row_x1 {
-                    let dx: f32 = (x as f32) + 0.5 - cx;
-                    let cov: f32 = if aa == AntialiasingMode::None {
-                        sdf_coverage((dx * dx + dy2).sqrt() - radius, aa)
-                    } else {
-                        circle_supersampled_coverage(dx, dy, radius)
-                    };
-                    if cov > 0.0 {
-                        band.blend_pixel_f32_dithered(x, y, color, base_alpha * cov, 0.0);
-                        shaded += 1;
+                if (row_x0 < in_x0 || in_x1 < row_x1)
+                    && let Some(row) = band.row_slice_mut(y)
+                {
+                    for x in row_x0..in_x0 {
+                        let dx: f32 = (x as f32) + 0.5 - cx;
+                        let cov: f32 = if aa == AntialiasingMode::None {
+                            if dx * dx + dy2 <= r2 { 1.0 } else { 0.0 }
+                        } else {
+                            circle_supersampled_coverage(dx, dy, radius)
+                        };
+                        if cov > 0.0 {
+                            blend_row_pixel_f32_precomputed(
+                                row,
+                                x,
+                                color,
+                                lin_rgb,
+                                base_alpha * cov,
+                            );
+                            shaded += 1;
+                        }
+                    }
+                    for x in in_x1..row_x1 {
+                        let dx: f32 = (x as f32) + 0.5 - cx;
+                        let cov: f32 = if aa == AntialiasingMode::None {
+                            if dx * dx + dy2 <= r2 { 1.0 } else { 0.0 }
+                        } else {
+                            circle_supersampled_coverage(dx, dy, radius)
+                        };
+                        if cov > 0.0 {
+                            blend_row_pixel_f32_precomputed(
+                                row,
+                                x,
+                                color,
+                                lin_rgb,
+                                base_alpha * cov,
+                            );
+                            shaded += 1;
+                        }
                     }
                 }
-            } else {
+            } else if let Some(row) = band.row_slice_mut(y) {
                 for x in row_x0..row_x1 {
                     let dx: f32 = (x as f32) + 0.5 - cx;
                     let cov: f32 = if aa == AntialiasingMode::None {
-                        sdf_coverage((dx * dx + dy2).sqrt() - radius, aa)
+                        if dx * dx + dy2 <= r2 { 1.0 } else { 0.0 }
                     } else {
                         circle_supersampled_coverage(dx, dy, radius)
                     };
                     if cov > 0.0 {
-                        band.blend_pixel_f32_dithered(x, y, color, base_alpha * cov, 0.0);
+                        blend_row_pixel_f32_precomputed(row, x, color, lin_rgb, base_alpha * cov);
                         shaded += 1;
                     }
                 }

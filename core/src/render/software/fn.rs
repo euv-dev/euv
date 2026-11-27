@@ -347,24 +347,35 @@ pub fn rounded_box_supersampled_coverage(
 /// # Returns
 ///
 /// - `f32` - Subpixel coverage in `[0.0, 1.0]`.
+#[inline(always)]
 #[must_use]
 pub fn circle_supersampled_coverage(dx: f32, dy: f32, radius: f32) -> f32 {
-    let grid: [f32; 4] = [-0.375, -0.125, 0.125, 0.375];
-    let r2: f32 = radius * radius;
-    let mut hits: f32 = 0.0;
-    for (row_idx, &oy) in grid.iter().enumerate() {
-        let jx: f32 = if row_idx % 2 == 0 { -0.0625 } else { 0.0625 };
-        let sy: f32 = dy + oy;
-        for (col_idx, &ox) in grid.iter().enumerate() {
-            let jy: f32 = if col_idx % 2 == 0 { 0.0625 } else { -0.0625 };
-            let sx: f32 = dx + ox + jx;
-            let sample_y: f32 = sy + jy;
-            if sx * sx + sample_y * sample_y <= r2 {
-                hits += 1.0;
-            }
+    let d2: f32 = dx * dx + dy * dy;
+    let out_lim: f32 = radius + 0.625;
+    if d2 > out_lim * out_lim {
+        return 0.0;
+    }
+    if radius > 0.625 {
+        let in_lim: f32 = radius - 0.625;
+        if d2 <= in_lim * in_lim {
+            return 1.0;
         }
     }
-    hits * 0.0625
+    let grid: [f32; 4] = [-0.375, -0.125, 0.125, 0.375];
+    let r2: f32 = radius * radius;
+    let mut hits: u32 = 0;
+    for (row_idx, &oy) in grid.iter().enumerate() {
+        let jx: f32 = if row_idx & 1 == 0 { -0.0625 } else { 0.0625 };
+        let base_x: f32 = dx + jx;
+        let sy: f32 = dy + oy;
+        for (col_idx, &ox) in grid.iter().enumerate() {
+            let jy: f32 = if col_idx & 1 == 0 { 0.0625 } else { -0.0625 };
+            let sx: f32 = base_x + ox;
+            let sample_y: f32 = sy + jy;
+            hits += u32::from(sx * sx + sample_y * sample_y <= r2);
+        }
+    }
+    (hits as f32) * 0.0625
 }
 
 /// Evaluates 4x4 rotated-grid supersampled coverage for a triangle at physical pixel `(px, py)`.
