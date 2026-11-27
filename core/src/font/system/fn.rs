@@ -9,14 +9,24 @@ use super::*;
 /// # Returns
 ///
 /// - `bool` - True when the character occupies a full em advance width.
+#[inline(always)]
 #[must_use]
 pub fn is_wide_unicode(ch: char) -> bool {
     let cp: u32 = ch as u32;
-    (CJK_UNIFIED_START..=CJK_UNIFIED_END).contains(&cp)
-        || (CJK_EXT_A_START..=CJK_EXT_A_END).contains(&cp)
-        || (CJK_PUNCT_START..=CJK_PUNCT_END).contains(&cp)
-        || (FULLWIDTH_START..=FULLWIDTH_END).contains(&cp)
-        || (HANGUL_START..=HANGUL_END).contains(&cp)
+    if cp < CJK_PUNCT_START {
+        return false;
+    }
+    let in_cjk: bool = (CJK_UNIFIED_START..=CJK_UNIFIED_END).contains(&cp)
+        || (CJK_EXT_A_START..=CJK_EXT_A_END).contains(&cp);
+    if in_cjk {
+        return true;
+    }
+    let in_punct: bool = (CJK_PUNCT_START..=CJK_PUNCT_END).contains(&cp)
+        || (FULLWIDTH_START..=FULLWIDTH_END).contains(&cp);
+    if in_punct {
+        return true;
+    }
+    (HANGUL_START..=HANGUL_END).contains(&cp)
 }
 
 /// Deterministically rasterizes non-ASCII / CJK glyphs into distinct, crisp stroke patterns.
@@ -39,28 +49,38 @@ pub fn rasterize_unicode_deterministic(key: GlyphKey) -> RasterizedGlyph {
         ((out_h as f32) * 0.68).round().max(6.0) as u32
     };
     let advance: u32 = out_w + ((size_px * 0.10).round().max(1.0) as u32);
-    let mut coverage: Vec<u8> = vec![0; (out_w as usize) * (out_h as usize)];
+    let out_w_usize: usize = out_w as usize;
+    let mut coverage: Vec<u8> = vec![0; out_w_usize * (out_h as usize)];
     let mut seed: u32 = (key.get_codepoint() as u32).wrapping_mul(0x9E37_79B1);
     let stroke: u32 = if key.get_bold() { 2 } else { 1 };
     let grid: u32 = 7;
+    let mut x_spans: [(usize, usize); 7] = [(0, 0); 7];
+    for gx in 0..grid {
+        let x0: u32 = (gx * out_w) / grid;
+        let x1: u32 = (x0 + stroke).min(((gx + 1) * out_w) / grid).min(out_w);
+        x_spans[gx as usize] = (x0 as usize, x1 as usize);
+    }
     for gy in 0..grid {
         seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
         let row_mask: u32 = (seed >> 20) & 0x7F;
-        let y0: u32 = (gy * out_h) / grid;
-        let y1: u32 = (((gy + 1) * out_h) / grid).min(out_h);
-        for gx in 0..grid {
-            let mirror_x: u32 = if gx < 4 { gx } else { grid - 1 - gx };
-            let bit_on: bool = ((row_mask >> mirror_x) & 1) != 0 || gy == 0 || gy == grid - 1;
-            if !bit_on {
-                continue;
+        let y0: usize = ((gy * out_h) / grid) as usize;
+        let y1: usize = (((gy + 1) * out_h) / grid).min(out_h) as usize;
+        if y0 >= y1 {
+            continue;
+        }
+        let border_row: bool = gy == 0 || gy == grid - 1;
+        let first_start: usize = y0 * out_w_usize;
+        let first_end: usize = first_start + out_w_usize;
+        let first_row: &mut [u8] = &mut coverage[first_start..first_end];
+        for (gx_idx, &(x0, x1)) in x_spans.iter().enumerate() {
+            let mirror_x: usize = if gx_idx < 4 { gx_idx } else { 6 - gx_idx };
+            let bit_on: bool = border_row || ((row_mask >> mirror_x) & 1) != 0;
+            if bit_on && x0 < x1 {
+                first_row[x0..x1].fill(255);
             }
-            let x0: u32 = (gx * out_w) / grid;
-            let x1: u32 = (x0 + stroke).min(((gx + 1) * out_w) / grid).min(out_w);
-            for py in y0..y1 {
-                for px in x0..x1 {
-                    coverage[(py as usize) * (out_w as usize) + (px as usize)] = 255;
-                }
-            }
+        }
+        for py in (y0 + 1)..y1 {
+            coverage.copy_within(first_start..first_end, py * out_w_usize);
         }
     }
     RasterizedGlyph::new(out_w, out_h, advance, coverage)
