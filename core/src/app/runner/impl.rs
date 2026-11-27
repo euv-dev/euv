@@ -37,6 +37,79 @@ impl FramePhaseMetrics {
     }
 }
 
+/// Zero-allocation stack-first ancestor chain traversal for pointer event routing.
+impl AncestorChain {
+    /// Collects ancestors starting from `start` up to the root into a 32-entry stack buffer, spilling to heap only beyond depth 32.
+    ///
+    /// # Arguments
+    ///
+    /// - `&SceneTree` - Retained scene tree.
+    /// - `Option<NodeId>` - Starting leaf node handle.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Ordered ancestor chain (leaf first).
+    #[must_use]
+    pub(crate) fn from_tree(tree: &SceneTree, start: Option<NodeId>) -> Self {
+        let mut inline: [NodeId; 32] = [NodeId::default(); 32];
+        let mut len: usize = 0;
+        let mut spill: Vec<NodeId> = Vec::new();
+        let mut cursor: Option<NodeId> = start;
+        while let Some(id) = cursor {
+            if spill.is_empty() {
+                if len < 32 {
+                    inline[len] = id;
+                    len += 1;
+                } else {
+                    spill.reserve(48);
+                    spill.extend_from_slice(&inline);
+                    spill.push(id);
+                }
+            } else {
+                spill.push(id);
+            }
+            cursor = tree.get_node(id).and_then(SceneNode::parent_id);
+        }
+        Self { inline, len, spill }
+    }
+
+    /// Borrows the ordered ancestor chain slice (leaf first).
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Ancestor chain reference.
+    ///
+    /// # Returns
+    ///
+    /// - `&[NodeId]` - Contiguous slice of ancestors from leaf to root.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn as_slice(&self) -> &[NodeId] {
+        let Self { inline, len, spill } = self;
+        if spill.is_empty() {
+            &inline[..*len]
+        } else {
+            spill.as_slice()
+        }
+    }
+
+    /// Returns `true` when `target` appears anywhere in this ancestor chain.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Ancestor chain reference.
+    /// - `NodeId` - Node handle to search for.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - Whether `target` is contained in the chain.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn contains(&self, target: NodeId) -> bool {
+        self.as_slice().contains(&target)
+    }
+}
+
 /// Core lifecycle, event dispatch, and frame rendering pipeline for `App`.
 impl App {
     /// Creates an `App` bound to the active native OS/Web platform backend.
@@ -136,7 +209,9 @@ impl App {
             touch_drag_travel: 0.0,
             touch_scroll_axis: 0,
             touch_vel_accum_delta: Point::default(),
-            touch_vel_samples: Vec::with_capacity(16),
+            touch_vel_ring: [(0.0, 0.0, 0.0); 8],
+            touch_vel_head: 0,
+            touch_vel_len: 0,
             touch_vel_idle_secs: 0.0,
             scrollbar_dragging: false,
             scrollbar_drag_axis: SCROLLBAR_AXIS_NONE,
@@ -1297,6 +1372,56 @@ impl App {
         }
     }
 
+    /// Dispatches a frame's polled `WindowEvent` stream while coalescing consecutive continuous `Scroll` and `PointerMove` events without losing discrete input edges.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable app.
+    /// - `Vec<WindowEvent>` - Events polled during the current frame tick.
+    fn dispatch_coalesced_events(&mut self, events: Vec<WindowEvent>) {
+        if events.len() <= 1 {
+            for ev in events.into_iter() {
+                self.dispatch_window_event(ev);
+            }
+            return;
+        }
+        let mut pending: Option<WindowEvent> = None;
+        for ev in events.into_iter() {
+            match (pending.take(), ev) {
+                (Some(WindowEvent::Scroll(w1, d1)), WindowEvent::Scroll(w2, d2))
+                    if w1 == w2
+                        && d1.get_x() * d2.get_x() >= 0.0
+                        && d1.get_y() * d2.get_y() >= 0.0 =>
+                {
+                    pending = Some(WindowEvent::Scroll(
+                        w1,
+                        Point::new(d1.get_x() + d2.get_x(), d1.get_y() + d2.get_y()),
+                    ));
+                }
+                (Some(WindowEvent::PointerMove(w1, p1)), WindowEvent::PointerMove(w2, p2))
+                    if w1 == w2
+                        && p1.get_pointer_id() == p2.get_pointer_id()
+                        && p1.get_device() == p2.get_device()
+                        && p1.get_button() == p2.get_button()
+                        && p1.get_modifiers() == p2.get_modifiers()
+                        && (p1.get_pressure() > 0.0) == (p2.get_pressure() > 0.0) =>
+                {
+                    pending = Some(WindowEvent::PointerMove(w2, p2));
+                }
+                (Some(prev), next) => {
+                    self.dispatch_window_event(prev);
+                    pending = Some(next);
+                }
+                (None, next) => {
+                    pending = Some(next);
+                }
+            }
+        }
+        if let Some(last) = pending {
+            self.dispatch_window_event(last);
+        }
+    }
+
     /// Executes one complete frame tick: poll events, flush commands, layout, paint, render, and present.
     ///
     /// # Arguments
@@ -1321,9 +1446,7 @@ impl App {
             platform.poll_events()
         };
         if !events.is_empty() {
-            for ev in events.into_iter() {
-                self.dispatch_window_event(ev);
-            }
+            self.dispatch_coalesced_events(events);
         }
         let input_us: u64 = Self::phase_lap_us(&mut phase_mark);
         flush_effects();
@@ -2000,7 +2123,7 @@ impl App {
         self.set_touch_drag_travel(0.0);
         self.set_touch_scroll_axis(0);
         self.set_touch_vel_accum_delta(Point::default());
-        self.get_mut_touch_vel_samples().clear();
+        self.clear_touch_vel_samples();
         self.set_touch_vel_idle_secs(0.0);
         self.set_scrollbar_dragging(false);
         self.set_scrollbar_drag_axis(SCROLLBAR_AXIS_NONE);
@@ -2047,7 +2170,7 @@ impl App {
             self.set_touch_drag_travel(0.0);
             self.set_touch_scroll_axis(0);
             self.set_touch_vel_accum_delta(Point::default());
-            self.get_mut_touch_vel_samples().clear();
+            self.clear_touch_vel_samples();
             self.set_touch_vel_idle_secs(0.0);
             self.set_scrollbar_dragging(false);
             self.set_scrollbar_drag_axis(SCROLLBAR_AXIS_NONE);
@@ -2104,7 +2227,7 @@ impl App {
             self.set_touch_drag_travel(0.0);
             self.set_touch_scroll_axis(0);
             self.set_touch_vel_accum_delta(Point::default());
-            self.get_mut_touch_vel_samples().clear();
+            self.clear_touch_vel_samples();
             self.set_touch_vel_idle_secs(0.0);
             self.set_scrollbar_dragging(false);
             self.set_scrollbar_drag_axis(SCROLLBAR_AXIS_NONE);
@@ -2133,7 +2256,7 @@ impl App {
             self.set_touch_dragging(false);
             self.set_touch_drag_travel(0.0);
             self.set_touch_scroll_axis(0);
-            self.get_mut_touch_vel_samples().clear();
+            self.clear_touch_vel_samples();
             return;
         }
         self.set_pinch_base_dist(0.0);
@@ -2165,7 +2288,7 @@ impl App {
                 self.set_touch_dragging(false);
                 self.set_touch_scroll_axis(0);
                 self.set_touch_vel_accum_delta(Point::default());
-                self.get_mut_touch_vel_samples().clear();
+                self.clear_touch_vel_samples();
                 self.set_touch_vel_idle_secs(0.0);
                 self.set_scroll_velocity(Point::default());
                 self.set_scroll_fling_pos(rem_pos);
@@ -2188,8 +2311,8 @@ impl App {
     fn resolve_touch_scroll_target(&self, pos: Point) -> Option<NodeId> {
         self.get_scene().with_read(
             |tree: &SceneTree| {
-                let hit: Option<NodeId> = hit_test(tree, pos);
-                for aid in Self::ancestor_chain(tree, hit).into_iter() {
+                let mut cursor: Option<NodeId> = hit_test(tree, pos);
+                while let Some(aid) = cursor {
                     if let Some(node) = tree.get_node(aid) {
                         if node.get_style().get_layout().get_overflow() == Overflow::Scroll {
                             return Some(aid);
@@ -2200,12 +2323,81 @@ impl App {
                         {
                             return Some(aid);
                         }
+                        cursor = node.parent_id();
+                    } else {
+                        break;
                     }
                 }
                 None
             },
             None,
         )
+    }
+
+    /// Resets the stack-allocated touch velocity sample ring buffer in O(1).
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable app.
+    #[inline(always)]
+    fn clear_touch_vel_samples(&mut self) {
+        self.set_touch_vel_head(0);
+        self.set_touch_vel_len(0);
+    }
+
+    /// Reads the `logical_idx`-th live sample (oldest first) from `touch_vel_ring`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - App reference.
+    /// - `usize` - Zero-based logical sample index in `0..touch_vel_len`.
+    ///
+    /// # Returns
+    ///
+    /// - `(f32, f32, f32)` - Sample tuple `(dt_secs, dx, dy)`.
+    #[must_use]
+    #[inline(always)]
+    fn touch_vel_sample_at(&self, logical_idx: usize) -> (f32, f32, f32) {
+        let Self {
+            touch_vel_ring,
+            touch_vel_head,
+            ..
+        } = self;
+        touch_vel_ring[(*touch_vel_head + logical_idx) & 7]
+    }
+
+    /// Appends a frame velocity sample into `touch_vel_ring` and evicts aged samples in O(1) without shifting memory.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable app.
+    /// - `(f32, f32, f32)` - Sample tuple `(dt_secs, dx, dy)`.
+    fn push_touch_vel_sample(&mut self, sample: (f32, f32, f32)) {
+        let Self {
+            touch_vel_ring,
+            touch_vel_head,
+            touch_vel_len,
+            ..
+        } = self;
+        if *touch_vel_len < 8 {
+            let slot: usize = (*touch_vel_head + *touch_vel_len) & 7;
+            touch_vel_ring[slot] = sample;
+            *touch_vel_len += 1;
+        } else {
+            let slot: usize = *touch_vel_head;
+            touch_vel_ring[slot] = sample;
+            *touch_vel_head = (*touch_vel_head + 1) & 7;
+        }
+        let mut total_dt: f32 = 0.0;
+        for i in 0..*touch_vel_len {
+            total_dt += touch_vel_ring[(*touch_vel_head + i) & 7].0;
+        }
+        while *touch_vel_len > 2 && total_dt > 0.11 {
+            let oldest: (f32, f32, f32) = touch_vel_ring[*touch_vel_head];
+            total_dt -= oldest.0;
+            *touch_vel_head = (*touch_vel_head + 1) & 7;
+            *touch_vel_len -= 1;
+        }
     }
 
     /// Projects a raw touch scroll delta onto the active gesture-locked scroll axis.
@@ -2243,10 +2435,11 @@ impl App {
         if self.get_touch_vel_idle_secs() >= 0.06 {
             return Point::default();
         }
-        let samples: &[(f32, f32, f32)] = self.get_touch_vel_samples().as_slice();
+        let sample_len: usize = self.get_touch_vel_len();
         let mut ref_dx: f32 = 0.0;
         let mut ref_dy: f32 = 0.0;
-        for &(_, dx, dy) in samples.iter() {
+        for i in 0..sample_len {
+            let (_, dx, dy): (f32, f32, f32) = self.touch_vel_sample_at(i);
             ref_dx += dx;
             ref_dy += dy;
         }
@@ -2254,10 +2447,10 @@ impl App {
             ref_dx += pending_accum.get_x();
             ref_dy += pending_accum.get_y();
         }
-        let mut trimmed_len: usize = samples.len();
+        let mut trimmed_len: usize = sample_len;
         let mut tail_dt: f32 = 0.0;
         while trimmed_len > 1 && tail_dt < 0.028 {
-            let (sdt, sdx, sdy): (f32, f32, f32) = samples[trimmed_len - 1];
+            let (sdt, sdx, sdy): (f32, f32, f32) = self.touch_vel_sample_at(trimmed_len - 1);
             let rev_x: bool = ref_dx.abs() >= 4.0
                 && sdx.abs() > 0.01
                 && sdx.signum() != ref_dx.signum()
@@ -2276,10 +2469,11 @@ impl App {
         let mut sum_dt: f32 = 0.0;
         let mut sum_dx: f32 = 0.0;
         let mut sum_dy: f32 = 0.0;
-        for &(sdt, sdx, sdy) in samples[..trimmed_len].iter().rev() {
+        for i in (0..trimmed_len).rev() {
             if sum_dt >= 0.085 {
                 break;
             }
+            let (sdt, sdx, sdy): (f32, f32, f32) = self.touch_vel_sample_at(i);
             sum_dt += sdt;
             sum_dx += sdx;
             sum_dy += sdy;
@@ -2356,16 +2550,7 @@ impl App {
             let idle: f32 = self.get_touch_vel_idle_secs() + safe_dt;
             self.set_touch_vel_idle_secs(idle);
         }
-        let samples: &mut Vec<(f32, f32, f32)> = self.get_mut_touch_vel_samples();
-        samples.push((safe_dt, accum.get_x(), accum.get_y()));
-        let mut total_dt: f32 = samples
-            .iter()
-            .map(|item: &(f32, f32, f32)| item.0)
-            .sum::<f32>();
-        while samples.len() > 2 && (total_dt > 0.11 || samples.len() > 16) {
-            let removed: (f32, f32, f32) = samples.remove(0);
-            total_dt -= removed.0;
-        }
+        self.push_touch_vel_sample((safe_dt, accum.get_x(), accum.get_y()));
     }
 
     /// Advances smooth exponential interpolation for discrete desktop/web mouse-wheel scrolling.
@@ -2468,24 +2653,27 @@ impl App {
         }
     }
 
-    /// Collects the ancestor chain starting from `start` up to the root node.
+    /// Returns `true` when `target` is equal to `start` or an ancestor of `start` without allocating.
     ///
     /// # Arguments
     ///
     /// - `&SceneTree` - Retained scene tree.
     /// - `Option<NodeId>` - Starting leaf node.
+    /// - `NodeId` - Ancestor node handle to match.
     ///
     /// # Returns
     ///
-    /// - `Vec<NodeId>` - Ordered ancestor chain (leaf first).
-    fn ancestor_chain(tree: &SceneTree, start: Option<NodeId>) -> Vec<NodeId> {
-        let mut chain: Vec<NodeId> = Vec::new();
+    /// - `bool` - Whether `target` lies on the ancestor chain of `start`.
+    #[must_use]
+    fn has_ancestor(tree: &SceneTree, start: Option<NodeId>, target: NodeId) -> bool {
         let mut cursor: Option<NodeId> = start;
         while let Some(id) = cursor {
-            chain.push(id);
+            if id == target {
+                return true;
+            }
             cursor = tree.get_node(id).and_then(SceneNode::parent_id);
         }
-        chain
+        false
     }
 
     /// Synchronizes hovered state across old and new ancestor chains, preventing stuck hover backgrounds on clicked items.
@@ -2504,10 +2692,10 @@ impl App {
         if prev == next_hit {
             return;
         }
-        let old_chain: Vec<NodeId> = Self::ancestor_chain(tree, prev);
-        let new_chain: Vec<NodeId> = Self::ancestor_chain(tree, next_hit);
-        for old_id in old_chain.iter().copied() {
-            if new_chain.contains(&old_id) {
+        let old_chain: AncestorChain = AncestorChain::from_tree(tree, prev);
+        let new_chain: AncestorChain = AncestorChain::from_tree(tree, next_hit);
+        for old_id in old_chain.as_slice().iter().copied() {
+            if new_chain.contains(old_id) {
                 continue;
             }
             let mut visual_hover: bool = false;
@@ -2529,8 +2717,8 @@ impl App {
             }
         }
         tree.get_mut_focus().set_hovered(next_hit);
-        for new_id in new_chain.iter().copied() {
-            if old_chain.contains(&new_id) {
+        for new_id in new_chain.as_slice().iter().copied() {
+            if old_chain.contains(new_id) {
                 continue;
             }
             let mut visual_hover: bool = false;
@@ -2636,13 +2824,17 @@ impl App {
     ///
     /// - `&Self` - Mutable app.
     fn publish_active_touches(&mut self) {
+        let active_sig: Signal<Vec<(u64, Point)>> = self.get_context().get_active_touches();
+        if !active_sig.has_subscribers() {
+            return;
+        }
         let mut pts: Vec<(u64, Point)> = self
             .get_active_pointers()
             .iter()
             .map(|(id, pt): (&u64, &Point)| (*id, *pt))
             .collect();
         pts.sort_by_key(|item: &(u64, Point)| item.0);
-        let _: bool = self.get_context().get_active_touches().set(pts);
+        let _: bool = active_sig.set(pts);
     }
 
     /// Computes deterministic distance between the first two active touch pointers for pinch-to-zoom gestures.
@@ -2749,20 +2941,21 @@ impl App {
             && let Some(origin) = origin_opt
         {
             let captured_drag_control: bool = is_scrollbar_drag
-                || self.get_scene().with_read(
-                    |tree: &SceneTree| {
-                        tree.get_focus()
-                            .pressed_node()
-                            .and_then(|pressed_id: NodeId| tree.get_node(pressed_id))
-                            .map(|n: &SceneNode| {
-                                n.get_handlers()
-                                    .handler_for(&UiEventKind::PointerMove(pos))
-                                    .is_some()
-                            })
-                            .unwrap_or(false)
-                    },
-                    false,
-                );
+                || (!self.get_touch_dragging()
+                    && self.get_scene().with_read(
+                        |tree: &SceneTree| {
+                            tree.get_focus()
+                                .pressed_node()
+                                .and_then(|pressed_id: NodeId| tree.get_node(pressed_id))
+                                .map(|n: &SceneNode| {
+                                    n.get_handlers()
+                                        .handler_for(&UiEventKind::PointerMove(pos))
+                                        .is_some()
+                                })
+                                .unwrap_or(false)
+                        },
+                        false,
+                    ));
             if !captured_drag_control {
                 let total_dx: f32 = pos.get_x() - origin.get_x();
                 let total_dy: f32 = pos.get_y() - origin.get_y();
@@ -2785,7 +2978,7 @@ impl App {
                             .set_if_changed(total_dx);
                     }
                     self.set_touch_vel_accum_delta(Point::default());
-                    self.get_mut_touch_vel_samples().clear();
+                    self.clear_touch_vel_samples();
                     self.set_touch_vel_idle_secs(0.0);
                     self.clear_pressed_node();
                     self.set_scroll_fling_pos(pos);
@@ -2983,7 +3176,8 @@ impl App {
                     }
                     let mut resolved_cursor: CursorIcon = CursorIcon::Default;
                     let mut has_selectable_text: bool = false;
-                    for aid in Self::ancestor_chain(tree, hit).into_iter() {
+                    let mut cursor_walk: Option<NodeId> = hit;
+                    while let Some(aid) = cursor_walk {
                         if let Some(node) = tree.get_node(aid) {
                             if matches!(node.get_kind(), NodeKind::Input(_)) {
                                 resolved_cursor = CursorIcon::Text;
@@ -2999,6 +3193,9 @@ impl App {
                             {
                                 has_selectable_text = true;
                             }
+                            cursor_walk = node.parent_id();
+                        } else {
+                            break;
                         }
                     }
                     if resolved_cursor == CursorIcon::Default && has_selectable_text {
@@ -3059,8 +3256,8 @@ impl App {
         if self.get_active_pointers().len() == 1 {
             let suppress_gest: bool = self.get_scene().with_read(
                 |tree: &SceneTree| {
-                    let hit: Option<NodeId> = hit_test(tree, pos);
-                    for aid in Self::ancestor_chain(tree, hit).into_iter() {
+                    let mut walk: Option<NodeId> = hit_test(tree, pos);
+                    while let Some(aid) = walk {
                         if let Some(node) = tree.get_node(aid) {
                             let is_canvas: bool = matches!(node.get_kind(), NodeKind::Canvas);
                             let has_drag_move: bool = node
@@ -3079,6 +3276,9 @@ impl App {
                             {
                                 return true;
                             }
+                            walk = node.parent_id();
+                        } else {
+                            break;
                         }
                     }
                     false
@@ -3104,7 +3304,7 @@ impl App {
             self.set_touch_drag_travel(0.0);
             self.set_touch_scroll_axis(0);
             self.set_touch_vel_accum_delta(Point::default());
-            self.get_mut_touch_vel_samples().clear();
+            self.clear_touch_vel_samples();
             self.set_touch_vel_idle_secs(0.0);
             self.set_scroll_velocity(Point::default());
             self.set_touch_scroll_target(None);
@@ -3122,7 +3322,7 @@ impl App {
             self.set_touch_drag_travel(0.0);
             self.set_touch_scroll_axis(0);
             self.set_touch_vel_accum_delta(Point::default());
-            self.get_mut_touch_vel_samples().clear();
+            self.clear_touch_vel_samples();
             self.set_touch_vel_idle_secs(0.0);
             self.set_scroll_velocity(Point::default());
             self.set_scroll_fling_pos(pos);
@@ -3136,7 +3336,7 @@ impl App {
             self.set_touch_drag_travel(0.0);
             self.set_touch_scroll_axis(0);
             self.set_touch_vel_accum_delta(Point::default());
-            self.get_mut_touch_vel_samples().clear();
+            self.clear_touch_vel_samples();
             self.set_touch_vel_idle_secs(0.0);
             self.set_scroll_velocity(Point::default());
             self.set_touch_scroll_target(None);
@@ -3175,7 +3375,10 @@ impl App {
                 let mut scrollbar_target: Option<(NodeId, u8)> = None;
                 let mut sb_callbacks: Vec<(UiEventHandler, UiEvent)> = hover_out;
                 if ptr.get_device() != PointerDevice::Touch {
-                    for aid in Self::ancestor_chain(tree, hit).into_iter() {
+                    let mut sb_walk: Option<NodeId> = hit;
+                    while let Some(aid) = sb_walk {
+                        let next_parent: Option<NodeId> =
+                            tree.get_node(aid).and_then(SceneNode::parent_id);
                         if let Some(node) = tree.get_node(aid)
                             && node.get_style().get_layout().get_overflow() == Overflow::Scroll
                         {
@@ -3268,6 +3471,7 @@ impl App {
                                 break;
                             }
                         }
+                        sb_walk = next_parent;
                     }
                 }
                 if let Some((sb_id, sb_axis)) = scrollbar_target {
@@ -3276,7 +3480,8 @@ impl App {
                 }
                 let mut focus_target: Option<NodeId> = None;
                 let mut press_target: Option<NodeId> = None;
-                for aid in Self::ancestor_chain(tree, hit).into_iter() {
+                let mut target_walk: Option<NodeId> = hit;
+                while let Some(aid) = target_walk {
                     if let Some(node) = tree.get_node(aid) {
                         let is_scrim: bool = matches!(node.get_kind(), NodeKind::Portal)
                             || node.get_style().get_layout().get_position() == Position::Fixed;
@@ -3300,6 +3505,9 @@ impl App {
                             press_target = Some(aid);
                             break;
                         }
+                        target_walk = node.parent_id();
+                    } else {
+                        break;
                     }
                 }
                 let mut started_sel: Option<StartedTextSelection> = None;
@@ -3539,7 +3747,7 @@ impl App {
         self.set_touch_drag_travel(0.0);
         self.set_touch_scroll_axis(0);
         self.set_touch_vel_accum_delta(Point::default());
-        self.get_mut_touch_vel_samples().clear();
+        self.clear_touch_vel_samples();
         self.set_touch_vel_idle_secs(0.0);
         self.set_scrollbar_dragging(false);
         self.set_scrollbar_drag_axis(SCROLLBAR_AXIS_NONE);
@@ -3577,7 +3785,7 @@ impl App {
                         if !suppress_click && (had_active_pointer || pressed.is_some()) {
                             let focused_now: Option<NodeId> = tree.get_focus().focused_node();
                             if let Some(fid) = focused_now
-                                && Self::ancestor_chain(tree, Some(target_id)).contains(&fid)
+                                && Self::has_ancestor(tree, Some(target_id), fid)
                                 && let Some(fnode) = tree.get_node(fid)
                                 && matches!(fnode.get_kind(), NodeKind::Input(inp) if !inp.get_disabled())
                             {

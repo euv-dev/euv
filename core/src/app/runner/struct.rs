@@ -140,8 +140,17 @@ pub struct App {
     /// Touch pan displacement accumulated during the current frame for jitter-free velocity estimation.
     #[get(type(copy))]
     pub(crate) touch_vel_accum_delta: Point,
-    /// Rolling window of recent `(dt_secs, dx, dy)` frame samples preventing thumb-lift backward fling reversals.
-    pub(crate) touch_vel_samples: Vec<(f32, f32, f32)>,
+    /// Fixed 8-entry stack ring buffer of `(dt_secs, dx, dy)` frame samples preventing thumb-lift backward fling reversals.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) touch_vel_ring: [(f32, f32, f32); 8],
+    /// Ring buffer index of the oldest live velocity sample in `0..8`.
+    #[get(type(copy))]
+    pub(crate) touch_vel_head: usize,
+    /// Number of live samples currently stored in `touch_vel_ring` (`0..=8`).
+    #[get(type(copy))]
+    pub(crate) touch_vel_len: usize,
     /// Elapsed idle seconds since the last touch pan movement while a finger remains held down.
     #[get(type(copy))]
     pub(crate) touch_vel_idle_secs: f32,
@@ -301,4 +310,15 @@ pub(crate) struct FramePreTick {
     pub(crate) anim_ticked: bool,
     /// Whether active transitions were deferred until after `GameEngineHost::step`.
     pub(crate) pending_game_transitions: bool,
+}
+
+/// Stack-first ancestor chain buffer avoiding heap allocations up to 32 tree levels deep.
+#[derive(Debug)]
+pub(crate) struct AncestorChain {
+    /// Inline stack buffer holding the first 32 ancestors (leaf first).
+    pub(crate) inline: [NodeId; 32],
+    /// Number of valid entries in `inline` when `spill` is empty.
+    pub(crate) len: usize,
+    /// Heap overflow buffer used only when ancestor depth exceeds 32.
+    pub(crate) spill: Vec<NodeId>,
 }
