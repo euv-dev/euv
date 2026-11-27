@@ -449,31 +449,48 @@ impl PaintPass {
         display_list.push(DrawCommand::Clear(clear_color));
         let viewport_rect: Rect = Rect::new(0.0, 0.0, viewport.get_width(), viewport.get_height());
         let active_hover_target: Option<NodeId> = Self::resolve_active_hover_target(tree);
-        let mut portals: Vec<(i32, usize, NodeId)> = Vec::new();
+        let mut portals: Vec<(i32, usize, NodeId)> = take(&mut display_list.portals_scratch);
+        let mut z_sort: Vec<(i32, usize, NodeId)> = take(&mut display_list.z_sort_scratch);
+        portals.clear();
+        z_sort.clear();
+        let mut scratch: PaintScratch<'_> = PaintScratch {
+            portals: Some(&mut portals),
+            z_sort: &mut z_sort,
+        };
         Self::emit_node(
             tree,
             tree.get_root(),
             (Point::new(0.0, 0.0), 1.0),
             viewport_rect,
             active_hover_target,
-            Some(&mut portals),
+            &mut scratch,
             display_list,
         );
         display_list.set_portal_split_index(display_list.len());
-        portals.sort_by(|a: &(i32, usize, NodeId), b: &(i32, usize, NodeId)| {
-            a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1))
-        });
-        for (_, _, portal_id) in portals.into_iter() {
+        if portals.len() > 1 {
+            portals.sort_by(|a: &(i32, usize, NodeId), b: &(i32, usize, NodeId)| {
+                a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1))
+            });
+        }
+        let mut portal_scratch: PaintScratch<'_> = PaintScratch {
+            portals: None,
+            z_sort: &mut z_sort,
+        };
+        for &(_, _, portal_id) in portals.iter() {
             Self::emit_node(
                 tree,
                 portal_id,
                 (Point::new(0.0, 0.0), 1.0),
                 viewport_rect,
                 active_hover_target,
-                None,
+                &mut portal_scratch,
                 display_list,
             );
         }
+        portals.clear();
+        z_sort.clear();
+        display_list.portals_scratch = portals;
+        display_list.z_sort_scratch = z_sort;
     }
 
     /// Resolves the single innermost interactive non-scrim node along the active hover chain so nested controls never stack duplicate hover fills.
@@ -563,7 +580,7 @@ impl PaintPass {
     /// - `(Point, f32)` - Accumulated ancestor physical pixel displacement `(tx_phys - scroll_phys)` and opacity.
     /// - `Rect` - Active cull clip rectangle.
     /// - `Option<NodeId>` - Innermost hovered interactive node eligible for automatic hover tinting.
-    /// - `Option<&mut Vec<(i32, usize, NodeId)>>` - Optional deferred top-layer portal queue (`None` when painting top layer).
+    /// - `&mut PaintScratch<'_>` - Reusable portal queue and nested z-sort scratch buffers.
     /// - `&mut DisplayList` - Output command list.
     fn emit_node(
         tree: &SceneTree,
@@ -571,7 +588,7 @@ impl PaintPass {
         offset_and_opacity: (Point, f32),
         cull_rect: Rect,
         active_hover_target: Option<NodeId>,
-        mut portals: Option<&mut Vec<(i32, usize, NodeId)>>,
+        scratch: &mut PaintScratch<'_>,
         display_list: &mut DisplayList,
     ) {
         let (offset_phys, parent_opacity): (Point, f32) = offset_and_opacity;
@@ -583,7 +600,7 @@ impl PaintPass {
         if layout.get_display() == Display::None {
             return;
         }
-        if let Some(portal_queue) = portals.as_deref_mut()
+        if let Some(portal_queue) = scratch.portals.as_deref_mut()
             && (matches!(node.get_kind(), NodeKind::Portal)
                 || layout.get_position() == Position::Fixed)
         {
@@ -824,20 +841,21 @@ impl PaintPass {
                         } else {
                             text_rect
                         };
+                    let show_caret: bool = is_focused && tree.get_caret_visible();
+                    let caret_text: String = if show_caret && !is_empty_value {
+                        rendered_text.clone()
+                    } else {
+                        String::new()
+                    };
                     display_list.push(DrawCommand::PushClip(shifted_content));
                     display_list.push(DrawCommand::TextRun {
                         rect: run_rect,
-                        text: rendered_text.clone(),
+                        text: rendered_text,
                         style: text_style,
                     });
-                    if is_focused && tree.get_caret_visible() {
+                    if show_caret {
                         let caret_h: f32 = (text_style.get_font_size() * 1.15)
                             .min(shifted_content.get_height().max(12.0));
-                        let caret_text: String = if is_empty_value {
-                            String::new()
-                        } else {
-                            rendered_text
-                        };
                         display_list.push(DrawCommand::TextCaret {
                             text_rect,
                             content_rect: shifted_content,
@@ -949,34 +967,38 @@ impl PaintPass {
                     (child_offset_phys, opacity),
                     next_cull,
                     active_hover_target,
-                    portals.as_deref_mut(),
+                    scratch,
                     display_list,
                 );
             }
         } else {
-            let mut sorted_children: Vec<(i32, usize, NodeId)> = raw_children
-                .iter()
-                .copied()
-                .enumerate()
-                .filter_map(|(idx, cid): (usize, NodeId)| {
-                    tree.get_node(cid)
-                        .map(|c: &SceneNode| (c.style_ref().layout.get_z_index(), idx, cid))
-                })
-                .collect();
-            sorted_children.sort_by(|a: &(i32, usize, NodeId), b: &(i32, usize, NodeId)| {
-                a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1))
-            });
-            for (_, _, child_id) in sorted_children.into_iter() {
+            let sort_start: usize = scratch.z_sort.len();
+            for (idx, cid) in raw_children.iter().copied().enumerate() {
+                if let Some(c) = tree.get_node(cid) {
+                    scratch
+                        .z_sort
+                        .push((c.style_ref().layout.get_z_index(), idx, cid));
+                }
+            }
+            let sort_end: usize = scratch.z_sort.len();
+            scratch.z_sort[sort_start..sort_end].sort_by(
+                |a: &(i32, usize, NodeId), b: &(i32, usize, NodeId)| {
+                    a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1))
+                },
+            );
+            for slot_idx in sort_start..sort_end {
+                let child_id: NodeId = scratch.z_sort[slot_idx].2;
                 Self::emit_node(
                     tree,
                     child_id,
                     (child_offset_phys, opacity),
                     next_cull,
                     active_hover_target,
-                    portals.as_deref_mut(),
+                    scratch,
                     display_list,
                 );
             }
+            scratch.z_sort.truncate(sort_start);
         }
         let vp: Size = display_list.get_viewport();
         let show_scrollbar: bool = vp.get_width().min(vp.get_height()) >= 540.0;
