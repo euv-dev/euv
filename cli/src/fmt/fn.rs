@@ -29,13 +29,16 @@ pub fn format_euv_macros_in_source(source: &str) -> (String, usize) {
                 ident_end += 1;
             }
             let ident: &str = &source[ident_start..ident_end];
-            if EUV_FMT_MACRO_NAMES.contains(&ident) && ident_end < len && bytes[ident_end] == b'!' {
+            if EUV_FMT_MACRO_NAMES.contains(&ident)
+                && ident_end < len
+                && bytes[ident_end] == BYTE_BANG
+            {
                 let mut probe: usize = ident_end + 1;
-                while probe < len && (bytes[probe] == b' ' || bytes[probe] == b'\t') {
+                while probe < len && (bytes[probe] == BYTE_SPACE || bytes[probe] == BYTE_TAB) {
                     probe += 1;
                 }
                 if probe < len
-                    && bytes[probe] == b'{'
+                    && bytes[probe] == BYTE_LBRACE
                     && let Some(close_brace) = find_matching_brace(bytes, probe)
                 {
                     let inner: &str = &source[(probe + 1)..close_brace];
@@ -257,7 +260,7 @@ fn scan_line_delimiter_events(
     let mut events: Vec<bool> = Vec::new();
     while i < len {
         if in_block_comment {
-            if bytes[i] == b'*' && i + 1 < len && bytes[i + 1] == b'/' {
+            if bytes[i] == BYTE_STAR && i + 1 < len && bytes[i + 1] == BYTE_SLASH {
                 in_block_comment = false;
                 i += 2;
             } else {
@@ -265,15 +268,15 @@ fn scan_line_delimiter_events(
             }
             continue;
         }
-        if bytes[i] == b'/' && i + 1 < len && bytes[i + 1] == b'/' {
+        if bytes[i] == BYTE_SLASH && i + 1 < len && bytes[i + 1] == BYTE_SLASH {
             break;
         }
-        if bytes[i] == b'/' && i + 1 < len && bytes[i + 1] == b'*' {
+        if bytes[i] == BYTE_SLASH && i + 1 < len && bytes[i + 1] == BYTE_STAR {
             in_block_comment = true;
             i += 2;
             continue;
         }
-        if bytes[i] == b'r'
+        if bytes[i] == BYTE_LOWER_R
             && let Some((end_pos, hashes)) = parse_raw_string_on_line(bytes, i)
         {
             match end_pos {
@@ -284,14 +287,14 @@ fn scan_line_delimiter_events(
                 None => return (events, in_block_comment, Some(hashes)),
             }
         }
-        if bytes[i] == b'"' {
+        if bytes[i] == BYTE_DQUOTE {
             i += 1;
             while i < len {
-                if bytes[i] == b'\\' && i + 1 < len {
+                if bytes[i] == BYTE_BACKSLASH && i + 1 < len {
                     i += 2;
                     continue;
                 }
-                if bytes[i] == b'"' {
+                if bytes[i] == BYTE_DQUOTE {
                     i += 1;
                     break;
                 }
@@ -299,15 +302,15 @@ fn scan_line_delimiter_events(
             }
             continue;
         }
-        if bytes[i] == b'\''
+        if bytes[i] == BYTE_SQUOTE
             && let Some(next_i) = skip_char_literal(bytes, i)
         {
             i = next_i;
             continue;
         }
         match bytes[i] {
-            b'{' | b'(' | b'[' => events.push(true),
-            b'}' | b')' | b']' => events.push(false),
+            BYTE_LBRACE | BYTE_LPAREN | BYTE_LBRACKET => events.push(true),
+            BYTE_RBRACE | BYTE_RPAREN | BYTE_RBRACKET => events.push(false),
             _ => {}
         }
         i += 1;
@@ -330,9 +333,9 @@ fn scan_raw_string_end(line: &str, hashes: usize) -> Option<usize> {
     let len: usize = bytes.len();
     let mut i: usize = 0;
     while i < len {
-        if bytes[i] == b'"' {
+        if bytes[i] == BYTE_DQUOTE {
             let mut h: usize = 0;
-            while i + 1 + h < len && bytes[i + 1 + h] == b'#' && h < hashes {
+            while i + 1 + h < len && bytes[i + 1 + h] == BYTE_HASH && h < hashes {
                 h += 1;
             }
             if h == hashes {
@@ -361,18 +364,18 @@ fn parse_raw_string_on_line(bytes: &[u8], start: usize) -> Option<(Option<usize>
     }
     let mut i: usize = start + 1;
     let mut hashes: usize = 0;
-    while i < len && bytes[i] == b'#' {
+    while i < len && bytes[i] == BYTE_HASH {
         hashes += 1;
         i += 1;
     }
-    if i >= len || bytes[i] != b'"' {
+    if i >= len || bytes[i] != BYTE_DQUOTE {
         return None;
     }
     i += 1;
     while i < len {
-        if bytes[i] == b'"' {
+        if bytes[i] == BYTE_DQUOTE {
             let mut h: usize = 0;
-            while i + 1 + h < len && bytes[i + 1 + h] == b'#' && h < hashes {
+            while i + 1 + h < len && bytes[i + 1 + h] == BYTE_HASH && h < hashes {
                 h += 1;
             }
             if h == hashes {
@@ -396,21 +399,21 @@ fn parse_raw_string_on_line(bytes: &[u8], start: usize) -> Option<(Option<usize>
 /// - `Option<usize>` - Byte offset immediately after the skipped literal or comment.
 fn skip_string_or_comment(bytes: &[u8], idx: usize) -> Option<usize> {
     let len: usize = bytes.len();
-    if bytes[idx] == b'/' && idx + 1 < len && bytes[idx + 1] == b'/' {
+    if bytes[idx] == BYTE_SLASH && idx + 1 < len && bytes[idx + 1] == BYTE_SLASH {
         let mut i: usize = idx + 2;
-        while i < len && bytes[i] != b'\n' {
+        while i < len && bytes[i] != BYTE_NEWLINE {
             i += 1;
         }
         return Some(i);
     }
-    if bytes[idx] == b'/' && idx + 1 < len && bytes[idx + 1] == b'*' {
+    if bytes[idx] == BYTE_SLASH && idx + 1 < len && bytes[idx + 1] == BYTE_STAR {
         let mut i: usize = idx + 2;
         let mut nest: usize = 1;
         while i + 1 < len && nest > 0 {
-            if bytes[i] == b'/' && bytes[i + 1] == b'*' {
+            if bytes[i] == BYTE_SLASH && bytes[i + 1] == BYTE_STAR {
                 nest += 1;
                 i += 2;
-            } else if bytes[i] == b'*' && bytes[i + 1] == b'/' {
+            } else if bytes[i] == BYTE_STAR && bytes[i + 1] == BYTE_SLASH {
                 nest -= 1;
                 i += 2;
             } else {
@@ -419,19 +422,19 @@ fn skip_string_or_comment(bytes: &[u8], idx: usize) -> Option<usize> {
         }
         return Some(i);
     }
-    if bytes[idx] == b'r' && (idx == 0 || !is_ident_continue(bytes[idx - 1])) {
+    if bytes[idx] == BYTE_LOWER_R && (idx == 0 || !is_ident_continue(bytes[idx - 1])) {
         let mut i: usize = idx + 1;
         let mut hashes: usize = 0;
-        while i < len && bytes[i] == b'#' {
+        while i < len && bytes[i] == BYTE_HASH {
             hashes += 1;
             i += 1;
         }
-        if i < len && bytes[i] == b'"' {
+        if i < len && bytes[i] == BYTE_DQUOTE {
             i += 1;
             while i < len {
-                if bytes[i] == b'"' {
+                if bytes[i] == BYTE_DQUOTE {
                     let mut h: usize = 0;
-                    while i + 1 + h < len && bytes[i + 1 + h] == b'#' && h < hashes {
+                    while i + 1 + h < len && bytes[i + 1 + h] == BYTE_HASH && h < hashes {
                         h += 1;
                     }
                     if h == hashes {
@@ -443,21 +446,21 @@ fn skip_string_or_comment(bytes: &[u8], idx: usize) -> Option<usize> {
             return Some(len);
         }
     }
-    if bytes[idx] == b'"' {
+    if bytes[idx] == BYTE_DQUOTE {
         let mut i: usize = idx + 1;
         while i < len {
-            if bytes[i] == b'\\' && i + 1 < len {
+            if bytes[i] == BYTE_BACKSLASH && i + 1 < len {
                 i += 2;
                 continue;
             }
-            if bytes[i] == b'"' {
+            if bytes[i] == BYTE_DQUOTE {
                 return Some(i + 1);
             }
             i += 1;
         }
         return Some(len);
     }
-    if bytes[idx] == b'\'' {
+    if bytes[idx] == BYTE_SQUOTE {
         return skip_char_literal(bytes, idx);
     }
     None
@@ -478,17 +481,17 @@ fn skip_char_literal(bytes: &[u8], idx: usize) -> Option<usize> {
     if idx + 2 >= len {
         return None;
     }
-    if bytes[idx + 1] == b'\\' {
+    if bytes[idx + 1] == BYTE_BACKSLASH {
         let mut i: usize = idx + 2;
         while i < len && i <= idx + 10 {
-            if bytes[i] == b'\'' {
+            if bytes[i] == BYTE_SQUOTE {
                 return Some(i + 1);
             }
             i += 1;
         }
         return None;
     }
-    if bytes[idx + 2] == b'\'' {
+    if bytes[idx + 2] == BYTE_SQUOTE {
         return Some(idx + 3);
     }
     None
@@ -513,9 +516,9 @@ fn find_matching_brace(bytes: &[u8], open_idx: usize) -> Option<usize> {
             i = next_i;
             continue;
         }
-        if bytes[i] == b'{' {
+        if bytes[i] == BYTE_LBRACE {
             depth += 1;
-        } else if bytes[i] == b'}' {
+        } else if bytes[i] == BYTE_RBRACE {
             depth -= 1;
             if depth == 0 {
                 return Some(i);
@@ -539,11 +542,11 @@ fn find_matching_brace(bytes: &[u8], open_idx: usize) -> Option<usize> {
 fn line_leading_spaces(source: &str, pos: usize) -> usize {
     let bytes: &[u8] = source.as_bytes();
     let mut line_start: usize = pos;
-    while line_start > 0 && bytes[line_start - 1] != b'\n' {
+    while line_start > 0 && bytes[line_start - 1] != BYTE_NEWLINE {
         line_start -= 1;
     }
     let mut spaces: usize = 0;
-    while line_start + spaces < bytes.len() && bytes[line_start + spaces] == b' ' {
+    while line_start + spaces < bytes.len() && bytes[line_start + spaces] == BYTE_SPACE {
         spaces += 1;
     }
     spaces
@@ -559,7 +562,7 @@ fn line_leading_spaces(source: &str, pos: usize) -> usize {
 ///
 /// - `bool` - Whether `b` is alphabetic or `_`.
 fn is_ident_start(b: u8) -> bool {
-    b.is_ascii_alphabetic() || b == b'_'
+    b.is_ascii_alphabetic() || b == BYTE_UNDERSCORE
 }
 
 /// Returns `true` when `b` can continue a Rust identifier.
@@ -572,5 +575,5 @@ fn is_ident_start(b: u8) -> bool {
 ///
 /// - `bool` - Whether `b` is alphanumeric or `_`.
 fn is_ident_continue(b: u8) -> bool {
-    b.is_ascii_alphanumeric() || b == b'_'
+    b.is_ascii_alphanumeric() || b == BYTE_UNDERSCORE
 }

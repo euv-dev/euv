@@ -917,8 +917,8 @@ fn is_safe_raw_html(raw: &str) -> bool {
     for i in 0..bytes.len().saturating_sub(3) {
         let before_ok: bool = i == 0 || bytes[i - 1].is_ascii_whitespace();
         if before_ok
-            && bytes[i] == b'o'
-            && bytes[i + 1] == b'n'
+            && bytes[i] == BYTE_LOWER_O
+            && bytes[i + 1] == BYTE_LOWER_N
             && bytes[i + 2].is_ascii_alphabetic()
         {
             let rest: &str = &low[i + 2..];
