@@ -67,6 +67,13 @@ pub fn generate_static_docs_with_options(
         Err(err) => return Err(Error::other(err.to_string())),
     };
     let ordered_pages: Vec<&DocPage> = ordered_site_pages(site);
+    let base: &str = options.get_base_url().trim_end_matches('/');
+    let sidebar_entries: Vec<SidebarNavEntry<'_>> = build_sidebar_entries(&ordered_pages, base);
+    let site_title_escaped: String = escape_html(site.get_title());
+    let home_href: String = href_for_route(base, ROOT_ROUTE_STR);
+    let home_href_escaped: String = escape_html(&home_href);
+    let generated_at_escaped: String = escape_html(&generated_at);
+    let base_json: String = to_string(base).unwrap_or_else(|_| EMPTY_JSON_STRING.to_string());
     for (idx, page) in ordered_pages.iter().enumerate() {
         let prev_page: Option<&DocPage> = if idx > 0 {
             ordered_pages.get(idx - 1).copied()
@@ -76,9 +83,13 @@ pub fn generate_static_docs_with_options(
         let next_page: Option<&DocPage> = ordered_pages.get(idx + 1).copied();
         let ctx: PageRenderContext<'_> = PageRenderContext {
             site,
+            sidebar_entries: sidebar_entries.as_slice(),
+            site_title_escaped: &site_title_escaped,
+            home_href_escaped: &home_href_escaped,
+            generated_at_escaped: &generated_at_escaped,
+            base_json: &base_json,
             prev_page,
             next_page,
-            generated_at: &generated_at,
             search_json_compact: &search_json_compact,
             options,
         };
@@ -101,9 +112,13 @@ pub fn generate_static_docs_with_options(
     {
         let fallback_ctx: PageRenderContext<'_> = PageRenderContext {
             site,
+            sidebar_entries: sidebar_entries.as_slice(),
+            site_title_escaped: &site_title_escaped,
+            home_href_escaped: &home_href_escaped,
+            generated_at_escaped: &generated_at_escaped,
+            base_json: &base_json,
             prev_page: None,
             next_page: ordered_pages.get(1).copied(),
-            generated_at: &generated_at,
             search_json_compact: &search_json_compact,
             options,
         };
@@ -146,15 +161,71 @@ pub fn render_page_html(site: &DocSite, page: &DocPage, generated_at: &str) -> S
         .unwrap_or_else(|_| EMPTY_JSON_ARRAY.to_string())
         .replace(SCRIPT_ESC_CLOSE_FROM, SCRIPT_ESC_CLOSE_TO);
     let opts: DocsBuildOptions = DocsBuildOptions::default();
+    let base: &str = opts.get_base_url().trim_end_matches('/');
+    let ordered_pages: Vec<&DocPage> = ordered_site_pages(site);
+    let sidebar_entries: Vec<SidebarNavEntry<'_>> = build_sidebar_entries(&ordered_pages, base);
+    let site_title_escaped: String = escape_html(site.get_title());
+    let home_href: String = href_for_route(base, ROOT_ROUTE_STR);
+    let home_href_escaped: String = escape_html(&home_href);
+    let generated_at_escaped: String = escape_html(generated_at);
+    let base_json: String = to_string(base).unwrap_or_else(|_| EMPTY_JSON_STRING.to_string());
     let ctx: PageRenderContext<'_> = PageRenderContext {
         site,
+        sidebar_entries: sidebar_entries.as_slice(),
+        site_title_escaped: &site_title_escaped,
+        home_href_escaped: &home_href_escaped,
+        generated_at_escaped: &generated_at_escaped,
+        base_json: &base_json,
         prev_page: None,
         next_page: None,
-        generated_at,
         search_json_compact: &compact,
         options: &opts,
     };
     render_page_html_with_context(page, &ctx)
+}
+
+/// Precomputes sorted, pre-escaped sidebar navigation entries shared across every rendered page.
+///
+/// # Arguments
+///
+/// - `&[&'a DocPage]` - Site pages already sorted in canonical sidebar order.
+/// - `&str` - Normalized base URL without trailing slash.
+///
+/// # Returns
+///
+/// - `Vec<SidebarNavEntry<'a>>` - Pre-escaped sidebar entries ready for direct HTML emission.
+fn build_sidebar_entries<'a>(ordered: &[&'a DocPage], base: &str) -> Vec<SidebarNavEntry<'a>> {
+    let mut entries: Vec<SidebarNavEntry<'a>> = Vec::with_capacity(ordered.len());
+    let mut current_section: Option<&str> = None;
+    for &nav_page in ordered.iter() {
+        let sec: &str = nav_page.get_section().as_str();
+        let section_header_html: Option<String> = if current_section != Some(sec) {
+            current_section = Some(sec);
+            let mut sec_buf: String =
+                String::with_capacity(HTML_SEC_OPEN.len() + sec.len() + HTML_SEC_CLOSE.len());
+            sec_buf.push_str(HTML_SEC_OPEN);
+            push_escaped_html(&mut sec_buf, sec);
+            sec_buf.push_str(HTML_SEC_CLOSE);
+            Some(sec_buf)
+        } else {
+            None
+        };
+        let href: String = href_for_route(base, nav_page.get_route());
+        let title: &str = nav_page.get_title().as_str();
+        let mut tail: String = String::with_capacity(
+            href.len() + HTML_LINK_MID.len() + title.len() + HTML_LINK_CLOSE.len(),
+        );
+        push_escaped_html(&mut tail, &href);
+        tail.push_str(HTML_LINK_MID);
+        push_escaped_html(&mut tail, title);
+        tail.push_str(HTML_LINK_CLOSE);
+        entries.push(SidebarNavEntry {
+            route: nav_page.get_route().as_str(),
+            section_header_html,
+            link_tail_html: tail,
+        });
+    }
+    entries
 }
 
 /// Returns all site pages in canonical sidebar and pagination order.
@@ -192,21 +263,22 @@ fn render_page_html_with_context(page: &DocPage, ctx: &PageRenderContext<'_>) ->
     let site: &DocSite = ctx.get_site();
     let options: &DocsBuildOptions = ctx.get_options();
     let base: &str = options.get_base_url().trim_end_matches('/');
-    let home_href: String = href_for_route(base, ROOT_ROUTE_STR);
     let has_toc: bool = !page.get_toc().is_empty();
     let brand_char: char = brand_monogram(site.get_title());
-    let mut out: String = String::with_capacity(12288);
+    let mut out: String = String::with_capacity(
+        16384 + ctx.get_search_json_compact().len() + page.get_markdown_body().len() * 2,
+    );
     out.push_str(HTML_DOCTYPE);
-    out.push_str(&escape_html(page.get_title()));
+    push_escaped_html(&mut out, page.get_title());
     out.push_str(HTML_TITLE_SEP);
-    out.push_str(&escape_html(site.get_title()));
+    out.push_str(ctx.get_site_title_escaped());
     out.push_str(HTML_STYLES_AND_HEAD_END);
     out.push_str(HTML_TOPBAR_START);
-    out.push_str(&escape_html(&home_href));
+    out.push_str(ctx.get_home_href_escaped());
     out.push_str(HTML_TOPBAR_MARK_OPEN);
     out.push(brand_char);
     out.push_str(HTML_TOPBAR_MARK_CLOSE);
-    out.push_str(&escape_html(site.get_title()));
+    out.push_str(ctx.get_site_title_escaped());
     out.push_str(HTML_TOPBAR_END);
     if has_toc {
         out.push_str(HTML_SHELL_OPEN);
@@ -214,16 +286,16 @@ fn render_page_html_with_context(page: &DocPage, ctx: &PageRenderContext<'_>) ->
         out.push_str(HTML_SHELL_NO_TOC_OPEN);
     }
     out.push_str(HTML_SIDEBAR_OPEN);
-    render_sidebar_nav(site, page, base, &mut out);
+    render_sidebar_nav(ctx.get_sidebar_entries(), page.get_route(), &mut out);
     out.push_str(HTML_SIDEBAR_CLOSE);
     out.push_str(HTML_BADGE_OPEN);
-    out.push_str(&escape_html(page.get_section()));
+    push_escaped_html(&mut out, page.get_section());
     out.push_str(HTML_BADGE_CLOSE);
-    out.push_str(&escape_html(page.get_title()));
+    push_escaped_html(&mut out, page.get_title());
     out.push_str(HTML_H1_CLOSE);
     if should_render_lead(page) {
         out.push_str(HTML_LEAD_OPEN);
-        out.push_str(&escape_html(page.get_summary()));
+        push_escaped_html(&mut out, page.get_summary());
         out.push_str(HTML_P_CLOSE);
     }
     if !page.get_markdown_body().is_empty() {
@@ -233,7 +305,7 @@ fn render_page_html_with_context(page: &DocPage, ctx: &PageRenderContext<'_>) ->
     }
     render_pager_nav(ctx.get_prev_page(), ctx.get_next_page(), base, &mut out);
     out.push_str(HTML_FOOTER_PREFIX);
-    out.push_str(&escape_html(ctx.get_generated_at()));
+    out.push_str(ctx.get_generated_at_escaped());
     out.push_str(HTML_FOOTER_SUFFIX);
     if has_toc {
         out.push_str(HTML_TOC_OPEN);
@@ -243,59 +315,53 @@ fn render_page_html_with_context(page: &DocPage, ctx: &PageRenderContext<'_>) ->
                 lvl if lvl >= 4 => TOC_LVL4_CLASS,
                 _ => "",
             };
-            out.push_str(&format!(
-                "<a class=\"{cls}\" href=\"#{}\">{}</a>",
-                escape_html(item.get_slug()),
-                escape_html(item.get_title())
-            ));
+            out.push_str(HTML_TOC_A_OPEN);
+            out.push_str(cls);
+            out.push_str(HTML_TOC_HREF_HASH);
+            push_escaped_html(&mut out, item.get_slug());
+            out.push_str(HTML_LINK_MID);
+            push_escaped_html(&mut out, item.get_title());
+            out.push_str(HTML_LINK_CLOSE);
         }
         out.push_str(HTML_TOC_CLOSE);
     }
     out.push_str(HTML_SHELL_CLOSE);
-    let base_json: String = to_string(base).unwrap_or_else(|_| EMPTY_JSON_STRING.to_string());
     out.push_str(HTML_SCRIPT_PREFIX);
     out.push_str(ctx.get_search_json_compact());
     out.push_str(HTML_SCRIPT_BASE_PREFIX);
-    out.push_str(&base_json);
+    out.push_str(ctx.get_base_json());
     out.push_str(HTML_SCRIPT_BODY);
     if let Some(hmr_url) = options.try_get_hmr_endpoint() {
         out.push_str(HTML_HMR_PREFIX);
-        out.push_str(&escape_html(hmr_url));
+        push_escaped_html(&mut out, hmr_url);
         out.push_str(HTML_HMR_SUFFIX);
     }
     out.push_str(HTML_BODY_END);
     out
 }
 
-/// Renders the grouped section-ordered sidebar links into `out`.
+/// Renders the grouped section-ordered sidebar links from pre-escaped entries into `out`.
 ///
 /// # Arguments
 ///
-/// - `&DocSite` - Documentation site.
-/// - `&DocPage` - Currently active page.
-/// - `&str` - Normalized base URL without trailing slash.
+/// - `&[SidebarNavEntry<'_>]` - Pre-sorted and pre-escaped sidebar navigation entries.
+/// - `&str` - Canonical route of the currently active page.
 /// - `&mut String` - HTML output buffer.
-fn render_sidebar_nav(site: &DocSite, active_page: &DocPage, base: &str, out: &mut String) {
-    let ordered: Vec<&DocPage> = ordered_site_pages(site);
-    let mut current_section: Option<&str> = None;
-    for nav_page in ordered.into_iter() {
-        let sec: &str = nav_page.get_section().as_str();
-        if current_section != Some(sec) {
-            current_section = Some(sec);
-            out.push_str(HTML_SEC_OPEN);
-            out.push_str(&escape_html(sec));
-            out.push_str(HTML_SEC_CLOSE);
+fn render_sidebar_nav(
+    sidebar_entries: &[SidebarNavEntry<'_>],
+    active_route: &str,
+    out: &mut String,
+) {
+    for entry in sidebar_entries.iter() {
+        if let Some(sec_html) = entry.try_get_section_header_html() {
+            out.push_str(sec_html);
         }
-        let href: String = href_for_route(base, nav_page.get_route());
-        if nav_page.get_route() == active_page.get_route() {
+        if entry.get_route() == active_route {
             out.push_str(HTML_NAV_LINK_ACTIVE_OPEN);
         } else {
             out.push_str(HTML_NAV_LINK_OPEN);
         }
-        out.push_str(&escape_html(&href));
-        out.push_str(HTML_LINK_MID);
-        out.push_str(&escape_html(nav_page.get_title()));
-        out.push_str(HTML_LINK_CLOSE);
+        out.push_str(entry.get_link_tail_html());
     }
 }
 
@@ -319,18 +385,20 @@ fn render_pager_nav(
     out.push_str(HTML_PAGER_OPEN);
     if let Some(prev) = prev_page {
         out.push_str(HTML_PAGER_PREV_OPEN);
-        out.push_str(&escape_html(&href_for_route(base, prev.get_route())));
+        let prev_href: String = href_for_route(base, prev.get_route());
+        push_escaped_html(out, &prev_href);
         out.push_str(HTML_PAGER_PREV_LABEL);
-        out.push_str(&escape_html(prev.get_title()));
+        push_escaped_html(out, prev.get_title());
         out.push_str(HTML_PAGER_CARD_CLOSE);
     } else {
         out.push_str(HTML_PAGER_EMPTY);
     }
     if let Some(next) = next_page {
         out.push_str(HTML_PAGER_NEXT_OPEN);
-        out.push_str(&escape_html(&href_for_route(base, next.get_route())));
+        let next_href: String = href_for_route(base, next.get_route());
+        push_escaped_html(out, &next_href);
         out.push_str(HTML_PAGER_NEXT_LABEL);
-        out.push_str(&escape_html(next.get_title()));
+        push_escaped_html(out, next.get_title());
         out.push_str(HTML_PAGER_CARD_CLOSE);
     } else {
         out.push_str(HTML_PAGER_EMPTY);
@@ -384,7 +452,7 @@ fn brand_monogram(title: &str) -> char {
 /// - `&str` - Normalized base URL prefix.
 /// - `&mut String` - HTML output buffer.
 fn render_markdown_body_html(page: &DocPage, base: &str, out: &mut String) {
-    let segments: Vec<BodySegment> = split_custom_containers(page.get_markdown_body());
+    let body_raw: &str = page.get_markdown_body();
     let mut state: MarkdownRenderState<'_> = MarkdownRenderState {
         page,
         base,
@@ -392,6 +460,11 @@ fn render_markdown_body_html(page: &DocPage, base: &str, out: &mut String) {
         skipped_title_h1: false,
         out,
     };
+    if !body_raw.contains(CALLOUT_FENCE) {
+        render_markdown_chunk(body_raw, &mut state);
+        return;
+    }
+    let segments: Vec<BodySegment> = split_custom_containers(body_raw);
     for seg in segments.into_iter() {
         match seg {
             BodySegment::Markdown(md) => {
@@ -399,18 +472,17 @@ fn render_markdown_body_html(page: &DocPage, base: &str, out: &mut String) {
             }
             BodySegment::Callout { kind, title, body } => {
                 if kind == CALLOUT_KIND_DETAILS {
-                    state.out.push_str(&format!(
-                        "<details class=\"callout callout-details\"><summary>{}</summary>",
-                        escape_html(&title)
-                    ));
+                    state.out.push_str(HTML_CALLOUT_DETAILS_OPEN);
+                    push_escaped_html(state.out, &title);
+                    state.out.push_str(HTML_SUMMARY_CLOSE);
                     render_markdown_chunk(&body, &mut state);
                     state.out.push_str(HTML_DETAILS_CLOSE);
                 } else {
-                    state.out.push_str(&format!(
-                        "<div class=\"callout callout-{}\"><div class=\"callout-title\">{}</div>",
-                        escape_html(&kind),
-                        escape_html(&title)
-                    ));
+                    state.out.push_str(HTML_CALLOUT_DIV_OPEN);
+                    push_escaped_html(state.out, &kind);
+                    state.out.push_str(HTML_CALLOUT_TITLE_MID);
+                    push_escaped_html(state.out, &title);
+                    state.out.push_str(HTML_DIV_CLOSE);
                     render_markdown_chunk(&body, &mut state);
                     state.out.push_str(HTML_DIV_CLOSE);
                 }
@@ -461,15 +533,22 @@ fn split_custom_containers(body: &str) -> Vec<BodySegment> {
                 Some(pos) => (&spec[..pos], spec[pos..].trim()),
                 None => (spec, ""),
             };
-            let normalized: Option<(&str, &str)> = match raw_kind.to_ascii_lowercase().as_str() {
-                CALLOUT_KIND_TIP => Some((CALLOUT_KIND_TIP, CALLOUT_TITLE_TIP)),
-                CALLOUT_KIND_WARNING => Some((CALLOUT_KIND_WARNING, CALLOUT_TITLE_WARNING)),
-                CALLOUT_KIND_DANGER => Some((CALLOUT_KIND_DANGER, CALLOUT_TITLE_DANGER)),
-                CALLOUT_KIND_INFO => Some((CALLOUT_KIND_INFO, CALLOUT_TITLE_INFO)),
-                CALLOUT_KIND_NOTE => Some((CALLOUT_KIND_NOTE, CALLOUT_TITLE_NOTE)),
-                CALLOUT_KIND_DETAILS => Some((CALLOUT_KIND_DETAILS, CALLOUT_TITLE_DETAILS)),
-                _ => None,
-            };
+            let normalized: Option<(&str, &str)> =
+                if raw_kind.eq_ignore_ascii_case(CALLOUT_KIND_TIP) {
+                    Some((CALLOUT_KIND_TIP, CALLOUT_TITLE_TIP))
+                } else if raw_kind.eq_ignore_ascii_case(CALLOUT_KIND_WARNING) {
+                    Some((CALLOUT_KIND_WARNING, CALLOUT_TITLE_WARNING))
+                } else if raw_kind.eq_ignore_ascii_case(CALLOUT_KIND_DANGER) {
+                    Some((CALLOUT_KIND_DANGER, CALLOUT_TITLE_DANGER))
+                } else if raw_kind.eq_ignore_ascii_case(CALLOUT_KIND_INFO) {
+                    Some((CALLOUT_KIND_INFO, CALLOUT_TITLE_INFO))
+                } else if raw_kind.eq_ignore_ascii_case(CALLOUT_KIND_NOTE) {
+                    Some((CALLOUT_KIND_NOTE, CALLOUT_TITLE_NOTE))
+                } else if raw_kind.eq_ignore_ascii_case(CALLOUT_KIND_DETAILS) {
+                    Some((CALLOUT_KIND_DETAILS, CALLOUT_TITLE_DETAILS))
+                } else {
+                    None
+                };
             if let Some((kind_str, default_title)) = normalized {
                 if !plain.is_empty() {
                     segments.push(BodySegment::Markdown(take(&mut plain)));
@@ -535,22 +614,27 @@ fn render_markdown_chunk(chunk: &str, state: &mut MarkdownRenderState<'_>) {
                                 state.skipped_title_h1 = true;
                             } else {
                                 let tag_lvl: u8 = level.clamp(2, 6);
-                                let esc_slug: String = escape_html(&slug);
-                                state.out.push_str(&format!(
-                                    "<h{tag_lvl} id=\"{esc_slug}\">{inner_html}<a class=\"anchor\" href=\"#{esc_slug}\" aria-label=\"Anchor\">#</a></h{tag_lvl}>"
-                                ));
+                                let _: fmt::Result =
+                                    write!(state.out, "<h{tag_lvl}{HTML_HEADING_ID_MID}");
+                                push_escaped_html(state.out, &slug);
+                                state.out.push_str(HTML_LINK_MID);
+                                state.out.push_str(&inner_html);
+                                state.out.push_str(HTML_ANCHOR_MID);
+                                push_escaped_html(state.out, &slug);
+                                state.out.push_str(HTML_ANCHOR_CLOSE);
+                                let _: fmt::Result = write!(state.out, "</h{tag_lvl}>");
                             }
                         }
                     }
                 }
                 Event::Text(text) => {
                     heading_plain.push_str(&text);
-                    heading_html.push_str(&escape_html(&text));
+                    push_escaped_html(heading_html, &text);
                 }
                 Event::Code(text) => {
                     heading_plain.push_str(&text);
                     heading_html.push_str(HTML_INLINE_CODE_OPEN);
-                    heading_html.push_str(&escape_html(&text));
+                    push_escaped_html(heading_html, &text);
                     heading_html.push_str(HTML_INLINE_CODE_CLOSE);
                 }
                 Event::Start(Tag::Strong) => heading_html.push_str(HTML_STRONG_OPEN),
@@ -592,20 +676,15 @@ fn render_markdown_chunk(chunk: &str, state: &mut MarkdownRenderState<'_>) {
                         && let Some(resolved) =
                             resolve_asset_src(state.base, state.page.get_route(), &src)
                     {
-                        if title.is_empty() {
-                            state.out.push_str(&format!(
-                                "<img src=\"{}\" alt=\"{}\" loading=\"lazy\">",
-                                escape_html(&resolved),
-                                escape_html(alt.trim())
-                            ));
-                        } else {
-                            state.out.push_str(&format!(
-                                "<img src=\"{}\" alt=\"{}\" title=\"{}\" loading=\"lazy\">",
-                                escape_html(&resolved),
-                                escape_html(alt.trim()),
-                                escape_html(&title)
-                            ));
+                        state.out.push_str(HTML_IMG_SRC_OPEN);
+                        push_escaped_html(state.out, &resolved);
+                        state.out.push_str(HTML_IMG_ALT_MID);
+                        push_escaped_html(state.out, alt.trim());
+                        if !title.is_empty() {
+                            state.out.push_str(HTML_IMG_TITLE_MID);
+                            push_escaped_html(state.out, &title);
                         }
+                        state.out.push_str(HTML_IMG_LAZY_CLOSE);
                     }
                 }
                 Event::Text(text) | Event::Code(text) => alt_buf.push_str(&text),
@@ -644,9 +723,11 @@ fn render_markdown_chunk(chunk: &str, state: &mut MarkdownRenderState<'_>) {
                         BlockQuoteKind::Warning => (CALLOUT_KIND_WARNING, CALLOUT_TITLE_WARNING),
                         BlockQuoteKind::Caution => (CALLOUT_KIND_CAUTION, CALLOUT_TITLE_CAUTION),
                     };
-                    state.out.push_str(&format!(
-                        "<div class=\"callout callout-{cls}\"><div class=\"callout-title\">{title}</div>"
-                    ));
+                    state.out.push_str(HTML_CALLOUT_DIV_OPEN);
+                    state.out.push_str(cls);
+                    state.out.push_str(HTML_CALLOUT_TITLE_MID);
+                    state.out.push_str(title);
+                    state.out.push_str(HTML_DIV_CLOSE);
                     blockquote_alerts.push(true);
                 } else {
                     state.out.push_str(HTML_QUOTE_OPEN);
@@ -665,7 +746,9 @@ fn render_markdown_chunk(chunk: &str, state: &mut MarkdownRenderState<'_>) {
                 if start == 1 {
                     state.out.push_str(HTML_OL_OPEN);
                 } else {
-                    state.out.push_str(&format!("<ol start=\"{start}\">"));
+                    state.out.push_str(HTML_OL_START_OPEN);
+                    let _: fmt::Result = write!(state.out, "{start}");
+                    state.out.push_str(HTML_LINK_MID);
                 }
             }
             Event::End(TagEnd::List(ordered)) => {
@@ -714,11 +797,11 @@ fn render_markdown_chunk(chunk: &str, state: &mut MarkdownRenderState<'_>) {
                     resolve_link_href(state.base, state.page.get_route(), &dest_url);
                 let external: bool = is_external_url(&resolved);
                 state.out.push_str(HTML_A_HREF_OPEN);
-                state.out.push_str(&escape_html(&resolved));
+                push_escaped_html(state.out, &resolved);
                 state.out.push('"');
                 if !title.is_empty() {
                     state.out.push_str(HTML_TITLE_ATTR_OPEN);
-                    state.out.push_str(&escape_html(&title));
+                    push_escaped_html(state.out, &title);
                     state.out.push('"');
                 }
                 if external {
@@ -765,10 +848,12 @@ fn render_markdown_chunk(chunk: &str, state: &mut MarkdownRenderState<'_>) {
                 };
                 cell_index += 1;
                 if in_table_head {
-                    state.out.push_str(&format!("<th{align_attr}>"));
+                    state.out.push_str(HTML_TH_PREFIX);
                 } else {
-                    state.out.push_str(&format!("<td{align_attr}>"));
+                    state.out.push_str(HTML_TD_PREFIX);
                 }
+                state.out.push_str(align_attr);
+                state.out.push('>');
             }
             Event::End(TagEnd::TableCell) => {
                 if in_table_head {
@@ -778,19 +863,21 @@ fn render_markdown_chunk(chunk: &str, state: &mut MarkdownRenderState<'_>) {
                 }
             }
             Event::Start(Tag::FootnoteDefinition(label)) => {
-                state.out.push_str(&format!(
-                    "<blockquote class=\"footnote\" id=\"fn-{}\"><strong>[^{}]</strong> ",
-                    escape_html(&slugify(&label)),
-                    escape_html(&label)
-                ));
+                let fn_slug: String = slugify(&label);
+                state.out.push_str(HTML_FOOTNOTE_DEF_OPEN);
+                push_escaped_html(state.out, &fn_slug);
+                state.out.push_str(HTML_FOOTNOTE_DEF_MID);
+                push_escaped_html(state.out, &label);
+                state.out.push_str(HTML_FOOTNOTE_DEF_CLOSE);
             }
             Event::End(TagEnd::FootnoteDefinition) => state.out.push_str(HTML_QUOTE_CLOSE),
             Event::FootnoteReference(label) => {
-                state.out.push_str(&format!(
-                    "<sup><a href=\"#fn-{}\">[^{}]</a></sup>",
-                    escape_html(&slugify(&label)),
-                    escape_html(&label)
-                ));
+                let fn_slug: String = slugify(&label);
+                state.out.push_str(HTML_FOOTNOTE_REF_OPEN);
+                push_escaped_html(state.out, &fn_slug);
+                state.out.push_str(HTML_FOOTNOTE_REF_MID);
+                push_escaped_html(state.out, &label);
+                state.out.push_str(HTML_FOOTNOTE_REF_CLOSE);
             }
             Event::TaskListMarker(checked) => {
                 if checked {
@@ -802,26 +889,28 @@ fn render_markdown_chunk(chunk: &str, state: &mut MarkdownRenderState<'_>) {
             Event::Rule => state.out.push_str(HTML_HR),
             Event::Code(text) => {
                 state.out.push_str(HTML_INLINE_CODE_OPEN);
-                state.out.push_str(&escape_html(&text));
+                push_escaped_html(state.out, &text);
                 state.out.push_str(HTML_INLINE_CODE_CLOSE);
             }
             Event::SoftBreak => state.out.push(' '),
             Event::HardBreak => state.out.push_str(HTML_BR),
             Event::InlineMath(math) => {
+                let formatted: String = format_latex_math(&math);
                 state.out.push_str(HTML_MATH_INLINE_OPEN);
-                state.out.push_str(&escape_html(&format_latex_math(&math)));
+                push_escaped_html(state.out, &formatted);
                 state.out.push_str(HTML_MATH_INLINE_CLOSE);
             }
             Event::DisplayMath(math) => {
+                let formatted: String = format_latex_math(&math);
                 state.out.push_str(HTML_MATH_DISPLAY_OPEN);
-                state.out.push_str(&escape_html(&format_latex_math(&math)));
+                push_escaped_html(state.out, &formatted);
                 state.out.push_str(HTML_MATH_DISPLAY_CLOSE);
             }
             Event::Html(raw_html) | Event::InlineHtml(raw_html) => {
                 if is_safe_raw_html(&raw_html) {
                     state.out.push_str(&raw_html);
                 } else {
-                    state.out.push_str(&escape_html(&raw_html));
+                    push_escaped_html(state.out, &raw_html);
                 }
             }
             _ => {}
@@ -852,33 +941,33 @@ fn render_fallback_blocks_html(page: &DocPage, out: &mut String) {
         match block {
             DocBlock::Heading { level, slug, text } => {
                 let tag_lvl: u8 = (*level).clamp(2, 6);
-                out.push_str(&format!(
-                    "<h{tag_lvl} id=\"{}\">{}</h{tag_lvl}>",
-                    escape_html(slug),
-                    escape_html(text)
-                ));
+                let _: fmt::Result = write!(out, "<h{tag_lvl}{HTML_HEADING_ID_MID}");
+                push_escaped_html(out, slug);
+                out.push_str(HTML_LINK_MID);
+                push_escaped_html(out, text);
+                let _: fmt::Result = write!(out, "</h{tag_lvl}>");
             }
             DocBlock::Paragraph(text) => {
                 out.push_str(HTML_P_OPEN);
-                out.push_str(&escape_html(text));
+                push_escaped_html(out, text);
                 out.push_str(HTML_P_CLOSE);
             }
             DocBlock::ListItem(text) => {
                 out.push_str(HTML_LI_OPEN);
-                out.push_str(&escape_html(text));
+                push_escaped_html(out, text);
                 out.push_str(HTML_LI_CLOSE);
             }
             DocBlock::BlockQuote(text) => {
                 out.push_str(HTML_QUOTE_OPEN);
-                out.push_str(&escape_html(text));
+                push_escaped_html(out, text);
                 out.push_str(HTML_QUOTE_CLOSE);
             }
             DocBlock::Image { alt, src } => {
-                out.push_str(&format!(
-                    "<p><img src=\"{}\" alt=\"{}\" loading=\"lazy\"></p>",
-                    escape_html(src),
-                    escape_html(alt)
-                ));
+                out.push_str(HTML_P_IMG_OPEN);
+                push_escaped_html(out, src);
+                out.push_str(HTML_IMG_ALT_MID);
+                push_escaped_html(out, alt);
+                out.push_str(HTML_P_IMG_CLOSE);
             }
             DocBlock::HorizontalRule => out.push_str(HTML_HR),
             DocBlock::Code { language, code } => {
@@ -890,7 +979,7 @@ fn render_fallback_blocks_html(page: &DocPage, out: &mut String) {
                     out.push_str(HTML_THEAD_OPEN);
                     for h in headers.iter() {
                         out.push_str(HTML_TH_OPEN);
-                        out.push_str(&escape_html(h));
+                        push_escaped_html(out, h);
                         out.push_str(HTML_TH_CLOSE);
                     }
                     out.push_str(HTML_THEAD_CLOSE);
@@ -900,7 +989,7 @@ fn render_fallback_blocks_html(page: &DocPage, out: &mut String) {
                     out.push_str(HTML_TR_OPEN);
                     for cell in row.iter() {
                         out.push_str(HTML_TD_OPEN);
-                        out.push_str(&escape_html(cell));
+                        push_escaped_html(out, cell);
                         out.push_str(HTML_TD_CLOSE);
                     }
                     out.push_str(HTML_TR_CLOSE);
@@ -915,6 +1004,73 @@ fn render_fallback_blocks_html(page: &DocPage, out: &mut String) {
     }
 }
 
+/// Returns `true` when `haystack` starts with `prefix` ignoring ASCII letter case without heap allocation.
+///
+/// # Arguments
+///
+/// - `&str` - Source UTF-8 string.
+/// - `&str` - ASCII prefix to match.
+///
+/// # Returns
+///
+/// - `bool` - `true` when `haystack` begins with `prefix` ignoring ASCII case.
+fn starts_with_ascii_ignore_case(haystack: &str, prefix: &str) -> bool {
+    let h: &[u8] = haystack.as_bytes();
+    let p: &[u8] = prefix.as_bytes();
+    h.len() >= p.len() && h[..p.len()].eq_ignore_ascii_case(p)
+}
+
+/// Returns `true` when `haystack` ends with `suffix` ignoring ASCII letter case without heap allocation.
+///
+/// # Arguments
+///
+/// - `&str` - Source UTF-8 string.
+/// - `&str` - ASCII suffix to match.
+///
+/// # Returns
+///
+/// - `bool` - `true` when `haystack` ends with `suffix` ignoring ASCII case.
+fn ends_with_ascii_ignore_case(haystack: &str, suffix: &str) -> bool {
+    let h: &[u8] = haystack.as_bytes();
+    let s: &[u8] = suffix.as_bytes();
+    h.len() >= s.len() && h[h.len() - s.len()..].eq_ignore_ascii_case(s)
+}
+
+/// Returns `true` when `haystack` contains lowercase ASCII `needle` ignoring ASCII letter case without heap allocation.
+///
+/// # Arguments
+///
+/// - `&str` - Source UTF-8 string.
+/// - `&str` - Lowercase ASCII needle to search for.
+///
+/// # Returns
+///
+/// - `bool` - `true` when `needle` occurs inside `haystack` ignoring ASCII case.
+fn contains_ascii_ignore_case(haystack: &str, needle: &str) -> bool {
+    let h: &[u8] = haystack.as_bytes();
+    let n: &[u8] = needle.as_bytes();
+    let n_len: usize = n.len();
+    if n_len == 0 {
+        return true;
+    }
+    if n_len > h.len() {
+        return false;
+    }
+    let first: u8 = n[0];
+    let tail: &[u8] = &n[1..];
+    let limit: usize = h.len() - n_len;
+    let mut pos: usize = 0;
+    while pos <= limit {
+        if h[pos].to_ascii_lowercase() == first
+            && h[pos + 1..pos + n_len].eq_ignore_ascii_case(tail)
+        {
+            return true;
+        }
+        pos += 1;
+    }
+    false
+}
+
 /// Checks whether a raw Markdown HTML fragment is free of active script or event-handler vectors.
 ///
 /// # Arguments
@@ -925,22 +1081,26 @@ fn render_fallback_blocks_html(page: &DocPage, out: &mut String) {
 ///
 /// - `bool` - `true` when safe to pass through verbatim.
 fn is_safe_raw_html(raw: &str) -> bool {
-    let low: String = raw.to_ascii_lowercase();
-    if UNSAFE_HTML_TAGS.iter().any(|tag: &&str| low.contains(tag)) {
+    if UNSAFE_HTML_TAGS
+        .iter()
+        .any(|tag: &&str| contains_ascii_ignore_case(raw, tag))
+    {
         return false;
     }
-    if low.contains(SCHEME_JAVASCRIPT) || low.contains(SCHEME_VBSCRIPT) {
+    if contains_ascii_ignore_case(raw, SCHEME_JAVASCRIPT)
+        || contains_ascii_ignore_case(raw, SCHEME_VBSCRIPT)
+    {
         return false;
     }
-    let bytes: &[u8] = low.as_bytes();
+    let bytes: &[u8] = raw.as_bytes();
     for i in 0..bytes.len().saturating_sub(3) {
         let before_ok: bool = i == 0 || bytes[i - 1].is_ascii_whitespace();
         if before_ok
-            && bytes[i] == BYTE_LOWER_O
-            && bytes[i + 1] == BYTE_LOWER_N
+            && bytes[i].to_ascii_lowercase() == BYTE_LOWER_O
+            && bytes[i + 1].to_ascii_lowercase() == BYTE_LOWER_N
             && bytes[i + 2].is_ascii_alphabetic()
         {
-            let rest: &str = &low[i + 2..];
+            let rest: &str = &raw[i + 2..];
             let attr_len: usize = rest
                 .bytes()
                 .take_while(|b: &u8| b.is_ascii_alphabetic())
@@ -966,14 +1126,15 @@ fn is_safe_raw_html(raw: &str) -> bool {
 /// - `String` - Safe navigable HTML `href` attribute value.
 fn resolve_link_href(base: &str, current_route: &str, raw_dest: &str) -> String {
     let dest: &str = raw_dest.trim();
-    let low: String = dest.to_ascii_lowercase();
-    if low.starts_with(SCHEME_JAVASCRIPT) || low.starts_with(SCHEME_VBSCRIPT) {
+    if starts_with_ascii_ignore_case(dest, SCHEME_JAVASCRIPT)
+        || starts_with_ascii_ignore_case(dest, SCHEME_VBSCRIPT)
+    {
         return "#".to_string();
     }
     if dest.starts_with('#')
-        || low.starts_with(SCHEME_HTTP)
-        || low.starts_with(SCHEME_HTTPS)
-        || low.starts_with(SCHEME_MAILTO)
+        || starts_with_ascii_ignore_case(dest, SCHEME_HTTP)
+        || starts_with_ascii_ignore_case(dest, SCHEME_HTTPS)
+        || starts_with_ascii_ignore_case(dest, SCHEME_MAILTO)
     {
         return dest.to_string();
     }
@@ -981,8 +1142,7 @@ fn resolve_link_href(base: &str, current_route: &str, raw_dest: &str) -> String 
         Some((p, f)) => (p, Some(f)),
         None => (dest, None),
     };
-    let path_low: String = path_part.to_ascii_lowercase();
-    if path_low.ends_with(MARKDOWN_EXT_SUFFIX) {
+    if ends_with_ascii_ignore_case(path_part, MARKDOWN_EXT_SUFFIX) {
         let joined: String = join_relative_route(current_route, path_part);
         let stripped: &str = joined
             .strip_suffix(MARKDOWN_EXT_SUFFIX)
@@ -1041,11 +1201,15 @@ fn resolve_link_href(base: &str, current_route: &str, raw_dest: &str) -> String 
 /// - `Option<String>` - Safe `src` attribute value or `None` when blocked.
 fn resolve_asset_src(base: &str, current_route: &str, raw_src: &str) -> Option<String> {
     let src: &str = raw_src.trim();
-    let low: String = src.to_ascii_lowercase();
-    if src.is_empty() || low.starts_with(SCHEME_JAVASCRIPT) || low.starts_with(SCHEME_VBSCRIPT) {
+    if src.is_empty()
+        || starts_with_ascii_ignore_case(src, SCHEME_JAVASCRIPT)
+        || starts_with_ascii_ignore_case(src, SCHEME_VBSCRIPT)
+    {
         return None;
     }
-    if low.starts_with(SCHEME_HTTP) || low.starts_with(SCHEME_HTTPS) || low.starts_with(SCHEME_DATA)
+    if starts_with_ascii_ignore_case(src, SCHEME_HTTP)
+        || starts_with_ascii_ignore_case(src, SCHEME_HTTPS)
+        || starts_with_ascii_ignore_case(src, SCHEME_DATA)
     {
         return Some(src.to_string());
     }
@@ -1075,23 +1239,22 @@ fn resolve_asset_src(base: &str, current_route: &str, raw_src: &str) -> Option<S
 ///
 /// - `String` - Normalized root-relative path beginning with `/`.
 fn join_relative_route(current_route: &str, rel_path: &str) -> String {
-    let mut stack: Vec<String> = current_route
+    let mut stack: Vec<&str> = current_route
         .trim_matches('/')
         .split('/')
         .filter(|s: &&str| !s.is_empty())
-        .map(str::to_string)
         .collect();
     if !stack.is_empty() {
-        let _: Option<String> = stack.pop();
+        let _: Option<&str> = stack.pop();
     }
     for seg in rel_path.split('/') {
         if seg.is_empty() || seg == "." {
             continue;
         }
         if seg == ".." {
-            let _: Option<String> = stack.pop();
+            let _: Option<&str> = stack.pop();
         } else {
-            stack.push(seg.to_string());
+            stack.push(seg);
         }
     }
     if stack.is_empty() {
@@ -1111,8 +1274,8 @@ fn join_relative_route(current_route: &str, rel_path: &str) -> String {
 ///
 /// - `bool` - Whether the link should open in a new tab.
 fn is_external_url(href: &str) -> bool {
-    let low: String = href.to_ascii_lowercase();
-    low.starts_with(SCHEME_HTTP) || low.starts_with(SCHEME_HTTPS)
+    starts_with_ascii_ignore_case(href, SCHEME_HTTP)
+        || starts_with_ascii_ignore_case(href, SCHEME_HTTPS)
 }
 
 /// Builds a standard XML sitemap containing every generated page route in canonical order.
@@ -1127,11 +1290,12 @@ fn is_external_url(href: &str) -> bool {
 /// - `String` - Complete `sitemap.xml` document.
 fn build_sitemap_xml(pages: &[&DocPage], base_url: &str) -> String {
     let base: &str = base_url.trim_end_matches('/');
-    let mut xml: String = String::from(SITEMAP_HEADER);
+    let mut xml: String = String::with_capacity(SITEMAP_HEADER.len() + pages.len() * 64 + 16);
+    xml.push_str(SITEMAP_HEADER);
     for page in pages.iter() {
         let loc: String = href_for_route(base, page.get_route());
         xml.push_str(SITEMAP_URL_OPEN);
-        xml.push_str(&escape_html(&loc));
+        push_escaped_html(&mut xml, &loc);
         xml.push_str(SITEMAP_URL_CLOSE);
     }
     xml.push_str(SITEMAP_FOOTER);
@@ -1323,16 +1487,17 @@ fn clean_html_path_for_route(out_dir: &Path, route: &str) -> PathBuf {
 /// - `&str` - Trimmed source code body.
 /// - `&mut String` - HTML output buffer.
 fn render_highlighted_code_html(language: &str, code: &str, out: &mut String) {
+    let resolved_lang: CodeLang = CodeLang::from_name(language);
     out.push_str(HTML_CODE_WRAP_OPEN);
-    out.push_str(&escape_html(language));
+    push_escaped_html(out, language);
     out.push_str(HTML_CODE_HEAD_MID);
-    out.push_str(&escape_html(language));
+    push_escaped_html(out, language);
     out.push_str(HTML_LINK_MID);
     for (idx, line) in code.split('\n').enumerate() {
         out.push_str(HTML_CODE_LINE_OPEN);
-        out.push_str(&(idx + 1).to_string());
+        let _: fmt::Result = write!(out, "{}", idx + 1);
         out.push_str(HTML_CODE_LINE_MID);
-        let spans: Vec<CodeSpan> = tokenize_code_line(line, language);
+        let spans: Vec<CodeSpan> = tokenize_code_line_with_lang(line, resolved_lang);
         for span in spans.iter() {
             let class_opt: Option<&str> = match span.get_kind() {
                 CodeTokenKind::Keyword => Some(TOK_CLASS_KW),
@@ -1353,18 +1518,46 @@ fn render_highlighted_code_html(language: &str, code: &str, out: &mut String) {
                 CodeTokenKind::Plain => None,
             };
             if let Some(cls) = class_opt {
-                out.push_str(&format!(
-                    "<span class=\"{cls}\">{}",
-                    escape_html(span.get_text())
-                ));
+                out.push_str(HTML_SPAN_CLASS_OPEN);
+                out.push_str(cls);
+                out.push_str(HTML_LINK_MID);
+                push_escaped_html(out, span.get_text());
                 out.push_str(HTML_SPAN_CLOSE);
             } else {
-                out.push_str(&escape_html(span.get_text()));
+                push_escaped_html(out, span.get_text());
             }
         }
         out.push_str(HTML_CODE_LINE_CLOSE);
     }
     out.push_str(HTML_CODE_CLOSE);
+}
+
+/// Appends HTML-escaped text directly into `out` via bulk slice copies with zero intermediate allocations.
+///
+/// # Arguments
+///
+/// - `&mut String` - Destination HTML buffer.
+/// - `&str` - Raw UTF-8 input slice.
+fn push_escaped_html(out: &mut String, input: &str) {
+    let bytes: &[u8] = input.as_bytes();
+    let mut start: usize = 0;
+    for (idx, &byte) in bytes.iter().enumerate() {
+        let esc: &str = match byte {
+            b'&' => HTML_ESC_AMP,
+            b'<' => HTML_ESC_LT,
+            b'>' => HTML_ESC_GT,
+            b'"' => HTML_ESC_QUOT,
+            _ => continue,
+        };
+        if start < idx {
+            out.push_str(&input[start..idx]);
+        }
+        out.push_str(esc);
+        start = idx + 1;
+    }
+    if start < bytes.len() {
+        out.push_str(&input[start..]);
+    }
 }
 
 /// Escapes special HTML characters in text content.
@@ -1378,9 +1571,7 @@ fn render_highlighted_code_html(language: &str, code: &str, out: &mut String) {
 /// - `String` - Escaped HTML-safe string.
 fn escape_html(input: &str) -> String {
     let mut out: String = String::with_capacity(input.len());
-    for ch in input.chars() {
-        push_escaped_html_char(ch, &mut out);
-    }
+    push_escaped_html(&mut out, input);
     out
 }
 
@@ -1400,6 +1591,24 @@ fn push_escaped_html_char(ch: char, out: &mut String) {
     }
 }
 
+/// Returns `true` when `bytes` contains any extended inline Markdown delimiter (`=`, `^`, `~`, `:`).
+///
+/// # Arguments
+///
+/// - `&[u8]` - Raw UTF-8 input bytes.
+///
+/// # Returns
+///
+/// - `bool` - `true` when extended inline parsing is required.
+fn has_extended_inline_trigger(bytes: &[u8]) -> bool {
+    for &byte in bytes.iter() {
+        if byte == b'=' || byte == b'^' || byte == b'~' || byte == b':' {
+            return true;
+        }
+    }
+    false
+}
+
 /// Renders extended inline Markdown syntax (`==mark==`, `^sup^`, `~sub~`, `:emoji:`) into XSS-safe HTML.
 ///
 /// # Arguments
@@ -1408,6 +1617,10 @@ fn push_escaped_html_char(ch: char, out: &mut String) {
 /// - `&mut String` - Destination HTML buffer.
 fn render_extended_inline_text_html(raw: &str, out: &mut String) {
     let bytes: &[u8] = raw.as_bytes();
+    if !has_extended_inline_trigger(bytes) {
+        push_escaped_html(out, raw);
+        return;
+    }
     let len: usize = bytes.len();
     let mut i: usize = 0;
     while i < len {
@@ -1429,7 +1642,7 @@ fn render_extended_inline_text_html(raw: &str, out: &mut String) {
                 let inner: &str = &rest[..close_rel];
                 if !inner.is_empty() && !inner.chars().any(char::is_whitespace) {
                     out.push_str(HTML_SUP_OPEN);
-                    out.push_str(&escape_html(inner));
+                    push_escaped_html(out, inner);
                     out.push_str(HTML_SUP_CLOSE);
                     i += 1 + close_rel + 1;
                     continue;
@@ -1442,7 +1655,7 @@ fn render_extended_inline_text_html(raw: &str, out: &mut String) {
                 let inner: &str = &rest[..close_rel];
                 if !inner.is_empty() && !inner.chars().any(char::is_whitespace) {
                     out.push_str(HTML_SUB_OPEN);
-                    out.push_str(&escape_html(inner));
+                    push_escaped_html(out, inner);
                     out.push_str(HTML_SUB_CLOSE);
                     i += 1 + close_rel + 1;
                     continue;
@@ -1714,9 +1927,10 @@ fn render_mermaid_flow_svg(fc: &MermaidFlowchart, out: &mut String) {
             (total_main + pad * 2.0).max(140.0),
         )
     };
-    out.push_str(&format!(
+    let _: fmt::Result = write!(
+        out,
         "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {svg_w:.1} {svg_h:.1}\" width=\"{svg_w:.0}\" height=\"{svg_h:.0}\" role=\"img\" aria-label=\"Mermaid diagram\">"
-    ));
+    );
     out.push_str(MERMAID_SVG_ARROW_MARKER);
     for edge in fc.get_edges().iter() {
         if let (Some(&u), Some(&v)) = (
@@ -1748,9 +1962,10 @@ fn render_mermaid_flow_svg(fc: &MermaidFlowchart, out: &mut String) {
             } else {
                 MERMAID_SVG_MARKER_ATTR
             };
-            out.push_str(&format!(
+            let _: fmt::Result = write!(
+                out,
                 "<line x1=\"{x1:.1}\" y1=\"{y1:.1}\" x2=\"{x2:.1}\" y2=\"{y2:.1}\" stroke=\"var(--muted-fg)\" stroke-width=\"{sw:.1}\"{dash}{marker}/>"
-            ));
+            );
             let lbl: &str = edge.get_label().trim();
             if !lbl.is_empty() {
                 let mx: f32 = (x1 + x2) * 0.5;
@@ -1758,14 +1973,13 @@ fn render_mermaid_flow_svg(fc: &MermaidFlowchart, out: &mut String) {
                 let bw: f32 = ((lbl.chars().count() as f32) * 6.8 + 12.0).max(28.0);
                 let bx: f32 = mx - bw * 0.5;
                 let by: f32 = my - 10.0;
-                out.push_str(&format!(
-                    "<rect x=\"{bx:.1}\" y=\"{by:.1}\" width=\"{bw:.1}\" height=\"20\" rx=\"4\" fill=\"var(--muted)\" stroke=\"var(--border)\" stroke-width=\"1\"/>"
-                ));
-                out.push_str(&format!(
-                    "<text x=\"{mx:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"11\" font-weight=\"600\" fill=\"var(--muted-fg)\">{}</text>",
-                    my + 4.0,
-                    escape_html(lbl)
-                ));
+                let _: fmt::Result = write!(
+                    out,
+                    "<rect x=\"{bx:.1}\" y=\"{by:.1}\" width=\"{bw:.1}\" height=\"20\" rx=\"4\" fill=\"var(--muted)\" stroke=\"var(--border)\" stroke-width=\"1\"/><text x=\"{mx:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"11\" font-weight=\"600\" fill=\"var(--muted-fg)\">",
+                    my + 4.0
+                );
+                push_escaped_html(out, lbl);
+                out.push_str(SVG_TEXT_CLOSE);
             }
         }
     }
@@ -1776,55 +1990,61 @@ fn render_mermaid_flow_svg(fc: &MermaidFlowchart, out: &mut String) {
         let accent: &str = MERMAID_SVG_PALETTE[idx % MERMAID_SVG_PALETTE.len()];
         match node.get_shape() {
             MermaidNodeShape::StateStart => {
-                out.push_str(&format!(
+                let _: fmt::Result = write!(
+                    out,
                     "<circle cx=\"{cx:.1}\" cy=\"{cy:.1}\" r=\"9\" fill=\"var(--fg)\"/>"
-                ));
+                );
             }
             MermaidNodeShape::StateEnd => {
-                out.push_str(&format!(
+                let _: fmt::Result = write!(
+                    out,
                     "<circle cx=\"{cx:.1}\" cy=\"{cy:.1}\" r=\"10\" fill=\"none\" stroke=\"var(--fg)\" stroke-width=\"2\"/><circle cx=\"{cx:.1}\" cy=\"{cy:.1}\" r=\"5.5\" fill=\"var(--fg)\"/>"
-                ));
+                );
             }
             MermaidNodeShape::Diamond => {
-                let pts: String = format!(
-                    "{cx:.1},{ry:.1} {:.1},{cy:.1} {cx:.1},{:.1} {rx:.1},{cy:.1}",
+                let _: fmt::Result = write!(
+                    out,
+                    "<polygon points=\"{cx:.1},{ry:.1} {:.1},{cy:.1} {cx:.1},{:.1} {rx:.1},{cy:.1}\" fill=\"var(--muted)\" stroke=\"{accent}\" stroke-width=\"1.8\"/>",
                     rx + rw,
                     ry + rh
                 );
-                out.push_str(&format!(
-                    "<polygon points=\"{pts}\" fill=\"var(--muted)\" stroke=\"{accent}\" stroke-width=\"1.8\"/>"
-                ));
             }
             MermaidNodeShape::Circle => {
                 let r: f32 = rw.min(rh) * 0.5;
-                out.push_str(&format!(
+                let _: fmt::Result = write!(
+                    out,
                     "<circle cx=\"{cx:.1}\" cy=\"{cy:.1}\" r=\"{r:.1}\" fill=\"var(--muted)\" stroke=\"{accent}\" stroke-width=\"1.8\"/>"
-                ));
+                );
             }
             MermaidNodeShape::Stadium => {
                 let rad: f32 = rh * 0.5;
-                out.push_str(&format!(
+                let _: fmt::Result = write!(
+                    out,
                     "<rect x=\"{rx:.1}\" y=\"{ry:.1}\" width=\"{rw:.1}\" height=\"{rh:.1}\" rx=\"{rad:.1}\" fill=\"var(--muted)\" stroke=\"{accent}\" stroke-width=\"1.8\"/>"
-                ));
+                );
             }
             MermaidNodeShape::Rounded => {
-                out.push_str(&format!(
+                let _: fmt::Result = write!(
+                    out,
                     "<rect x=\"{rx:.1}\" y=\"{ry:.1}\" width=\"{rw:.1}\" height=\"{rh:.1}\" rx=\"10\" fill=\"var(--muted)\" stroke=\"{accent}\" stroke-width=\"1.8\"/>"
-                ));
+                );
             }
             MermaidNodeShape::Box => {
-                out.push_str(&format!(
+                let _: fmt::Result = write!(
+                    out,
                     "<rect x=\"{rx:.1}\" y=\"{ry:.1}\" width=\"{rw:.1}\" height=\"{rh:.1}\" rx=\"5\" fill=\"var(--muted)\" stroke=\"{accent}\" stroke-width=\"1.8\"/>"
-                ));
+                );
             }
         }
         let lbl: &str = node.get_label().trim();
         if !lbl.is_empty() {
-            out.push_str(&format!(
-                "<text x=\"{cx:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"12\" font-weight=\"600\" fill=\"var(--fg)\">{}</text>",
-                cy + 4.0,
-                escape_html(lbl)
-            ));
+            let _: fmt::Result = write!(
+                out,
+                "<text x=\"{cx:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"12\" font-weight=\"600\" fill=\"var(--fg)\">",
+                cy + 4.0
+            );
+            push_escaped_html(out, lbl);
+            out.push_str(SVG_TEXT_CLOSE);
         }
     }
     out.push_str(MERMAID_SVG_CLOSE);
@@ -1852,28 +2072,29 @@ fn render_mermaid_sequence_svg(seq: &MermaidSequence, out: &mut String) {
     let life_top: f32 = top_y + box_h;
     let life_bot: f32 = life_top + 22.0 + (msg_count as f32) * row_h + 18.0;
     let svg_h: f32 = life_bot + box_h + pad;
-    out.push_str(&format!(
+    let _: fmt::Result = write!(
+        out,
         "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {svg_w:.1} {svg_h:.1}\" width=\"{svg_w:.0}\" height=\"{svg_h:.0}\" role=\"img\" aria-label=\"Mermaid sequence diagram\">"
-    ));
+    );
     out.push_str(MERMAID_SVG_ARROW_MARKER);
     let mut centers: Vec<f32> = Vec::with_capacity(p_count);
     for (idx, (_, label)) in seq.get_participants().iter().enumerate() {
         let cx: f32 = pad + (idx as f32) * col_w + col_w * 0.5;
         centers.push(cx);
         let accent: &str = MERMAID_SVG_PALETTE[idx % MERMAID_SVG_PALETTE.len()];
-        out.push_str(&format!(
+        let _: fmt::Result = write!(
+            out,
             "<line x1=\"{cx:.1}\" y1=\"{life_top:.1}\" x2=\"{cx:.1}\" y2=\"{life_bot:.1}\" stroke=\"var(--border)\" stroke-width=\"1.4\" stroke-dasharray=\"5 4\"/>"
-        ));
+        );
         for by in [top_y, life_bot].into_iter() {
             let bx: f32 = cx - box_w * 0.5;
-            out.push_str(&format!(
-                "<rect x=\"{bx:.1}\" y=\"{by:.1}\" width=\"{box_w:.1}\" height=\"{box_h:.1}\" rx=\"7\" fill=\"var(--muted)\" stroke=\"{accent}\" stroke-width=\"1.6\"/>"
-            ));
-            out.push_str(&format!(
-                "<text x=\"{cx:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"12\" font-weight=\"600\" fill=\"var(--fg)\">{}</text>",
-                by + 21.0,
-                escape_html(label)
-            ));
+            let _: fmt::Result = write!(
+                out,
+                "<rect x=\"{bx:.1}\" y=\"{by:.1}\" width=\"{box_w:.1}\" height=\"{box_h:.1}\" rx=\"7\" fill=\"var(--muted)\" stroke=\"{accent}\" stroke-width=\"1.6\"/><text x=\"{cx:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"12\" font-weight=\"600\" fill=\"var(--fg)\">",
+                by + 21.0
+            );
+            push_escaped_html(out, label);
+            out.push_str(SVG_TEXT_CLOSE);
         }
     }
     for (idx, msg) in seq.get_messages().iter().enumerate() {
@@ -1883,30 +2104,28 @@ fn render_mermaid_sequence_svg(seq: &MermaidSequence, out: &mut String) {
         if msg.get_is_note() {
             let nx: f32 = x1.min(x2) - 48.0;
             let nw: f32 = (x2 - x1).abs().max(96.0) + 96.0;
-            out.push_str(&format!(
-                "<rect x=\"{nx:.1}\" y=\"{:.1}\" width=\"{nw:.1}\" height=\"26\" rx=\"5\" fill=\"var(--muted)\" stroke=\"var(--warn)\" stroke-width=\"1.4\"/>",
-                y - 13.0
-            ));
-            out.push_str(&format!(
-                "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"11.5\" fill=\"var(--fg)\">{}</text>",
+            let _: fmt::Result = write!(
+                out,
+                "<rect x=\"{nx:.1}\" y=\"{:.1}\" width=\"{nw:.1}\" height=\"26\" rx=\"5\" fill=\"var(--muted)\" stroke=\"var(--warn)\" stroke-width=\"1.4\"/><text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"11.5\" fill=\"var(--fg)\">",
+                y - 13.0,
                 nx + nw * 0.5,
-                y + 4.0,
-                escape_html(msg.get_text())
-            ));
+                y + 4.0
+            );
+            push_escaped_html(out, msg.get_text());
+            out.push_str(SVG_TEXT_CLOSE);
         } else {
             let dash: &str = match msg.get_style() {
                 MermaidEdgeStyle::Dashed => MERMAID_SVG_DASH_ATTR,
                 _ => "",
             };
-            out.push_str(&format!(
-                "<line x1=\"{x1:.1}\" y1=\"{y:.1}\" x2=\"{x2:.1}\" y2=\"{y:.1}\" stroke=\"var(--muted-fg)\" stroke-width=\"1.6\"{dash} marker-end=\"url(#euv-m-arrow)\"/>"
-            ));
-            out.push_str(&format!(
-                "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"11.5\" font-weight=\"500\" fill=\"var(--fg)\">{}</text>",
+            let _: fmt::Result = write!(
+                out,
+                "<line x1=\"{x1:.1}\" y1=\"{y:.1}\" x2=\"{x2:.1}\" y2=\"{y:.1}\" stroke=\"var(--muted-fg)\" stroke-width=\"1.6\"{dash} marker-end=\"url(#euv-m-arrow)\"/><text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"11.5\" font-weight=\"500\" fill=\"var(--fg)\">",
                 (x1 + x2) * 0.5,
-                y - 7.0,
-                escape_html(msg.get_text())
-            ));
+                y - 7.0
+            );
+            push_escaped_html(out, msg.get_text());
+            out.push_str(SVG_TEXT_CLOSE);
         }
     }
     out.push_str(MERMAID_SVG_CLOSE);
@@ -1933,9 +2152,10 @@ fn render_mermaid_class_svg(cls: &MermaidClassDiagram, out: &mut String) {
     }
     let svg_w: f32 = pad * 2.0 + (count as f32) * box_w + (count.saturating_sub(1) as f32) * gap;
     let svg_h: f32 = pad * 2.0 + max_h + 24.0;
-    out.push_str(&format!(
+    let _: fmt::Result = write!(
+        out,
         "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {svg_w:.1} {svg_h:.1}\" width=\"{svg_w:.0}\" height=\"{svg_h:.0}\" role=\"img\" aria-label=\"Mermaid class diagram\">"
-    ));
+    );
     out.push_str(MERMAID_SVG_ARROW_MARKER);
     let mut pos_map: HashMap<&str, (f32, f32, f32)> = HashMap::with_capacity(count);
     for (idx, c) in cls.get_classes().iter().enumerate() {
@@ -1943,28 +2163,26 @@ fn render_mermaid_class_svg(cls: &MermaidClassDiagram, out: &mut String) {
         let h: f32 = 34.0 + (c.get_members().len() as f32) * 18.0 + 12.0;
         let _: Option<(f32, f32, f32)> = pos_map.insert(c.get_name().as_str(), (x, pad, h));
         let accent: &str = MERMAID_SVG_PALETTE[idx % MERMAID_SVG_PALETTE.len()];
-        out.push_str(&format!(
-            "<rect x=\"{x:.1}\" y=\"{pad:.1}\" width=\"{box_w:.1}\" height=\"{h:.1}\" rx=\"7\" fill=\"var(--muted)\" stroke=\"{accent}\" stroke-width=\"1.6\"/>"
-        ));
-        out.push_str(&format!(
-            "<line x1=\"{x:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"var(--border)\" stroke-width=\"1\"/>",
+        let _: fmt::Result = write!(
+            out,
+            "<rect x=\"{x:.1}\" y=\"{pad:.1}\" width=\"{box_w:.1}\" height=\"{h:.1}\" rx=\"7\" fill=\"var(--muted)\" stroke=\"{accent}\" stroke-width=\"1.6\"/><line x1=\"{x:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"var(--border)\" stroke-width=\"1\"/><text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"12.5\" font-weight=\"700\" fill=\"var(--fg)\">",
             pad + 30.0,
             x + box_w,
-            pad + 30.0
-        ));
-        out.push_str(&format!(
-            "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"12.5\" font-weight=\"700\" fill=\"var(--fg)\">{}</text>",
+            pad + 30.0,
             x + box_w * 0.5,
-            pad + 20.0,
-            escape_html(c.get_name())
-        ));
+            pad + 20.0
+        );
+        push_escaped_html(out, c.get_name());
+        out.push_str(SVG_TEXT_CLOSE);
         for (mi, mem) in c.get_members().iter().enumerate() {
-            out.push_str(&format!(
-                "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"11\" fill=\"var(--muted-fg)\">{}</text>",
+            let _: fmt::Result = write!(
+                out,
+                "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"11\" fill=\"var(--muted-fg)\">",
                 x + 10.0,
-                pad + 48.0 + (mi as f32) * 18.0,
-                escape_html(mem)
-            ));
+                pad + 48.0 + (mi as f32) * 18.0
+            );
+            push_escaped_html(out, mem);
+            out.push_str(SVG_TEXT_CLOSE);
         }
     }
     for rel in cls.get_relations().iter() {
@@ -1974,11 +2192,12 @@ fn render_mermaid_class_svg(cls: &MermaidClassDiagram, out: &mut String) {
         ) {
             let sx: f32 = if x2 >= x1 { x1 + box_w } else { x1 };
             let tx: f32 = if x2 >= x1 { x2 } else { x2 + box_w };
-            out.push_str(&format!(
+            let _: fmt::Result = write!(
+                out,
                 "<line x1=\"{sx:.1}\" y1=\"{:.1}\" x2=\"{tx:.1}\" y2=\"{:.1}\" stroke=\"var(--muted-fg)\" stroke-width=\"1.5\" marker-end=\"url(#euv-m-arrow)\"/>",
                 y1 + h1 * 0.5,
                 y2 + h2 * 0.5
-            ));
+            );
         }
     }
     out.push_str(MERMAID_SVG_CLOSE);
@@ -2005,31 +2224,33 @@ fn render_mermaid_er_svg(er: &MermaidErDiagram, out: &mut String) {
     }
     let svg_w: f32 = pad * 2.0 + (count as f32) * box_w + (count.saturating_sub(1) as f32) * gap;
     let svg_h: f32 = pad * 2.0 + max_h + 16.0;
-    out.push_str(&format!(
+    let _: fmt::Result = write!(
+        out,
         "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {svg_w:.1} {svg_h:.1}\" width=\"{svg_w:.0}\" height=\"{svg_h:.0}\" role=\"img\" aria-label=\"Mermaid ER diagram\">"
-    ));
+    );
     let mut pos_map: HashMap<&str, (f32, f32, f32)> = HashMap::with_capacity(count);
     for (idx, ent) in er.get_entities().iter().enumerate() {
         let x: f32 = pad + (idx as f32) * (box_w + gap);
         let h: f32 = 34.0 + (ent.get_attributes().len() as f32) * 18.0 + 10.0;
         let _: Option<(f32, f32, f32)> = pos_map.insert(ent.get_name().as_str(), (x, pad, h));
         let accent: &str = MERMAID_SVG_PALETTE[idx % MERMAID_SVG_PALETTE.len()];
-        out.push_str(&format!(
-            "<rect x=\"{x:.1}\" y=\"{pad:.1}\" width=\"{box_w:.1}\" height=\"{h:.1}\" rx=\"6\" fill=\"var(--muted)\" stroke=\"{accent}\" stroke-width=\"1.6\"/>"
-        ));
-        out.push_str(&format!(
-            "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"12.5\" font-weight=\"700\" fill=\"var(--fg)\">{}</text>",
+        let _: fmt::Result = write!(
+            out,
+            "<rect x=\"{x:.1}\" y=\"{pad:.1}\" width=\"{box_w:.1}\" height=\"{h:.1}\" rx=\"6\" fill=\"var(--muted)\" stroke=\"{accent}\" stroke-width=\"1.6\"/><text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"12.5\" font-weight=\"700\" fill=\"var(--fg)\">",
             x + box_w * 0.5,
-            pad + 21.0,
-            escape_html(ent.get_name())
-        ));
+            pad + 21.0
+        );
+        push_escaped_html(out, ent.get_name());
+        out.push_str(SVG_TEXT_CLOSE);
         for (ai, attr) in ent.get_attributes().iter().enumerate() {
-            out.push_str(&format!(
-                "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"11\" fill=\"var(--muted-fg)\">{}</text>",
+            let _: fmt::Result = write!(
+                out,
+                "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"11\" fill=\"var(--muted-fg)\">",
                 x + 10.0,
-                pad + 44.0 + (ai as f32) * 18.0,
-                escape_html(attr)
-            ));
+                pad + 44.0 + (ai as f32) * 18.0
+            );
+            push_escaped_html(out, attr);
+            out.push_str(SVG_TEXT_CLOSE);
         }
     }
     for rel in er.get_relations().iter() {
@@ -2041,16 +2262,19 @@ fn render_mermaid_er_svg(er: &MermaidErDiagram, out: &mut String) {
             let tx: f32 = if x2 >= x1 { x2 } else { x2 + box_w };
             let sy: f32 = y1 + h1 * 0.5;
             let ty: f32 = y2 + h2 * 0.5;
-            out.push_str(&format!(
+            let _: fmt::Result = write!(
+                out,
                 "<line x1=\"{sx:.1}\" y1=\"{sy:.1}\" x2=\"{tx:.1}\" y2=\"{ty:.1}\" stroke=\"var(--muted-fg)\" stroke-width=\"1.5\"/>"
-            ));
+            );
             if !rel.get_label().is_empty() {
-                out.push_str(&format!(
-                    "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"10.5\" fill=\"var(--muted-fg)\">{}</text>",
+                let _: fmt::Result = write!(
+                    out,
+                    "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"10.5\" fill=\"var(--muted-fg)\">",
                     (sx + tx) * 0.5,
-                    (sy + ty) * 0.5 - 6.0,
-                    escape_html(rel.get_label())
-                ));
+                    (sy + ty) * 0.5 - 6.0
+                );
+                push_escaped_html(out, rel.get_label());
+                out.push_str(SVG_TEXT_CLOSE);
             }
         }
     }
@@ -2081,15 +2305,18 @@ fn render_mermaid_pie_svg(pie: &MermaidPieChart, out: &mut String) {
     let legend_h: f32 = (pie.get_slices().len() as f32) * 24.0;
     let svg_h: f32 = (cy + r + 20.0).max(title_off + legend_h + 36.0);
     let svg_w: f32 = 460.0;
-    out.push_str(&format!(
+    let _: fmt::Result = write!(
+        out,
         "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {svg_w:.1} {svg_h:.1}\" width=\"{svg_w:.0}\" height=\"{svg_h:.0}\" role=\"img\" aria-label=\"Mermaid pie chart\">"
-    ));
+    );
     if has_title {
-        out.push_str(&format!(
-            "<text x=\"{:.1}\" y=\"22\" text-anchor=\"middle\" font-size=\"13.5\" font-weight=\"700\" fill=\"var(--fg)\">{}</text>",
-            svg_w * 0.5,
-            escape_html(pie.get_title())
-        ));
+        let _: fmt::Result = write!(
+            out,
+            "<text x=\"{:.1}\" y=\"22\" text-anchor=\"middle\" font-size=\"13.5\" font-weight=\"700\" fill=\"var(--fg)\">",
+            svg_w * 0.5
+        );
+        push_escaped_html(out, pie.get_title());
+        out.push_str(SVG_TEXT_CLOSE);
     }
     let mut angle: f32 = -FRAC_PI_2;
     let legend_y0: f32 = cy - legend_h * 0.5 + 12.0;
@@ -2098,9 +2325,10 @@ fn render_mermaid_pie_svg(pie: &MermaidPieChart, out: &mut String) {
         let frac: f32 = slice.get_value() / total;
         let sweep: f32 = frac * TAU;
         if pie.get_slices().len() == 1 {
-            out.push_str(&format!(
+            let _: fmt::Result = write!(
+                out,
                 "<circle cx=\"{cx:.1}\" cy=\"{cy:.1}\" r=\"{r:.1}\" fill=\"{color}\"/>"
-            ));
+            );
         } else {
             let x1: f32 = cx + r * angle.cos();
             let y1: f32 = cy + r * angle.sin();
@@ -2108,22 +2336,22 @@ fn render_mermaid_pie_svg(pie: &MermaidPieChart, out: &mut String) {
             let x2: f32 = cx + r * end_a.cos();
             let y2: f32 = cy + r * end_a.sin();
             let large: u8 = if sweep > PI { 1 } else { 0 };
-            out.push_str(&format!(
+            let _: fmt::Result = write!(
+                out,
                 "<path d=\"M {cx:.1} {cy:.1} L {x1:.1} {y1:.1} A {r:.1} {r:.1} 0 {large} 1 {x2:.1} {y2:.1} Z\" fill=\"{color}\" stroke=\"var(--card)\" stroke-width=\"1.5\"/>"
-            ));
+            );
             angle = end_a;
         }
         let ly: f32 = legend_y0 + (idx as f32) * 24.0;
         let pct: f32 = frac * 100.0;
-        out.push_str(&format!(
-            "<rect x=\"{legend_x:.1}\" y=\"{:.1}\" width=\"12\" height=\"12\" rx=\"3\" fill=\"{color}\"/>",
-            ly - 10.0
-        ));
-        out.push_str(&format!(
-            "<text x=\"{:.1}\" y=\"{ly:.1}\" font-size=\"12\" fill=\"var(--fg)\">{} ({pct:.0}%)</text>",
-            legend_x + 18.0,
-            escape_html(slice.get_label())
-        ));
+        let _: fmt::Result = write!(
+            out,
+            "<rect x=\"{legend_x:.1}\" y=\"{:.1}\" width=\"12\" height=\"12\" rx=\"3\" fill=\"{color}\"/><text x=\"{:.1}\" y=\"{ly:.1}\" font-size=\"12\" fill=\"var(--fg)\">",
+            ly - 10.0,
+            legend_x + 18.0
+        );
+        push_escaped_html(out, slice.get_label());
+        let _: fmt::Result = write!(out, " ({pct:.0}%)</text>");
     }
     out.push_str(MERMAID_SVG_CLOSE);
 }
@@ -2151,15 +2379,18 @@ fn render_mermaid_gantt_svg(gantt: &MermaidGanttChart, out: &mut String) {
         .iter()
         .map(|t: &MermaidGanttTask| t.get_start_unit() + t.get_duration_unit())
         .fold(1.0_f32, f32::max);
-    out.push_str(&format!(
+    let _: fmt::Result = write!(
+        out,
         "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {svg_w:.1} {svg_h:.1}\" width=\"{svg_w:.0}\" height=\"{svg_h:.0}\" role=\"img\" aria-label=\"Mermaid Gantt chart\">"
-    ));
+    );
     if has_title {
-        out.push_str(&format!(
-            "<text x=\"{:.1}\" y=\"22\" text-anchor=\"middle\" font-size=\"13.5\" font-weight=\"700\" fill=\"var(--fg)\">{}</text>",
-            svg_w * 0.5,
-            escape_html(gantt.get_title())
-        ));
+        let _: fmt::Result = write!(
+            out,
+            "<text x=\"{:.1}\" y=\"22\" text-anchor=\"middle\" font-size=\"13.5\" font-weight=\"700\" fill=\"var(--fg)\">",
+            svg_w * 0.5
+        );
+        push_escaped_html(out, gantt.get_title());
+        out.push_str(SVG_TEXT_CLOSE);
     }
     for (idx, task) in gantt.get_tasks().iter().enumerate() {
         let y: f32 = top + (idx as f32) * row_h;
@@ -2171,16 +2402,18 @@ fn render_mermaid_gantt_svg(gantt: &MermaidGanttChart, out: &mut String) {
             MermaidGanttStatus::Critical => MERMAID_SVG_VAR_DANGER,
             MermaidGanttStatus::Normal => MERMAID_SVG_VAR_IMPORTANT,
         };
-        out.push_str(&format!(
-            "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" font-size=\"11.5\" fill=\"var(--fg)\">{}</text>",
+        let _: fmt::Result = write!(
+            out,
+            "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" font-size=\"11.5\" fill=\"var(--fg)\">",
             label_w - 10.0,
-            y + 15.0,
-            escape_html(task.get_label())
-        ));
-        out.push_str(&format!(
-            "<rect x=\"{bx:.1}\" y=\"{:.1}\" width=\"{bw:.1}\" height=\"18\" rx=\"5\" fill=\"{fill}\"/>",
+            y + 15.0
+        );
+        push_escaped_html(out, task.get_label());
+        let _: fmt::Result = write!(
+            out,
+            "</text><rect x=\"{bx:.1}\" y=\"{:.1}\" width=\"{bw:.1}\" height=\"18\" rx=\"5\" fill=\"{fill}\"/>",
             y + 2.0
-        ));
+        );
     }
     out.push_str(MERMAID_SVG_CLOSE);
 }

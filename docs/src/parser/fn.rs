@@ -483,10 +483,13 @@ pub(crate) fn heading_level_num(level: HeadingLevel) -> u8 {
 ///
 /// - `String` - Hyphenated URL slug.
 pub(crate) fn slugify(input: &str) -> String {
-    let mut out: String = String::new();
+    let mut out: String = String::with_capacity(input.len());
     let mut prev_dash: bool = false;
     for ch in input.chars() {
-        if ch.is_alphanumeric() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch.to_ascii_lowercase());
+            prev_dash = false;
+        } else if ch.is_alphanumeric() {
             for lower in ch.to_lowercase() {
                 out.push(lower);
             }
@@ -496,7 +499,10 @@ pub(crate) fn slugify(input: &str) -> String {
             prev_dash = true;
         }
     }
-    out.trim_end_matches('-').to_string()
+    while out.ends_with('-') {
+        let _: Option<char> = out.pop();
+    }
+    out
 }
 
 /// Ensures every heading anchor slug within a single page is unique (`slug`, `slug-2`, ...).

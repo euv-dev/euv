@@ -26,6 +26,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     f32::consts::{FRAC_PI_2, PI, TAU},
     ffi::OsStr,
+    fmt::{self, Write},
     fs::{self, DirEntry},
     io::{self, Error, ErrorKind},
     mem::take,
