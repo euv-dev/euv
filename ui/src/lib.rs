@@ -21,7 +21,7 @@ use std::{
     cmp::Ordering,
     collections::{HashMap, VecDeque},
     f32::consts::{FRAC_PI_2, PI, TAU},
-    mem::take,
+    mem::{replace, take},
     rc::Rc,
 };
 

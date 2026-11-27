@@ -260,28 +260,30 @@ impl EuvAppShell {
         let mut drawer_panel: NodeId = NodeId::default();
         let mut drawer_scroll: NodeId = NodeId::default();
         let mut drawer_grabber: NodeId = NodeId::default();
+        let init_fps: f32 = fps_sig.get_untracked();
+        let init_dot_col: Color = if !init_fps.is_finite() || init_fps <= SHELL_FPS_ACTIVE_THRESHOLD
+        {
+            p.get_muted_foreground()
+        } else if init_fps >= 48.0 {
+            p.get_success()
+        } else if init_fps >= 28.0 {
+            p.get_warning()
+        } else {
+            p.get_destructive()
+        };
+        let mut mobile_fps_dot: Option<NodeId> = None;
         let mobile_fps_pill: Option<NodeId> = if show_fps {
-            let dot_style_mob = move || -> Style {
-                let live_p: ThemePalette = use_live_tokens(tokens).get_palette();
-                let fps: f32 = fps_sig.get();
-                let dot_col: Color = if fps >= 48.0 {
-                    live_p.get_success()
-                } else if fps >= 28.0 {
-                    live_p.get_warning()
-                } else {
-                    live_p.get_destructive()
-                };
-                Style::default()
-                    .width(Length::Px(6.0))
-                    .height(Length::Px(6.0))
-                    .radius(99.0)
-                    .background(dot_col)
-            };
+            let mut dot_node: NodeId = NodeId::default();
             let fps_text_mob = move || -> String {
-                let v: f32 = fps_sig.get().clamp(1.0, 999.0);
-                format!("{v:.0} FPS")
+                let raw: f32 = fps_sig.get();
+                if !raw.is_finite() || raw <= SHELL_FPS_ACTIVE_THRESHOLD {
+                    SHELL_FPS_IDLE_LABEL.to_string()
+                } else {
+                    let v: f32 = raw.clamp(1.0, 999.0);
+                    format!("{v:.0} FPS")
+                }
             };
-            Some(view! {
+            let pill: NodeId = view! {
                 row {
                     min_width: Length::Px(72.0)
                     height: Length::Px(26.0)
@@ -293,7 +295,11 @@ impl EuvAppShell {
                     background: p.get_muted()
                     border: (1.0, p.get_border())
                     view {
-                        bind_style: dot_style_mob
+                        node_ref: dot_node
+                        width: Length::Px(6.0)
+                        height: Length::Px(6.0)
+                        radius: 99.0
+                        background: init_dot_col
                     }
                     text {
                         width: Length::Px(50.0)
@@ -307,32 +313,25 @@ impl EuvAppShell {
                         { fps_text_mob }
                     }
                 }
-            })
+            };
+            mobile_fps_dot = Some(dot_node);
+            Some(pill)
         } else {
             None
         };
+        let mut desktop_fps_dot: Option<NodeId> = None;
         let desktop_fps_pill: Option<NodeId> = if show_fps && !has_bottom_nav {
-            let dot_style_desk = move || -> Style {
-                let live_p: ThemePalette = use_live_tokens(tokens).get_palette();
-                let fps: f32 = fps_sig.get();
-                let dot_col: Color = if fps >= 48.0 {
-                    live_p.get_success()
-                } else if fps >= 28.0 {
-                    live_p.get_warning()
-                } else {
-                    live_p.get_destructive()
-                };
-                Style::default()
-                    .width(Length::Px(6.0))
-                    .height(Length::Px(6.0))
-                    .radius(99.0)
-                    .background(dot_col)
-            };
+            let mut dot_node: NodeId = NodeId::default();
             let fps_text_desk = move || -> String {
-                let v: f32 = fps_sig.get().clamp(1.0, 999.0);
-                format!("{v:.0} FPS")
+                let raw: f32 = fps_sig.get();
+                if !raw.is_finite() || raw <= SHELL_FPS_ACTIVE_THRESHOLD {
+                    SHELL_FPS_IDLE_LABEL.to_string()
+                } else {
+                    let v: f32 = raw.clamp(1.0, 999.0);
+                    format!("{v:.0} FPS")
+                }
             };
-            Some(view! {
+            let pill: NodeId = view! {
                 row {
                     min_width: Length::Px(68.0)
                     height: Length::Px(26.0)
@@ -344,7 +343,11 @@ impl EuvAppShell {
                     background: p.get_muted()
                     border: (1.0, p.get_border())
                     view {
-                        bind_style: dot_style_desk
+                        node_ref: dot_node
+                        width: Length::Px(6.0)
+                        height: Length::Px(6.0)
+                        radius: 99.0
+                        background: init_dot_col
                     }
                     text {
                         width: Length::Px(50.0)
@@ -358,7 +361,9 @@ impl EuvAppShell {
                         { fps_text_desk }
                     }
                 }
-            })
+            };
+            desktop_fps_dot = Some(dot_node);
+            Some(pill)
         } else {
             None
         };
@@ -769,6 +774,47 @@ impl EuvAppShell {
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
             let _: Effect =
                 EuvOverlayStack::bind_signal(menu_open, SHELL_DRAWER_OVERLAY_NAME, Z_INDEX_DRAWER);
+            if mobile_fps_dot.is_some() || desktop_fps_dot.is_some() {
+                let handle_fps: SceneHandle = handle.clone();
+                let prev_dot_col: Cell<Color> = Cell::new(init_dot_col);
+                let _: Effect = Effect::new(move || {
+                    let live_p: ThemePalette = use_live_tokens(tokens).get_palette();
+                    let raw: f32 = fps_sig.get();
+                    let dot_col: Color = if !raw.is_finite() || raw <= SHELL_FPS_ACTIVE_THRESHOLD {
+                        live_p.get_muted_foreground()
+                    } else if raw >= 48.0 {
+                        live_p.get_success()
+                    } else if raw >= 28.0 {
+                        live_p.get_warning()
+                    } else {
+                        live_p.get_destructive()
+                    };
+                    if prev_dot_col.replace(dot_col) == dot_col {
+                        return;
+                    }
+                    handle_fps.with_write(
+                        |tree: &mut SceneTree| {
+                            if let Some(dot_id) = mobile_fps_dot
+                                && let Some(n) = tree.get_node_mut(dot_id)
+                            {
+                                n.get_mut_style()
+                                    .get_mut_paint()
+                                    .set_background(Some(dot_col));
+                                tree.mark_dirty(dot_id, DIRTY_PAINT);
+                            }
+                            if let Some(dot_id) = desktop_fps_dot
+                                && let Some(n) = tree.get_node_mut(dot_id)
+                            {
+                                n.get_mut_style()
+                                    .get_mut_paint()
+                                    .set_background(Some(dot_col));
+                                tree.mark_dirty(dot_id, DIRTY_PAINT);
+                            }
+                        },
+                        (),
+                    );
+                });
+            }
             if let Some(crumb_sig) = breadcrumb {
                 let target_title_node: NodeId = if has_bottom_nav {
                     top_title_txt

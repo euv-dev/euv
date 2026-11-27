@@ -1753,10 +1753,14 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                             None => format!("Native Auto ({native_hz:.0} Hz)"),
                             Some(v) => format!("Capped at {v} FPS"),
                         };
-                        format!(
-                            "Frame Rate Policy: {cap_txt} | Live Measured: {:.1} FPS",
-                            live_fps_sig.get()
-                        )
+                        let live_fps: f32 = live_fps_sig.get();
+                        if !live_fps.is_finite() || live_fps <= 0.05 {
+                            format!("Frame Rate Policy: {cap_txt} | Status: Idle (0.0 FPS)")
+                        } else {
+                            format!(
+                                "Frame Rate Policy: {cap_txt} | Live Measured: {live_fps:.1} FPS"
+                            )
+                        }
                     } }
                 }
             }
@@ -2175,13 +2179,19 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         } else {
                             AI_BRIDGE_STATUS_OFF
                         };
+                        let ai_fps: f32 = ai_fps_sig.get();
+                        let fps_display: String = if !ai_fps.is_finite() || ai_fps <= 0.05 {
+                            LABEL_FPS_IDLE.to_string()
+                        } else {
+                            format!("{ai_fps:.1}")
+                        };
                         format!(
-                            "Protocol: {} ({}) | Route: {} | Scheme: {} | Live FPS: {:.1} | Signals: {} | Memos: {} | Effects: {} | Scopes: {} | Clock: {}",
+                            "Protocol: {} ({}) | Route: {} | Scheme: {} | Live FPS: {} | Signals: {} | Memos: {} | Effects: {} | Scopes: {} | Clock: {}",
                             proto_label,
                             bridge_label,
                             ai_route_sig.get(),
                             ai_scheme_sig.get().as_str(),
-                            ai_fps_sig.get(),
+                            fps_display,
                             rs.get_live_signals(),
                             rs.get_live_memos(),
                             rs.get_live_effects(),

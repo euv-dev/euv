@@ -492,3 +492,6 @@ pub(crate) const HOME_DIR_DESC_RN: &str = "Auto / Software / Hardware / Hybrid r
 pub(crate) const HOME_DIR_DESC_OS: &str = "Dynamic Island, permissions, haptics & safe area";
 pub(crate) const HOME_DIR_DESC_2D: &str = "2D physics arena with particles & touch joystick";
 pub(crate) const HOME_DIR_DESC_OT: &str = "Signed partial & global .wasm hot-swap runtime";
+
+/// Label displayed in showcase telemetry readouts when no active frame presentation is occurring.
+pub(crate) const LABEL_FPS_IDLE: &str = "Idle";

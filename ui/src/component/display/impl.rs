@@ -329,7 +329,7 @@ impl EuvVirtualList {
         (start, end)
     }
 
-    /// Mounts a reactive clipped scrollable list materializing only the visible row window as `scroll_y` changes.
+    /// Mounts a reactive clipped scrollable list returning a controller handle for O(1) stable-ID single-row patches and refreshes.
     ///
     /// # Arguments
     ///
@@ -338,8 +338,9 @@ impl EuvVirtualList {
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted reactive scroll viewport handle.
-    pub fn mount_with<F>(&self, row_builder: F) -> NodeId
+    /// - `EuvVirtualListHandle` - Mounted viewport root and targeted single-row update controller.
+    #[must_use]
+    pub fn mount_with_handle<F>(&self, row_builder: F) -> EuvVirtualListHandle
     where
         F: FnMut(usize) -> NodeId + 'static,
     {
@@ -354,7 +355,9 @@ impl EuvVirtualList {
             self.get_overscan()
         };
         let view_h: f32 = self.resolved_viewport_height().max(1.0);
-        let builder_cell: Rc<RefCell<F>> = Rc::new(RefCell::new(row_builder));
+        let builder_cell: Rc<RefCell<VirtualRowBuilder>> =
+            Rc::new(RefCell::new(Box::new(row_builder)));
+        let builder_for_effect: Rc<RefCell<VirtualRowBuilder>> = Rc::clone(&builder_cell);
         let border_w: f32 = g.get_border_width();
         let inner_view_h: f32 = (view_h - border_w * 2.0).max(1.0);
         let item_h: f32 = self.get_item_height().max(1.0);
@@ -362,6 +365,12 @@ impl EuvVirtualList {
         let total_h: f32 = (total_items as f32) * item_h;
         let max_scroll: f32 = (total_h - inner_view_h).max(0.0);
         let max_scroll_range: f32 = self.max_scroll_y();
+        let on_vlist_scroll = move |ev: &UiEvent| {
+            if let UiEventKind::Scroll(delta) = ev.get_kind() {
+                let next: f32 = (scroll_sig.get_untracked() + delta.get_y()).clamp(0.0, max_scroll);
+                let _: bool = scroll_sig.set_if_changed(next);
+            }
+        };
         let container: NodeId = view! {
             scroll {
                 style: Style::default().column()
@@ -371,13 +380,7 @@ impl EuvVirtualList {
                 border: (border_w, p.get_border())
                 radius: g.get_radius_md()
                 stop_scroll_propagation: true
-                on_scroll: move |ev: &UiEvent| {
-                    if let UiEventKind::Scroll(delta) = ev.get_kind() {
-                        let next: f32 =
-                        (scroll_sig.get_untracked() + delta.get_y()).clamp(0.0, max_scroll);
-                        let _: bool = scroll_sig.set_if_changed(next);
-                    }
-                }
+                on_scroll: on_vlist_scroll
             }
         };
         let mut rows_host_style: Style = Style::default();
@@ -390,12 +393,14 @@ impl EuvVirtualList {
         let init_scroll: f32 = scroll_sig.get_untracked().clamp(0.0, max_scroll);
         ctx.set_virtual_scroll(container, init_scroll, total_h);
         let scene_for_rows: SceneHandle = ctx.get_scene().clone();
+        let scene_for_handle: SceneHandle = scene_for_rows.clone();
         let ctx_for_rows: Context = ctx.clone();
-        let window: Rc<RefCell<VecDeque<(usize, Scope, NodeId)>>> =
-            Rc::new(RefCell::new(VecDeque::new()));
-        let window_effect: Rc<RefCell<VecDeque<(usize, Scope, NodeId)>>> = Rc::clone(&window);
+        let ctx_for_handle: Context = ctx.clone();
+        let window: VirtualRowWindow = Rc::new(RefCell::new(VecDeque::new()));
+        let window_effect: VirtualRowWindow = Rc::clone(&window);
+        let window_handle: VirtualRowWindow = Rc::clone(&window);
         let (vlist_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            let window_cleanup: Rc<RefCell<VecDeque<(usize, Scope, NodeId)>>> = Rc::clone(&window);
+            let window_cleanup: VirtualRowWindow = Rc::clone(&window);
             on_cleanup(move || {
                 if let Ok(mut guard) = window_cleanup.try_borrow_mut() {
                     while let Some((_, row_scope, _)) = guard.pop_front() {
@@ -405,6 +410,11 @@ impl EuvVirtualList {
             });
             let mut current_range: (usize, usize) = (0, 0);
             let mut initialized: bool = false;
+            let mut retired_scopes: Vec<Scope> = Vec::new();
+            let mut retired_nodes: Vec<NodeId> = Vec::new();
+            let mut built_prefix: Vec<(usize, Scope, NodeId)> = Vec::new();
+            let mut built_suffix: Vec<(usize, Scope, NodeId)> = Vec::new();
+            let mut next_children: Vec<NodeId> = Vec::new();
             Effect::new(move || {
                 let raw_scroll: f32 = scroll_sig.get();
                 let cur_scroll: f32 = raw_scroll.clamp(0.0, max_scroll);
@@ -434,7 +444,8 @@ impl EuvVirtualList {
                     && new_start < new_end
                     && new_start < old_end
                     && old_start < new_end;
-                let mut retired_scopes: Vec<Scope> = Vec::new();
+                retired_scopes.clear();
+                retired_nodes.clear();
                 let (prefix_start, prefix_end, suffix_start, suffix_end): (
                     usize,
                     usize,
@@ -444,8 +455,9 @@ impl EuvVirtualList {
                     if let Ok(mut guard) = window_effect.try_borrow_mut() {
                         while let Some(&(idx, _, _)) = guard.front() {
                             if idx < new_start {
-                                if let Some((_, scope, _)) = guard.pop_front() {
+                                if let Some((_, scope, node_id)) = guard.pop_front() {
                                     retired_scopes.push(scope);
+                                    retired_nodes.push(node_id);
                                 }
                             } else {
                                 break;
@@ -453,8 +465,9 @@ impl EuvVirtualList {
                         }
                         while let Some(&(idx, _, _)) = guard.back() {
                             if idx >= new_end {
-                                if let Some((_, scope, _)) = guard.pop_back() {
+                                if let Some((_, scope, node_id)) = guard.pop_back() {
                                     retired_scopes.push(scope);
+                                    retired_nodes.push(node_id);
                                 }
                             } else {
                                 break;
@@ -467,42 +480,51 @@ impl EuvVirtualList {
                 } else {
                     if let Ok(mut guard) = window_effect.try_borrow_mut() {
                         retired_scopes.reserve(guard.len());
-                        while let Some((_, scope, _)) = guard.pop_front() {
+                        retired_nodes.reserve(guard.len());
+                        while let Some((_, scope, node_id)) = guard.pop_front() {
                             retired_scopes.push(scope);
+                            retired_nodes.push(node_id);
                         }
                     }
                     (new_start, new_end, new_end, new_end)
                 };
-                for retired in retired_scopes.into_iter() {
+                for retired in retired_scopes.drain(..) {
                     retired.dispose();
                 }
                 let prefix_len: usize = prefix_end.saturating_sub(prefix_start);
                 let suffix_len: usize = suffix_end.saturating_sub(suffix_start);
-                let mut built_prefix: Vec<(usize, Scope, NodeId)> = Vec::with_capacity(prefix_len);
-                let mut built_suffix: Vec<(usize, Scope, NodeId)> = Vec::with_capacity(suffix_len);
+                built_prefix.clear();
+                built_suffix.clear();
                 if prefix_len > 0 || suffix_len > 0 {
-                    with_context(ctx_for_rows.clone(), || {
-                        if let Ok(mut build_row) = builder_cell.try_borrow_mut() {
-                            for idx in prefix_start..prefix_end {
-                                let (row_scope, row_node): (Scope, NodeId) =
-                                    Scope::run(|_: Scope| build_row(idx));
-                                built_prefix.push((idx, row_scope, row_node));
+                    built_prefix.reserve(prefix_len);
+                    built_suffix.reserve(suffix_len);
+                    untracked(|| {
+                        with_context(ctx_for_rows.clone(), || {
+                            if let Ok(mut build_row) = builder_for_effect.try_borrow_mut() {
+                                for idx in prefix_start..prefix_end {
+                                    let (row_scope, row_node): (Scope, NodeId) =
+                                        Scope::run(|_: Scope| build_row(idx));
+                                    built_prefix.push((idx, row_scope, row_node));
+                                }
+                                for idx in suffix_start..suffix_end {
+                                    let (row_scope, row_node): (Scope, NodeId) =
+                                        Scope::run(|_: Scope| build_row(idx));
+                                    built_suffix.push((idx, row_scope, row_node));
+                                }
                             }
-                            for idx in suffix_start..suffix_end {
-                                let (row_scope, row_node): (Scope, NodeId) =
-                                    Scope::run(|_: Scope| build_row(idx));
-                                built_suffix.push((idx, row_scope, row_node));
-                            }
-                        }
+                        });
                     });
                 }
-                let mut next_children: Vec<NodeId> =
-                    Vec::with_capacity(new_end.saturating_sub(new_start));
+                next_children.clear();
+                next_children.reserve(new_end.saturating_sub(new_start));
+                let mut newly_attached: Vec<NodeId> = Vec::with_capacity(prefix_len + suffix_len);
                 if let Ok(mut guard) = window_effect.try_borrow_mut() {
-                    for entry in built_prefix.into_iter().rev() {
+                    for entry in built_prefix.drain(..).rev() {
+                        newly_attached.push(entry.2);
                         guard.push_front(entry);
                     }
-                    for entry in built_suffix.into_iter() {
+                    for entry in built_suffix.drain(..) {
+                        newly_attached.push(entry.2);
                         guard.push_back(entry);
                     }
                     for &(_, _, node_id) in guard.iter() {
@@ -513,7 +535,22 @@ impl EuvVirtualList {
                 initialized = true;
                 scene_for_rows.with_write(
                     |tree: &mut SceneTree| {
-                        tree.replace_children(rows_host, next_children);
+                        for old_node in retired_nodes.drain(..) {
+                            tree.dispose_subtree(old_node);
+                        }
+                        for new_node in newly_attached.iter().copied() {
+                            if let Some(child_node) = tree.get_node_mut(new_node) {
+                                child_node.set_parent(Some(rows_host));
+                            }
+                        }
+                        if let Some(host_node) = tree.get_node_mut(rows_host) {
+                            let kids: &mut Vec<NodeId> = host_node.get_mut_children();
+                            kids.clear();
+                            kids.extend_from_slice(next_children.as_slice());
+                        }
+                        let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                        let dirty_c: u16 = DIRTY_CHILDREN | DIRTY_PAINT;
+                        tree.mark_dirty(rows_host, dirty_l | dirty_c);
                         tree.set_virtual_scroll(container, cur_scroll, total_h);
                         tree.set_scroll_offset(container, Point::new(0.0, local_scroll_y));
                     },
@@ -527,7 +564,192 @@ impl EuvVirtualList {
             },
             (),
         );
-        container
+        EuvVirtualListHandle {
+            container,
+            rows_host,
+            scene: scene_for_handle,
+            ctx: ctx_for_handle,
+            window: window_handle,
+            builder: builder_cell,
+        }
+    }
+
+    /// Mounts a reactive clipped scrollable list materializing only the visible row window as `scroll_y` changes.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Virtual list configuration.
+    /// - `F` - Zero-context row builder closure taking `usize` row index and returning `NodeId`.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Mounted reactive scroll viewport handle.
+    pub fn mount_with<F>(&self, row_builder: F) -> NodeId
+    where
+        F: FnMut(usize) -> NodeId + 'static,
+    {
+        self.mount_with_handle(row_builder).root()
+    }
+}
+
+/// Stable-ID O(1) single-row lookup, surgical patching, and isolated refresh operations for `EuvVirtualListHandle`.
+impl EuvVirtualListHandle {
+    /// Returns the mounted scrollable container `NodeId`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Virtual list controller reference.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Mounted container root handle.
+    #[must_use]
+    pub fn root(&self) -> NodeId {
+        let Self { container, .. } = self;
+        *container
+    }
+
+    /// Resolves the mounted `NodeId` for logical row `index` in O(1) when currently materialized in the viewport window.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Virtual list controller reference.
+    /// - `usize` - Stable logical row index.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<NodeId>` - Active row node handle if currently visible, or `None` when off-screen.
+    #[must_use]
+    pub fn row_node(&self, index: usize) -> Option<NodeId> {
+        let Self { window, .. } = self;
+        let guard: Ref<'_, VecDeque<(usize, Scope, NodeId)>> = window.try_borrow().ok()?;
+        let &(start_idx, _, _) = guard.front()?;
+        let slot: usize = index.checked_sub(start_idx)?;
+        let &(found_idx, _, node_id) = guard.get(slot)?;
+        if found_idx == index {
+            Some(node_id)
+        } else {
+            None
+        }
+    }
+
+    /// Mutates a single materialized row in place inside one `SceneTree` write lock without rebuilding sibling rows or invalidating `rows_host` children.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Virtual list controller reference.
+    /// - `usize` - Stable logical row index to patch.
+    /// - `F` - Mutation closure receiving `(&mut SceneTree, NodeId)` for the target row.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when `index` was materialized and patched, or `false` when off-screen.
+    pub fn patch_row<F>(&self, index: usize, patch: F) -> bool
+    where
+        F: FnOnce(&mut SceneTree, NodeId),
+    {
+        let Some(target_node) = self.row_node(index) else {
+            return false;
+        };
+        let Self { scene, .. } = self;
+        scene.with_write(
+            |tree: &mut SceneTree| {
+                if tree.get_node(target_node).is_some() {
+                    patch(tree, target_node);
+                    true
+                } else {
+                    false
+                }
+            },
+            false,
+        )
+    }
+
+    /// Rebuilds and swaps only the single materialized row at logical `index` in O(1), leaving all sibling rows and their layout caches untouched.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Virtual list controller reference.
+    /// - `usize` - Stable logical row index to refresh.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when `index` was visible and refreshed, or `false` when off-screen.
+    pub fn update_row(&self, index: usize) -> bool {
+        let Self {
+            rows_host,
+            scene,
+            ctx,
+            window,
+            builder,
+            ..
+        } = self;
+        let slot_opt: Option<usize> = window.try_borrow().ok().and_then(
+            |guard: Ref<'_, VecDeque<(usize, Scope, NodeId)>>| {
+                let &(start_idx, _, _) = guard.front()?;
+                let slot: usize = index.checked_sub(start_idx)?;
+                let &(found_idx, _, _) = guard.get(slot)?;
+                if found_idx == index { Some(slot) } else { None }
+            },
+        );
+        let Some(slot) = slot_opt else {
+            return false;
+        };
+        let built_opt: Option<(Scope, NodeId)> = untracked(|| {
+            with_context(ctx.clone(), || {
+                builder
+                    .try_borrow_mut()
+                    .ok()
+                    .map(|mut build_row: RefMut<'_, VirtualRowBuilder>| {
+                        Scope::run(|_: Scope| build_row(index))
+                    })
+            })
+        });
+        let Some((new_scope, new_node)) = built_opt else {
+            return false;
+        };
+        let replaced: Option<(Scope, NodeId)> = window.try_borrow_mut().ok().and_then(
+            |mut guard: RefMut<'_, VecDeque<(usize, Scope, NodeId)>>| {
+                let entry: &mut (usize, Scope, NodeId) = guard.get_mut(slot)?;
+                if entry.0 != index {
+                    return None;
+                }
+                let old_entry: (usize, Scope, NodeId) =
+                    replace(entry, (index, new_scope, new_node));
+                Some((old_entry.1, old_entry.2))
+            },
+        );
+        let Some((old_scope, old_node)) = replaced else {
+            new_scope.dispose();
+            scene.with_write(
+                |tree: &mut SceneTree| {
+                    tree.dispose_subtree(new_node);
+                },
+                (),
+            );
+            return false;
+        };
+        old_scope.dispose();
+        let host_id: NodeId = *rows_host;
+        scene.with_write(
+            |tree: &mut SceneTree| {
+                if let Some(child_node) = tree.get_node_mut(new_node) {
+                    child_node.set_parent(Some(host_id));
+                }
+                if let Some(host_node) = tree.get_node_mut(host_id) {
+                    let kids: &mut Vec<NodeId> = host_node.get_mut_children();
+                    if let Some(slot_ref) = kids.get_mut(slot) {
+                        *slot_ref = new_node;
+                    }
+                }
+                tree.dispose_subtree(old_node);
+                let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                let dirty_c: u16 = DIRTY_CHILDREN | DIRTY_PAINT;
+                tree.mark_dirty(host_id, dirty_l | dirty_c);
+            },
+            (),
+        );
+        true
     }
 }
 
