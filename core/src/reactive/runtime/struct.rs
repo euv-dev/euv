@@ -23,7 +23,7 @@ pub(crate) struct SignalEntry {
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) subscribers: Vec<SubscriberId>,
+    pub(crate) subscribers: SmallSubList<SubscriberId>,
 }
 
 /// Storage entry for a memoized derived computation inside the reactive arena.
@@ -60,12 +60,12 @@ pub(crate) struct MemoEntry {
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) dependencies: Vec<DependencyId>,
+    pub(crate) dependencies: SmallSubList<DependencyId>,
     /// Downstream subscribers depending on this memo.
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) subscribers: Vec<SubscriberId>,
+    pub(crate) subscribers: SmallSubList<SubscriberId>,
     /// Topological depth level used to evaluate memos before effects in order.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
@@ -101,7 +101,7 @@ pub(crate) struct EffectEntry {
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) dependencies: Vec<DependencyId>,
+    pub(crate) dependencies: SmallSubList<DependencyId>,
     /// Execution priority depth so parent effects run before nested ones.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
@@ -137,6 +137,11 @@ pub(crate) struct ScopeEntry {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) frozen: bool,
+    /// Optional parent scope identifier for O(depth) zero-allocation ancestry and freeze queries.
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) parent: Option<ScopeId>,
     /// Signals owned by this scope.
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
@@ -208,11 +213,11 @@ pub struct ReactiveRuntime {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) free_scopes: Vec<u32>,
-    /// Stack of currently executing observers for automatic dependency tracking.
+    /// Stack of currently executing observers and their dependency-reuse cursors.
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) observer_stack: Vec<Option<SubscriberId>>,
+    pub(crate) observer_stack: Vec<Option<(SubscriberId, usize)>>,
     /// Stack of active ownership scopes.
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
@@ -223,11 +228,41 @@ pub struct ReactiveRuntime {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) pending_effects: Vec<EffectId>,
-    /// Reusable scratch queue for zero-allocation dirty propagation.
+    /// Reusable scratch queue storing `(subscriber, target_state)` for zero-allocation dirty propagation.
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) dirty_queue: Vec<(SubscriberId, bool)>,
+    pub(crate) dirty_queue: Vec<(SubscriberId, NodeState)>,
+    /// Reusable cursor-sliced scratch stack for zero-allocation `NodeState::Check` verification of >4 memo deps.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) check_scratch: Vec<MemoId>,
+    /// Reusable scratch buffer holding `(depth, EffectId)` batches across `flush_effects` runs.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) flush_batch_scratch: Vec<(u32, EffectId)>,
+    /// Reusable DFS stack for zero-allocation scope disposal and freeze/resume traversals.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) scope_stack_scratch: Vec<ScopeId>,
+    /// Reusable scratch list of effects collected during `dispose_scope_collect`.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) dispose_effects_scratch: Vec<EffectId>,
+    /// Reusable scratch list of memos collected during `dispose_scope_collect`.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) dispose_memos_scratch: Vec<MemoId>,
+    /// Reusable scratch list of signals collected during `dispose_scope_collect`.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) dispose_signals_scratch: Vec<SignalId>,
     /// Active batch nesting depth; flush executes only when returning to zero.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
@@ -278,4 +313,11 @@ pub struct ReactiveStats {
     /// Global reactive write clock.
     #[get(type(copy))]
     pub(crate) clock: u64,
+}
+
+/// Panic-safe RAII guard that pops an active tracking frame from `observer_stack` on unwind.
+#[derive(Debug)]
+pub(crate) struct TrackingGuard {
+    /// Remains `true` until normal completion disarms the guard before committing.
+    pub(crate) active: bool,
 }

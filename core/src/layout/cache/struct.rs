@@ -73,3 +73,79 @@ pub struct LayoutStats {
     #[get(type(copy))]
     pub(crate) subtrees_skipped: usize,
 }
+
+/// Compact direct-mapped/set-associative cache slot storing a measured text bounding box.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct TextSizeEntry {
+    /// Primary 64-bit hash of the measured UTF-8 text bytes.
+    pub(crate) hash_a: u64,
+    /// Secondary independent 64-bit hash of the measured UTF-8 text bytes.
+    pub(crate) hash_b: u64,
+    /// Exact byte length of the measured text string.
+    pub(crate) text_len: u32,
+    /// Normalized IEEE-754 bits of `TextStyle::font_size`.
+    pub(crate) font_size_bits: u32,
+    /// Normalized IEEE-754 bits of `TextStyle::line_height`.
+    pub(crate) line_height_bits: u32,
+    /// Normalized IEEE-754 bits of `TextStyle::letter_spacing`.
+    pub(crate) letter_spacing_bits: u32,
+    /// Normalized IEEE-754 bits of `max_width`, or `TEXT_SIZE_MAX_WIDTH_NONE_BITS` when `None`.
+    pub(crate) max_width_bits: u32,
+    /// Cached measured bounding width in logical pixels.
+    pub(crate) width: f32,
+    /// Cached measured bounding height in logical pixels.
+    pub(crate) height: f32,
+    /// Packed typography flags (`family`, `weight`, `overflow`, `italic`, and occupied bit).
+    pub(crate) style_flags: u16,
+}
+
+/// Bounded 2-way set-associative cache mapping `(text, style, max_width)` to measured `Size`.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct TextSizeCache {
+    /// Lazily allocated flat table of `TEXT_SIZE_CACHE_SLOTS` entries (`2` ways per set).
+    pub(crate) entries: Vec<TextSizeEntry>,
+}
+
+/// Compact single-cache-line scratch record tracking a flex child across probe and placement passes.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct FlexItemRecord {
+    /// Scene node handle of the flex child.
+    pub(crate) node_id: NodeId,
+    /// Current target size updated by flex grow and auto-cross re-probing.
+    pub(crate) size: Size,
+    /// Border-box size produced by the initial probe pass.
+    pub(crate) probed_size: Size,
+    /// Logical origin where the child currently resides after the probe pass.
+    pub(crate) probed_origin: Point,
+    /// Outer margin insets copied once from `LayoutStyle`.
+    pub(crate) margin: Edges,
+    /// Flex grow factor copied once from `LayoutStyle`.
+    pub(crate) flex_grow: f32,
+    /// Effective `align-self` override copied once from `LayoutStyle`.
+    pub(crate) align_self: AlignSelf,
+    /// Overflow clipping behavior copied once from `LayoutStyle`.
+    pub(crate) overflow: Overflow,
+    /// Packed boolean flags (`FLEX_ITEM_*`) describing child sizing constraints and probe state.
+    pub(crate) flags: u16,
+}
+
+/// Shared axis and container parameters passed to `LayoutEngine::layout_flex_line`.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FlexLineContext {
+    /// Enclosing flex container constraints and origin.
+    pub(crate) frame: ContainerFrame,
+    /// `true` when main axis is horizontal (`Row`/`RowReverse`).
+    pub(crate) is_row: bool,
+    /// `true` when multi-line flex wrapping is enabled.
+    pub(crate) wrap_enabled: bool,
+    /// Main-axis gap between adjacent items in logical pixels.
+    pub(crate) main_gap: f32,
+    /// Inner available main-axis extent of the container.
+    pub(crate) main_avail: f32,
+    /// Inner available cross-axis extent of the container.
+    pub(crate) cross_avail: f32,
+    /// Aggregate `flex_grow` sum across items in the container.
+    pub(crate) total_grow: f32,
+    /// Total number of flex lines in the container.
+    pub(crate) line_count: usize,
+}

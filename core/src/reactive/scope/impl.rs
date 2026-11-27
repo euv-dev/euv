@@ -11,6 +11,7 @@ impl Scope {
     /// # Returns
     ///
     /// - `(Self, R)` - The created scope handle and closure result.
+    #[inline]
     pub fn run<F, R>(body: F) -> (Self, R)
     where
         F: FnOnce(Self) -> R,
@@ -44,6 +45,7 @@ impl Scope {
     /// # Returns
     ///
     /// - `R` - Value returned by `body`.
+    #[inline]
     pub fn enter<F, R>(&self, body: F) -> R
     where
         F: FnOnce() -> R,
@@ -75,6 +77,7 @@ impl Scope {
     ///
     /// - `ScopeId` - Underlying arena identifier.
     #[must_use]
+    #[inline(always)]
     pub fn id(&self) -> ScopeId {
         let Self { id } = *self;
         id
@@ -85,6 +88,7 @@ impl Scope {
     /// # Arguments
     ///
     /// - `&Self` - Scope handle to dispose.
+    #[inline]
     pub fn dispose(&self) {
         let id: ScopeId = self.id();
         let cleanups: Vec<Box<dyn FnOnce()>> = with_runtime(
@@ -101,6 +105,7 @@ impl Scope {
     /// # Arguments
     ///
     /// - `&Self` - Scope handle to freeze.
+    #[inline(always)]
     pub fn freeze(&self) {
         let id: ScopeId = self.id();
         let _: bool = with_runtime(
@@ -114,6 +119,7 @@ impl Scope {
     /// # Arguments
     ///
     /// - `&Self` - Scope handle to resume.
+    #[inline(always)]
     pub fn resume(&self) {
         let id: ScopeId = self.id();
         let should_flush: bool = with_runtime(
@@ -135,6 +141,7 @@ impl Scope {
     ///
     /// - `bool` - Whether this scope is frozen.
     #[must_use]
+    #[inline(always)]
     pub fn is_frozen(&self) -> bool {
         let id: ScopeId = self.id();
         with_runtime(|rt: &mut ReactiveRuntime| rt.is_scope_frozen(id), false)

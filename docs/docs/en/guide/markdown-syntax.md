@@ -29,12 +29,12 @@ Unicode headings generate clean, linkable fragment anchors (`#中文与-unicode-
 
 ## Inline Typography & Rich Elements
 
-Standard prose supports **bold emphasis**, _italic emphasis_, ***bold italic combined***, ~~strikethrough edits~~, `inline_code_token()`, <mark>highlighted markers</mark>, keyboard shortcuts like <kbd>Cmd</kbd>+<kbd>K</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, chemical subscripts H<sub>2</sub>O, exponents E = mc<sup>2</sup> / 2<sup>16</sup>, and escaped punctuation such as \*not italic\* and \`not code\`.
+Standard prose supports **bold emphasis**, _italic emphasis_, ***bold italic combined***, ~~strikethrough edits~~, `inline_code_token()`, <mark>highlighted markers</mark>, ==extended highlights==, keyboard shortcuts like <kbd>Cmd</kbd>+<kbd>K</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, chemical subscripts H<sub>2</sub>O / H~2~O, exponents E = mc<sup>2</sup> / 2^16^, emoji shortcodes (:rocket:, :sparkles:, :check:, :bulb:, :fire:), and escaped punctuation such as \*not italic\* and \`not code\`.
 
 Line breaks support both soft wrapping and explicit hard line breaks:
 This line starts directly beneath the previous sentence via a trailing two-space hard break.
 
-Hyperlinks work for [internal relative docs](./getting-started.md), [same-page anchors](#custom-anchor), [external links with hover titles](https://www.rust-lang.org "The Rust Programming Language"), automatic URLs like <https://euv.ltpp.vip>, and inline footnotes[^euv-arch].
+Hyperlinks work for [internal relative docs](./getting-started.md), [same-page anchors](#custom-anchor), [external links with hover titles](https://www.rust-lang.org "The Rust Programming Language"), [reference links][euv-docs-ref], automatic URLs like <https://euv.ltpp.vip>, and inline footnotes[^euv-arch].
 
 ---
 
@@ -267,6 +267,44 @@ $$L_o(p, \omega_o) = L_e(p, \omega_o) + \int_{\Omega} f_r(p, \omega_i, \omega_o)
 
 ---
 
+## Native Vector Mermaid Diagrams
+
+### Architecture Flowchart
+
+```mermaid
+flowchart LR
+    A[Reactive Signals] --> B(SceneTree Arena)
+    B --> C{Render Mode}
+    C -->|GPU| D([Metal / Vulkan / WebGPU])
+    C -->|CPU| E([Software Rasterizer])
+    D --> F((60-240Hz Frame))
+    E --> F
+```
+
+### Route Transition Sequence
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Shell as EuvAppShell
+    participant Router as EuvRouterOutlet
+    User->>Shell: Swipe or Tap Tab
+    Shell->>Router: Coupled 1:1 Edge-to-Edge Slide
+    Router-->>User: Zero-Gap EaseOutCubic Frame
+```
+
+### Frame Budget Breakdown
+
+```mermaid
+pie title Native Frame Budget
+    "Layout Cache" : 12
+    "DisplayList Paint" : 28
+    "GPU / Raster" : 48
+    "Idle Headroom" : 12
+```
+
+---
+
 ## Embedded Vector Diagram & Media
 
 ![euv Unified Native Pipeline Diagram](./pipeline-diagram.svg "euv Native Architecture Overview")
@@ -275,5 +313,6 @@ $$L_o(p, \omega_o) = L_e(p, \omega_o) + \int_{\Omega} f_r(p, \omega_i, \omega_o)
 
 ## Footnotes
 
+[euv-docs-ref]: https://euv.ltpp.vip/docs
 [^eva-theme]: Token colors extracted directly from VS Code `Eva Light Bold` (`#EBEEF5`) and `Eva Dark Bold` (`#282C34`).
 [^euv-arch]: All 7 platforms share one deterministic layout, reactive arena, and rendering pipeline with zero WebView overhead.

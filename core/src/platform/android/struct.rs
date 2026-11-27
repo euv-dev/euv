@@ -52,4 +52,8 @@ pub struct AndroidPlatform {
     /// Clipboard cache synchronized through JNI bridge.
     #[get(skip)]
     pub(crate) clipboard_cache: Option<String>,
+    /// Whether the Android Choreographer / render pump is paused for background freeze.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) pump_paused: bool,
 }

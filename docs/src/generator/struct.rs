@@ -28,21 +28,47 @@ pub struct DocsBuildOptions {
     pub(crate) clean_urls: bool,
 }
 
+/// Pre-escaped sidebar navigation link metadata shared across all rendered pages.
+#[derive(Clone, Debug, Getter)]
+pub(crate) struct SidebarNavEntry<'a> {
+    /// Canonical page route used to mark the active link.
+    #[get(pub(crate), type(copy))]
+    pub(crate) route: &'a str,
+    /// Optional pre-rendered section header HTML emitted before this entry when a section starts.
+    #[get(pub(crate))]
+    pub(crate) section_header_html: Option<String>,
+    /// Pre-escaped link suffix (`"<href>\"><title></a>"`) appended after the open anchor prefix.
+    #[get(pub(crate))]
+    pub(crate) link_tail_html: String,
+}
+
 /// Shared immutable context passed into page HTML generation to keep helper signatures compact.
 #[derive(Clone, Copy, Debug, Getter)]
 pub(crate) struct PageRenderContext<'a> {
     /// Parent documentation site containing navigation metadata.
     #[get(pub(crate), type(copy))]
     pub(crate) site: &'a DocSite,
+    /// Pre-sorted and pre-escaped sidebar navigation entries shared across all pages.
+    #[get(pub(crate), type(copy))]
+    pub(crate) sidebar_entries: &'a [SidebarNavEntry<'a>],
+    /// Pre-escaped site title string.
+    #[get(pub(crate), type(copy))]
+    pub(crate) site_title_escaped: &'a str,
+    /// Pre-escaped root home href attribute string.
+    #[get(pub(crate), type(copy))]
+    pub(crate) home_href_escaped: &'a str,
+    /// Pre-escaped RFC-3339 build timestamp string.
+    #[get(pub(crate), type(copy))]
+    pub(crate) generated_at_escaped: &'a str,
+    /// JSON-serialized base URL prefix injected into the search script.
+    #[get(pub(crate), type(copy))]
+    pub(crate) base_json: &'a str,
     /// Previous page in canonical sidebar reading order.
     #[get(pub(crate), type(copy))]
     pub(crate) prev_page: Option<&'a DocPage>,
     /// Next page in canonical sidebar reading order.
     #[get(pub(crate), type(copy))]
     pub(crate) next_page: Option<&'a DocPage>,
-    /// Build timestamp formatted as RFC-3339.
-    #[get(pub(crate), type(copy))]
-    pub(crate) generated_at: &'a str,
     /// Script-safe compact JSON search index payload.
     #[get(pub(crate), type(copy))]
     pub(crate) search_json_compact: &'a str,

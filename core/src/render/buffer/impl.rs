@@ -48,24 +48,14 @@ impl Framebuffer {
         true
     }
 
-    /// Fills the entire framebuffer with solid `color` using 64-bit wide stores.
+    /// Fills the entire framebuffer with solid `color` using 32-byte wide auto-vectorized stores.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable framebuffer.
     /// - `Color` - Clear color.
     pub fn clear(&mut self, color: Color) {
-        let rgba: [u8; 4] = color.to_rgba_bytes();
-        let pair: [u8; 8] = [
-            rgba[0], rgba[1], rgba[2], rgba[3], rgba[0], rgba[1], rgba[2], rgba[3],
-        ];
-        let (wide, tail): (&mut [[u8; 8]], &mut [u8]) = self.get_mut_pixels().as_chunks_mut::<8>();
-        for chunk in wide.iter_mut() {
-            *chunk = pair;
-        }
-        for chunk in tail.as_chunks_mut::<4>().0.iter_mut() {
-            *chunk = rgba;
-        }
+        fill_rgba_span_32(self.get_mut_pixels().as_mut_slice(), color.to_rgba_bytes());
     }
 
     /// Fills or composites a contiguous horizontal pixel span `[x0, x1)` on row `y`.
@@ -92,17 +82,7 @@ impl Framebuffer {
             return;
         };
         if sa == 255 {
-            let rgba: [u8; 4] = [color.get_r(), color.get_g(), color.get_b(), 255];
-            let pair: [u8; 8] = [
-                rgba[0], rgba[1], rgba[2], rgba[3], rgba[0], rgba[1], rgba[2], rgba[3],
-            ];
-            let (wide, tail): (&mut [[u8; 8]], &mut [u8]) = span.as_chunks_mut::<8>();
-            for chunk in wide.iter_mut() {
-                *chunk = pair;
-            }
-            for chunk in tail.as_chunks_mut::<4>().0.iter_mut() {
-                *chunk = rgba;
-            }
+            fill_rgba_span_32(span, [color.get_r(), color.get_g(), color.get_b(), 255]);
             return;
         }
         let sr: u32 = color.get_r() as u32;
@@ -191,8 +171,7 @@ impl Framebuffer {
     pub fn blend_glyph_row(&mut self, dx: u32, dy: u32, coverage: &[u8], color: Color) -> usize {
         let width: u32 = self.get_width();
         let height: u32 = self.get_height();
-        let color_a: u32 = color.get_a() as u32;
-        if color_a == 0 || dy >= height || dx >= width || coverage.is_empty() {
+        if color.get_a() == 0 || dy >= height || dx >= width || coverage.is_empty() {
             return 0;
         }
         let max_len: usize = ((width - dx) as usize).min(coverage.len());
@@ -201,44 +180,7 @@ impl Framebuffer {
         let Some(dst_span) = self.get_mut_pixels().get_mut(start_byte..end_byte) else {
             return 0;
         };
-        let sr: u32 = color.get_r() as u32;
-        let sg: u32 = color.get_g() as u32;
-        let sb: u32 = color.get_b() as u32;
-        let mut shaded: usize = 0;
-        for (px, alpha_byte) in dst_span
-            .as_chunks_mut::<4>()
-            .0
-            .iter_mut()
-            .zip(coverage[..max_len].iter().copied())
-        {
-            if alpha_byte == 0 {
-                continue;
-            }
-            let sa_u32: u32 = if color_a == 255 {
-                alpha_byte as u32
-            } else {
-                let prod: u32 = color_a * (alpha_byte as u32) + 128;
-                (prod + (prod >> 8)) >> 8
-            };
-            if sa_u32 == 255 {
-                px[0] = sr as u8;
-                px[1] = sg as u8;
-                px[2] = sb as u8;
-                px[3] = 255;
-            } else if sa_u32 > 0 {
-                let inv_a: u32 = 255 - sa_u32;
-                let vr: u32 = sr * sa_u32 + (px[0] as u32) * inv_a + 128;
-                let vg: u32 = sg * sa_u32 + (px[1] as u32) * inv_a + 128;
-                let vb: u32 = sb * sa_u32 + (px[2] as u32) * inv_a + 128;
-                let va: u32 = (px[3] as u32) * inv_a + 128;
-                px[0] = ((vr + (vr >> 8)) >> 8) as u8;
-                px[1] = ((vg + (vg >> 8)) >> 8) as u8;
-                px[2] = ((vb + (vb >> 8)) >> 8) as u8;
-                px[3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
-            }
-            shaded += 1;
-        }
-        shaded
+        blend_glyph_row_span(dst_span, &coverage[..max_len], color)
     }
 
     /// Reads the RGBA `Color` at pixel coordinates `(x, y)`.
@@ -410,12 +352,24 @@ impl Framebuffer {
     /// - `Vec<u8>` - Packed BGRA8 pixel buffer.
     #[must_use]
     pub fn to_bgra_bytes(&self) -> Vec<u8> {
-        let mut out: Vec<u8> = Vec::with_capacity(self.get_pixels().len());
-        for chunk in self.get_pixels().as_chunks::<4>().0.iter() {
-            out.push(chunk[2]);
-            out.push(chunk[1]);
-            out.push(chunk[0]);
-            out.push(chunk[3]);
+        let src: &[u8] = self.get_pixels().as_slice();
+        let len: usize = src.len() & !3usize;
+        let mut out: Vec<u8> = vec![0u8; len];
+        let (src_wide, src_tail): (&[[u8; 16]], &[u8]) = src[..len].as_chunks::<16>();
+        let (dst_wide, dst_tail): (&mut [[u8; 16]], &mut [u8]) = out.as_chunks_mut::<16>();
+        for (s, d) in src_wide.iter().zip(dst_wide.iter_mut()) {
+            *d = [
+                s[2], s[1], s[0], s[3], s[6], s[5], s[4], s[7], s[10], s[9], s[8], s[11], s[14],
+                s[13], s[12], s[15],
+            ];
+        }
+        for (s, d) in src_tail
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .zip(dst_tail.as_chunks_mut::<4>().0.iter_mut())
+        {
+            *d = [s[2], s[1], s[0], s[3]];
         }
         out
     }
@@ -432,30 +386,27 @@ impl Framebuffer {
     #[must_use]
     pub fn fnv1a_hash(&self) -> u64 {
         let bytes: &[u8] = self.get_pixels().as_slice();
-        let mut h0: u64 = FNV1A_OFFSET_BASIS;
-        let mut h1: u64 = FNV1A_OFFSET_BASIS ^ 0x9E37_79B9_7F4A_7C15;
-        let mut h2: u64 = FNV1A_OFFSET_BASIS ^ 0xBF58_476D_1CE4_E5B9;
-        let mut h3: u64 = FNV1A_OFFSET_BASIS ^ 0x94D0_49BB_1331_11EB;
-        let (blocks, tail): (&[[u8; 32]], &[u8]) = bytes.as_chunks::<32>();
-        for blk in blocks.iter() {
-            let w0: u64 = u64::from_le_bytes([
-                blk[0], blk[1], blk[2], blk[3], blk[4], blk[5], blk[6], blk[7],
-            ]);
-            let w1: u64 = u64::from_le_bytes([
-                blk[8], blk[9], blk[10], blk[11], blk[12], blk[13], blk[14], blk[15],
-            ]);
-            let w2: u64 = u64::from_le_bytes([
-                blk[16], blk[17], blk[18], blk[19], blk[20], blk[21], blk[22], blk[23],
-            ]);
-            let w3: u64 = u64::from_le_bytes([
-                blk[24], blk[25], blk[26], blk[27], blk[28], blk[29], blk[30], blk[31],
-            ]);
-            h0 = (h0 ^ w0).wrapping_mul(FNV1A_PRIME);
-            h1 = (h1 ^ w1).wrapping_mul(FNV1A_PRIME);
-            h2 = (h2 ^ w2).wrapping_mul(FNV1A_PRIME);
-            h3 = (h3 ^ w3).wrapping_mul(FNV1A_PRIME);
+        let mut lanes: [u64; 4] = [
+            FNV1A_OFFSET_BASIS,
+            FNV1A_OFFSET_BASIS ^ 0x9E37_79B9_7F4A_7C15,
+            FNV1A_OFFSET_BASIS ^ 0xBF58_476D_1CE4_E5B9,
+            FNV1A_OFFSET_BASIS ^ 0x94D0_49BB_1331_11EB,
+        ];
+        let (blocks32, tail): (&[[u8; 32]], &[u8]) = bytes.as_chunks::<32>();
+        let (lines128, rem32): (&[[[u8; 32]; 4]], &[[u8; 32]]) = blocks32.as_chunks::<4>();
+        for line in lines128.iter() {
+            fold_fnv1a_32(&mut lanes, &line[0]);
+            fold_fnv1a_32(&mut lanes, &line[1]);
+            fold_fnv1a_32(&mut lanes, &line[2]);
+            fold_fnv1a_32(&mut lanes, &line[3]);
         }
-        let mut hash: u64 = h0 ^ h1.rotate_left(13) ^ h2.rotate_left(29) ^ h3.rotate_left(47);
+        for blk in rem32.iter() {
+            fold_fnv1a_32(&mut lanes, blk);
+        }
+        let mut hash: u64 = lanes[0]
+            ^ lanes[1].rotate_left(13)
+            ^ lanes[2].rotate_left(29)
+            ^ lanes[3].rotate_left(47);
         hash = hash.wrapping_mul(FNV1A_PRIME);
         for byte in tail.iter().copied() {
             hash ^= byte as u64;
@@ -612,7 +563,117 @@ impl<'a> PixelBand<'a> {
         pixels.get_mut(start..start + stride)
     }
 
-    /// Fills the entire band with solid `color` using 64-bit wide stores.
+    /// Returns two disjoint mutable row slices for global physical rows `y_a < y_b` owned by this band.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable pixel band.
+    /// - `u32` - Upper global physical Y row coordinate (`y_a < y_b`).
+    /// - `u32` - Lower global physical Y row coordinate (`y_b > y_a`).
+    ///
+    /// # Returns
+    ///
+    /// - `Option<(&mut [u8], &mut [u8])>` - Pair of disjoint mutable row slices `(row_a, row_b)`.
+    pub fn two_row_slices_mut(&mut self, y_a: u32, y_b: u32) -> Option<(&mut [u8], &mut [u8])> {
+        let Self {
+            width,
+            y_offset,
+            height,
+            pixels,
+        } = self;
+        let y_end: u32 = *y_offset + *height;
+        if y_a >= y_b || y_a < *y_offset || y_b >= y_end {
+            return None;
+        }
+        let stride: usize = (*width as usize) * 4;
+        let start_a: usize = ((y_a - *y_offset) as usize) * stride;
+        let start_b: usize = ((y_b - *y_offset) as usize) * stride;
+        if start_b + stride > pixels.len() {
+            return None;
+        }
+        let (head, tail): (&mut [u8], &mut [u8]) = pixels.split_at_mut(start_b);
+        Some((&mut head[start_a..start_a + stride], &mut tail[..stride]))
+    }
+
+    /// Returns a contiguous mutable byte slice for global physical rows `[y0, y1)` along with the row byte stride.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable pixel band.
+    /// - `u32` - Inclusive starting global physical Y row.
+    /// - `u32` - Exclusive ending global physical Y row.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<(&mut [u8], usize)>` - Contiguous byte slice covering rows `[y0, y1)` and byte stride `width * 4`.
+    #[inline(always)]
+    pub(crate) fn rows_slice_mut(&mut self, y0: u32, y1: u32) -> Option<(&mut [u8], usize)> {
+        let Self {
+            width,
+            y_offset,
+            height,
+            pixels,
+        } = self;
+        let y_end: u32 = *y_offset + *height;
+        if y0 >= y1 || y0 < *y_offset || y1 > y_end {
+            return None;
+        }
+        let stride: usize = (*width as usize) * 4;
+        let start: usize = ((y0 - *y_offset) as usize) * stride;
+        let end: usize = ((y1 - *y_offset) as usize) * stride;
+        pixels.get_mut(start..end).map(|s: &mut [u8]| (s, stride))
+    }
+
+    /// Fills a pre-clipped opaque rectangle `[x0, x1) x [y0, y1)` using 32-byte wide stores with zero per-row bounds checks.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable pixel band.
+    /// - `u32` - Pre-clipped inclusive start X coordinate.
+    /// - `u32` - Pre-clipped exclusive end X coordinate.
+    /// - `u32` - Pre-clipped inclusive start global Y coordinate.
+    /// - `u32` - Pre-clipped exclusive end global Y coordinate.
+    /// - `[u8; 4]` - Solid opaque RGBA8 pixel bytes.
+    #[inline(always)]
+    pub(crate) fn fill_rect_opaque_preclipped(
+        &mut self,
+        x0: u32,
+        x1: u32,
+        y0: u32,
+        y1: u32,
+        rgba: [u8; 4],
+    ) {
+        let Self {
+            width,
+            y_offset,
+            height,
+            pixels,
+        } = self;
+        let fb_w: u32 = *width;
+        let y_end: u32 = *y_offset + *height;
+        let valid_x: bool = x0 < x1 && x1 <= fb_w;
+        let valid_y: bool = y0 < y1 && y0 >= *y_offset && y1 <= y_end;
+        if !valid_x || !valid_y {
+            return;
+        }
+        let stride: usize = (fb_w as usize) * 4;
+        let start: usize = ((y0 - *y_offset) as usize) * stride;
+        let end: usize = ((y1 - *y_offset) as usize) * stride;
+        let Some(rows_buf) = pixels.get_mut(start..end) else {
+            return;
+        };
+        if x0 == 0 && x1 == fb_w {
+            fill_rgba_span_32(rows_buf, rgba);
+            return;
+        }
+        let bx0: usize = (x0 as usize) * 4;
+        let bx1: usize = (x1 as usize) * 4;
+        for row in rows_buf.chunks_exact_mut(stride) {
+            fill_rgba_span_32(&mut row[bx0..bx1], rgba);
+        }
+    }
+
+    /// Fills the entire band with solid `color` using 32-byte wide auto-vectorized stores.
     ///
     /// # Arguments
     ///
@@ -620,17 +681,7 @@ impl<'a> PixelBand<'a> {
     /// - `Color` - Clear color.
     pub fn clear(&mut self, color: Color) {
         let Self { pixels, .. } = self;
-        let rgba: [u8; 4] = color.to_rgba_bytes();
-        let pair: [u8; 8] = [
-            rgba[0], rgba[1], rgba[2], rgba[3], rgba[0], rgba[1], rgba[2], rgba[3],
-        ];
-        let (wide, tail): (&mut [[u8; 8]], &mut [u8]) = pixels.as_chunks_mut::<8>();
-        for chunk in wide.iter_mut() {
-            *chunk = pair;
-        }
-        for chunk in tail.as_chunks_mut::<4>().0.iter_mut() {
-            *chunk = rgba;
-        }
+        fill_rgba_span_32(pixels, color.to_rgba_bytes());
     }
 
     /// Fills or Porter-Duff blends horizontal span `[x0, x1)` on global row `y`.
@@ -661,17 +712,7 @@ impl<'a> PixelBand<'a> {
             return;
         };
         if sa == 255 {
-            let rgba: [u8; 4] = [color.get_r(), color.get_g(), color.get_b(), 255];
-            let pair: [u8; 8] = [
-                rgba[0], rgba[1], rgba[2], rgba[3], rgba[0], rgba[1], rgba[2], rgba[3],
-            ];
-            let (wide, tail): (&mut [[u8; 8]], &mut [u8]) = span.as_chunks_mut::<8>();
-            for chunk in wide.iter_mut() {
-                *chunk = pair;
-            }
-            for chunk in tail.as_chunks_mut::<4>().0.iter_mut() {
-                *chunk = rgba;
-            }
+            fill_rgba_span_32(span, [color.get_r(), color.get_g(), color.get_b(), 255]);
             return;
         }
         let sr: u32 = color.get_r() as u32;
@@ -726,37 +767,7 @@ impl<'a> PixelBand<'a> {
         let Some(span) = pixels.get_mut(start_byte..end_byte) else {
             return;
         };
-        if end_x - x0 >= 128 {
-            let (lut_r, lut_g, lut_b, lut_a): ([u8; 256], [u8; 256], [u8; 256], [u8; 256]) =
-                build_linear_blend_luts(color);
-            for px in span.as_chunks_mut::<4>().0.iter_mut() {
-                px[0] = lut_r[px[0] as usize];
-                px[1] = lut_g[px[1] as usize];
-                px[2] = lut_b[px[2] as usize];
-                px[3] = lut_a[px[3] as usize];
-            }
-            return;
-        }
-        let a: f32 = (sa as f32) * (1.0 / 255.0);
-        let inv_a: f32 = 1.0 - a;
-        let sr_a: f32 = SRGB_TO_LIN_LUT[color.get_r() as usize] * a;
-        let sg_a: f32 = SRGB_TO_LIN_LUT[color.get_g() as usize] * a;
-        let sb_a: f32 = SRGB_TO_LIN_LUT[color.get_b() as usize] * a;
-        let sa_u32: u32 = sa as u32;
-        let inv_a_u32: u32 = 255 - sa_u32;
-        for px in span.as_chunks_mut::<4>().0.iter_mut() {
-            let dr: f32 = SRGB_TO_LIN_LUT[px[0] as usize];
-            let dg: f32 = SRGB_TO_LIN_LUT[px[1] as usize];
-            let db: f32 = SRGB_TO_LIN_LUT[px[2] as usize];
-            let ir: usize = ((sr_a + dr * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
-            let ig: usize = ((sg_a + dg * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
-            let ib: usize = ((sb_a + db * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
-            let va: u32 = (px[3] as u32) * inv_a_u32 + 128;
-            px[0] = ((LIN_TO_SRGB_Q4_LUT[ir] + 8) >> 4).min(255) as u8;
-            px[1] = ((LIN_TO_SRGB_Q4_LUT[ig] + 8) >> 4).min(255) as u8;
-            px[2] = ((LIN_TO_SRGB_Q4_LUT[ib] + 8) >> 4).min(255) as u8;
-            px[3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
-        }
+        fill_span_linear_slice(span, color);
     }
 
     /// Composites horizontal span `[x0, x1)` on global row `y` using precomputed bit-exact 256-entry linear-light channel LUTs.
@@ -791,13 +802,7 @@ impl<'a> PixelBand<'a> {
         let Some(span) = pixels.get_mut(start_byte..end_byte) else {
             return;
         };
-        let (lut_r, lut_g, lut_b, lut_a): &([u8; 256], [u8; 256], [u8; 256], [u8; 256]) = luts;
-        for px in span.as_chunks_mut::<4>().0.iter_mut() {
-            px[0] = lut_r[px[0] as usize];
-            px[1] = lut_g[px[1] as usize];
-            px[2] = lut_b[px[2] as usize];
-            px[3] = lut_a[px[3] as usize];
-        }
+        fill_span_linear_luts_slice(span, luts);
     }
 
     /// Composites a constant-opacity horizontal shadow span `[x0, x1)` on global row `y` with L1 LUT linear light and IGN dithering.
@@ -838,27 +843,117 @@ impl<'a> PixelBand<'a> {
             return;
         };
         let a: f32 = alpha_f.clamp(0.0, 1.0);
+        let cr: u8 = color.get_r();
+        let cg: u8 = color.get_g();
+        let cb: u8 = color.get_b();
+        let (chunks, _): (&mut [[u8; 4]], &mut [u8]) = span.as_chunks_mut::<4>();
+        if a >= 0.9995 {
+            let opaque: [u8; 4] = [cr, cg, cb, 255];
+            for px in chunks.iter_mut() {
+                *px = opaque;
+            }
+            return;
+        }
+        let Some(first_px) = chunks.first().copied() else {
+            return;
+        };
         let inv_a: f32 = 1.0 - a;
-        let sr_a: f32 = SRGB_TO_LIN_LUT[color.get_r() as usize] * a;
-        let sg_a: f32 = SRGB_TO_LIN_LUT[color.get_g() as usize] * a;
-        let sb_a: f32 = SRGB_TO_LIN_LUT[color.get_b() as usize] * a;
+        let sr_a: f32 = SRGB_TO_LIN_LUT[cr as usize] * a;
+        let sg_a: f32 = SRGB_TO_LIN_LUT[cg as usize] * a;
+        let sb_a: f32 = SRGB_TO_LIN_LUT[cb as usize] * a;
         let sa_u32: u32 = (a * 255.0) as u32;
         let inv_a_u32: u32 = 255 - sa_u32;
-        let y_term: f32 = (y as f32) * 0.005_837_15;
-        for (cur_x, px) in (x0..).zip(span.as_chunks_mut::<4>().0.iter_mut()) {
-            let n: f32 = (52.982_918 * ((cur_x as f32) * 0.067_110_56 + y_term).fract()).fract();
-            let dq: i32 = ((n - 0.5) * 16.0) as i32 + 8;
-            let dr: f32 = SRGB_TO_LIN_LUT[px[0] as usize];
-            let dg: f32 = SRGB_TO_LIN_LUT[px[1] as usize];
-            let db: f32 = SRGB_TO_LIN_LUT[px[2] as usize];
-            let ir: usize = ((sr_a + dr * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
-            let ig: usize = ((sg_a + dg * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
-            let ib: usize = ((sb_a + db * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
-            let va: u32 = (px[3] as u32) * inv_a_u32 + 128;
-            px[0] = (((LIN_TO_SRGB_Q4_LUT[ir] as i32) + dq) >> 4).clamp(0, 255) as u8;
-            px[1] = (((LIN_TO_SRGB_Q4_LUT[ig] as i32) + dq) >> 4).clamp(0, 255) as u8;
-            px[2] = (((LIN_TO_SRGB_Q4_LUT[ib] as i32) + dq) >> 4).clamp(0, 255) as u8;
-            px[3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+        let mut phase_u32: u32 = x0
+            .wrapping_mul(IGN_X_STEP_U32)
+            .wrapping_add(y.wrapping_mul(IGN_Y_STEP_U32));
+        let mut prev_px: [u8; 4] = first_px;
+        let dr0: f32 = SRGB_TO_LIN_LUT[first_px[0] as usize];
+        let dg0: f32 = SRGB_TO_LIN_LUT[first_px[1] as usize];
+        let db0: f32 = SRGB_TO_LIN_LUT[first_px[2] as usize];
+        let ir0: usize = ((sr_a + dr0 * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+        let ig0: usize = ((sg_a + dg0 * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+        let ib0: usize = ((sb_a + db0 * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+        let mut q4_r: u16 = LIN_TO_SRGB_Q4_LUT[ir0];
+        let mut q4_g: u16 = LIN_TO_SRGB_Q4_LUT[ig0];
+        let mut q4_b: u16 = LIN_TO_SRGB_Q4_LUT[ib0];
+        let va0: u32 = (first_px[3] as u32) * inv_a_u32 + 128;
+        let mut out_a: u8 = (sa_u32 + ((va0 + (va0 >> 8)) >> 8)).min(255) as u8;
+        let total_len: usize = chunks.len();
+        let mut miss_count: u32 = 0;
+        let mut split_idx: usize = total_len;
+        for (idx, px) in chunks.iter_mut().enumerate() {
+            if *px != prev_px {
+                miss_count += 1;
+                if miss_count >= 10 && total_len.saturating_sub(idx) >= 64 {
+                    split_idx = idx;
+                    break;
+                }
+                prev_px = *px;
+                let dr: f32 = SRGB_TO_LIN_LUT[px[0] as usize];
+                let dg: f32 = SRGB_TO_LIN_LUT[px[1] as usize];
+                let db: f32 = SRGB_TO_LIN_LUT[px[2] as usize];
+                let ir: usize = ((sr_a + dr * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+                let ig: usize = ((sg_a + dg * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+                let ib: usize = ((sb_a + db * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+                q4_r = LIN_TO_SRGB_Q4_LUT[ir];
+                q4_g = LIN_TO_SRGB_Q4_LUT[ig];
+                q4_b = LIN_TO_SRGB_Q4_LUT[ib];
+                if px[3] == 255 {
+                    out_a = 255;
+                } else {
+                    let va: u32 = (px[3] as u32) * inv_a_u32 + 128;
+                    out_a = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+                }
+            }
+            let dq: u16 = (((phase_u32 as u64).wrapping_mul(IGN_MUL_Q26) >> 54) & 15) as u16;
+            phase_u32 = phase_u32.wrapping_add(IGN_X_STEP_U32);
+            px[0] = ((q4_r + dq) >> 4) as u8;
+            px[1] = ((q4_g + dq) >> 4) as u8;
+            px[2] = ((q4_b + dq) >> 4) as u8;
+            px[3] = out_a;
+        }
+        if split_idx < total_len {
+            let tail: &mut [[u8; 4]] = &mut chunks[split_idx..];
+            let same_rg: bool = cr == cg;
+            let same_rb: bool = cr == cb;
+            let lut_r: [u16; 256] = build_shadow_q4_lut_channel(cr, a);
+            if same_rg && same_rb {
+                for px in tail.iter_mut() {
+                    let dq: u16 =
+                        (((phase_u32 as u64).wrapping_mul(IGN_MUL_Q26) >> 54) & 15) as u16;
+                    phase_u32 = phase_u32.wrapping_add(IGN_X_STEP_U32);
+                    px[0] = ((lut_r[px[0] as usize] + dq) >> 4) as u8;
+                    px[1] = ((lut_r[px[1] as usize] + dq) >> 4) as u8;
+                    px[2] = ((lut_r[px[2] as usize] + dq) >> 4) as u8;
+                    if px[3] != 255 {
+                        let va: u32 = (px[3] as u32) * inv_a_u32 + 128;
+                        px[3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+                    }
+                }
+            } else {
+                let lut_g: [u16; 256] = if same_rg {
+                    lut_r
+                } else {
+                    build_shadow_q4_lut_channel(cg, a)
+                };
+                let lut_b: [u16; 256] = if same_rb {
+                    lut_r
+                } else {
+                    build_shadow_q4_lut_channel(cb, a)
+                };
+                for px in tail.iter_mut() {
+                    let dq: u16 =
+                        (((phase_u32 as u64).wrapping_mul(IGN_MUL_Q26) >> 54) & 15) as u16;
+                    phase_u32 = phase_u32.wrapping_add(IGN_X_STEP_U32);
+                    px[0] = ((lut_r[px[0] as usize] + dq) >> 4) as u8;
+                    px[1] = ((lut_g[px[1] as usize] + dq) >> 4) as u8;
+                    px[2] = ((lut_b[px[2] as usize] + dq) >> 4) as u8;
+                    if px[3] != 255 {
+                        let va: u32 = (px[3] as u32) * inv_a_u32 + 128;
+                        px[3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+                    }
+                }
+            }
         }
     }
 
@@ -876,14 +971,13 @@ impl<'a> PixelBand<'a> {
     ///
     /// - `usize` - Number of non-zero coverage pixels shaded.
     pub fn blend_glyph_row(&mut self, dx: u32, dy: u32, coverage: &[u8], color: Color) -> usize {
-        let color_a: u32 = color.get_a() as u32;
         let Self {
             width,
             y_offset,
             height,
             pixels,
         } = self;
-        if color_a == 0
+        if color.get_a() == 0
             || dy < *y_offset
             || dy >= *y_offset + *height
             || dx >= *width
@@ -898,44 +992,7 @@ impl<'a> PixelBand<'a> {
         let Some(dst_span) = pixels.get_mut(start_byte..end_byte) else {
             return 0;
         };
-        let sr: u32 = color.get_r() as u32;
-        let sg: u32 = color.get_g() as u32;
-        let sb: u32 = color.get_b() as u32;
-        let mut shaded: usize = 0;
-        for (px, alpha_byte) in dst_span
-            .as_chunks_mut::<4>()
-            .0
-            .iter_mut()
-            .zip(coverage[..max_len].iter().copied())
-        {
-            if alpha_byte == 0 {
-                continue;
-            }
-            let sa_u32: u32 = if color_a == 255 {
-                alpha_byte as u32
-            } else {
-                let prod: u32 = color_a * (alpha_byte as u32) + 128;
-                (prod + (prod >> 8)) >> 8
-            };
-            if sa_u32 == 255 {
-                px[0] = sr as u8;
-                px[1] = sg as u8;
-                px[2] = sb as u8;
-                px[3] = 255;
-            } else if sa_u32 > 0 {
-                let inv_a: u32 = 255 - sa_u32;
-                let vr: u32 = sr * sa_u32 + (px[0] as u32) * inv_a + 128;
-                let vg: u32 = sg * sa_u32 + (px[1] as u32) * inv_a + 128;
-                let vb: u32 = sb * sa_u32 + (px[2] as u32) * inv_a + 128;
-                let va: u32 = (px[3] as u32) * inv_a + 128;
-                px[0] = ((vr + (vr >> 8)) >> 8) as u8;
-                px[1] = ((vg + (vg >> 8)) >> 8) as u8;
-                px[2] = ((vb + (vb >> 8)) >> 8) as u8;
-                px[3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
-            }
-            shaded += 1;
-        }
-        shaded
+        blend_glyph_row_span(dst_span, &coverage[..max_len], color)
     }
 
     /// Blends `color` over global pixel `(x, y)` using fast integer Porter-Duff source-over.
@@ -1215,24 +1272,137 @@ impl DamageRegion {
         Self {
             full_damage: true,
             rect: None,
+            rects: [Rect::default(); 8],
+            rect_count: 0,
         }
     }
 
-    /// Expands the damaged region to include `rect`.
+    /// Expands the damaged region to include `rect`, normalizing disjoint regions inline on the stack.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable damage region.
     /// - `Rect` - Newly damaged rectangle.
     pub fn add_rect(&mut self, rect: Rect) {
-        if self.get_full_damage() {
+        let Self {
+            full_damage,
+            rect: bounds,
+            rects,
+            rect_count,
+        } = self;
+        if *full_damage {
             return;
         }
-        let next: Rect = match self.bounds_rect() {
+        let next_bounds: Rect = match *bounds {
             Some(existing) => existing.union(rect),
             None => rect,
         };
-        self.set_rect(Some(next));
+        *bounds = Some(next_bounds);
+        if rect.get_width() <= 0.0 || rect.get_height() <= 0.0 {
+            return;
+        }
+        let mut merged: Rect = rect;
+        let mut count: usize = (*rect_count as usize).min(rects.len());
+        let mut changed: bool = true;
+        while changed {
+            changed = false;
+            let mut i: usize = 0;
+            while i < count {
+                let cur: Rect = rects[i];
+                let touches: bool = merged.get_x() - 2.0 <= cur.right()
+                    && cur.get_x() - 2.0 <= merged.right()
+                    && merged.get_y() - 2.0 <= cur.bottom()
+                    && cur.get_y() - 2.0 <= merged.bottom();
+                if touches {
+                    merged = merged.union(cur);
+                    count -= 1;
+                    let mut j: usize = i;
+                    while j < count {
+                        rects[j] = rects[j + 1];
+                        j += 1;
+                    }
+                    rects[count] = Rect::default();
+                    changed = true;
+                } else {
+                    i += 1;
+                }
+            }
+        }
+        if count < rects.len() {
+            let mut insert_at: usize = count;
+            while insert_at > 0 {
+                let prev: Rect = rects[insert_at - 1];
+                let goes_before: bool = merged.get_y() < prev.get_y()
+                    || (merged.get_y() == prev.get_y() && merged.get_x() < prev.get_x());
+                if goes_before {
+                    rects[insert_at] = prev;
+                    insert_at -= 1;
+                } else {
+                    break;
+                }
+            }
+            rects[insert_at] = merged;
+            *rect_count = (count + 1) as u8;
+        } else {
+            *rects = [Rect::default(); 8];
+            rects[0] = next_bounds;
+            *rect_count = 1;
+        }
+    }
+
+    /// Returns viewport-clamped non-overlapping damage rectangles normalized into a stack array without heap allocation.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Damage region.
+    /// - `u32` - Surface physical width.
+    /// - `u32` - Surface physical height.
+    ///
+    /// # Returns
+    ///
+    /// - `([Rect; 8], usize)` - Stack array of clamped disjoint damage rectangles and active count `0..=8`.
+    #[must_use]
+    pub(crate) fn normalized_rects(&self, width: u32, height: u32) -> ([Rect; 8], usize) {
+        let Self {
+            full_damage,
+            rect: bounds,
+            rects,
+            rect_count,
+        } = *self;
+        let mut out: [Rect; 8] = [Rect::default(); 8];
+        if width == 0 || height == 0 {
+            return (out, 0);
+        }
+        let viewport: Rect = Rect::new(0.0, 0.0, width as f32, height as f32);
+        if full_damage {
+            out[0] = viewport;
+            return (out, 1);
+        }
+        let Some(bound_rect) = bounds else {
+            return (out, 0);
+        };
+        let active: usize = (rect_count as usize).min(out.len());
+        if active == 0 {
+            if let Some(clamped) = bound_rect.intersect(viewport)
+                && clamped.get_width() > 0.0
+                && clamped.get_height() > 0.0
+            {
+                out[0] = clamped;
+                return (out, 1);
+            }
+            return (out, 0);
+        }
+        let mut out_len: usize = 0;
+        for item in rects.iter().take(active) {
+            if let Some(clamped) = item.intersect(viewport)
+                && clamped.get_width() > 0.0
+                && clamped.get_height() > 0.0
+            {
+                out[out_len] = clamped;
+                out_len += 1;
+            }
+        }
+        (out, out_len)
     }
 
     /// Returns the damaged bounding rectangle, or full viewport when `full_damage` is true.
@@ -1275,7 +1445,15 @@ impl DamageRegion {
     ///
     /// - `&Self` - Mutable damage region.
     pub fn clear(&mut self) {
-        self.set_full_damage(false);
-        self.set_rect(None);
+        let Self {
+            full_damage,
+            rect,
+            rects,
+            rect_count,
+        } = self;
+        *full_damage = false;
+        *rect = None;
+        *rects = [Rect::default(); 8];
+        *rect_count = 0;
     }
 }

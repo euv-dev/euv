@@ -15,6 +15,11 @@ pub struct EuvCard {
     /// Pre-mounted child nodes appended inside the card body.
     #[new(skip)]
     pub(crate) children: Vec<NodeId>,
+    /// Whether text inside this card is selectable (`false` by default).
+    #[new(skip)]
+    #[get(type(copy))]
+    #[prop(custom)]
+    pub(crate) selectable: bool,
 }
 
 /// Page header banner component displaying title and subtitle consistently across all pages.

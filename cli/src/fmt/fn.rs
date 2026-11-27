@@ -11,64 +11,129 @@ use super::*;
 /// - `(String, usize)` - Tuple of `(formatted_source, formatted_macro_count)`.
 #[must_use]
 pub fn format_euv_macros_in_source(source: &str) -> (String, usize) {
+    format_euv_macros_if_needed(source).unwrap_or_else(|| (source.to_string(), 0))
+}
+
+/// Formats `euv` macro blocks in `source`, returning `None` with zero whole-file copy when unchanged.
+///
+/// # Arguments
+///
+/// - `&str` - Raw Rust source code.
+///
+/// # Returns
+///
+/// - `Option<(String, usize)>` - `Some((formatted_source, formatted_macro_count))` when modified.
+pub(crate) fn format_euv_macros_if_needed(source: &str) -> Option<(String, usize)> {
+    if !may_contain_euv_macro(source) {
+        return None;
+    }
     let bytes: &[u8] = source.as_bytes();
     let len: usize = bytes.len();
-    let mut out: String = String::with_capacity(len + 64);
+    let mut out: Option<String> = None;
+    let mut copy_start: usize = 0;
+    let mut block_buf: String = String::new();
+    let mut indent_stack: Vec<usize> = Vec::with_capacity(16);
     let mut idx: usize = 0;
     let mut count: usize = 0;
     while idx < len {
-        if let Some(next_idx) = skip_string_or_comment(bytes, idx) {
-            out.push_str(&source[idx..next_idx]);
+        let b: u8 = bytes[idx];
+        if (b == BYTE_SLASH || b == BYTE_DQUOTE || b == BYTE_SQUOTE || b == BYTE_LOWER_R)
+            && let Some(next_idx) = skip_string_or_comment(bytes, idx)
+        {
             idx = next_idx;
             continue;
         }
-        if is_ident_start(bytes[idx]) && (idx == 0 || !is_ident_continue(bytes[idx - 1])) {
+        if is_ident_start(b) && (idx == 0 || !is_ident_continue(bytes[idx - 1])) {
             let ident_start: usize = idx;
             let mut ident_end: usize = idx + 1;
             while ident_end < len && is_ident_continue(bytes[ident_end]) {
                 ident_end += 1;
             }
-            let ident: &str = &source[ident_start..ident_end];
-            if EUV_FMT_MACRO_NAMES.contains(&ident)
-                && ident_end < len
+            let ident_len: usize = ident_end - ident_start;
+            if ident_end < len
                 && bytes[ident_end] == BYTE_BANG
+                && (EUV_FMT_MACRO_MIN_LEN..=EUV_FMT_MACRO_MAX_LEN).contains(&ident_len)
             {
-                let mut probe: usize = ident_end + 1;
-                while probe < len && (bytes[probe] == BYTE_SPACE || bytes[probe] == BYTE_TAB) {
-                    probe += 1;
-                }
-                if probe < len
-                    && bytes[probe] == BYTE_LBRACE
-                    && let Some(close_brace) = find_matching_brace(bytes, probe)
-                {
-                    let inner: &str = &source[(probe + 1)..close_brace];
-                    let base_indent: usize = line_leading_spaces(source, ident_start);
-                    let formatted_block: String = format_macro_brace_body(inner, base_indent);
-                    out.push_str(ident);
-                    out.push_str("! ");
-                    out.push_str(&formatted_block);
-                    if formatted_block != source[probe..=close_brace]
-                        || &source[(ident_end + 1)..probe] != " "
-                    {
-                        count += 1;
+                let ident: &str = &source[ident_start..ident_end];
+                if EUV_FMT_MACRO_NAMES.contains(&ident) {
+                    let mut probe: usize = ident_end + 1;
+                    while probe < len && (bytes[probe] == BYTE_SPACE || bytes[probe] == BYTE_TAB) {
+                        probe += 1;
                     }
-                    idx = close_brace + 1;
-                    continue;
+                    if probe < len
+                        && bytes[probe] == BYTE_LBRACE
+                        && let Some(close_brace) = find_matching_brace(bytes, probe)
+                    {
+                        let inner: &str = &source[(probe + 1)..close_brace];
+                        let base_indent: usize = line_leading_spaces(source, ident_start);
+                        format_macro_brace_body_into(
+                            inner,
+                            base_indent,
+                            &mut block_buf,
+                            &mut indent_stack,
+                        );
+                        if block_buf.as_str() != &source[probe..=close_brace]
+                            || &source[(ident_end + 1)..probe] != " "
+                        {
+                            count += 1;
+                            let buf: &mut String =
+                                out.get_or_insert_with(|| String::with_capacity(len + 64));
+                            buf.push_str(&source[copy_start..ident_start]);
+                            buf.push_str(ident);
+                            buf.push_str("! ");
+                            buf.push_str(&block_buf);
+                            copy_start = close_brace + 1;
+                        }
+                        idx = close_brace + 1;
+                        continue;
+                    }
                 }
             }
-            out.push_str(&source[ident_start..ident_end]);
             idx = ident_end;
             continue;
         }
-        let ch_len: usize = source[idx..]
-            .chars()
-            .next()
-            .map(char::len_utf8)
-            .unwrap_or(1);
-        out.push_str(&source[idx..(idx + ch_len)]);
-        idx += ch_len;
+        idx += 1;
     }
-    (out, count)
+    if let Some(mut buf) = out {
+        buf.push_str(&source[copy_start..]);
+        Some((buf, count))
+    } else {
+        None
+    }
+}
+
+/// Fast zero-allocation pre-scan checking whether `source` contains any candidate `<euv_macro>!` token.
+///
+/// # Arguments
+///
+/// - `&str` - Raw Rust source text.
+///
+/// # Returns
+///
+/// - `bool` - `true` if a supported `euv` macro name immediately precedes `!` anywhere in `source`.
+fn may_contain_euv_macro(source: &str) -> bool {
+    let bytes: &[u8] = source.as_bytes();
+    let len: usize = bytes.len();
+    let mut pos: usize = 0;
+    while pos < len {
+        if bytes[pos] == BYTE_BANG {
+            let mut start: usize = pos;
+            while start > 0 && is_ident_continue(bytes[start - 1]) {
+                start -= 1;
+            }
+            let ident_len: usize = pos - start;
+            if (EUV_FMT_MACRO_MIN_LEN..=EUV_FMT_MACRO_MAX_LEN).contains(&ident_len)
+                && is_ident_start(bytes[start])
+            {
+                let ident: &str = &source[start..pos];
+                if EUV_FMT_MACRO_NAMES.contains(&ident) {
+                    return true;
+                }
+            }
+        }
+        pos += 1;
+    }
+    false
 }
 
 /// Runs `crate-cli`'s unified Prettier-aligned text, derive, and Rust formatting pass before `euv` macro normalization.
@@ -91,6 +156,38 @@ pub fn run_unified_base_fmt(target_root: &Path, check: bool) -> io::Result<Unifi
     runtime.block_on(execute_unified_fmt(target_root, check))
 }
 
+/// Formats a contiguous slice of `.rs` files in order, returning chunk counters and changed paths.
+///
+/// # Arguments
+///
+/// - `&[PathBuf]` - Slice of Rust source file paths to process.
+/// - `bool` - When `true`, verifies formatting without writing modified files back to disk.
+///
+/// # Returns
+///
+/// - `io::Result<FmtChunkSummary>` - Chunk formatting counters and changed paths, or I/O error.
+fn format_rs_file_chunk(chunk: &[PathBuf], check: bool) -> io::Result<FmtChunkSummary> {
+    let mut files_formatted: usize = 0;
+    let mut macros_formatted: usize = 0;
+    let mut changed_files: Vec<String> = Vec::new();
+    for file_path in chunk.iter() {
+        let original: String = fs::read_to_string(file_path)?;
+        if let Some((formatted, macro_hits)) = format_euv_macros_if_needed(&original) {
+            files_formatted += 1;
+            macros_formatted += macro_hits.max(1);
+            changed_files.push(file_path.display().to_string());
+            if !check {
+                fs::write(file_path, formatted)?;
+            }
+        }
+    }
+    Ok(FmtChunkSummary::new(
+        files_formatted,
+        macros_formatted,
+        changed_files,
+    ))
+}
+
 /// Formats all `.rs` files under `root` (or a single `.rs` file) in place or in `--check` mode.
 ///
 /// # Arguments
@@ -105,23 +202,66 @@ pub fn format_workspace_macros(root: &Path, check: bool) -> io::Result<FmtReport
     let mut files: Vec<PathBuf> = Vec::new();
     collect_rs_files(root, &mut files)?;
     files.sort();
-    let mut report: FmtReport = FmtReport::new(files.len(), 0, 0, 0, 0, check, Vec::new());
-    for file_path in files.into_iter() {
-        let original: String = fs::read_to_string(&file_path)?;
-        let (formatted, macro_hits): (String, usize) = format_euv_macros_in_source(&original);
-        if formatted != original {
-            let next_files: usize = report.get_files_formatted() + 1;
-            let next_macros: usize = report.get_macros_formatted() + macro_hits.max(1);
-            report.set_files_formatted(next_files);
-            report.set_macros_formatted(next_macros);
-            report
-                .get_mut_changed_files()
-                .push(file_path.display().to_string());
-            if !check {
-                fs::write(&file_path, formatted)?;
-            }
+    let files_scanned: usize = files.len();
+    let worker_count: usize = if files_scanned >= EUV_FMT_PARALLEL_THRESHOLD {
+        thread::available_parallelism()
+            .map(NonZeroUsize::get)
+            .unwrap_or(1)
+            .clamp(1, EUV_FMT_MAX_WORKERS)
+            .min(files_scanned)
+    } else {
+        1
+    };
+    let summary: FmtChunkSummary = if worker_count <= 1 {
+        format_rs_file_chunk(&files, check)?
+    } else {
+        let chunk_size: usize = files_scanned.div_ceil(worker_count);
+        let chunk_results: Vec<io::Result<FmtChunkSummary>> =
+            thread::scope(|scope: &Scope<'_, '_>| {
+                let mut handles: Vec<ScopedJoinHandle<'_, io::Result<FmtChunkSummary>>> =
+                    Vec::with_capacity(worker_count);
+                for chunk in files.chunks(chunk_size) {
+                    handles.push(scope.spawn(move || format_rs_file_chunk(chunk, check)));
+                }
+                let mut results: Vec<io::Result<FmtChunkSummary>> =
+                    Vec::with_capacity(handles.len());
+                for handle in handles {
+                    match handle.join() {
+                        Ok(res) => results.push(res),
+                        Err(_) => results.push(Err(Error::other(ERR_FMT_WORKER_PANICKED))),
+                    }
+                }
+                results
+            });
+        let mut total_files: usize = 0;
+        let mut total_macros: usize = 0;
+        let mut all_changed: Vec<String> = Vec::new();
+        for res in chunk_results {
+            let FmtChunkSummary {
+                files_formatted,
+                macros_formatted,
+                changed_files,
+            } = res?;
+            total_files += files_formatted;
+            total_macros += macros_formatted;
+            all_changed.extend(changed_files);
         }
-    }
+        FmtChunkSummary::new(total_files, total_macros, all_changed)
+    };
+    let FmtChunkSummary {
+        files_formatted,
+        macros_formatted,
+        changed_files,
+    } = summary;
+    let report: FmtReport = FmtReport::new(
+        files_scanned,
+        files_formatted,
+        macros_formatted,
+        0,
+        0,
+        check,
+        changed_files,
+    );
     if check && report.get_files_formatted() > 0 {
         return Err(Error::other(format!(
             "{ERR_FMT_CHECK_FAILED}: {}",
@@ -154,9 +294,15 @@ fn collect_rs_files(path: &Path, out: &mut Vec<PathBuf>) -> io::Result<()> {
     for entry_res in fs::read_dir(path)? {
         let entry: DirEntry = entry_res?;
         let child: PathBuf = entry.path();
-        if child.is_dir() {
-            let name: String = entry.file_name().to_string_lossy().into_owned();
-            if name.starts_with('.') || EUV_FMT_SKIP_DIRS.contains(&name.as_str()) {
+        let is_dir: bool = match entry.file_type() {
+            Ok(ft) if ft.is_dir() => true,
+            Ok(ft) if ft.is_file() => false,
+            _ => child.is_dir(),
+        };
+        if is_dir {
+            let file_name: OsString = entry.file_name();
+            let name: Cow<'_, str> = file_name.to_string_lossy();
+            if name.starts_with('.') || EUV_FMT_SKIP_DIRS.contains(&name.as_ref()) {
                 continue;
             }
             collect_rs_files(&child, out)?;
@@ -167,27 +313,53 @@ fn collect_rs_files(path: &Path, out: &mut Vec<PathBuf>) -> io::Result<()> {
     Ok(())
 }
 
-/// Formats the contents inside `{ ... }` of an `euv` macro invocation with exact 4-space nested indentation.
+/// Appends `count` ASCII space bytes into `out` via bulk slicing of `INDENT_SPACES_128`.
+///
+/// # Arguments
+///
+/// - `&mut String` - Destination output buffer.
+/// - `usize` - Number of space characters to append.
+fn push_spaces(out: &mut String, mut count: usize) {
+    while count >= INDENT_SPACES_128.len() {
+        out.push_str(INDENT_SPACES_128);
+        count -= INDENT_SPACES_128.len();
+    }
+    if count > 0 {
+        out.push_str(&INDENT_SPACES_128[..count]);
+    }
+}
+
+/// Formats the contents inside `{ ... }` of an `euv` macro invocation into reusable buffer `out`.
 ///
 /// # Arguments
 ///
 /// - `&str` - Raw interior slice between `{` and `}`.
 /// - `usize` - Base indentation in spaces of the macro call line.
-///
-/// # Returns
-///
-/// - `String` - Cleanly formatted `{ ... }` block including outer braces.
-fn format_macro_brace_body(inner: &str, base_indent: usize) -> String {
+/// - `&mut String` - Reusable formatted block output buffer.
+/// - `&mut Vec<usize>` - Reusable delimiter indentation stack.
+fn format_macro_brace_body_into(
+    inner: &str,
+    base_indent: usize,
+    out: &mut String,
+    indent_stack: &mut Vec<usize>,
+) {
+    out.clear();
     if !inner.contains('\n') {
         let trimmed: &str = inner.trim();
         if trimmed.is_empty() {
-            return "{}".to_string();
+            out.push_str("{}");
+        } else {
+            out.reserve(trimmed.len() + 4);
+            out.push_str("{ ");
+            out.push_str(trimmed);
+            out.push_str(" }");
         }
-        return format!("{{ {trimmed} }}");
+        return;
     }
-    let mut out: String = String::with_capacity(inner.len() + 64);
+    out.reserve(inner.len() + 64);
     out.push_str("{\n");
-    let mut indent_stack: Vec<usize> = Vec::new();
+    indent_stack.clear();
+    let mut visual_depth: usize = 1;
     let mut in_block_comment: bool = false;
     let mut raw_hashes: Option<usize> = None;
     for raw_line in inner.lines() {
@@ -201,46 +373,40 @@ fn format_macro_brace_body(inner: &str, base_indent: usize) -> String {
         if trimmed.is_empty() {
             continue;
         }
-        let (events, next_comment, next_raw): (Vec<bool>, bool, Option<usize>) =
-            scan_line_delimiter_events(trimmed, in_block_comment);
+        let (leading_closes, trailing_closes, line_opens, next_comment, next_raw): (
+            usize,
+            usize,
+            usize,
+            bool,
+            Option<usize>,
+        ) = scan_line_delimiter_counts(trimmed, in_block_comment);
         in_block_comment = next_comment;
         raw_hashes = next_raw;
-        let leading_closes: usize = events
-            .iter()
-            .take_while(|is_open: &&bool| !**is_open)
-            .count();
         for _ in 0..leading_closes {
-            let _: Option<usize> = indent_stack.pop();
+            if let Some(delta) = indent_stack.pop() {
+                visual_depth -= delta;
+            }
         }
-        let visual_depth: usize = 1 + indent_stack.iter().copied().sum::<usize>();
         let indent_spaces: usize = base_indent + visual_depth * EUV_FMT_INDENT_SPACES;
-        for _ in 0..indent_spaces {
-            out.push(' ');
-        }
+        push_spaces(out, indent_spaces);
         out.push_str(trimmed);
         out.push('\n');
-        let mut line_opens: usize = 0;
-        for is_open in events.into_iter().skip(leading_closes) {
-            if is_open {
-                line_opens += 1;
-            } else if line_opens > 0 {
-                line_opens -= 1;
-            } else {
-                let _: Option<usize> = indent_stack.pop();
+        for _ in 0..trailing_closes {
+            if let Some(delta) = indent_stack.pop() {
+                visual_depth -= delta;
             }
         }
         for open_idx in 0..line_opens {
-            indent_stack.push(usize::from(open_idx == 0));
+            let delta: usize = usize::from(open_idx == 0);
+            indent_stack.push(delta);
+            visual_depth += delta;
         }
     }
-    for _ in 0..base_indent {
-        out.push(' ');
-    }
+    push_spaces(out, base_indent);
     out.push('}');
-    out
 }
 
-/// Scans a single trimmed line for ordered delimiter events (`true` for `{`/`(`/ `[`, `false` for `}`/`)`/`]`) outside strings and comments.
+/// Scans a single trimmed line into stack-counted delimiter deltas outside strings and comments.
 ///
 /// # Arguments
 ///
@@ -249,15 +415,18 @@ fn format_macro_brace_body(inner: &str, base_indent: usize) -> String {
 ///
 /// # Returns
 ///
-/// - `(Vec<bool>, bool, Option<usize>)` - `(ordered_events, next_in_block_comment, unclosed_raw_string_hashes)`.
-fn scan_line_delimiter_events(
+/// - `(usize, usize, usize, bool, Option<usize>)` - `(leading_closes, trailing_closes, net_opens, next_in_block_comment, unclosed_raw_string_hashes)`.
+fn scan_line_delimiter_counts(
     line: &str,
     mut in_block_comment: bool,
-) -> (Vec<bool>, bool, Option<usize>) {
+) -> (usize, usize, usize, bool, Option<usize>) {
     let bytes: &[u8] = line.as_bytes();
     let len: usize = bytes.len();
     let mut i: usize = 0;
-    let mut events: Vec<bool> = Vec::new();
+    let mut leading_closes: usize = 0;
+    let mut trailing_closes: usize = 0;
+    let mut line_opens: usize = 0;
+    let mut seen_open: bool = false;
     while i < len {
         if in_block_comment {
             if bytes[i] == BYTE_STAR && i + 1 < len && bytes[i + 1] == BYTE_SLASH {
@@ -284,7 +453,15 @@ fn scan_line_delimiter_events(
                     i = next_i;
                     continue;
                 }
-                None => return (events, in_block_comment, Some(hashes)),
+                None => {
+                    return (
+                        leading_closes,
+                        trailing_closes,
+                        line_opens,
+                        in_block_comment,
+                        Some(hashes),
+                    );
+                }
             }
         }
         if bytes[i] == BYTE_DQUOTE {
@@ -309,13 +486,30 @@ fn scan_line_delimiter_events(
             continue;
         }
         match bytes[i] {
-            BYTE_LBRACE | BYTE_LPAREN | BYTE_LBRACKET => events.push(true),
-            BYTE_RBRACE | BYTE_RPAREN | BYTE_RBRACKET => events.push(false),
+            BYTE_LBRACE | BYTE_LPAREN | BYTE_LBRACKET => {
+                seen_open = true;
+                line_opens += 1;
+            }
+            BYTE_RBRACE | BYTE_RPAREN | BYTE_RBRACKET => {
+                if !seen_open {
+                    leading_closes += 1;
+                } else if line_opens > 0 {
+                    line_opens -= 1;
+                } else {
+                    trailing_closes += 1;
+                }
+            }
             _ => {}
         }
         i += 1;
     }
-    (events, in_block_comment, None)
+    (
+        leading_closes,
+        trailing_closes,
+        line_opens,
+        in_block_comment,
+        None,
+    )
 }
 
 /// Checks if a multi-line raw string literal closes on `line`.

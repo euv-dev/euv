@@ -16,3 +16,8 @@ pub const NATIVE_ACTION_IME: &str = "ime";
 pub const NATIVE_ACTION_TOAST: &str = "toast";
 /// Native action kind for requesting graceful OS application termination (e.g. Android `Activity.finish()`).
 pub const NATIVE_ACTION_EXIT: &str = "exit";
+/// Native action kind for reading or writing the host OS system clipboard.
+pub const NATIVE_ACTION_CLIPBOARD: &str = "clipboard";
+
+/// Native clipboard action verb for writing UTF-8 text to the host system clipboard.
+pub(crate) const CLIPBOARD_ACTION_WRITE: &str = "write";

@@ -110,6 +110,10 @@ pub struct WasmParsedFunction {
     pub(crate) extra_locals: usize,
     /// Raw WebAssembly bytecode instructions ending with `0x0B`.
     pub(crate) body: Vec<u8>,
+    /// Precomputed flag set to `true` when `body` contains zero memory instructions and zero function calls.
+    #[new(skip)]
+    #[get(type(copy))]
+    pub(crate) pure_no_memory: bool,
 }
 
 /// Validated in-memory representation of a decoded `.wasm` binary module.
@@ -151,7 +155,7 @@ pub struct WasmExecutionOutput {
     pub(crate) logs: Vec<String>,
 }
 
-/// Verified `.wasm` binary cached locally for instant reload and offline fallback.
+/// Verified `.wasm` binary and parsed module cached locally for instant reload, hot-swap, and offline fallback.
 #[derive(Clone, Data, Debug, Eq, New, PartialEq)]
 pub struct WasmCachedEntry {
     /// Source URL.
@@ -162,8 +166,10 @@ pub struct WasmCachedEntry {
     /// Verified FNV-1a checksum.
     #[get(type(copy))]
     pub(crate) checksum: u64,
-    /// Verified raw `.wasm` binary bytes.
-    pub(crate) bytes: Vec<u8>,
+    /// Shared verified raw `.wasm` binary bytes avoiding per-lookup clones.
+    pub(crate) bytes: Rc<Vec<u8>>,
+    /// Shared validated parsed `.wasm` module skipping re-parsing on hot-swap and rollback.
+    pub(crate) parsed: Rc<WasmParsedModule>,
     /// Server ETag / content identifier.
     pub(crate) etag: String,
 }
@@ -179,8 +185,8 @@ pub struct WasmMountedSnapshot {
     /// Verified checksum.
     #[get(type(copy))]
     pub(crate) checksum: u64,
-    /// Parsed validated `.wasm` module kept ready for live `euv_on_event` callbacks.
-    pub(crate) module: WasmParsedModule,
+    /// Shared parsed validated `.wasm` module kept ready for live `euv_on_event` callbacks.
+    pub(crate) module: Rc<WasmParsedModule>,
     /// Current integer state value passed into `euv_render(state)` / updated by `euv_on_event`.
     #[get(type(copy))]
     pub(crate) state_value: i32,
@@ -269,6 +275,8 @@ pub(crate) struct WasmDynamicManagerState {
     pub(crate) active_request_ids: HashMap<String, u64>,
     /// Verified `.wasm` binary cache keyed by cache key / URL.
     pub(crate) cache: HashMap<String, WasmCachedEntry>,
+    /// Parsed validated module cache keyed by `(url, checksum)` so hot-swaps and rollbacks skip binary parsing.
+    pub(crate) parsed_cache: HashMap<(String, u64), Rc<WasmParsedModule>>,
     /// Mounted revision stacks per partial slot ID.
     pub(crate) partial_stacks: HashMap<String, Vec<WasmMountedSnapshot>>,
     /// Mounted revision stack for global full-app WASM takeovers.
@@ -327,4 +335,23 @@ pub(crate) struct WasmExecContext<'a> {
     pub(crate) max_fuel: u64,
     /// Current recursion call depth.
     pub(crate) depth: usize,
+    /// Exclusive high-water linear memory byte index written during execution for surgical re-zeroing.
+    pub(crate) dirty_end: usize,
+}
+
+/// Reusable thread-local linear memory backing store kept zeroed at rest between WASM invocations.
+#[derive(Debug, Default)]
+pub(crate) struct WasmMemoryPool {
+    /// Contiguous zeroed linear memory bytes reused across `execute_wasm_export` calls.
+    pub(crate) buffer: Vec<u8>,
+}
+
+/// Shared fetched or offline-cached `.wasm` payload bundle avoiding byte-vector copies.
+pub(crate) struct WasmFetchedShare {
+    /// Shared raw `.wasm` binary bytes.
+    pub(crate) bytes: Rc<Vec<u8>>,
+    /// Server ETag / content revision label.
+    pub(crate) etag: String,
+    /// Whether this payload originated from the verified offline cache.
+    pub(crate) from_cache: bool,
 }

@@ -41,6 +41,7 @@ pub(crate) fn expand_component_attr(
     let Some(render_method) = render_fn else {
         return Error::new(self_ty.span(), ERR_COMPONENT_MISSING_RENDER).to_compile_error();
     };
+    let has_lifecycle: bool = !lifecycle_items.is_empty() || args.retention.is_some();
     let retention_override: proc_macro2::TokenStream =
         if !has_retention_fn && let Some(ret_ident) = args.retention {
             quote_spanned! {ret_ident.span()=>
@@ -56,6 +57,21 @@ pub(crate) fn expand_component_attr(
         } else {
             quote! {}
         };
+    let mount_fast_path: proc_macro2::TokenStream = if has_lifecycle {
+        quote! {}
+    } else {
+        quote! {
+        /// Mounts this zero-lifecycle component directly by rendering without observer allocation.
+        ///
+        /// # Returns
+        ///
+        /// - `::euv::NodeId` - Mounted root scene node handle.
+                    #[cfg_attr(not(target_arch = "wasm32"), inline)]
+                    fn mount(self) -> ::euv::NodeId {
+                        <Self as ::euv::Component>::render(&self)
+                    }
+                }
+    };
     let inherent_block: proc_macro2::TokenStream = if other_items.is_empty() {
         quote! {}
     } else {
@@ -78,6 +94,7 @@ pub(crate) fn expand_component_attr(
     /// Implements `impl #impl_generics ::euv::Component for #self_ty #where_clause`.
             impl #impl_generics ::euv::Component for #self_ty #where_clause {
                 #render_method
+                #mount_fast_path
             }
         }
 }

@@ -27,9 +27,10 @@ Core cross-platform native runtime for `euv`: generation-indexed reactive arena,
 
 - `reactive` — `Signal`, `Memo`, `Effect`, `Selector`, `Scope` (with `freeze` / `resume`), `LocalState`, `GlobalState`, and typed `EventBus`
 - `scene` — Flat `SceneTree`, ambient `Context`, `Component` + standalone `Lifecycle`, `NodeTransition`, `TextNodeContent`, and IDE Go-to-Definition `dsl::{view_elements, style_props}`
-- `layout` — Deterministic Flexbox, Grid, Absolute/Fixed positioning, SafeArea insets, hit-testing, and O(1) clean-subtree translation caching
-- `font` — Native OS proportional, monospace, bold, and italic glyph rasterization (CoreText, Android Skia Paint JNI, FreeType, Win32 GDI, Web Canvas2D) paired with `GlyphAtlas`
-- `render` — `DisplayList`, `DrawCommand::TextCaret`, analytical SDF software rasterizer, and Metal / Vulkan / D3D12 / WebGL2 GPU pipelines
+- `layout` — Deterministic Flexbox, Grid, Absolute/Fixed positioning, SafeArea insets, hit-testing, O(1) clean-subtree translation caching, and surgical partial-layout conservative bounds diffing
+- `font` — Native OS proportional, monospace, bold, and italic glyph rasterization (CoreText, Android Skia Paint JNI, FreeType, Win32 GDI, Web Canvas2D) paired with bounded LRU `GlyphAtlas` & `TextLayoutCache`
+- `render` — `DisplayList`, `DrawCommand::TextCaret`, analytical SDF software rasterizer, order-preserving Metal / Vulkan / D3D12 / WebGL2 GPU batching, and incremental ANSI cell-diff `TerminalRenderer` (interactive TUI & static plain-text CLI)
+- `app` & `platform` — Opt-in `FrameTelemetry`, 7-platform `SystemEvent` lifecycle hooks, and 0% CPU / 0% GPU background freeze with lossless foreground restore across Web, Android, iOS, iPadOS, macOS, Windows, and Linux
 - `game` & `media` — 2D physics ECS + 3D BVH ray-traced open-world engine (`FullPathTracedGi`) and pure-Rust Image, SVG, GIF, LIVE Photo, Video, Audio, PDF, and HTML5 decoders
 - `dynamic` — Cryptographically signed component/page OTA bundles and WebAssembly hot-swap runtime
 

@@ -1547,3 +1547,545 @@ fn scroll_transitions_and_fixed_size_text_updates_trigger_zero_layout_recomputat
         assert_eq!(step_layout.get_nodes_computed(), 0);
     }
 }
+
+#[test]
+fn focused_empty_input_caret_precedes_placeholder_without_overlap_across_dpis() {
+    reset_reactive_runtime();
+    let scene: SceneHandle = SceneHandle::new_tree();
+    let caret_color: Color = Color::hex(0xEF4444);
+    let text_color: Color = Color::hex(0x0F172A);
+    let mut inp_state: InputNodeState = InputNodeState::default();
+    inp_state.set_placeholder("Search docs...".to_string());
+    let input_id: NodeId = scene.with_write(
+        |tree: &mut SceneTree| {
+            let root: NodeId = tree.get_root();
+            let id: NodeId = tree.create_node(
+                NodeKind::Input(inp_state),
+                Style::default()
+                    .width(Length::Px(240.0))
+                    .height(Length::Px(38.0))
+                    .padding(Edges::symmetric(8.0, 12.0))
+                    .background(COLOR_WHITE)
+                    .color(text_color)
+                    .font_size(14.0),
+            );
+            tree.append_child(root, id);
+            id
+        },
+        NodeId::default(),
+    );
+    let mut engine: LayoutEngine = LayoutEngine::default();
+    let vp: Size = Size::new(320.0, 120.0);
+    let _: LayoutStats = scene.with_write(
+        |tree: &mut SceneTree| engine.compute(tree, vp),
+        LayoutStats::default(),
+    );
+    let content_rect: Rect = scene.with_read(
+        |tree: &SceneTree| {
+            tree.get_node(input_id)
+                .unwrap()
+                .get_layout_box()
+                .get_content_bounds()
+        },
+        Rect::default(),
+    );
+    let mut dl_unfocused: DisplayList = DisplayList::default();
+    scene.with_read(
+        |tree: &SceneTree| {
+            PaintPass::build(tree, vp, 1.0, COLOR_WHITE, &mut dl_unfocused);
+        },
+        (),
+    );
+    let unfocused_caret: bool = dl_unfocused
+        .get_commands()
+        .iter()
+        .any(|cmd: &DrawCommand| matches!(cmd, DrawCommand::TextCaret { .. }));
+    assert!(!unfocused_caret);
+    let unfocused_run_x: f32 = dl_unfocused
+        .get_commands()
+        .iter()
+        .find_map(|cmd: &DrawCommand| match cmd {
+            DrawCommand::TextRun { rect, text, .. } if text == "Search docs..." => {
+                Some(rect.get_x())
+            }
+            _ => None,
+        })
+        .expect("unfocused placeholder run");
+    assert!((unfocused_run_x - content_rect.get_x()).abs() < 0.01);
+    let _: Vec<(UiEventHandler, UiEvent)> = scene.with_write(
+        |tree: &mut SceneTree| {
+            tree.set_caret_visible(true);
+            tree.update_focus(Some(input_id))
+        },
+        Vec::new(),
+    );
+    let scales: [f32; 3] = [1.0, 2.0, 3.0];
+    for scale in scales.into_iter() {
+        let mut dl: DisplayList = DisplayList::default();
+        scene.with_read(
+            |tree: &SceneTree| {
+                PaintPass::build(tree, vp, scale, COLOR_WHITE, &mut dl);
+            },
+            (),
+        );
+        let mut caret_cmd: Option<(Rect, String)> = None;
+        let mut run_rect_opt: Option<Rect> = None;
+        for cmd in dl.get_commands().iter() {
+            match cmd {
+                DrawCommand::TextCaret {
+                    text_rect, text, ..
+                } => {
+                    caret_cmd = Some((*text_rect, text.clone()));
+                }
+                DrawCommand::TextRun { rect, text, .. } if text == "Search docs..." => {
+                    run_rect_opt = Some(*rect);
+                }
+                _ => {}
+            }
+        }
+        let (caret_text_rect, caret_text): (Rect, String) =
+            caret_cmd.expect("focused empty input must emit TextCaret");
+        let run_rect: Rect = run_rect_opt.expect("focused empty input must emit placeholder");
+        assert!(caret_text.is_empty());
+        assert!((caret_text_rect.get_x() - content_rect.get_x()).abs() < 0.01);
+        assert!(
+            run_rect.get_x() >= caret_text_rect.get_x() + 2.0,
+            "placeholder must clear caret at scale={scale}: run_x={} caret_x={}",
+            run_rect.get_x(),
+            caret_text_rect.get_x()
+        );
+        let mut color_dl: DisplayList = DisplayList::default();
+        color_dl.set_viewport(vp);
+        color_dl.set_scale_factor(scale);
+        color_dl.push(DrawCommand::Clear(COLOR_WHITE));
+        for cmd in dl.get_commands().iter() {
+            match cmd {
+                DrawCommand::TextCaret {
+                    text_rect,
+                    content_rect,
+                    text,
+                    style,
+                    caret_height,
+                    multiline,
+                    ..
+                } => {
+                    color_dl.push(DrawCommand::TextCaret {
+                        text_rect: *text_rect,
+                        content_rect: *content_rect,
+                        text: text.clone(),
+                        style: *style,
+                        caret_height: *caret_height,
+                        color: caret_color,
+                        multiline: *multiline,
+                    });
+                }
+                other => {
+                    color_dl.push(other.clone());
+                }
+            }
+        }
+        let pw: u32 = (vp.get_width() * scale).round() as u32;
+        let ph: u32 = (vp.get_height() * scale).round() as u32;
+        let mut sw: SoftwareRenderer =
+            SoftwareRenderer::with_config(pw, ph, RenderConfig::software());
+        let _: (usize, usize) = sw.render(&color_dl, DamageRegion::full());
+        let fb: &Framebuffer = sw.get_framebuffer();
+        let mut caret_min_x: u32 = u32::MAX;
+        let mut caret_max_x: u32 = 0;
+        let mut glyph_min_x: u32 = u32::MAX;
+        for py in 0..ph {
+            for px in 0..pw {
+                let c: Color = fb.get_pixel(px, py).unwrap_or(COLOR_WHITE);
+                if c.get_r() > 210 && c.get_g() < 120 && c.get_b() < 120 {
+                    caret_min_x = caret_min_x.min(px);
+                    caret_max_x = caret_max_x.max(px);
+                } else if c != COLOR_WHITE && c.get_r() < 235 && c.get_g() < 235 && c.get_b() < 235
+                {
+                    glyph_min_x = glyph_min_x.min(px);
+                }
+            }
+        }
+        assert!(
+            caret_min_x <= caret_max_x,
+            "caret pixels missing at scale={scale}"
+        );
+        assert!(
+            glyph_min_x < u32::MAX,
+            "placeholder pixels missing at scale={scale}"
+        );
+        let expected_caret_x: u32 = (content_rect.get_x() * scale).round() as u32;
+        assert!(
+            caret_min_x.abs_diff(expected_caret_x) <= 1,
+            "caret must sit at content_x at scale={scale}: caret_min_x={caret_min_x} expected={expected_caret_x}"
+        );
+        assert!(
+            caret_max_x < glyph_min_x,
+            "caret overlapped placeholder at scale={scale}: caret_max_x={caret_max_x} glyph_min_x={glyph_min_x}"
+        );
+    }
+    scene.with_write(
+        |tree: &mut SceneTree| {
+            if let Some(node) = tree.get_node_mut(input_id)
+                && let NodeKind::Input(st) = node.get_mut_kind()
+            {
+                st.set_value("Hi".to_string());
+            }
+        },
+        (),
+    );
+    let mut dl_non_empty: DisplayList = DisplayList::default();
+    scene.with_read(
+        |tree: &SceneTree| {
+            PaintPass::build(tree, vp, 2.0, COLOR_WHITE, &mut dl_non_empty);
+        },
+        (),
+    );
+    let mut val_run_x: Option<f32> = None;
+    let mut val_caret_text: Option<String> = None;
+    for cmd in dl_non_empty.get_commands().iter() {
+        match cmd {
+            DrawCommand::TextRun { rect, text, .. } if text == "Hi" => {
+                val_run_x = Some(rect.get_x());
+            }
+            DrawCommand::TextCaret { text, .. } => {
+                val_caret_text = Some(text.clone());
+            }
+            _ => {}
+        }
+    }
+    assert!((val_run_x.expect("value run") - content_rect.get_x()).abs() < 0.01);
+    assert_eq!(val_caret_text.as_deref(), Some("Hi"));
+}
+
+#[test]
+fn selectable_text_drag_double_triple_click_highlight_and_clipboard_copy() {
+    reset_reactive_runtime();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(480, 300).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let sel_tint: Color = Color::rgba(37, 99, 235, 96);
+    let (locked_txt, sel_txt, opt_out_txt): (NodeId, NodeId, NodeId) = app.get_scene().with_write(
+        |tree: &mut SceneTree| {
+            let root: NodeId = tree.get_root();
+            let col: NodeId = tree.create_view(
+                Style::default()
+                    .column()
+                    .width(Length::Px(440.0))
+                    .padding(Edges::all(16.0))
+                    .gap(12.0),
+            );
+            let locked: NodeId = tree.create_text(
+                "Locked label".to_string(),
+                Style::default().font_size(14.0).color(COLOR_BLACK),
+            );
+            let sel_box: NodeId = tree.create_view(
+                Style::default()
+                    .column()
+                    .gap(8.0)
+                    .selectable(true)
+                    .selection_color(sel_tint),
+            );
+            let sel: NodeId = tree.create_text(
+                "Hello Rust World".to_string(),
+                Style::default().font_size(14.0).color(COLOR_BLACK),
+            );
+            let opt_out: NodeId = tree.create_text(
+                "OptOut Label".to_string(),
+                Style::default()
+                    .font_size(14.0)
+                    .color(COLOR_BLACK)
+                    .selectable(false),
+            );
+            tree.append_child(sel_box, sel);
+            tree.append_child(sel_box, opt_out);
+            tree.append_child(col, locked);
+            tree.append_child(col, sel_box);
+            tree.replace_children(root, vec![col]);
+            (locked, sel, opt_out)
+        },
+        (NodeId::default(), NodeId::default(), NodeId::default()),
+    );
+    let _: FrameStats = app.step_frame().unwrap();
+    let (locked_ok, sel_ok, opt_out_ok): (bool, bool, bool) = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            (
+                tree.is_node_selectable(locked_txt),
+                tree.is_node_selectable(sel_txt),
+                tree.is_node_selectable(opt_out_txt),
+            )
+        },
+        (true, false, true),
+    );
+    assert!(!locked_ok);
+    assert!(sel_ok);
+    assert!(!opt_out_ok);
+    let wid: WindowId = app.get_window_state().get_id();
+    let locked_bounds: Rect = app.get_scene().node_screen_bounds(locked_txt).unwrap();
+    let sel_bounds: Rect = app.get_scene().node_screen_bounds(sel_txt).unwrap();
+    let opt_bounds: Rect = app.get_scene().node_screen_bounds(opt_out_txt).unwrap();
+    let no_mods: Modifiers = Modifiers::default();
+    let locked_y: f32 = locked_bounds.get_y() + locked_bounds.get_height() * 0.5;
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::new(
+            1,
+            PointerDevice::Mouse,
+            Point::new(locked_bounds.get_x() + 2.0, locked_y),
+            PointerButton::Primary,
+            1.0,
+            no_mods,
+        ),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::new(
+            1,
+            PointerDevice::Mouse,
+            Point::new(locked_bounds.right() - 2.0, locked_y),
+            PointerButton::Primary,
+            1.0,
+            no_mods,
+        ),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::new(
+            1,
+            PointerDevice::Mouse,
+            Point::new(locked_bounds.right() - 2.0, locked_y),
+            PointerButton::Primary,
+            0.0,
+            no_mods,
+        ),
+    ));
+    assert_eq!(app.get_scene().get_selected_text(), None);
+    let opt_y: f32 = opt_bounds.get_y() + opt_bounds.get_height() * 0.5;
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::new(
+            1,
+            PointerDevice::Mouse,
+            Point::new(opt_bounds.get_x() + 2.0, opt_y),
+            PointerButton::Primary,
+            1.0,
+            no_mods,
+        ),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::new(
+            1,
+            PointerDevice::Mouse,
+            Point::new(opt_bounds.right() - 2.0, opt_y),
+            PointerButton::Primary,
+            1.0,
+            no_mods,
+        ),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::new(
+            1,
+            PointerDevice::Mouse,
+            Point::new(opt_bounds.right() - 2.0, opt_y),
+            PointerButton::Primary,
+            0.0,
+            no_mods,
+        ),
+    ));
+    assert_eq!(app.get_scene().get_selected_text(), None);
+    let sel_y: f32 = sel_bounds.get_y() + sel_bounds.get_height() * 0.5;
+    let mut ts14: TextStyle = TextStyle::default();
+    ts14.set_font_size(14.0);
+    let prefix_w: f32 = DeterministicTextMeasurer
+        .measure("Hello Ru", ts14, None)
+        .get_size()
+        .get_width();
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::new(
+            1,
+            PointerDevice::Mouse,
+            Point::new(sel_bounds.get_x() + 8.0, sel_y),
+            PointerButton::Primary,
+            0.0,
+            no_mods,
+        ),
+    ));
+    assert_eq!(app.get_last_cursor(), CursorIcon::Text);
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::new(
+            1,
+            PointerDevice::Mouse,
+            Point::new(sel_bounds.get_x(), sel_y),
+            PointerButton::Primary,
+            1.0,
+            no_mods,
+        ),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::new(
+            1,
+            PointerDevice::Mouse,
+            Point::new(sel_bounds.get_x() + prefix_w, sel_y),
+            PointerButton::Primary,
+            1.0,
+            no_mods,
+        ),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::new(
+            1,
+            PointerDevice::Mouse,
+            Point::new(sel_bounds.get_x() + prefix_w, sel_y),
+            PointerButton::Primary,
+            0.0,
+            no_mods,
+        ),
+    ));
+    let dragged: String = app
+        .get_scene()
+        .get_selected_text()
+        .expect("drag must select substring");
+    assert!(!dragged.is_empty());
+    assert!(dragged.len() < "Hello Rust World".len());
+    assert!("Hello Rust World".starts_with(dragged.as_str()));
+    let mut dl: DisplayList = DisplayList::default();
+    app.get_scene().with_read(
+        |tree: &SceneTree| {
+            PaintPass::build(tree, Size::new(480.0, 300.0), 1.0, COLOR_WHITE, &mut dl);
+        },
+        (),
+    );
+    let mut highlight_idx: Option<usize> = None;
+    let mut text_run_idx: Option<usize> = None;
+    for (idx, cmd) in dl.get_commands().iter().enumerate() {
+        match cmd {
+            DrawCommand::FillRoundedRect { color, .. } if *color == sel_tint => {
+                highlight_idx = Some(idx);
+            }
+            DrawCommand::TextRun { text, .. } if text == "Hello Rust World" => {
+                text_run_idx = Some(idx);
+            }
+            _ => {}
+        }
+    }
+    let h_idx: usize = highlight_idx.expect("selection highlight rect must be emitted");
+    let t_idx: usize = text_run_idx.expect("selected TextRun must be emitted");
+    assert!(h_idx < t_idx);
+    app.dispatch_window_event(WindowEvent::KeyDown(
+        wid,
+        KeyEvent::new(
+            KeyCode::Character('c'),
+            Modifiers::new(false, false, false, true),
+            false,
+        ),
+    ));
+    assert_eq!(app.read_clipboard().as_deref(), Some(dragged.as_str()));
+    let rust_x: f32 = sel_bounds.get_x() + prefix_w;
+    let rust_pt: Point = Point::new(rust_x, sel_y);
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::new(
+            1,
+            PointerDevice::Mouse,
+            rust_pt,
+            PointerButton::Primary,
+            1.0,
+            no_mods,
+        ),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::new(
+            1,
+            PointerDevice::Mouse,
+            rust_pt,
+            PointerButton::Primary,
+            0.0,
+            no_mods,
+        ),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::new(
+            1,
+            PointerDevice::Mouse,
+            rust_pt,
+            PointerButton::Primary,
+            1.0,
+            no_mods,
+        ),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::new(
+            1,
+            PointerDevice::Mouse,
+            rust_pt,
+            PointerButton::Primary,
+            0.0,
+            no_mods,
+        ),
+    ));
+    assert_eq!(app.get_scene().get_selected_text().as_deref(), Some("Rust"));
+    app.dispatch_window_event(WindowEvent::KeyDown(
+        wid,
+        KeyEvent::new(
+            KeyCode::Character('c'),
+            Modifiers::new(false, true, false, false),
+            false,
+        ),
+    ));
+    assert_eq!(app.read_clipboard().as_deref(), Some("Rust"));
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::new(
+            1,
+            PointerDevice::Mouse,
+            rust_pt,
+            PointerButton::Primary,
+            1.0,
+            no_mods,
+        ),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::new(
+            1,
+            PointerDevice::Mouse,
+            rust_pt,
+            PointerButton::Primary,
+            0.0,
+            no_mods,
+        ),
+    ));
+    assert_eq!(
+        app.get_scene().get_selected_text().as_deref(),
+        Some("Hello Rust World")
+    );
+    app.dispatch_window_event(WindowEvent::KeyDown(
+        wid,
+        KeyEvent::new(KeyCode::Escape, no_mods, false),
+    ));
+    assert_eq!(app.get_scene().get_selected_text(), None);
+    app.dispatch_window_event(WindowEvent::KeyDown(
+        wid,
+        KeyEvent::new(
+            KeyCode::Character('a'),
+            Modifiers::new(false, false, false, true),
+            false,
+        ),
+    ));
+    assert_eq!(
+        app.get_scene().get_selected_text().as_deref(),
+        Some("Hello Rust World")
+    );
+    assert_eq!(app.copy_selection().as_deref(), Some("Hello Rust World"));
+    assert_eq!(app.read_clipboard().as_deref(), Some("Hello Rust World"));
+}

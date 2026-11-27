@@ -39,7 +39,11 @@ pub(crate) const CT_FONT_TRAIT_ITALIC: u32 = 1 << 0;
 pub(crate) const CT_FONT_TRAIT_BOLD: u32 = 1 << 1;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub(crate) const CT_FONT_ORIENTATION_DEFAULT: u32 = 0;
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+pub(crate) const CORETEXT_FONT_CACHE_MAX: usize = 64;
 
+#[cfg(target_os = "windows")]
+pub(crate) const WIN32_FONT_CACHE_MAX: usize = 64;
 #[cfg(target_os = "windows")]
 pub(crate) const WIN_GGO_GRAY8_BITMAP: u32 = 6;
 #[cfg(target_os = "windows")]

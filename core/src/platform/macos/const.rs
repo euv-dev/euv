@@ -16,6 +16,51 @@ pub(crate) const OBJC_CLS_CA_METAL_LAYER: &str = "CAMetalLayer\0";
 /// Objective-C class name for `NSCursor`.
 pub(crate) const OBJC_CLS_NS_CURSOR: &str = "NSCursor\0";
 
+/// Objective-C class name for `NSPasteboard`.
+pub(crate) const OBJC_CLS_NS_PASTEBOARD: &str = "NSPasteboard\0";
+
+/// Objective-C class name for `NSProcessInfo`.
+pub(crate) const OBJC_CLS_NS_PROCESS_INFO: &str = "NSProcessInfo\0";
+
+/// Objective-C class name for `NSDate`.
+pub(crate) const OBJC_CLS_NS_DATE: &str = "NSDate\0";
+
+/// Objective-C selector for `distantFuture` on `NSDate`.
+pub(crate) const OBJC_SEL_DISTANT_FUTURE: &str = "distantFuture\0";
+
+/// Objective-C selector for `isHidden` on `NSApplication`.
+pub(crate) const OBJC_SEL_IS_HIDDEN: &str = "isHidden\0";
+
+/// Objective-C selector for `processInfo` on `NSProcessInfo`.
+pub(crate) const OBJC_SEL_PROCESS_INFO: &str = "processInfo\0";
+
+/// Objective-C selector for `isLowPowerModeEnabled` on `NSProcessInfo`.
+pub(crate) const OBJC_SEL_IS_LOW_POWER_MODE: &str = "isLowPowerModeEnabled\0";
+
+/// Objective-C selector for `isActive` on `NSApplication`.
+pub(crate) const OBJC_SEL_IS_ACTIVE: &str = "isActive\0";
+
+/// Objective-C selector for `isKeyWindow` on `NSWindow`.
+pub(crate) const OBJC_SEL_IS_KEY_WINDOW: &str = "isKeyWindow\0";
+
+/// Objective-C selector for `isMiniaturized` on `NSWindow`.
+pub(crate) const OBJC_SEL_IS_MINIATURIZED: &str = "isMiniaturized\0";
+
+/// Objective-C selector for `changeCount` on `NSPasteboard`.
+pub(crate) const OBJC_SEL_CHANGE_COUNT: &str = "changeCount\0";
+
+/// Objective-C selector for `generalPasteboard` on `NSPasteboard`.
+pub(crate) const OBJC_SEL_GENERAL_PASTEBOARD: &str = "generalPasteboard\0";
+
+/// Objective-C selector for `clearContents` on `NSPasteboard`.
+pub(crate) const OBJC_SEL_CLEAR_CONTENTS: &str = "clearContents\0";
+
+/// Objective-C selector for `setString:forType:` on `NSPasteboard`.
+pub(crate) const OBJC_SEL_SET_STRING_FOR_TYPE: &str = "setString:forType:\0";
+
+/// UTI string identifier for UTF-8 plain text on macOS `NSPasteboard`.
+pub(crate) const MACOS_PASTEBOARD_TYPE_UTF8: &str = "public.utf8-plain-text";
+
 /// Objective-C selector for `arrowCursor`.
 pub(crate) const OBJC_SEL_ARROW_CURSOR: &str = "arrowCursor\0";
 

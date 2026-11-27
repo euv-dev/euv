@@ -4,7 +4,7 @@ use super::*;
 #[cfg(not(target_arch = "wasm32"))]
 /// Inherent implementation of [`Engine3dWorkerPool`].
 impl Engine3dWorkerPool {
-    /// Creates a warm persistent worker pool sized to host CPU cores (`1..=8` total threads including caller).
+    /// Creates a warm persistent worker pool sized to host CPU cores (`1..=16` total threads including caller) with lock-free spin-before-park dispatch.
     ///
     /// # Returns
     ///
@@ -14,52 +14,93 @@ impl Engine3dWorkerPool {
         let total: usize = available_parallelism()
             .map(usize::from)
             .unwrap_or(4)
-            .clamp(1, 8);
-        let worker_count: usize = total.saturating_sub(1);
-        let shared: Arc<(Mutex<Engine3dPoolState>, Condvar, Condvar)> = Arc::new((
-            Mutex::new(Engine3dPoolState::default()),
-            Condvar::new(),
-            Condvar::new(),
-        ));
-        for idx in 0..worker_count {
-            let shared_clone: Arc<(Mutex<Engine3dPoolState>, Condvar, Condvar)> =
-                Arc::clone(&shared);
+            .clamp(1, ENGINE3D_WORKER_MAX_THREADS);
+        let requested_workers: usize = total.saturating_sub(1);
+        let mut slots: Vec<Engine3dWorkerSlot> = Vec::with_capacity(requested_workers);
+        for _ in 0..requested_workers {
+            slots.push(Engine3dWorkerSlot::default());
+        }
+        let shared: Arc<Engine3dPoolShared> = Arc::new(Engine3dPoolShared {
+            active_job: AtomicUsize::new(0),
+            active_workers: AtomicUsize::new(0),
+            caller_parked: AtomicUsize::new(0),
+            caller_lock: Mutex::new(()),
+            wake_caller: Condvar::new(),
+            slots,
+        });
+        let mut spawned_count: usize = 0;
+        for idx in 0..requested_workers {
+            let shared_clone: Arc<Engine3dPoolShared> = Arc::clone(&shared);
             let name: String = format!("{ENGINE3D_WORKER_PREFIX}-{idx}");
-            let _: io::Result<JoinHandle<()>> = Builder::new().name(name).spawn(move || {
-                let mut seen_epoch: u64 = 0;
-                loop {
-                    let job_ptr: usize = {
-                        let (lock, wake_workers, _): &(Mutex<Engine3dPoolState>, Condvar, Condvar) =
-                            &shared_clone;
-                        let Ok(mut state) = lock.lock() else {
-                            break;
-                        };
-                        while state.get_epoch() == seen_epoch || state.get_active_job() == 0 {
-                            let Ok(next_guard) = wake_workers.wait(state) else {
+            let spawn_res: io::Result<JoinHandle<()>> =
+                Builder::new().name(name).spawn(move || {
+                    let slot: &Engine3dWorkerSlot = &shared_clone.slots[idx];
+                    let mut seen_epoch: usize = 0;
+                    loop {
+                        let mut spins: u32 = 0;
+                        let job_ptr: usize = loop {
+                            let cur_epoch: usize = slot.epoch.load(Ordering::Acquire);
+                            if cur_epoch != seen_epoch {
+                                let ptr: usize = shared_clone.active_job.load(Ordering::Acquire);
+                                if ptr != 0 {
+                                    seen_epoch = cur_epoch;
+                                    break ptr;
+                                }
+                            }
+                            if spins < ENGINE3D_WORKER_SPIN_LIMIT {
+                                spins += 1;
+                                spin_loop();
+                                continue;
+                            }
+                            let Ok(mut guard) = slot.lock.lock() else {
                                 return;
                             };
-                            state = next_guard;
+                            slot.parked.store(1, Ordering::SeqCst);
+                            let parked_ptr: Option<usize> = loop {
+                                let locked_epoch: usize = slot.epoch.load(Ordering::SeqCst);
+                                if locked_epoch != seen_epoch {
+                                    let ptr: usize =
+                                        shared_clone.active_job.load(Ordering::Acquire);
+                                    if ptr != 0 {
+                                        seen_epoch = locked_epoch;
+                                        break Some(ptr);
+                                    }
+                                }
+                                let Ok(next_guard) = slot.wake.wait(guard) else {
+                                    break None;
+                                };
+                                guard = next_guard;
+                            };
+                            slot.parked.store(0, Ordering::SeqCst);
+                            let Some(ptr) = parked_ptr else {
+                                return;
+                            };
+                            break ptr;
+                        };
+                        // SAFETY: Caller keeps `Engine3dJob` pinned on its stack until `workers_done >= active_workers`.
+                        let job: &Engine3dJob = unsafe { &*(job_ptr as *const Engine3dJob) };
+                        run_engine3d_job_loop(job);
+                        let expected: usize = shared_clone.active_workers.load(Ordering::Acquire);
+                        let finished: usize = job.workers_done.fetch_add(1, Ordering::SeqCst) + 1;
+                        if finished >= expected
+                            && shared_clone.caller_parked.load(Ordering::SeqCst) != 0
+                        {
+                            let _guard: Result<
+                                MutexGuard<'_, ()>,
+                                PoisonError<MutexGuard<'_, ()>>,
+                            > = shared_clone.caller_lock.lock();
+                            shared_clone.wake_caller.notify_one();
                         }
-                        seen_epoch = state.get_epoch();
-                        state.get_active_job()
-                    };
-                    let job: &Engine3dJob = unsafe { &*(job_ptr as *const Engine3dJob) };
-                    run_engine3d_job_loop(job);
-                    let finished: usize = job.workers_done.fetch_add(1, Ordering::AcqRel) + 1;
-                    if finished >= worker_count {
-                        let (lock, _, wake_caller): &(Mutex<Engine3dPoolState>, Condvar, Condvar) =
-                            &shared_clone;
-                        let _guard: Result<
-                            MutexGuard<'_, Engine3dPoolState>,
-                            PoisonError<MutexGuard<'_, Engine3dPoolState>>,
-                        > = lock.lock();
-                        wake_caller.notify_one();
                     }
-                }
-            });
+                });
+            if spawn_res.is_ok() {
+                spawned_count += 1;
+            } else {
+                break;
+            }
         }
         Self {
-            worker_count,
+            worker_count: spawned_count,
             dispatch_lock: Mutex::new(()),
             shared,
         }
@@ -160,15 +201,12 @@ impl Renderer3D {
         col
     }
 
-    /// Evaluates a band of coarse deferred RT probes `[gy_start..gy_end)` with soft shadows, multi-bounce reflections, and Lumen GI.
+    /// Evaluates a band of coarse deferred RT probes `[gy_start..gy_end)` with precomputed soft-shadow and Lumen GI/AO ray tables.
     ///
     /// # Arguments
     ///
     /// - `&DeferredFrameCtx` - Shared per-frame camera and RT parameters.
-    /// - `&[f32]` - Linear `1/w` depth buffer.
-    /// - `&[u32]` - G-Buffer triangle index buffer.
-    /// - `&[GShadeTri]` - Per-triangle shading records.
-    /// - `&Bvh3D` - Scene SAH BVH.
+    /// - `ProbeTraceInputs<'_>` - Read-only depth, G-Buffer IDs, shading records, precomputed GI rays, and SAH BVH.
     /// - `(usize, &mut [RtProbeSample])` - `(gy_start, mutable probe band slice)`.
     ///
     /// # Returns
@@ -176,32 +214,17 @@ impl Renderer3D {
     /// - `usize` - Total BVH rays traced within this band.
     fn trace_probe_band(
         fctx: &DeferredFrameCtx,
-        depth_buf: &[f32],
-        g_tri_idx: &[u32],
-        shaded_tris: &[GShadeTri],
-        bvh: &Bvh3D,
+        inputs: ProbeTraceInputs<'_>,
         band: (usize, &mut [RtProbeSample]),
     ) -> usize {
+        let (depth_buf, g_tri_idx, shaded_tris, gi_rays, bvh): ProbeTraceInputs<'_> = inputs;
         let (gy_start, out_probes): (usize, &mut [RtProbeSample]) = band;
         let gw: usize = fctx.gw;
         let step: usize = fctx.rt_step;
         let half_step: usize = step / 2;
         let sun_dir: Vec3 = fctx.sun.get_direction();
         let inv_sun: Vec3 = fctx.inv_sun_dir;
-        let sun_t1: Vec3 = sun_dir.cross(Vec3::new(0.0, 1.0, 0.0)).normalize();
-        let sun_t2: Vec3 = sun_dir.cross(sun_t1).normalize();
-        let soft_offsets: [(f32, f32); 4] = [
-            (0.016, 0.012),
-            (-0.014, 0.016),
-            (0.012, -0.016),
-            (-0.016, -0.012),
-        ];
-        let gi_jitter: [Vec3; 4] = [
-            Vec3::new(0.38, 0.52, -0.24),
-            Vec3::new(-0.34, 0.56, 0.28),
-            Vec3::new(0.24, 0.48, 0.36),
-            Vec3::new(-0.28, 0.50, -0.34),
-        ];
+        let soft_rays: [(Vec3, Vec3); 4] = fctx.soft_shadow_rays;
         let use_soft_shadows: bool = fctx.rt_mode == RayTracingMode::FullPathTracedGi;
         let multi_bounce_refl: bool = fctx.reflection_bounces >= 2;
         let mut rays: usize = 0;
@@ -222,7 +245,8 @@ impl Renderer3D {
                 }
                 let inv_w: f32 = depth_buf[pix_idx];
                 let depth: f32 = 1.0 / inv_w.max(1e-6);
-                let tri: &GShadeTri = &shaded_tris[tid as usize];
+                let tri_idx: usize = tid as usize;
+                let tri: &GShadeTri = &shaded_tris[tri_idx];
                 let (world_p, ray_vec): (Vec3, Vec3) = Self::pixel_world_pos(fctx, px, py, depth);
                 let origin: Vec3 = world_p.add(tri.shade_n.scale(0.08));
                 let pattern: usize = (gx & 1) | ((gy & 1) << 1);
@@ -230,12 +254,7 @@ impl Renderer3D {
                 if tri.n_dot_l > 0.02 {
                     rays += 1;
                     let (s_dir, s_inv): (Vec3, Vec3) = if use_soft_shadows {
-                        let (ox, oy): (f32, f32) = soft_offsets[pattern];
-                        let jittered: Vec3 = sun_dir
-                            .add(sun_t1.scale(ox))
-                            .add(sun_t2.scale(oy))
-                            .normalize();
-                        (jittered, Ray3D::safe_inv_vec(jittered))
+                        soft_rays[pattern]
                     } else {
                         (sun_dir, inv_sun)
                     };
@@ -302,12 +321,7 @@ impl Renderer3D {
                         gi_col = fctx.sun.get_sky_horizon().scale(0.18);
                         ao = 0.88;
                     } else {
-                        let mut jit: Vec3 = gi_jitter[pattern];
-                        if tri.shade_n.dot(jit) < -0.15 {
-                            jit = jit.scale(-1.0);
-                        }
-                        let gi_dir: Vec3 = tri.shade_n.add(jit).normalize();
-                        let inv_gi: Vec3 = Ray3D::safe_inv_vec(gi_dir);
+                        let (gi_dir, inv_gi): (Vec3, Vec3) = gi_rays[tri_idx][pattern];
                         rays += 1;
                         match bvh.trace_closest_raw(origin, gi_dir, inv_gi, 0.06, 20.0) {
                             Some((dist, hit_idx)) => {
@@ -368,14 +382,15 @@ impl Renderer3D {
             let dst_row: usize = local_gy * gw;
             for gx in 0..gw {
                 let idx: usize = gy * gw + gx;
-                let center: RtProbeSample = src[idx];
+                let center: &RtProbeSample = &src[idx];
                 if center.valid == 0 {
-                    dst_band[dst_row + gx] = center;
+                    dst_band[dst_row + gx] = *center;
                     continue;
                 }
                 let x0: usize = gx.saturating_sub(1);
                 let x1: usize = (gx + 1).min(gw - 1);
                 let depth_tol: f32 = center.depth * 0.22 + 0.75;
+                let inv_depth_tol: f32 = 1.0 / depth_tol;
                 let mut w_sum: f32 = 0.0;
                 let mut s_sum: f32 = 0.0;
                 let mut rr_sum: f32 = 0.0;
@@ -388,11 +403,13 @@ impl Renderer3D {
                 for ny in y0..=y1 {
                     let row_off: usize = ny * gw;
                     for nx in x0..=x1 {
-                        let nb: RtProbeSample = src[row_off + nx];
+                        let nb: &RtProbeSample = &src[row_off + nx];
                         if nb.valid == 0 {
                             continue;
                         }
-                        let ndot: f32 = center.nx * nb.nx + center.ny * nb.ny + center.nz * nb.nz;
+                        let ndot: f32 = center
+                            .nx
+                            .mul_add(nb.nx, center.ny.mul_add(nb.ny, center.nz * nb.nz));
                         if ndot < 0.75 {
                             continue;
                         }
@@ -407,19 +424,19 @@ impl Renderer3D {
                         } else {
                             0.6
                         };
-                        let w: f32 = spatial * (1.0 - d_diff / depth_tol);
+                        let w: f32 = spatial * (1.0 - d_diff * inv_depth_tol);
                         w_sum += w;
-                        s_sum += nb.shadow * w;
-                        rr_sum += nb.refl_r * w;
-                        rg_sum += nb.refl_g * w;
-                        rb_sum += nb.refl_b * w;
-                        gi_r += nb.gi_r * w;
-                        gi_g += nb.gi_g * w;
-                        gi_b += nb.gi_b * w;
-                        ao_sum += nb.ao * w;
+                        s_sum = nb.shadow.mul_add(w, s_sum);
+                        rr_sum = nb.refl_r.mul_add(w, rr_sum);
+                        rg_sum = nb.refl_g.mul_add(w, rg_sum);
+                        rb_sum = nb.refl_b.mul_add(w, rb_sum);
+                        gi_r = nb.gi_r.mul_add(w, gi_r);
+                        gi_g = nb.gi_g.mul_add(w, gi_g);
+                        gi_b = nb.gi_b.mul_add(w, gi_b);
+                        ao_sum = nb.ao.mul_add(w, ao_sum);
                     }
                 }
-                let mut out: RtProbeSample = center;
+                let mut out: RtProbeSample = *center;
                 if w_sum > 1e-4 {
                     let inv_w: f32 = 1.0 / w_sum;
                     out.shadow = s_sum * inv_w;
@@ -436,7 +453,133 @@ impl Renderer3D {
         }
     }
 
-    /// Runs a fast 5-tap separable Gaussian blur over the quarter-resolution HDR bloom buffer.
+    /// Evaluates a symmetric 5-tap Gaussian bloom kernel (`0.08, 0.22, 0.40, 0.22, 0.08`) using fused multiply-adds.
+    ///
+    /// # Arguments
+    ///
+    /// - `[f32; 3]` - Tap at offset `-2`.
+    /// - `[f32; 3]` - Tap at offset `-1`.
+    /// - `[f32; 3]` - Center tap `0`.
+    /// - `[f32; 3]` - Tap at offset `+1`.
+    /// - `[f32; 3]` - Tap at offset `+2`.
+    ///
+    /// # Returns
+    ///
+    /// - `[f32; 3]` - Filtered linear HDR bloom RGB triple.
+    #[inline(always)]
+    #[must_use]
+    fn blur_bloom_tap5(
+        c0: [f32; 3],
+        c1: [f32; 3],
+        c2: [f32; 3],
+        c3: [f32; 3],
+        c4: [f32; 3],
+    ) -> [f32; 3] {
+        [
+            (c0[0] + c4[0]).mul_add(0.08, (c1[0] + c3[0]).mul_add(0.22, c2[0] * 0.40)),
+            (c0[1] + c4[1]).mul_add(0.08, (c1[1] + c3[1]).mul_add(0.22, c2[1] * 0.40)),
+            (c0[2] + c4[2]).mul_add(0.08, (c1[2] + c3[2]).mul_add(0.22, c2[2] * 0.40)),
+        ]
+    }
+
+    /// Runs the horizontal 5-tap bloom blur pass over a band of rows with branchless interior taps.
+    ///
+    /// # Arguments
+    ///
+    /// - `usize` - Quarter-res bloom width `bw` (`>= 3`).
+    /// - `&[[f32; 3]]` - Full source bloom buffer.
+    /// - `usize` - Inclusive starting row `y_start`.
+    /// - `&mut [[f32; 3]]` - Disjoint mutable output row band.
+    fn blur_bloom_horiz_band(
+        bw: usize,
+        src: &[[f32; 3]],
+        y_start: usize,
+        dst_band: &mut [[f32; 3]],
+    ) {
+        let band_rows: usize = dst_band.len() / bw;
+        let max_x: usize = bw - 1;
+        for local_y in 0..band_rows {
+            let src_row_off: usize = (y_start + local_y) * bw;
+            let dst_row_off: usize = local_y * bw;
+            let src_row: &[[f32; 3]] = &src[src_row_off..(src_row_off + bw)];
+            let dst_row: &mut [[f32; 3]] = &mut dst_band[dst_row_off..(dst_row_off + bw)];
+            if bw >= 5 {
+                dst_row[0] = Self::blur_bloom_tap5(
+                    src_row[0], src_row[0], src_row[0], src_row[1], src_row[2],
+                );
+                dst_row[1] = Self::blur_bloom_tap5(
+                    src_row[0], src_row[0], src_row[1], src_row[2], src_row[3],
+                );
+                for (win, out) in src_row.windows(5).zip(dst_row[2..(bw - 2)].iter_mut()) {
+                    *out = Self::blur_bloom_tap5(win[0], win[1], win[2], win[3], win[4]);
+                }
+                dst_row[bw - 2] = Self::blur_bloom_tap5(
+                    src_row[bw - 4],
+                    src_row[bw - 3],
+                    src_row[bw - 2],
+                    src_row[max_x],
+                    src_row[max_x],
+                );
+                dst_row[max_x] = Self::blur_bloom_tap5(
+                    src_row[bw - 3],
+                    src_row[bw - 2],
+                    src_row[max_x],
+                    src_row[max_x],
+                    src_row[max_x],
+                );
+            } else {
+                for x in 0..bw {
+                    dst_row[x] = Self::blur_bloom_tap5(
+                        src_row[x.saturating_sub(2)],
+                        src_row[x.saturating_sub(1)],
+                        src_row[x],
+                        src_row[(x + 1).min(max_x)],
+                        src_row[(x + 2).min(max_x)],
+                    );
+                }
+            }
+        }
+    }
+
+    /// Runs the vertical 5-tap bloom blur pass over a band of rows with row-hoisted slices.
+    ///
+    /// # Arguments
+    ///
+    /// - `usize` - Quarter-res bloom width `bw`.
+    /// - `usize` - Quarter-res bloom height `bh`.
+    /// - `&[[f32; 3]]` - Full horizontally blurred bloom buffer.
+    /// - `usize` - Inclusive starting row `y_start`.
+    /// - `&mut [[f32; 3]]` - Disjoint mutable output row band.
+    fn blur_bloom_vert_band(
+        bw: usize,
+        bh: usize,
+        src: &[[f32; 3]],
+        y_start: usize,
+        dst_band: &mut [[f32; 3]],
+    ) {
+        let band_rows: usize = dst_band.len() / bw;
+        let max_y: usize = bh - 1;
+        for local_y in 0..band_rows {
+            let y: usize = y_start + local_y;
+            let o0: usize = y.saturating_sub(2) * bw;
+            let o1: usize = y.saturating_sub(1) * bw;
+            let o2: usize = y * bw;
+            let o3: usize = (y + 1).min(max_y) * bw;
+            let o4: usize = (y + 2).min(max_y) * bw;
+            let r0: &[[f32; 3]] = &src[o0..(o0 + bw)];
+            let r1: &[[f32; 3]] = &src[o1..(o1 + bw)];
+            let r2: &[[f32; 3]] = &src[o2..(o2 + bw)];
+            let r3: &[[f32; 3]] = &src[o3..(o3 + bw)];
+            let r4: &[[f32; 3]] = &src[o4..(o4 + bw)];
+            let dst_off: usize = local_y * bw;
+            let dst_row: &mut [[f32; 3]] = &mut dst_band[dst_off..(dst_off + bw)];
+            for x in 0..bw {
+                dst_row[x] = Self::blur_bloom_tap5(r0[x], r1[x], r2[x], r3[x], r4[x]);
+            }
+        }
+    }
+
+    /// Runs a parallel branchless 5-tap separable Gaussian blur over the quarter-resolution HDR bloom buffer.
     ///
     /// # Arguments
     ///
@@ -452,49 +595,33 @@ impl Renderer3D {
         if buf_a.len() < min_len || buf_b.len() < min_len {
             return;
         }
-        let max_x: usize = bw - 1;
-        let max_y: usize = bh - 1;
-        for y in 0..bh {
-            let row: usize = y * bw;
-            for x in 0..bw {
-                let x_m2: usize = x.saturating_sub(2);
-                let x_m1: usize = x.saturating_sub(1);
-                let x_p1: usize = (x + 1).min(max_x);
-                let x_p2: usize = (x + 2).min(max_x);
-                let c0: [f32; 3] = buf_a[row + x_m2];
-                let c1: [f32; 3] = buf_a[row + x_m1];
-                let c2: [f32; 3] = buf_a[row + x];
-                let c3: [f32; 3] = buf_a[row + x_p1];
-                let c4: [f32; 3] = buf_a[row + x_p2];
-                buf_b[row + x] = [
-                    c0[0] * 0.08 + c1[0] * 0.22 + c2[0] * 0.40 + c3[0] * 0.22 + c4[0] * 0.08,
-                    c0[1] * 0.08 + c1[1] * 0.22 + c2[1] * 0.40 + c3[1] * 0.22 + c4[1] * 0.08,
-                    c0[2] * 0.08 + c1[2] * 0.22 + c2[2] * 0.40 + c3[2] * 0.22 + c4[2] * 0.08,
-                ];
-            }
-        }
-        for y in 0..bh {
-            let r_m2: usize = y.saturating_sub(2) * bw;
-            let r_m1: usize = y.saturating_sub(1) * bw;
-            let r_0: usize = y * bw;
-            let r_p1: usize = (y + 1).min(max_y) * bw;
-            let r_p2: usize = (y + 2).min(max_y) * bw;
-            for x in 0..bw {
-                let c0: [f32; 3] = buf_b[r_m2 + x];
-                let c1: [f32; 3] = buf_b[r_m1 + x];
-                let c2: [f32; 3] = buf_b[r_0 + x];
-                let c3: [f32; 3] = buf_b[r_p1 + x];
-                let c4: [f32; 3] = buf_b[r_p2 + x];
-                buf_a[r_0 + x] = [
-                    c0[0] * 0.08 + c1[0] * 0.22 + c2[0] * 0.40 + c3[0] * 0.22 + c4[0] * 0.08,
-                    c0[1] * 0.08 + c1[1] * 0.22 + c2[1] * 0.40 + c3[1] * 0.22 + c4[1] * 0.08,
-                    c0[2] * 0.08 + c1[2] * 0.22 + c2[2] * 0.40 + c3[2] * 0.22 + c4[2] * 0.08,
-                ];
-            }
+        if min_len >= 8_192 && bh >= 16 {
+            let grain: usize = (bh / 16).clamp(8, 24);
+            let src_a: &[[f32; 3]] = &buf_a[..min_len];
+            let dst_b_base: usize = buf_b.as_mut_ptr() as usize;
+            parallel_for_ranges(bh, grain, |y0: usize, y1: usize| {
+                // SAFETY: `parallel_for_ranges` partitions `0..bh` into disjoint row bands within `buf_b[..min_len]`.
+                let out_band: &mut [[f32; 3]] = unsafe {
+                    from_raw_parts_mut((dst_b_base as *mut [f32; 3]).add(y0 * bw), (y1 - y0) * bw)
+                };
+                Self::blur_bloom_horiz_band(bw, src_a, y0, out_band);
+            });
+            let src_b: &[[f32; 3]] = &buf_b[..min_len];
+            let dst_a_base: usize = buf_a.as_mut_ptr() as usize;
+            parallel_for_ranges(bh, grain, |y0: usize, y1: usize| {
+                // SAFETY: `parallel_for_ranges` partitions `0..bh` into disjoint row bands within `buf_a[..min_len]`.
+                let out_band: &mut [[f32; 3]] = unsafe {
+                    from_raw_parts_mut((dst_a_base as *mut [f32; 3]).add(y0 * bw), (y1 - y0) * bw)
+                };
+                Self::blur_bloom_vert_band(bw, bh, src_b, y0, out_band);
+            });
+        } else {
+            Self::blur_bloom_horiz_band(bw, &buf_a[..min_len], 0, &mut buf_b[..min_len]);
+            Self::blur_bloom_vert_band(bw, bh, &buf_b[..min_len], 0, &mut buf_a[..min_len]);
         }
     }
 
-    /// Shades a horizontal pixel band with Cook-Torrance GGX PBR, analytically anti-aliased facades/roads, bilateral Lumen GI, volumetric fog, and HDR bloom extraction.
+    /// Shades a horizontal pixel band with Cook-Torrance GGX PBR, borrowed probe bilateral upsampling, incremental grid stepping, fused specular math, and HDR bloom extraction.
     ///
     /// # Arguments
     ///
@@ -504,12 +631,12 @@ impl Renderer3D {
     ///
     /// # Returns
     ///
-    /// - `usize` - Edge-refinement BVH rays traced within this band.
+    /// - `(usize, bool)` - `(edge_rays_traced, band_emitted_nonzero_bloom)`.
     fn shade_deferred_band(
         fctx: &DeferredFrameCtx,
         inputs: (&[f32], &[u32], &[GShadeTri], &[RtProbeSample], &Bvh3D),
         outputs: (usize, &mut [u8], &mut [u8], &mut [[f32; 3]]),
-    ) -> usize {
+    ) -> (usize, bool) {
         let (depth_buf, g_tri_idx, shaded_tris, probes, bvh): (
             &[f32],
             &[u32],
@@ -526,9 +653,20 @@ impl Renderer3D {
         let w: usize = fctx.w;
         let gw: usize = fctx.gw;
         let gh: usize = fctx.gh;
+        let gw_max: usize = gw.saturating_sub(1);
+        let gh_max: usize = gh.saturating_sub(1);
         let bw: usize = fctx.bw;
-        let step_f: f32 = (fctx.rt_step.max(1)) as f32;
+        let rt_step: usize = fctx.rt_step.max(1);
+        let step_f: f32 = rt_step as f32;
         let inv_step: f32 = 1.0 / step_f;
+        let step2_i32: i32 = (rt_step * 2) as i32;
+        let init_sub_x: i32 = 1 - (rt_step as i32);
+        let inv_step2: f32 = 0.5 * inv_step;
+        let mut fx_lut: [f32; 16] = [0.0; 16];
+        let lut_len: usize = (rt_step * 2).min(16);
+        for (idx, slot) in fx_lut.iter_mut().take(lut_len).enumerate() {
+            *slot = (idx as f32) * inv_step2;
+        }
         let sun_dir: Vec3 = fctx.sun.get_direction();
         let inv_sun: Vec3 = fctx.inv_sun_dir;
         let sun_col: Vec3 = fctx.sun.get_color();
@@ -540,6 +678,7 @@ impl Renderer3D {
         let ray_dx: Vec3 = fctx.cam_right_scaled.scale(2.0 * fctx.inv_w_f);
         let ndc_x0: f32 = fctx.inv_w_f - 1.0;
         let mut edge_rays: usize = 0;
+        let mut bloom_emitted: bool = false;
         let mut shadow_cache: u32 = u32::MAX;
         for local_y in 0..band_rows {
             let py: usize = py_start + local_y;
@@ -563,55 +702,78 @@ impl Renderer3D {
                 + (base_sky_rgba[1] as u32) * 150
                 + (base_sky_rgba[2] as u32) * 29)
                 >> 8) as u8;
+            let base_sky_bloom: [f32; 3] = [
+                (base_sky.get_x() - 1.15).max(0.0),
+                (base_sky.get_y() - 1.15).max(0.0),
+                (base_sky.get_z() - 1.15).max(0.0),
+            ];
+            let base_sky_bloom_rg: bool = base_sky_bloom[0] > 0.0 || base_sky_bloom[1] > 0.0;
+            let base_sky_bloom_on: bool = base_sky_bloom_rg || base_sky_bloom[2] > 0.0;
             let row_has_sun: bool = row_base_dir.normalize().dot(sun_dir) >= 0.45;
-            let gy_f: f32 =
-                (((py as f32) + 0.5) * inv_step - 0.5).clamp(0.0, (gh.saturating_sub(1)) as f32);
-            let gy0: usize = (gy_f.floor() as usize).min(gh.saturating_sub(1));
-            let gy1: usize = (gy0 + 1).min(gh.saturating_sub(1));
+            let gy_f: f32 = (((py as f32) + 0.5) * inv_step - 0.5).clamp(0.0, gh_max as f32);
+            let gy0: usize = (gy_f as usize).min(gh_max);
+            let gy1: usize = (gy0 + 1).min(gh_max);
             let fy: f32 = gy_f - (gy0 as f32);
             let wy0: f32 = 1.0 - fy;
             let wy1: f32 = fy;
             let p_row0: usize = gy0 * gw;
             let p_row1: usize = gy1 * gw;
             let mut raw_ray: Vec3 = row_base_dir.add(fctx.cam_right_scaled.scale(ndc_x0));
+            let mut gx_cur: usize = 0;
+            let mut sub_x: i32 = init_sub_x;
             for px in 0..w {
                 let pix_idx: usize = row_off + px;
                 let tid: u32 = g_tri_idx[pix_idx];
                 let cidx: usize = out_row_rgba + px * 4;
                 if tid == u32::MAX {
-                    let (rgba, luma, sky_hdr): ([u8; 4], u8, Vec3) = if row_has_sun {
-                        let dir: Vec3 = raw_ray.normalize();
-                        let sdot: f32 = dir.dot(sun_dir).max(0.0);
-                        if sdot > 0.72 {
-                            let mut col: Vec3 = base_sky;
-                            if sdot > 0.992 {
-                                let disk: f32 = ((sdot - 0.992) / 0.008).clamp(0.0, 1.0);
-                                col = col.add(sun_col.scale(disk * 3.8 + 0.55));
+                    let (rgba, luma, sky_bloom, has_sky_bloom): ([u8; 4], u8, [f32; 3], bool) =
+                        if row_has_sun {
+                            let dir: Vec3 = raw_ray.normalize();
+                            let sdot: f32 = dir.dot(sun_dir).max(0.0);
+                            if sdot > 0.72 {
+                                let mut col: Vec3 = base_sky;
+                                if sdot > 0.992 {
+                                    let disk: f32 = ((sdot - 0.992) / 0.008).clamp(0.0, 1.0);
+                                    col = col.add(sun_col.scale(disk * 3.8 + 0.55));
+                                } else {
+                                    let h1: f32 = ((sdot - 0.72) / 0.28).clamp(0.0, 1.0);
+                                    let h2: f32 = h1 * h1;
+                                    col = col.add(sun_col.scale(h2 * h2 * 0.58 + h2 * 0.08));
+                                }
+                                let exposed: Vec3 = col.scale(fctx.exposure_scale);
+                                let px_rgba: [u8; 4] = exposed.to_aces_rgba8();
+                                let px_luma: u8 = (((px_rgba[0] as u32) * 77
+                                    + (px_rgba[1] as u32) * 150
+                                    + (px_rgba[2] as u32) * 29)
+                                    >> 8) as u8;
+                                let er: f32 = (exposed.get_x() - 1.15).max(0.0);
+                                let eg: f32 = (exposed.get_y() - 1.15).max(0.0);
+                                let eb: f32 = (exposed.get_z() - 1.15).max(0.0);
+                                let rg_pos: bool = er > 0.0 || eg > 0.0;
+                                (px_rgba, px_luma, [er, eg, eb], rg_pos || eb > 0.0)
                             } else {
-                                let h1: f32 = ((sdot - 0.72) / 0.28).clamp(0.0, 1.0);
-                                let h2: f32 = h1 * h1;
-                                col = col.add(sun_col.scale(h2 * h2 * 0.58 + h2 * 0.08));
+                                (
+                                    base_sky_rgba,
+                                    base_sky_luma,
+                                    base_sky_bloom,
+                                    base_sky_bloom_on,
+                                )
                             }
-                            let exposed: Vec3 = col.scale(fctx.exposure_scale);
-                            let px_rgba: [u8; 4] = exposed.to_aces_rgba8();
-                            let px_luma: u8 = (((px_rgba[0] as u32) * 77
-                                + (px_rgba[1] as u32) * 150
-                                + (px_rgba[2] as u32) * 29)
-                                >> 8) as u8;
-                            (px_rgba, px_luma, exposed)
                         } else {
-                            (base_sky_rgba, base_sky_luma, base_sky)
-                        }
-                    } else {
-                        (base_sky_rgba, base_sky_luma, base_sky)
-                    };
+                            (
+                                base_sky_rgba,
+                                base_sky_luma,
+                                base_sky_bloom,
+                                base_sky_bloom_on,
+                            )
+                        };
                     if write_bloom_row && (px & 3) == 0 {
                         let bidx: usize = bloom_row_off + (px >> 2);
                         if bidx < bloom_band.len() {
-                            let er: f32 = (sky_hdr.get_x() - 1.15).max(0.0);
-                            let eg: f32 = (sky_hdr.get_y() - 1.15).max(0.0);
-                            let eb: f32 = (sky_hdr.get_z() - 1.15).max(0.0);
-                            bloom_band[bidx] = [er, eg, eb];
+                            bloom_band[bidx] = sky_bloom;
+                            if has_sky_bloom {
+                                bloom_emitted = true;
+                            }
                         }
                     }
                     color_band[cidx] = rgba[0];
@@ -620,6 +782,11 @@ impl Renderer3D {
                     color_band[cidx + 3] = 255;
                     luma_band[out_row_luma + px] = luma;
                     raw_ray = raw_ray.add(ray_dx);
+                    sub_x += 2;
+                    if sub_x >= step2_i32 {
+                        sub_x -= step2_i32;
+                        gx_cur += 1;
+                    }
                     continue;
                 }
                 let tri: &GShadeTri = &shaded_tris[tid as usize];
@@ -630,22 +797,26 @@ impl Renderer3D {
                 let mut gi_col: Vec3 = Vec3::zero();
                 let mut ao: f32 = 1.0;
                 if rt_active {
-                    let gx_f: f32 = (((px as f32) + 0.5) * inv_step - 0.5)
-                        .clamp(0.0, (gw.saturating_sub(1)) as f32);
-                    let gx0: usize = (gx_f.floor() as usize).min(gw.saturating_sub(1));
-                    let gx1: usize = (gx0 + 1).min(gw.saturating_sub(1));
-                    let fx: f32 = gx_f - (gx0 as f32);
+                    let (gx0, gx1, fx): (usize, usize, f32) = if sub_x <= 0 && gx_cur == 0 {
+                        (0, gw_max.min(1), 0.0)
+                    } else if gx_cur >= gw_max {
+                        (gw_max, gw_max, 0.0)
+                    } else {
+                        let lut_idx: usize = (sub_x as usize).min(15);
+                        (gx_cur, gx_cur + 1, fx_lut[lut_idx])
+                    };
                     let wx0: f32 = 1.0 - fx;
                     let wx1: f32 = fx;
-                    let taps: [(RtProbeSample, f32); 4] = [
-                        (probes[p_row0 + gx0], wx0 * wy0),
-                        (probes[p_row0 + gx1], wx1 * wy0),
-                        (probes[p_row1 + gx0], wx0 * wy1),
-                        (probes[p_row1 + gx1], wx1 * wy1),
+                    let taps: [(&RtProbeSample, f32); 4] = [
+                        (&probes[p_row0 + gx0], wx0 * wy0),
+                        (&probes[p_row0 + gx1], wx1 * wy0),
+                        (&probes[p_row1 + gx0], wx0 * wy1),
+                        (&probes[p_row1 + gx1], wx1 * wy1),
                     ];
                     let snx: f32 = tri.shade_n.get_x();
                     let sny: f32 = tri.shade_n.get_y();
                     let snz: f32 = tri.shade_n.get_z();
+                    let do_refl_tri: bool = tri.do_refl;
                     let mut w_sum: f32 = 0.0;
                     let mut s_sum: f32 = 0.0;
                     let mut s_min: f32 = 2.0;
@@ -662,31 +833,35 @@ impl Renderer3D {
                         if pr.valid == 0 {
                             continue;
                         }
-                        let ndot: f32 = snx * pr.nx + sny * pr.ny + snz * pr.nz;
+                        let ndot: f32 = snx.mul_add(pr.nx, sny.mul_add(pr.ny, snz * pr.nz));
                         if ndot < 0.78 {
                             continue;
                         }
                         let depth_tol: f32 = if ndot > 0.95 {
-                            depth * 0.58 + 2.4
+                            depth.mul_add(0.58, 2.4)
                         } else {
-                            depth * 0.20 + 0.75
+                            depth.mul_add(0.20, 0.75)
                         };
                         let d_diff: f32 = (depth - pr.depth).abs();
                         if d_diff > depth_tol {
                             continue;
                         }
-                        let wt: f32 = bw_tap * (1.0 - d_diff / depth_tol) + 1e-4;
+                        let wt: f32 = bw_tap.mul_add(1.0 - d_diff / depth_tol, 1e-4);
                         w_sum += wt;
-                        s_sum += pr.shadow * wt;
+                        s_sum = pr.shadow.mul_add(wt, s_sum);
                         s_min = s_min.min(pr.shadow);
                         s_max = s_max.max(pr.shadow);
-                        rr_sum += pr.refl_r * wt;
-                        rg_sum += pr.refl_g * wt;
-                        rb_sum += pr.refl_b * wt;
-                        gr_sum += pr.gi_r * wt;
-                        gg_sum += pr.gi_g * wt;
-                        gb_sum += pr.gi_b * wt;
-                        ao_sum += pr.ao * wt;
+                        if do_refl_tri {
+                            rr_sum = pr.refl_r.mul_add(wt, rr_sum);
+                            rg_sum = pr.refl_g.mul_add(wt, rg_sum);
+                            rb_sum = pr.refl_b.mul_add(wt, rb_sum);
+                        }
+                        if gi_active {
+                            gr_sum = pr.gi_r.mul_add(wt, gr_sum);
+                            gg_sum = pr.gi_g.mul_add(wt, gg_sum);
+                            gb_sum = pr.gi_b.mul_add(wt, gb_sum);
+                            ao_sum = pr.ao.mul_add(wt, ao_sum);
+                        }
                         valid_matches += 1;
                     }
                     let inv_ws: f32 = if w_sum > 1e-5 { 1.0 / w_sum } else { 0.0 };
@@ -711,7 +886,7 @@ impl Renderer3D {
                     } else if valid_matches > 0 {
                         shadow = s_sum * inv_ws;
                     }
-                    if tri.do_refl {
+                    if do_refl_tri {
                         if valid_matches > 0 {
                             refl = Vec3::new(rr_sum * inv_ws, rg_sum * inv_ws, rb_sum * inv_ws);
                         } else if depth < 32.0 {
@@ -741,18 +916,27 @@ impl Renderer3D {
                 }
                 let view_in: Vec3 = raw_ray.normalize();
                 let view_to_cam: Vec3 = view_in.scale(-1.0);
-                let ndv: f32 = tri.shade_n.dot(view_to_cam).clamp(0.02, 1.0);
-                let half_vec: Vec3 = sun_dir.add(view_to_cam).normalize();
-                let ndh: f32 = tri.shade_n.dot(half_vec).max(0.0);
-                let ggx_denom: f32 = ndh * ndh * (tri.alpha2 - 1.0) + 1.0;
-                let ggx_d: f32 = tri.alpha2 / (PI * ggx_denom * ggx_denom + 1e-4);
+                let ndv_raw: f32 = tri.shade_n.dot(view_to_cam);
+                let ndv: f32 = ndv_raw.clamp(0.02, 1.0);
                 let f_om: f32 = 1.0 - ndv;
                 let f_om2: f32 = f_om * f_om;
                 let fresnel_t: f32 = f_om2 * f_om2 * f_om;
-                let fresnel_rgb: Vec3 = tri.f0.add(Vec3::splat(1.0).sub(tri.f0).scale(fresnel_t));
-                let vis_term: f32 = 0.25 / (ndv * tri.n_dot_l.max(0.06) + 0.08);
-                let spec_scalar: f32 = (ggx_d * vis_term * tri.n_dot_l * shadow).min(4.5);
-                let spec_col: Vec3 = fresnel_rgb.mul(sun_col.scale(spec_scalar));
+                let v_dot_l: f32 = view_to_cam.dot(sun_dir);
+                let spec_col: Vec3 = if tri.n_dot_l > 0.0 {
+                    let ndh_unnorm: f32 = (tri.n_dot_l + ndv_raw).max(0.0);
+                    let h_len_sq: f32 = 2.0_f32.mul_add(v_dot_l, 2.0).max(1e-6);
+                    let ndh_sq: f32 = (ndh_unnorm * ndh_unnorm) / h_len_sq;
+                    let ggx_denom: f32 = ndh_sq.mul_add(tri.alpha2 - 1.0, 1.0);
+                    let spec_num: f32 = (0.25 * tri.alpha2 * tri.n_dot_l) * shadow;
+                    let ggx_term: f32 = (ggx_denom * ggx_denom).mul_add(PI, 1e-4);
+                    let vis_den: f32 = ndv.mul_add(tri.n_dot_l.max(0.06), 0.08);
+                    let spec_scalar: f32 = (spec_num / (ggx_term * vis_den)).min(4.5);
+                    let fresnel_rgb: Vec3 =
+                        tri.f0.add(Vec3::splat(1.0).sub(tri.f0).scale(fresnel_t));
+                    fresnel_rgb.mul(sun_col.scale(spec_scalar))
+                } else {
+                    Vec3::zero()
+                };
                 let mut surf_base: Vec3 = tri.mat_base;
                 let mut surf_emissive: Vec3 = tri.mat_emissive;
                 let mut surf_refl: f32 = tri.mat_refl;
@@ -842,7 +1026,7 @@ impl Renderer3D {
                         (1.0 / (1.0 + world_p_px.get_y().max(0.0) * 0.045)).clamp(0.32, 1.0);
                     let fd: f32 = depth * fctx.inv_fog_dist * height_atten;
                     let fog_t: f32 = (fd / (1.0 + fd)).clamp(0.0, 0.85);
-                    let sun_align: f32 = view_in.dot(sun_dir).max(0.0);
+                    let sun_align: f32 = (-v_dot_l).max(0.0);
                     let sa2: f32 = sun_align * sun_align;
                     let shaft: f32 = sa2 * sa2 * fog_t * (0.35 + 0.65 * shadow);
                     let fog_col: Vec3 = sky_horizon.add(sun_col.scale(shaft * 0.55));
@@ -852,11 +1036,14 @@ impl Renderer3D {
                 if write_bloom_row && (px & 3) == 0 {
                     let bidx: usize = bloom_row_off + (px >> 2);
                     if bidx < bloom_band.len() {
-                        bloom_band[bidx] = [
-                            (exposed.get_x() - 1.05).max(0.0),
-                            (exposed.get_y() - 1.05).max(0.0),
-                            (exposed.get_z() - 1.05).max(0.0),
-                        ];
+                        let er: f32 = (exposed.get_x() - 1.05).max(0.0);
+                        let eg: f32 = (exposed.get_y() - 1.05).max(0.0);
+                        let eb: f32 = (exposed.get_z() - 1.05).max(0.0);
+                        bloom_band[bidx] = [er, eg, eb];
+                        let rg_pos: bool = er > 0.0 || eg > 0.0;
+                        if rg_pos || eb > 0.0 {
+                            bloom_emitted = true;
+                        }
                     }
                 }
                 let rgba: [u8; 4] = exposed.to_aces_rgba8();
@@ -868,76 +1055,128 @@ impl Renderer3D {
                     (((rgba[0] as u32) * 77 + (rgba[1] as u32) * 150 + (rgba[2] as u32) * 29) >> 8)
                         as u8;
                 raw_ray = raw_ray.add(ray_dx);
+                sub_x += 2;
+                if sub_x >= step2_i32 {
+                    sub_x -= step2_i32;
+                    gx_cur += 1;
+                }
             }
         }
-        edge_rays
+        (edge_rays, bloom_emitted)
     }
 
-    /// Samples the quarter-resolution HDR bloom buffer with smooth bilinear filtering to eliminate 4x4 blocky bloom halos.
+    /// Samples the quarter-resolution HDR bloom buffer using row-hoisted coordinates for active bloom tiles.
     ///
     /// # Arguments
     ///
     /// - `&[[f32; 3]]` - Blurred quarter-resolution HDR bloom slice.
-    /// - `usize` - Bloom grid width `bw`.
-    /// - `usize` - Bloom grid height `bh`.
-    /// - `usize` - Full-resolution pixel X.
-    /// - `usize` - Full-resolution pixel Y.
+    /// - `(usize, usize, usize)` - Row offsets and max X `(bloom_r0, bloom_r1, bw_max)`.
+    /// - `(usize, f32, f32)` - Tile column and fractional weights `(bx0, tx, ty)`.
     ///
     /// # Returns
     ///
     /// - `[f32; 3]` - Bilinearly filtered bloom RGB radiance.
+    #[inline(always)]
     #[must_use]
-    fn sample_bloom_bilinear(
+    fn sample_bloom_bilinear_row(
         bloom: &[[f32; 3]],
-        bw: usize,
-        bh: usize,
-        x: usize,
-        y: usize,
+        row_info: (usize, usize, usize),
+        tap: (usize, f32, f32),
     ) -> [f32; 3] {
-        let fx: f32 = ((x as f32) * 0.25).clamp(0.0, (bw.saturating_sub(1)) as f32);
-        let fy: f32 = ((y as f32) * 0.25).clamp(0.0, (bh.saturating_sub(1)) as f32);
-        let x0: usize = (fx as usize).min(bw.saturating_sub(1));
-        let y0: usize = (fy as usize).min(bh.saturating_sub(1));
-        let x1: usize = (x0 + 1).min(bw.saturating_sub(1));
-        let y1: usize = (y0 + 1).min(bh.saturating_sub(1));
-        let tx: f32 = fx - (x0 as f32);
-        let ty: f32 = fy - (y0 as f32);
-        let c00: [f32; 3] = bloom[y0 * bw + x0];
-        let c10: [f32; 3] = bloom[y0 * bw + x1];
-        let c01: [f32; 3] = bloom[y1 * bw + x0];
-        let c11: [f32; 3] = bloom[y1 * bw + x1];
-        let w00: f32 = (1.0 - tx) * (1.0 - ty);
-        let w10: f32 = tx * (1.0 - ty);
-        let w01: f32 = (1.0 - tx) * ty;
+        let (r0, r1, bw_max): (usize, usize, usize) = row_info;
+        let (bx0, tx, ty): (usize, f32, f32) = tap;
+        let bx1: usize = (bx0 + 1).min(bw_max);
+        let c00: [f32; 3] = bloom[r0 + bx0];
+        let c10: [f32; 3] = bloom[r0 + bx1];
+        let c01: [f32; 3] = bloom[r1 + bx0];
+        let c11: [f32; 3] = bloom[r1 + bx1];
+        let omt_x: f32 = 1.0 - tx;
+        let omt_y: f32 = 1.0 - ty;
+        let w00: f32 = omt_x * omt_y;
+        let w10: f32 = tx * omt_y;
+        let w01: f32 = omt_x * ty;
         let w11: f32 = tx * ty;
         [
-            c00[0] * w00 + c10[0] * w10 + c01[0] * w01 + c11[0] * w11,
-            c00[1] * w00 + c10[1] * w10 + c01[1] * w01 + c11[1] * w11,
-            c00[2] * w00 + c10[2] * w10 + c01[2] * w01 + c11[2] * w11,
+            c00[0].mul_add(w00, c10[0].mul_add(w10, c01[0].mul_add(w01, c11[0] * w11))),
+            c00[1].mul_add(w00, c10[1].mul_add(w10, c01[1].mul_add(w01, c11[1] * w11))),
+            c00[2].mul_add(w00, c10[2].mul_add(w10, c01[2].mul_add(w01, c11[2] * w11))),
         ]
     }
 
-    /// Fused post-process pass applying Geometry-Aware FXAA 3.11 + 8-step Morphological Silhouette Edge-Walking AA, 9-tap variance-clamped TAA, and smooth bilinear HDR Bloom.
+    /// Populates `bloom_tile_active` (`1` where any bilinear corner contributes `>= 1` RGB LSB) and returns whether any tile is active.
+    ///
+    /// # Arguments
+    ///
+    /// - `usize` - Quarter-resolution bloom grid width.
+    /// - `usize` - Quarter-resolution bloom grid height.
+    /// - `&[[f32; 3]]` - Blurred quarter-resolution HDR bloom buffer.
+    /// - `&mut [u8]` - Output tile-activity mask slice (`len >= bw * bh`).
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when at least one bloom tile requires sampling in `post_process_band`.
+    #[must_use]
+    fn build_bloom_tile_mask(
+        bw: usize,
+        bh: usize,
+        bloom: &[[f32; 3]],
+        tile_active: &mut [u8],
+    ) -> bool {
+        let len: usize = bw * bh;
+        if len == 0 || bloom.len() < len || tile_active.len() < len {
+            return false;
+        }
+        let bw_max: usize = bw - 1;
+        let bh_max: usize = bh - 1;
+        let mut any_active: bool = false;
+        for by in 0..bh {
+            let r0: usize = by * bw;
+            let r1: usize = (by + 1).min(bh_max) * bw;
+            for bx in 0..bw {
+                let bx1: usize = (bx + 1).min(bw_max);
+                let c00: [f32; 3] = bloom[r0 + bx];
+                let c10: [f32; 3] = bloom[r0 + bx1];
+                let c01: [f32; 3] = bloom[r1 + bx];
+                let c11: [f32; 3] = bloom[r1 + bx1];
+                let max_r: f32 = c00[0].max(c10[0]).max(c01[0]).max(c11[0]);
+                let max_g: f32 = c00[1].max(c10[1]).max(c01[1]).max(c11[1]);
+                let max_b: f32 = c00[2].max(c10[2]).max(c01[2]).max(c11[2]);
+                let active: bool = max_r.max(max_g).max(max_b) >= 0.015;
+                tile_active[r0 + bx] = u8::from(active);
+                if active {
+                    any_active = true;
+                }
+            }
+        }
+        any_active
+    }
+
+    /// Fused post-process pass applying Geometry-Aware FXAA 3.11 + 8-step Morphological Silhouette Edge-Walking AA, 9-tap variance-clamped TAA, and active-tile bilinear HDR Bloom directly into uninitialized output memory.
     ///
     /// # Arguments
     ///
     /// - `(usize, usize, usize, usize)` - Dimensions `(w, h, bloom_w, bloom_h)`.
-    /// - `PostProcessInputs<'_>` - Read-only `(color_src, luma, g_tri_idx, bloom, taa_history)`.
+    /// - `PostProcessInputs<'_>` - Read-only `(color_src, luma, g_tri_idx, bloom, bloom_tile_active, taa_history)`.
     /// - `(bool, bool, bool)` - Flags `(use_fxaa, use_taa, use_bloom)`.
-    /// - `(usize, &mut [u8])` - `(y_start, mutable RGBA output band)`.
-    fn post_process_band(
+    /// - `(usize, *mut u8, usize)` - `(y_start, writable band RGBA base pointer, band row count)`.
+    unsafe fn post_process_band(
         dims: (usize, usize, usize, usize),
         inputs: PostProcessInputs<'_>,
         flags: (bool, bool, bool),
-        band: (usize, &mut [u8]),
+        band: (usize, *mut u8, usize),
     ) {
         let (w, h, bw, bh): (usize, usize, usize, usize) = dims;
-        let (src, luma, g_tri_idx, bloom, history): PostProcessInputs<'_> = inputs;
+        let (src, luma, g_tri_idx, bloom, bloom_active, history): PostProcessInputs<'_> = inputs;
         let (use_fxaa, use_taa, use_bloom): (bool, bool, bool) = flags;
-        let (y_start, dst_band): (usize, &mut [u8]) = band;
+        let (y_start, dst_ptr, band_rows): (usize, *mut u8, usize) = band;
         let row_bytes: usize = w * 4;
-        let band_rows: usize = dst_band.len() / row_bytes.max(1);
-        let has_bloom: bool = use_bloom && bw > 0 && bh > 0 && bloom.len() >= bw * bh;
+        let bloom_len: usize = bw * bh;
+        let has_bloom: bool = use_bloom
+            && bloom_len > 0
+            && bloom.len() >= bloom_len
+            && bloom_active.len() >= bloom_len;
+        let bw_max: usize = bw.saturating_sub(1);
+        let bh_max: usize = bh.saturating_sub(1);
         let has_taa: bool = use_taa && history.len() == src.len();
         let w_i32: i32 = w as i32;
         let h_i32: i32 = h as i32;
@@ -946,11 +1185,23 @@ impl Renderer3D {
             let src_off: usize = y * row_bytes;
             let dst_off: usize = local_y * row_bytes;
             if !use_fxaa && !has_bloom && !has_taa {
-                dst_band[dst_off..(dst_off + row_bytes)]
-                    .copy_from_slice(&src[src_off..(src_off + row_bytes)]);
+                // SAFETY: Caller guarantees `dst_ptr` covers `band_rows * row_bytes` disjoint writable bytes,
+                // and `src_off + row_bytes <= src.len()` since `y < h`.
+                unsafe {
+                    dst_ptr
+                        .add(dst_off)
+                        .copy_from_nonoverlapping(src.as_ptr().add(src_off), row_bytes);
+                }
                 continue;
             }
-            if !use_fxaa || y == 0 || y + 1 >= h || w < 3 {
+            let by0: usize = (y >> 2).min(bh_max);
+            let by1: usize = (by0 + 1).min(bh_max);
+            let ty: f32 = ((y & 3) as f32) * 0.25;
+            let bloom_r0: usize = by0 * bw;
+            let bloom_r1: usize = by1 * bw;
+            let edge_row: bool = y == 0 || y + 1 >= h;
+            let simple_row: bool = !use_fxaa || edge_row;
+            if simple_row || w < 3 {
                 for x in 0..w {
                     let sc: usize = src_off + x * 4;
                     let dc: usize = dst_off + x * 4;
@@ -958,22 +1209,39 @@ impl Renderer3D {
                     let mut g: i32 = src[sc + 1] as i32;
                     let mut b: i32 = src[sc + 2] as i32;
                     if has_bloom {
-                        let bl: [f32; 3] = Self::sample_bloom_bilinear(bloom, bw, bh, x, y);
-                        r = (r + (bl[0] * 64.0) as i32).min(255);
-                        g = (g + (bl[1] * 64.0) as i32).min(255);
-                        b = (b + (bl[2] * 64.0) as i32).min(255);
+                        let bx0: usize = (x >> 2).min(bw_max);
+                        if bloom_active[bloom_r0 + bx0] != 0 {
+                            let tx: f32 = ((x & 3) as f32) * 0.25;
+                            let bl: [f32; 3] = Self::sample_bloom_bilinear_row(
+                                bloom,
+                                (bloom_r0, bloom_r1, bw_max),
+                                (bx0, tx, ty),
+                            );
+                            r = (r + (bl[0] * 64.0) as i32).min(255);
+                            g = (g + (bl[1] * 64.0) as i32).min(255);
+                            b = (b + (bl[2] * 64.0) as i32).min(255);
+                        }
                     }
-                    dst_band[dc] = r as u8;
-                    dst_band[dc + 1] = g as u8;
-                    dst_band[dc + 2] = b as u8;
-                    dst_band[dc + 3] = 255;
+                    // SAFETY: `dc + 4 <= band_rows * row_bytes` and `[u8; 4]` has alignment 1.
+                    unsafe {
+                        dst_ptr
+                            .add(dc)
+                            .cast::<[u8; 4]>()
+                            .write([r as u8, g as u8, b as u8, 255]);
+                    }
                 }
                 continue;
             }
-            dst_band[dst_off..(dst_off + 4)].copy_from_slice(&src[src_off..(src_off + 4)]);
             let last_px: usize = (w - 1) * 4;
-            dst_band[(dst_off + last_px)..(dst_off + last_px + 4)]
-                .copy_from_slice(&src[(src_off + last_px)..(src_off + last_px + 4)]);
+            // SAFETY: `w >= 3`, so both first and last 4-byte pixels lie within `dst_off..dst_off + row_bytes`.
+            unsafe {
+                dst_ptr
+                    .add(dst_off)
+                    .copy_from_nonoverlapping(src.as_ptr().add(src_off), 4);
+                dst_ptr
+                    .add(dst_off + last_px)
+                    .copy_from_nonoverlapping(src.as_ptr().add(src_off + last_px), 4);
+            }
             let row: usize = y * w;
             let row_up: usize = (y - 1) * w;
             let row_dn: usize = (y + 1) * w;
@@ -987,15 +1255,21 @@ impl Renderer3D {
                 let lmax: i32 = lc.max(ln).max(ls).max(le).max(lw);
                 let lmin: i32 = lc.min(ln).min(ls).min(le).min(lw);
                 let contrast: i32 = lmax - lmin;
-                let tid_c: u32 = g_tri_idx[row + x];
-                let geom_edge: bool = tid_c != g_tri_idx[row_up + x]
-                    || tid_c != g_tri_idx[row_dn + x]
-                    || tid_c != g_tri_idx[row + x - 1]
-                    || tid_c != g_tri_idx[row + x + 1];
+                let (geom_edge, run_fxaa): (bool, bool) = if contrast >= 3 {
+                    let tid_c: u32 = g_tri_idx[row + x];
+                    let edge_v_id: bool =
+                        tid_c != g_tri_idx[row_up + x] || tid_c != g_tri_idx[row_dn + x];
+                    let edge_h_id: bool =
+                        tid_c != g_tri_idx[row + x - 1] || tid_c != g_tri_idx[row + x + 1];
+                    let ge: bool = edge_v_id || edge_h_id;
+                    (ge, contrast >= 7 || ge)
+                } else {
+                    (false, false)
+                };
                 let sc: usize = (row + x) * 4;
                 let dc: usize = dst_off + x * 4;
                 let mut rgb: [i32; 3] = [src[sc] as i32, src[sc + 1] as i32, src[sc + 2] as i32];
-                if contrast >= 7 || (geom_edge && contrast >= 3) {
+                if run_fxaa {
                     let lnw: i32 = luma[row_up + x - 1] as i32;
                     let lne: i32 = luma[row_up + x + 1] as i32;
                     let lsw: i32 = luma[row_dn + x - 1] as i32;
@@ -1028,15 +1302,13 @@ impl Renderer3D {
                         let sy: i32 = y_i32 - tan_dy * s;
                         let ox: i32 = sx + perp_dx;
                         let oy: i32 = sy + perp_dy;
-                        if sx < 0
-                            || sx >= w_i32
-                            || sy < 0
-                            || sy >= h_i32
-                            || ox < 0
-                            || ox >= w_i32
-                            || oy < 0
-                            || oy >= h_i32
-                        {
+                        let oob_s: bool = sx < 0 || sx >= w_i32;
+                        let oob_sy: bool = sy < 0 || sy >= h_i32;
+                        let oob_o: bool = ox < 0 || ox >= w_i32;
+                        let oob_oy: bool = oy < 0 || oy >= h_i32;
+                        let oob_a: bool = oob_s || oob_sy;
+                        let oob_b: bool = oob_o || oob_oy;
+                        if oob_a || oob_b {
                             dist_neg = s;
                             break;
                         }
@@ -1056,15 +1328,13 @@ impl Renderer3D {
                         let sy: i32 = y_i32 + tan_dy * s;
                         let ox: i32 = sx + perp_dx;
                         let oy: i32 = sy + perp_dy;
-                        if sx < 0
-                            || sx >= w_i32
-                            || sy < 0
-                            || sy >= h_i32
-                            || ox < 0
-                            || ox >= w_i32
-                            || oy < 0
-                            || oy >= h_i32
-                        {
+                        let oob_s: bool = sx < 0 || sx >= w_i32;
+                        let oob_sy: bool = sy < 0 || sy >= h_i32;
+                        let oob_o: bool = ox < 0 || ox >= w_i32;
+                        let oob_oy: bool = oy < 0 || oy >= h_i32;
+                        let oob_a: bool = oob_s || oob_sy;
+                        let oob_b: bool = oob_o || oob_oy;
+                        if oob_a || oob_b {
                             dist_pos = s;
                             break;
                         }
@@ -1112,44 +1382,86 @@ impl Renderer3D {
                     }
                 }
                 if has_taa {
-                    let offsets: [usize; 8] = [
-                        (row_up + x - 1) * 4,
-                        (row_up + x) * 4,
-                        (row_up + x + 1) * 4,
-                        (row + x - 1) * 4,
-                        (row + x + 1) * 4,
-                        (row_dn + x - 1) * 4,
-                        (row_dn + x) * 4,
-                        (row_dn + x + 1) * 4,
-                    ];
-                    for ch in 0..3 {
-                        let c0: i32 = rgb[ch];
-                        let mut n_min: i32 = c0;
-                        let mut n_max: i32 = c0;
-                        for off in offsets.into_iter() {
-                            let v: i32 = src[off + ch] as i32;
-                            n_min = n_min.min(v);
-                            n_max = n_max.max(v);
+                    let flat_3x3: bool = if contrast == 0 {
+                        let lc_u8: u8 = lc as u8;
+                        let diag_top: bool =
+                            luma[row_up + x - 1] == lc_u8 && luma[row_up + x + 1] == lc_u8;
+                        let diag_bot: bool =
+                            luma[row_dn + x - 1] == lc_u8 && luma[row_dn + x + 1] == lc_u8;
+                        diag_top && diag_bot
+                    } else {
+                        false
+                    };
+                    if !flat_3x3 {
+                        let hr: i32 = history[sc] as i32;
+                        let hg: i32 = history[sc + 1] as i32;
+                        let hb: i32 = history[sc + 2] as i32;
+                        let diff_rg: bool = hr != rgb[0] || hg != rgb[1];
+                        if diff_rg || hb != rgb[2] {
+                            let offsets: [usize; 8] = [
+                                (row_up + x - 1) * 4,
+                                (row_up + x) * 4,
+                                (row_up + x + 1) * 4,
+                                (row + x - 1) * 4,
+                                (row + x + 1) * 4,
+                                (row_dn + x - 1) * 4,
+                                (row_dn + x) * 4,
+                                (row_dn + x + 1) * 4,
+                            ];
+                            let mut r_min: i32 = rgb[0];
+                            let mut r_max: i32 = rgb[0];
+                            let mut g_min: i32 = rgb[1];
+                            let mut g_max: i32 = rgb[1];
+                            let mut b_min: i32 = rgb[2];
+                            let mut b_max: i32 = rgb[2];
+                            for off in offsets.into_iter() {
+                                let vr: i32 = src[off] as i32;
+                                let vg: i32 = src[off + 1] as i32;
+                                let vb: i32 = src[off + 2] as i32;
+                                r_min = r_min.min(vr);
+                                r_max = r_max.max(vr);
+                                g_min = g_min.min(vg);
+                                g_max = g_max.max(vg);
+                                b_min = b_min.min(vb);
+                                b_max = b_max.max(vb);
+                            }
+                            let hr_c: i32 = hr.clamp(r_min, r_max);
+                            let hg_c: i32 = hg.clamp(g_min, g_max);
+                            let hb_c: i32 = hb.clamp(b_min, b_max);
+                            rgb[0] = ((rgb[0] * 164 + hr_c * 92 + 128) >> 8).clamp(0, 255);
+                            rgb[1] = ((rgb[1] * 164 + hg_c * 92 + 128) >> 8).clamp(0, 255);
+                            rgb[2] = ((rgb[2] * 164 + hb_c * 92 + 128) >> 8).clamp(0, 255);
                         }
-                        let hist_clamped: i32 = (history[sc + ch] as i32).clamp(n_min, n_max);
-                        rgb[ch] = ((c0 * 164 + hist_clamped * 92 + 128) >> 8).clamp(0, 255);
                     }
                 }
                 if has_bloom {
-                    let bl: [f32; 3] = Self::sample_bloom_bilinear(bloom, bw, bh, x, y);
-                    rgb[0] = (rgb[0] + (bl[0] * 64.0) as i32).min(255);
-                    rgb[1] = (rgb[1] + (bl[1] * 64.0) as i32).min(255);
-                    rgb[2] = (rgb[2] + (bl[2] * 64.0) as i32).min(255);
+                    let bx0: usize = (x >> 2).min(bw_max);
+                    if bloom_active[bloom_r0 + bx0] != 0 {
+                        let tx: f32 = ((x & 3) as f32) * 0.25;
+                        let bl: [f32; 3] = Self::sample_bloom_bilinear_row(
+                            bloom,
+                            (bloom_r0, bloom_r1, bw_max),
+                            (bx0, tx, ty),
+                        );
+                        rgb[0] = (rgb[0] + (bl[0] * 64.0) as i32).min(255);
+                        rgb[1] = (rgb[1] + (bl[1] * 64.0) as i32).min(255);
+                        rgb[2] = (rgb[2] + (bl[2] * 64.0) as i32).min(255);
+                    }
                 }
-                dst_band[dc] = rgb[0] as u8;
-                dst_band[dc + 1] = rgb[1] as u8;
-                dst_band[dc + 2] = rgb[2] as u8;
-                dst_band[dc + 3] = 255;
+                // SAFETY: `dc + 4 <= band_rows * row_bytes` and `[u8; 4]` has alignment 1.
+                unsafe {
+                    dst_ptr.add(dc).cast::<[u8; 4]>().write([
+                        rgb[0] as u8,
+                        rgb[1] as u8,
+                        rgb[2] as u8,
+                        255,
+                    ]);
+                }
             }
         }
     }
 
-    /// Renders `world` at runtime-configured `quality` into an `ImageBuffer` using the persistent zero-spawn multi-core worker pool.
+    /// Renders `world` at runtime-configured `quality` directly into `out_pixels` without zero-filling, returning internal `(width, height)`.
     ///
     /// # Arguments
     ///
@@ -1158,17 +1470,19 @@ impl Renderer3D {
     /// - `u32` - Target viewport width in logical pixels.
     /// - `u32` - Target viewport height in logical pixels.
     /// - `&RenderQualityConfig` - Live runtime quality, resolution scale, LOD, and ray-tracing settings.
+    /// - `&mut Vec<u8>` - Destination RGBA8 byte buffer resized without zero-fill and populated completely.
     ///
     /// # Returns
     ///
-    /// - `ImageBuffer` - Ready RGBA8 rendered 3D frame for immediate presentation.
-    pub fn render_world(
+    /// - `(u32, u32)` - Internal rasterized framebuffer `(width, height)`.
+    fn render_world_into_vec(
         &mut self,
         world: &mut World3D,
         viewport_w: u32,
         viewport_h: u32,
         quality: &RenderQualityConfig,
-    ) -> ImageBuffer {
+        out_pixels: &mut Vec<u8>,
+    ) -> (u32, u32) {
         let scale: f32 = quality.get_resolution_scale().clamp(0.40, 4.0);
         let w: u32 = ((viewport_w as f32 * scale).round() as u32).clamp(240, 3840);
         let h: u32 = ((viewport_h as f32 * scale).round() as u32).clamp(144, 2160);
@@ -1188,6 +1502,7 @@ impl Renderer3D {
                 luma_buffer,
                 bloom_a,
                 bloom_b,
+                bloom_tile_active,
                 has_taa_history,
                 ..
             } = self;
@@ -1198,6 +1513,7 @@ impl Renderer3D {
             luma_buffer.resize(pixel_count, 0);
             bloom_a.resize(bw * bh, [0.0; 3]);
             bloom_b.resize(bw * bh, [0.0; 3]);
+            bloom_tile_active.resize(bw * bh, 0);
             *has_taa_history = false;
         }
         let rt_mode: RayTracingMode = quality.get_ray_tracing();
@@ -1244,12 +1560,15 @@ impl Renderer3D {
             g_tri_idx,
             luma_buffer,
             shaded_tris,
+            gi_rays_scratch,
             rt_probes,
             rt_probes_denoised,
             bloom_a,
             bloom_b,
+            bloom_tile_active,
             visible_scratch,
             cluster_ranges_scratch,
+            projected_verts_scratch,
             unique_meshes_scratch,
             has_taa_history,
             prev_vp_m0,
@@ -1327,49 +1646,81 @@ impl Renderer3D {
                 meshlets_drawn += meshlets.len().max(1);
                 cluster_ranges_scratch.push((0, indices.len()));
             }
+            if cluster_ranges_scratch.is_empty() {
+                continue;
+            }
+            projected_verts_scratch.clear();
+            projected_verts_scratch.reserve(verts.len());
+            for v in verts.iter() {
+                let wp: Vec3 = tr.transform_point(v.get_position());
+                let cp: [f32; 4] = vp.mul_point4(wp);
+                projected_verts_scratch.push((cp, wp));
+            }
+            let near_plane: f32 = cam.get_near().max(0.15);
+            let w_f: f32 = w as f32;
+            let h_f: f32 = h as f32;
+            let w_max_i: i32 = (w as i32) - 1;
+            let h_max_i: i32 = (h as i32) - 1;
+            let vert_count: usize = projected_verts_scratch.len();
             for &(tri_start, tri_end) in cluster_ranges_scratch.iter() {
                 for tri in indices[tri_start..tri_end].iter() {
                     let (i0, i1, i2): (usize, usize, usize) =
                         (tri[0] as usize, tri[1] as usize, tri[2] as usize);
-                    if i0 >= verts.len() || i1 >= verts.len() || i2 >= verts.len() {
+                    let oob_01: bool = i0 >= vert_count || i1 >= vert_count;
+                    if oob_01 || i2 >= vert_count {
                         continue;
                     }
-                    let wp0: Vec3 = tr.transform_point(verts[i0].get_position());
-                    let wp1: Vec3 = tr.transform_point(verts[i1].get_position());
-                    let wp2: Vec3 = tr.transform_point(verts[i2].get_position());
-                    let wn: Vec3 = tr.transform_normal(verts[i0].get_normal());
-                    let c0: [f32; 4] = vp.mul_point4(wp0);
-                    let c1: [f32; 4] = vp.mul_point4(wp1);
-                    let c2: [f32; 4] = vp.mul_point4(wp2);
+                    let (c0, wp0): ([f32; 4], Vec3) = projected_verts_scratch[i0];
+                    let (c1, wp1): ([f32; 4], Vec3) = projected_verts_scratch[i1];
+                    let (c2, wp2): ([f32; 4], Vec3) = projected_verts_scratch[i2];
+                    if c0[3] < near_plane && c1[3] < near_plane && c2[3] < near_plane {
+                        continue;
+                    }
+                    let out_l: bool = c0[0] < -c0[3] && c1[0] < -c1[3] && c2[0] < -c2[3];
+                    let out_r: bool = c0[0] > c0[3] && c1[0] > c1[3] && c2[0] > c2[3];
+                    let out_b: bool = c0[1] < -c0[3] && c1[1] < -c1[3] && c2[1] < -c2[3];
+                    let out_t: bool = c0[1] > c0[3] && c1[1] > c1[3] && c2[1] > c2[3];
+                    let out_lr: bool = out_l || out_r;
+                    let out_bt: bool = out_b || out_t;
+                    if out_lr || out_bt {
+                        continue;
+                    }
                     let (clipped_tris, clipped_count): ([ClippedTriangle3D; 2], usize) =
-                        Self::clip_triangle_near(
-                            (c0, wp0),
-                            (c1, wp1),
-                            (c2, wp2),
-                            cam.get_near().max(0.15),
-                        );
+                        Self::clip_triangle_near((c0, wp0), (c1, wp1), (c2, wp2), near_plane);
+                    if clipped_count == 0 {
+                        continue;
+                    }
+                    let mut cached_wn: Option<Vec3> = None;
                     for clipped in clipped_tris.iter().take(clipped_count) {
                         let [(tc0, tw0), (tc1, tw1), (tc2, tw2)]: ClippedTriangle3D = *clipped;
                         let inv_w0: f32 = 1.0 / tc0[3];
                         let inv_w1: f32 = 1.0 / tc1[3];
                         let inv_w2: f32 = 1.0 / tc2[3];
-                        let sx0: f32 = (tc0[0] * inv_w0 * 0.5 + 0.5) * (w as f32) + jitter_x;
-                        let sy0: f32 = (0.5 - tc0[1] * inv_w0 * 0.5) * (h as f32) + jitter_y;
-                        let sx1: f32 = (tc1[0] * inv_w1 * 0.5 + 0.5) * (w as f32) + jitter_x;
-                        let sy1: f32 = (0.5 - tc1[1] * inv_w1 * 0.5) * (h as f32) + jitter_y;
-                        let sx2: f32 = (tc2[0] * inv_w2 * 0.5 + 0.5) * (w as f32) + jitter_x;
-                        let sy2: f32 = (0.5 - tc2[1] * inv_w2 * 0.5) * (h as f32) + jitter_y;
+                        let sx0: f32 = (tc0[0] * inv_w0 * 0.5 + 0.5) * w_f + jitter_x;
+                        let sy0: f32 = (0.5 - tc0[1] * inv_w0 * 0.5) * h_f + jitter_y;
+                        let sx1: f32 = (tc1[0] * inv_w1 * 0.5 + 0.5) * w_f + jitter_x;
+                        let sy1: f32 = (0.5 - tc1[1] * inv_w1 * 0.5) * h_f + jitter_y;
+                        let sx2: f32 = (tc2[0] * inv_w2 * 0.5 + 0.5) * w_f + jitter_x;
+                        let sy2: f32 = (0.5 - tc2[1] * inv_w2 * 0.5) * h_f + jitter_y;
                         let area: f32 = (sx1 - sx0) * (sy2 - sy0) - (sy1 - sy0) * (sx2 - sx0);
                         if area.abs() < 0.25 {
                             continue;
                         }
                         let min_x: i32 = (sx0.min(sx1).min(sx2).floor() as i32).max(0);
-                        let max_x: i32 = (sx0.max(sx1).max(sx2).ceil() as i32).min((w as i32) - 1);
+                        let max_x: i32 = (sx0.max(sx1).max(sx2).ceil() as i32).min(w_max_i);
                         let min_y: i32 = (sy0.min(sy1).min(sy2).floor() as i32).max(0);
-                        let max_y: i32 = (sy0.max(sy1).max(sy2).ceil() as i32).min((h as i32) - 1);
+                        let max_y: i32 = (sy0.max(sy1).max(sy2).ceil() as i32).min(h_max_i);
                         if min_x > max_x || min_y > max_y {
                             continue;
                         }
+                        let wn: Vec3 = match cached_wn {
+                            Some(n) => n,
+                            None => {
+                                let computed: Vec3 = tr.transform_normal(verts[i0].get_normal());
+                                cached_wn = Some(computed);
+                                computed
+                            }
+                        };
                         triangles_drawn += 1;
                         let tri_id: u32 = shaded_tris.len() as u32;
                         let tri_center: Vec3 = tw0.add(tw1).add(tw2).scale(1.0 / 3.0);
@@ -1400,58 +1751,85 @@ impl Renderer3D {
                         let dw0_dx: f32 = (sy1 - sy2) * inv_area;
                         let dw1_dx: f32 = (sy2 - sy0) * inv_area;
                         let dw2_dx: f32 = -(dw0_dx + dw1_dx);
+                        let dw0_dy: f32 = (sx2 - sx1) * inv_area;
+                        let dw1_dy: f32 = (sx0 - sx2) * inv_area;
+                        let dw2_dy: f32 = -(dw0_dy + dw1_dy);
                         let d_inv_w_dx: f32 = dw0_dx * inv_w0 + dw1_dx * inv_w1 + dw2_dx * inv_w2;
+                        let d_inv_w_dy: f32 = dw0_dy * inv_w0 + dw1_dy * inv_w1 + dw2_dy * inv_w2;
+                        let neg_inv_slopes: [f32; 3] = [
+                            if dw0_dx.abs() > 1e-9 {
+                                -1.0 / dw0_dx
+                            } else {
+                                0.0
+                            },
+                            if dw1_dx.abs() > 1e-9 {
+                                -1.0 / dw1_dx
+                            } else {
+                                0.0
+                            },
+                            if dw2_dx.abs() > 1e-9 {
+                                -1.0 / dw2_dx
+                            } else {
+                                0.0
+                            },
+                        ];
+                        let slopes: [f32; 3] = [dw0_dx, dw1_dx, dw2_dx];
                         let span_max: i32 = max_x - min_x;
+                        let span_max_f: f32 = span_max as f32;
                         let fx_start: f32 = (min_x as f32) + 0.5;
-                        for py in min_y..=max_y {
-                            let fy: f32 = (py as f32) + 0.5;
-                            let w0_base: f32 = ((sx1 - fx_start) * (sy2 - fy)
-                                - (sy1 - fy) * (sx2 - fx_start))
-                                * inv_area;
-                            let w1_base: f32 = ((sx2 - fx_start) * (sy0 - fy)
-                                - (sy2 - fy) * (sx0 - fx_start))
-                                * inv_area;
-                            let w2_base: f32 = 1.0 - w0_base - w1_base;
+                        let fy_start: f32 = (min_y as f32) + 0.5;
+                        let mut w0_row: f32 = ((sx1 - fx_start) * (sy2 - fy_start)
+                            - (sy1 - fy_start) * (sx2 - fx_start))
+                            * inv_area;
+                        let mut w1_row: f32 = ((sx2 - fx_start) * (sy0 - fy_start)
+                            - (sy2 - fy_start) * (sx0 - fx_start))
+                            * inv_area;
+                        let mut w2_row: f32 = 1.0 - w0_row - w1_row;
+                        let mut inv_w_row: f32 =
+                            w0_row * inv_w0 + w1_row * inv_w1 + w2_row * inv_w2;
+                        let mut row_off: usize = (min_y as usize) * w_usize;
+                        for _py in min_y..=max_y {
+                            let vals: [f32; 3] = [w0_row + 1e-5, w1_row + 1e-5, w2_row + 1e-5];
                             let mut k_lo: f32 = 0.0;
-                            let mut k_hi: f32 = span_max as f32;
-                            let edges: [(f32, f32); 3] = [
-                                (w0_base + 1e-5, dw0_dx),
-                                (w1_base + 1e-5, dw1_dx),
-                                (w2_base + 1e-5, dw2_dx),
-                            ];
+                            let mut k_hi: f32 = span_max_f;
                             let mut valid_span: bool = true;
-                            for (val, slope) in edges.into_iter() {
+                            for e in 0..3 {
+                                let slope: f32 = slopes[e];
+                                let val: f32 = vals[e];
                                 if slope > 1e-9 {
-                                    k_lo = k_lo.max((-val / slope).ceil());
+                                    k_lo = k_lo.max((val * neg_inv_slopes[e]).ceil());
                                 } else if slope < -1e-9 {
-                                    k_hi = k_hi.min((-val / slope).floor());
+                                    k_hi = k_hi.min((val * neg_inv_slopes[e]).floor());
                                 } else if val < 0.0 {
                                     valid_span = false;
                                     break;
                                 }
                             }
-                            if !valid_span || k_lo > k_hi {
-                                continue;
-                            }
-                            let start_k: i32 = (k_lo as i32).max(0);
-                            let end_k: i32 = (k_hi as i32).min(span_max);
-                            if start_k > end_k {
-                                continue;
-                            }
-                            let inv_w_base: f32 =
-                                w0_base * inv_w0 + w1_base * inv_w1 + w2_base * inv_w2;
-                            let mut inv_w: f32 = inv_w_base + d_inv_w_dx * (start_k as f32);
-                            let row_off: usize = (py as usize) * w_usize;
-                            let px0: usize = (min_x + start_k) as usize;
-                            let px1: usize = (min_x + end_k) as usize;
-                            for px in px0..=px1 {
-                                let buf_idx: usize = row_off + px;
-                                if inv_w > depth_buffer[buf_idx] {
-                                    depth_buffer[buf_idx] = inv_w;
-                                    g_tri_idx[buf_idx] = tri_id;
+                            if valid_span && k_lo <= k_hi {
+                                let start_k: i32 = (k_lo as i32).max(0);
+                                let end_k: i32 = (k_hi as i32).min(span_max);
+                                if start_k <= end_k {
+                                    let mut inv_w: f32 =
+                                        d_inv_w_dx.mul_add(start_k as f32, inv_w_row);
+                                    let px0: usize = row_off + ((min_x + start_k) as usize);
+                                    let px1: usize = row_off + ((min_x + end_k) as usize);
+                                    for (d_slot, g_slot) in depth_buffer[px0..=px1]
+                                        .iter_mut()
+                                        .zip(g_tri_idx[px0..=px1].iter_mut())
+                                    {
+                                        if inv_w > *d_slot {
+                                            *d_slot = inv_w;
+                                            *g_slot = tri_id;
+                                        }
+                                        inv_w += d_inv_w_dx;
+                                    }
                                 }
-                                inv_w += d_inv_w_dx;
                             }
+                            w0_row += dw0_dy;
+                            w1_row += dw1_dy;
+                            w2_row += dw2_dy;
+                            inv_w_row += d_inv_w_dy;
+                            row_off += w_usize;
                         }
                     }
                 }
@@ -1482,6 +1860,22 @@ impl Renderer3D {
             quality.get_preset(),
             QualityPreset::High | QualityPreset::Ultra | QualityPreset::Cinematic
         );
+        let sun_inv_dir: Vec3 = Ray3D::safe_inv_vec(sun_dir);
+        let soft_shadow_rays: GiRayQuad = if rt_mode == RayTracingMode::FullPathTracedGi {
+            let sun_t1: Vec3 = sun_dir.cross(Vec3::new(0.0, 1.0, 0.0)).normalize();
+            let sun_t2: Vec3 = sun_dir.cross(sun_t1).normalize();
+            let mut table: GiRayQuad = [(sun_dir, sun_inv_dir); 4];
+            for (slot, &(ox, oy)) in table.iter_mut().zip(SOFT_SHADOW_OFFSETS_4.iter()) {
+                let jittered: Vec3 = sun_dir
+                    .add(sun_t1.scale(ox))
+                    .add(sun_t2.scale(oy))
+                    .normalize();
+                *slot = (jittered, Ray3D::safe_inv_vec(jittered));
+            }
+            table
+        } else {
+            [(sun_dir, sun_inv_dir); 4]
+        };
         let fctx: DeferredFrameCtx = DeferredFrameCtx {
             w: w_usize,
             h: h_usize,
@@ -1496,7 +1890,8 @@ impl Renderer3D {
             cam_right_scaled: cam_right.scale(half_w),
             cam_up_scaled: cam_up.scale(half_h),
             sun,
-            inv_sun_dir: Ray3D::safe_inv_vec(sun_dir),
+            inv_sun_dir: sun_inv_dir,
+            soft_shadow_rays,
             rt_mode,
             reflection_bounces: quality.get_reflection_bounces(),
             fog_on: quality.get_volumetric_fog(),
@@ -1510,20 +1905,48 @@ impl Renderer3D {
             if rt_probes.len() != probe_count {
                 rt_probes.resize(probe_count, RtProbeSample::default());
             }
+            gi_rays_scratch.clear();
+            if rt_mode == RayTracingMode::FullPathTracedGi {
+                gi_rays_scratch.reserve(shaded_tris.len());
+                let j0: Vec3 = Vec3::new(GI_JITTER_4[0][0], GI_JITTER_4[0][1], GI_JITTER_4[0][2]);
+                let j1: Vec3 = Vec3::new(GI_JITTER_4[1][0], GI_JITTER_4[1][1], GI_JITTER_4[1][2]);
+                let j2: Vec3 = Vec3::new(GI_JITTER_4[2][0], GI_JITTER_4[2][1], GI_JITTER_4[2][2]);
+                let j3: Vec3 = Vec3::new(GI_JITTER_4[3][0], GI_JITTER_4[3][1], GI_JITTER_4[3][2]);
+                let jits: [Vec3; 4] = [j0, j1, j2, j3];
+                for tri in shaded_tris.iter() {
+                    let n: Vec3 = tri.shade_n;
+                    let mut dirs: [(Vec3, Vec3); 4] = [(n, n); 4];
+                    for (slot, &base_jit) in dirs.iter_mut().zip(jits.iter()) {
+                        let jit: Vec3 = if n.dot(base_jit) < -0.15 {
+                            base_jit.scale(-1.0)
+                        } else {
+                            base_jit
+                        };
+                        let gi_dir: Vec3 = n.add(jit).normalize();
+                        *slot = (gi_dir, Ray3D::safe_inv_vec(gi_dir));
+                    }
+                    gi_rays_scratch.push(dirs);
+                }
+            }
             let depth_ref: &[f32] = depth_buffer.as_slice();
             let gtri_ref: &[u32] = g_tri_idx.as_slice();
             let stri_ref: &[GShadeTri] = shaded_tris.as_slice();
+            let gi_rays_ref: &[GiRayQuad] = gi_rays_scratch.as_slice();
             let probes_base: usize = rt_probes.as_mut_ptr() as usize;
-            let probe_grain: usize = (gh / 16).clamp(4, 16);
+            let probe_grain: usize = (gh / 32).clamp(2, 8);
             parallel_for_ranges(gh, probe_grain, |gy0: usize, gy1: usize| {
+                // SAFETY: `parallel_for_ranges` partitions `0..gh` into disjoint row bands within `rt_probes`.
                 let slice: &mut [RtProbeSample] = unsafe {
                     from_raw_parts_mut(
                         (probes_base as *mut RtProbeSample).add(gy0 * gw),
                         (gy1 - gy0) * gw,
                     )
                 };
-                let r: usize =
-                    Self::trace_probe_band(&fctx, depth_ref, gtri_ref, stri_ref, bvh, (gy0, slice));
+                let r: usize = Self::trace_probe_band(
+                    &fctx,
+                    (depth_ref, gtri_ref, stri_ref, gi_rays_ref, bvh),
+                    (gy0, slice),
+                );
                 if r > 0 {
                     let _: usize = rays_atom.fetch_add(r, Ordering::Relaxed);
                 }
@@ -1539,6 +1962,7 @@ impl Renderer3D {
                 let src_probes: &[RtProbeSample] = rt_probes.as_slice();
                 let dst_base: usize = rt_probes_denoised.as_mut_ptr() as usize;
                 parallel_for_ranges(gh, probe_grain, |gy0: usize, gy1: usize| {
+                    // SAFETY: Disjoint row bands within `rt_probes_denoised`.
                     let dst_slice: &mut [RtProbeSample] = unsafe {
                         from_raw_parts_mut(
                             (dst_base as *mut RtProbeSample).add(gy0 * gw),
@@ -1559,6 +1983,7 @@ impl Renderer3D {
         } else {
             rt_probes.as_slice()
         };
+        let bloom_any_atom: AtomicUsize = AtomicUsize::new(0);
         {
             let depth_ref: &[f32] = depth_buffer.as_slice();
             let gtri_ref: &[u32] = g_tri_idx.as_slice();
@@ -1567,21 +1992,24 @@ impl Renderer3D {
             let luma_base: usize = luma_buffer.as_mut_ptr() as usize;
             let bloom_base: usize = bloom_a.as_mut_ptr() as usize;
             let bloom_total_len: usize = bloom_a.len();
-            let shade_grain: usize = ((h_usize / 16).div_ceil(4) * 4).clamp(16, 48);
+            let shade_grain: usize = ((h_usize / 32).div_ceil(4) * 4).clamp(8, 24);
             parallel_for_ranges(h_usize, shade_grain, |y0: usize, y1: usize| {
                 let rows: usize = y1 - y0;
+                // SAFETY: `shade_grain` is a multiple of 4 and `parallel_for_ranges` yields disjoint row bands.
                 let c_band: &mut [u8] = unsafe {
                     from_raw_parts_mut(
                         (color_base as *mut u8).add(y0 * w_usize * 4),
                         rows * w_usize * 4,
                     )
                 };
+                // SAFETY: Disjoint luma row band for `[y0, y1)`.
                 let l_band: &mut [u8] = unsafe {
                     from_raw_parts_mut((luma_base as *mut u8).add(y0 * w_usize), rows * w_usize)
                 };
                 let b_start: usize = (y0 / 4) * bw;
                 let b_end: usize = ((y1.div_ceil(4)) * bw).min(bloom_total_len);
                 let b_band: &mut [[f32; 3]] = if b_start < b_end {
+                    // SAFETY: Since `y0` and non-final `y1` are multiples of 4, `[b_start, b_end)` ranges are disjoint.
                     unsafe {
                         from_raw_parts_mut(
                             (bloom_base as *mut [f32; 3]).add(b_start),
@@ -1591,7 +2019,7 @@ impl Renderer3D {
                 } else {
                     &mut []
                 };
-                let r: usize = Self::shade_deferred_band(
+                let (r, has_bloom_band): (usize, bool) = Self::shade_deferred_band(
                     &fctx,
                     (depth_ref, gtri_ref, stri_ref, active_probes, bvh),
                     (y0, c_band, l_band, b_band),
@@ -1599,39 +2027,65 @@ impl Renderer3D {
                 if r > 0 {
                     let _: usize = rays_atom.fetch_add(r, Ordering::Relaxed);
                 }
+                if has_bloom_band {
+                    bloom_any_atom.store(1, Ordering::Relaxed);
+                }
             });
         }
         let rays_traced: usize = rays_atom.load(Ordering::Relaxed);
-        if bloom_on {
+        let bloom_effective: bool = if bloom_on && bloom_any_atom.load(Ordering::Relaxed) != 0 {
             Self::blur_bloom_separable(bw, bh, bloom_a.as_mut_slice(), bloom_b.as_mut_slice());
-        }
+            Self::build_bloom_tile_mask(
+                bw,
+                bh,
+                bloom_a.as_slice(),
+                bloom_tile_active.as_mut_slice(),
+            )
+        } else {
+            false
+        };
         let use_fxaa: bool = aa_mode != AntiAliasingMode::Off;
         let vp_m0: f32 = vp.get_m()[0] + vp.get_m()[12] * 0.01 + vp.get_m()[14] * 0.01;
         let cam_stable: bool = (*prev_vp_m0 - vp_m0).abs() < 0.35;
         let use_taa: bool = aa_mode == AntiAliasingMode::Taa && *has_taa_history && cam_stable;
-        let mut out_pixels: Vec<u8> = vec![0; pixel_count * 4];
+        let byte_len: usize = pixel_count * 4;
+        out_pixels.clear();
+        if out_pixels.capacity() < byte_len {
+            out_pixels.reserve_exact(byte_len);
+        }
         {
             let src_ref: &[u8] = color_buffer.as_slice();
             let luma_ref: &[u8] = luma_buffer.as_slice();
             let gtri_ref: &[u32] = g_tri_idx.as_slice();
             let bloom_ref: &[[f32; 3]] = bloom_a.as_slice();
+            let bloom_mask_ref: &[u8] = bloom_tile_active.as_slice();
             let hist_ref: &[u8] = aa_buffer.as_slice();
             let out_base: usize = out_pixels.as_mut_ptr() as usize;
-            let post_grain: usize = (h_usize / 16).clamp(16, 48);
+            let post_grain: usize = (h_usize / 32).clamp(8, 24);
             parallel_for_ranges(h_usize, post_grain, |y0: usize, y1: usize| {
-                let dst_band: &mut [u8] = unsafe {
-                    from_raw_parts_mut(
-                        (out_base as *mut u8).add(y0 * w_usize * 4),
-                        (y1 - y0) * w_usize * 4,
-                    )
-                };
-                Self::post_process_band(
-                    (w_usize, h_usize, bw, bh),
-                    (src_ref, luma_ref, gtri_ref, bloom_ref, hist_ref),
-                    (use_fxaa, use_taa, bloom_on),
-                    (y0, dst_band),
-                );
+                // SAFETY: `out_pixels` has capacity `>= byte_len`, `parallel_for_ranges` partitions `0..h_usize`
+                // into disjoint row ranges, and `post_process_band` writes all `(y1 - y0) * w_usize * 4` bytes.
+                unsafe {
+                    let band_ptr: *mut u8 = (out_base as *mut u8).add(y0 * w_usize * 4);
+                    Self::post_process_band(
+                        (w_usize, h_usize, bw, bh),
+                        (
+                            src_ref,
+                            luma_ref,
+                            gtri_ref,
+                            bloom_ref,
+                            bloom_mask_ref,
+                            hist_ref,
+                        ),
+                        (use_fxaa, use_taa, bloom_effective),
+                        (y0, band_ptr, y1 - y0),
+                    );
+                }
             });
+        }
+        // SAFETY: `parallel_for_ranges` has joined and initialized every byte in `0..byte_len`.
+        unsafe {
+            out_pixels.set_len(byte_len);
         }
         if aa_mode == AntiAliasingMode::Taa {
             swap(aa_buffer, color_buffer);
@@ -1659,7 +2113,65 @@ impl Renderer3D {
             meshlets_culled,
         };
         self.set_last_stats(stats);
+        (w, h)
+    }
+
+    /// Renders `world` at runtime-configured `quality` into an `ImageBuffer` without zero-filling output memory.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable 3D renderer.
+    /// - `&mut World3D` - Open-world 3D scene graph.
+    /// - `u32` - Target viewport width in logical pixels.
+    /// - `u32` - Target viewport height in logical pixels.
+    /// - `&RenderQualityConfig` - Live runtime quality, resolution scale, LOD, and ray-tracing settings.
+    ///
+    /// # Returns
+    ///
+    /// - `ImageBuffer` - Ready RGBA8 rendered 3D frame for immediate presentation.
+    pub fn render_world(
+        &mut self,
+        world: &mut World3D,
+        viewport_w: u32,
+        viewport_h: u32,
+        quality: &RenderQualityConfig,
+    ) -> ImageBuffer {
+        let mut out_pixels: Vec<u8> = Vec::new();
+        let (w, h): (u32, u32) =
+            self.render_world_into_vec(world, viewport_w, viewport_h, quality, &mut out_pixels);
         ImageBuffer::new(w, h, out_pixels)
+    }
+
+    /// Renders `world` into the persistent internal `rgba_scratch` buffer, eliminating per-frame output heap allocations.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable 3D renderer.
+    /// - `&mut World3D` - Open-world 3D scene graph.
+    /// - `u32` - Target viewport width in logical pixels.
+    /// - `u32` - Target viewport height in logical pixels.
+    /// - `&RenderQualityConfig` - Live runtime quality, resolution scale, LOD, and ray-tracing settings.
+    ///
+    /// # Returns
+    ///
+    /// - `&[u8]` - Borrowed RGBA8 pixel slice of the rendered 3D frame.
+    #[must_use]
+    pub fn render_world_rgba(
+        &mut self,
+        world: &mut World3D,
+        viewport_w: u32,
+        viewport_h: u32,
+        quality: &RenderQualityConfig,
+    ) -> &[u8] {
+        let mut scratch: Vec<u8> = {
+            let Self { rgba_scratch, .. } = self;
+            take(rgba_scratch)
+        };
+        let _: (u32, u32) =
+            self.render_world_into_vec(world, viewport_w, viewport_h, quality, &mut scratch);
+        let Self { rgba_scratch, .. } = self;
+        *rgba_scratch = scratch;
+        rgba_scratch.as_slice()
     }
 
     /// Clips a triangle against the camera near plane `w >= near_w` (Sutherland-Hodgman), returning 0, 1, or 2 triangles.

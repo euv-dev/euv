@@ -10,6 +10,7 @@ use super::*;
 /// # Returns
 ///
 /// - `R` - Closure result or fallback value.
+#[inline(always)]
 pub(crate) fn with_runtime<F, R>(operation: F, fallback: R) -> R
 where
     F: FnOnce(&mut ReactiveRuntime) -> R,
@@ -26,6 +27,236 @@ where
         .unwrap_or(fallback)
 }
 
+/// Pull-verifies upstream `MemoId` dependencies for a `NodeState::Check` memo, short-circuiting on the first change.
+///
+/// # Arguments
+///
+/// - `MemoCheckDeps` - Zero-allocation inline or cursor-sliced upstream memo dependency snapshot.
+///
+/// # Returns
+///
+/// - `bool` - `true` as soon as any upstream memo recomputes to a changed value.
+fn verify_check_memos(deps: MemoCheckDeps) -> bool {
+    match deps {
+        MemoCheckDeps::Inline(buf, count) => {
+            let len: usize = count as usize;
+            for parent_memo in buf.iter().copied().take(len) {
+                if evaluate_memo(parent_memo) {
+                    return true;
+                }
+            }
+            false
+        }
+        MemoCheckDeps::Spill(start, end) => {
+            let mut changed: bool = false;
+            let mut cursor: usize = start;
+            while cursor < end {
+                let parent_opt: Option<MemoId> = with_runtime(
+                    |rt: &mut ReactiveRuntime| rt.get_check_scratch().get(cursor).copied(),
+                    None,
+                );
+                if let Some(parent_memo) = parent_opt
+                    && evaluate_memo(parent_memo)
+                {
+                    changed = true;
+                    break;
+                }
+                cursor += 1;
+            }
+            with_runtime(
+                |rt: &mut ReactiveRuntime| {
+                    rt.get_mut_check_scratch().truncate(start);
+                },
+                (),
+            );
+            changed
+        }
+    }
+}
+
+/// Reads a typed `Memo<T>` using fused runtime borrows (1 borrow on `Clean`, 2 borrows on `Dirty` or unchanged `Check`).
+///
+/// # Arguments
+///
+/// - `MemoId` - Target memo identifier to read and track.
+///
+/// # Returns
+///
+/// - `Option<T>` - Current computed value if alive and matching type `T`.
+#[must_use]
+pub(crate) fn read_memo_fused<T>(id: MemoId) -> Option<T>
+where
+    T: Clone + 'static,
+{
+    let slot: SlotId = id.slot();
+    let idx: usize = slot.as_usize();
+    let prep: MemoReadPrep<T> = with_runtime(
+        |rt: &mut ReactiveRuntime| {
+            let state: NodeState = {
+                let Some(entry) = rt.get_memos().get(idx) else {
+                    return MemoReadPrep::Dead;
+                };
+                if entry.get_generation() != slot.get_generation() {
+                    return MemoReadPrep::Dead;
+                }
+                entry.get_state()
+            };
+            match state {
+                NodeState::Clean => {
+                    let val: Option<T> = rt.get_memos()[idx]
+                        .value
+                        .as_ref()
+                        .and_then(|boxed: &Box<dyn Any>| boxed.downcast_ref::<T>())
+                        .cloned();
+                    rt.track_dependency(DependencyId::Memo(id));
+                    MemoReadPrep::Ready(val)
+                }
+                NodeState::Dirty => {
+                    let (compute, prev_value): StagedMemo = {
+                        let entry: &mut MemoEntry = &mut rt.get_mut_memos()[idx];
+                        let Some(compute) = entry.compute.clone() else {
+                            return MemoReadPrep::Dead;
+                        };
+                        let prev_value: Option<Box<dyn Any>> = entry.value.take();
+                        (compute, prev_value)
+                    };
+                    rt.get_mut_observer_stack()
+                        .push(Some((SubscriberId::Memo(id), 0)));
+                    MemoReadPrep::Compute((compute, prev_value))
+                }
+                NodeState::Check => {
+                    if rt.get_memos()[idx].compute.is_none() {
+                        return MemoReadPrep::Dead;
+                    }
+                    if let Some(check_deps) = rt.collect_check_memos(idx) {
+                        MemoReadPrep::Check(check_deps)
+                    } else {
+                        let entry: &mut MemoEntry = &mut rt.get_mut_memos()[idx];
+                        entry.set_state(NodeState::Clean);
+                        let val: Option<T> = entry
+                            .value
+                            .as_ref()
+                            .and_then(|boxed: &Box<dyn Any>| boxed.downcast_ref::<T>())
+                            .cloned();
+                        rt.track_dependency(DependencyId::Memo(id));
+                        MemoReadPrep::Ready(val)
+                    }
+                }
+            }
+        },
+        MemoReadPrep::Dead,
+    );
+    let staged: StagedMemo = match prep {
+        MemoReadPrep::Dead => return None,
+        MemoReadPrep::Ready(val) => return val,
+        MemoReadPrep::Compute(staged_memo) => staged_memo,
+        MemoReadPrep::Check(deps) => {
+            if !verify_check_memos(deps) {
+                return with_runtime(
+                    |rt: &mut ReactiveRuntime| {
+                        let entry: &mut MemoEntry = rt.get_mut_memos().get_mut(idx)?;
+                        if entry.get_generation() != slot.get_generation() {
+                            return None;
+                        }
+                        entry.set_state(NodeState::Clean);
+                        let val: Option<T> = entry
+                            .value
+                            .as_ref()
+                            .and_then(|boxed: &Box<dyn Any>| boxed.downcast_ref::<T>())
+                            .cloned();
+                        rt.track_dependency(DependencyId::Memo(id));
+                        val
+                    },
+                    None,
+                );
+            }
+            let staged_memo: StagedMemo = with_runtime(
+                |rt: &mut ReactiveRuntime| {
+                    let entry: &mut MemoEntry = rt.get_mut_memos().get_mut(idx)?;
+                    if entry.get_generation() != slot.get_generation() {
+                        return None;
+                    }
+                    let compute: MemoComputeFn = entry.compute.clone()?;
+                    let prev_value: Option<Box<dyn Any>> = entry.value.take();
+                    rt.get_mut_observer_stack()
+                        .push(Some((SubscriberId::Memo(id), 0)));
+                    Some((compute, prev_value))
+                },
+                None,
+            )?;
+            staged_memo
+        }
+    };
+    let (compute, mut value_slot): StagedMemo = staged;
+    let mut guard: TrackingGuard = TrackingGuard::new();
+    let eval_result: Option<bool> = match compute.try_borrow_mut() {
+        Ok(mut func) => Some(func(&mut value_slot)),
+        Err(_) => None,
+    };
+    guard.disarm();
+    match eval_result {
+        Some(changed) => with_runtime(
+            |rt: &mut ReactiveRuntime| {
+                rt.finish_tracking();
+                let out_val: Option<T> = value_slot
+                    .as_ref()
+                    .and_then(|boxed: &Box<dyn Any>| boxed.downcast_ref::<T>())
+                    .cloned();
+                let (alive, target): (bool, DirtyTarget) =
+                    if let Some(entry) = rt.get_mut_memos().get_mut(idx) {
+                        if entry.get_generation() != slot.get_generation() {
+                            (false, DirtyTarget::Empty)
+                        } else {
+                            entry.set_value(value_slot);
+                            entry.set_state(NodeState::Clean);
+                            if changed {
+                                let next_ver: u64 = entry.get_version().wrapping_add(1);
+                                entry.set_version(next_ver);
+                                (true, entry.get_subscribers().dirty_target())
+                            } else {
+                                (true, DirtyTarget::Empty)
+                            }
+                        }
+                    } else {
+                        (false, DirtyTarget::Empty)
+                    };
+                if !alive {
+                    return None;
+                }
+                if !matches!(target, DirtyTarget::Empty) {
+                    rt.propagate_memo_dirty(idx, target);
+                }
+                rt.track_dependency(DependencyId::Memo(id));
+                out_val
+            },
+            None,
+        ),
+        None => with_runtime(
+            |rt: &mut ReactiveRuntime| {
+                let _: Option<Option<(SubscriberId, usize)>> = rt.get_mut_observer_stack().pop();
+                let out_val: Option<T> = value_slot
+                    .as_ref()
+                    .and_then(|boxed: &Box<dyn Any>| boxed.downcast_ref::<T>())
+                    .cloned();
+                let alive: bool = if let Some(entry) = rt.get_mut_memos().get_mut(idx)
+                    && entry.get_generation() == slot.get_generation()
+                {
+                    entry.set_value(value_slot);
+                    true
+                } else {
+                    false
+                };
+                if !alive {
+                    return None;
+                }
+                rt.track_dependency(DependencyId::Memo(id));
+                out_val
+            },
+            None,
+        ),
+    }
+}
+
 /// Evaluates a memo if dirty or check-marked, updating its cached value outside any `RefCell` borrow.
 ///
 /// # Arguments
@@ -38,73 +269,90 @@ where
 pub(crate) fn evaluate_memo(id: MemoId) -> bool {
     let slot: SlotId = id.slot();
     let idx: usize = slot.as_usize();
-    let (state, deps): (NodeState, Vec<DependencyId>) = with_runtime(
+    let prep: MemoEvalPrep = with_runtime(
         |rt: &mut ReactiveRuntime| {
-            let Some(entry) = rt.get_memos().get(idx) else {
-                return (NodeState::Clean, Vec::new());
+            let state: NodeState = {
+                let Some(entry) = rt.get_memos().get(idx) else {
+                    return MemoEvalPrep::Clean;
+                };
+                if entry.get_generation() != slot.get_generation() || entry.compute.is_none() {
+                    return MemoEvalPrep::Clean;
+                }
+                entry.get_state()
             };
-            if entry.get_generation() != slot.get_generation() || entry.compute.is_none() {
-                return (NodeState::Clean, Vec::new());
-            }
-            let cur_state: NodeState = entry.get_state();
-            if cur_state == NodeState::Check {
-                (cur_state, entry.get_dependencies().clone())
-            } else {
-                (cur_state, Vec::new())
-            }
-        },
-        (NodeState::Clean, Vec::new()),
-    );
-    if state == NodeState::Clean {
-        return false;
-    }
-    if state == NodeState::Check {
-        let mut upstream_changed: bool = false;
-        for dep in deps.into_iter() {
-            if let DependencyId::Memo(parent_memo) = dep
-                && evaluate_memo(parent_memo)
-            {
-                upstream_changed = true;
-            }
-        }
-        if !upstream_changed {
-            with_runtime(
-                |rt: &mut ReactiveRuntime| {
-                    if let Some(entry) = rt.get_mut_memos().get_mut(idx)
-                        && entry.get_generation() == slot.get_generation()
-                    {
-                        entry.set_state(NodeState::Clean);
+            match state {
+                NodeState::Clean => MemoEvalPrep::Clean,
+                NodeState::Dirty => {
+                    let (compute, prev_value): StagedMemo = {
+                        let entry: &mut MemoEntry = &mut rt.get_mut_memos()[idx];
+                        let Some(compute) = entry.compute.clone() else {
+                            return MemoEvalPrep::Clean;
+                        };
+                        let prev_value: Option<Box<dyn Any>> = entry.value.take();
+                        (compute, prev_value)
+                    };
+                    rt.get_mut_observer_stack()
+                        .push(Some((SubscriberId::Memo(id), 0)));
+                    MemoEvalPrep::Compute((compute, prev_value))
+                }
+                NodeState::Check => {
+                    if let Some(check_deps) = rt.collect_check_memos(idx) {
+                        MemoEvalPrep::Check(check_deps)
+                    } else {
+                        rt.get_mut_memos()[idx].set_state(NodeState::Clean);
+                        MemoEvalPrep::Clean
                     }
-                },
-                (),
-            );
-            return false;
-        }
-    }
-    let staged: Option<StagedMemo> = with_runtime(
-        |rt: &mut ReactiveRuntime| {
-            rt.clear_dependencies(SubscriberId::Memo(id));
-            let entry: &mut MemoEntry = rt.get_mut_memos().get_mut(idx)?;
-            if entry.get_generation() != slot.get_generation() {
-                return None;
+                }
             }
-            let compute: MemoComputeFn = entry.compute.clone()?;
-            let prev_value: Option<Box<dyn Any>> = entry.value.take();
-            rt.get_mut_observer_stack()
-                .push(Some(SubscriberId::Memo(id)));
-            Some((compute, prev_value))
         },
-        None,
+        MemoEvalPrep::Clean,
     );
-    let Some((compute, mut value_slot)) = staged else {
-        return false;
+    let staged: StagedMemo = match prep {
+        MemoEvalPrep::Clean => return false,
+        MemoEvalPrep::Compute(staged_memo) => staged_memo,
+        MemoEvalPrep::Check(deps) => {
+            if !verify_check_memos(deps) {
+                with_runtime(
+                    |rt: &mut ReactiveRuntime| {
+                        if let Some(entry) = rt.get_mut_memos().get_mut(idx)
+                            && entry.get_generation() == slot.get_generation()
+                        {
+                            entry.set_state(NodeState::Clean);
+                        }
+                    },
+                    (),
+                );
+                return false;
+            }
+            let Some(staged_memo) = with_runtime(
+                |rt: &mut ReactiveRuntime| {
+                    let entry: &mut MemoEntry = rt.get_mut_memos().get_mut(idx)?;
+                    if entry.get_generation() != slot.get_generation() {
+                        return None;
+                    }
+                    let compute: MemoComputeFn = entry.compute.clone()?;
+                    let prev_value: Option<Box<dyn Any>> = entry.value.take();
+                    rt.get_mut_observer_stack()
+                        .push(Some((SubscriberId::Memo(id), 0)));
+                    Some((compute, prev_value))
+                },
+                None,
+            ) else {
+                return false;
+            };
+            staged_memo
+        }
     };
+    let (compute, mut value_slot): StagedMemo = staged;
+    let mut guard: TrackingGuard = TrackingGuard::new();
     let changed: bool = match compute.try_borrow_mut() {
         Ok(mut func) => func(&mut value_slot),
         Err(_) => {
+            guard.disarm();
             with_runtime(
                 |rt: &mut ReactiveRuntime| {
-                    rt.get_mut_observer_stack().pop();
+                    let _: Option<Option<(SubscriberId, usize)>> =
+                        rt.get_mut_observer_stack().pop();
                     if let Some(entry) = rt.get_mut_memos().get_mut(idx)
                         && entry.get_generation() == slot.get_generation()
                     {
@@ -116,10 +364,11 @@ pub(crate) fn evaluate_memo(id: MemoId) -> bool {
             return false;
         }
     };
+    guard.disarm();
     with_runtime(
         |rt: &mut ReactiveRuntime| {
-            rt.get_mut_observer_stack().pop();
-            let should_propagate: bool = if let Some(entry) = rt.get_mut_memos().get_mut(idx) {
+            rt.finish_tracking();
+            let target: DirtyTarget = if let Some(entry) = rt.get_mut_memos().get_mut(idx) {
                 if entry.get_generation() != slot.get_generation() {
                     return;
                 }
@@ -128,15 +377,15 @@ pub(crate) fn evaluate_memo(id: MemoId) -> bool {
                 if changed {
                     let next_ver: u64 = entry.get_version().wrapping_add(1);
                     entry.set_version(next_ver);
-                    !entry.get_subscribers().is_empty()
+                    entry.get_subscribers().dirty_target()
                 } else {
-                    false
+                    DirtyTarget::Empty
                 }
             } else {
-                false
+                DirtyTarget::Empty
             };
-            if should_propagate {
-                rt.mark_memo_subscribers_dirty(idx);
+            if !matches!(target, DirtyTarget::Empty) {
+                rt.propagate_memo_dirty(idx, target);
             }
         },
         (),
@@ -159,9 +408,8 @@ pub(crate) fn run_effect(id: EffectId) {
             }
             entry.set_scheduled(false);
             let cb: Rc<RefCell<dyn FnMut()>> = entry.callback.clone()?;
-            rt.clear_dependencies(SubscriberId::Effect(id));
             rt.get_mut_observer_stack()
-                .push(Some(SubscriberId::Effect(id)));
+                .push(Some((SubscriberId::Effect(id), 0)));
             Some(cb)
         },
         None,
@@ -169,12 +417,21 @@ pub(crate) fn run_effect(id: EffectId) {
     let Some(callback) = callback_opt else {
         return;
     };
-    if let Ok(mut func) = callback.try_borrow_mut() {
+    let mut guard: TrackingGuard = TrackingGuard::new();
+    let ran: bool = if let Ok(mut func) = callback.try_borrow_mut() {
         func();
-    }
+        true
+    } else {
+        false
+    };
+    guard.disarm();
     with_runtime(
         |rt: &mut ReactiveRuntime| {
-            rt.get_mut_observer_stack().pop();
+            if ran {
+                rt.finish_tracking();
+            } else {
+                rt.get_mut_observer_stack().pop();
+            }
         },
         (),
     );
@@ -182,69 +439,57 @@ pub(crate) fn run_effect(id: EffectId) {
 
 /// Flushes all pending reactive effects in topological depth order when not inside a batch.
 pub fn flush_effects() {
-    let should_start: bool = with_runtime(
+    let mut step: FlushStep = with_runtime(
         |rt: &mut ReactiveRuntime| {
             if rt.get_batch_depth() > 0 || rt.get_flushing() || rt.get_pending_effects().is_empty()
             {
-                return false;
+                return FlushStep::Done;
             }
             rt.set_flushing(true);
-            true
+            rt.drain_pending_flush_step(Vec::new())
         },
-        false,
+        FlushStep::Done,
     );
-    if !should_start {
+    if matches!(step, FlushStep::Done) {
         return;
     }
+    let mut reusable_batch: Vec<(u32, EffectId)> = Vec::new();
     let mut iterations: usize = 0;
-    while iterations < MAX_FLUSH_ITERATIONS {
-        let single_opt: Option<EffectId> = with_runtime(
-            |rt: &mut ReactiveRuntime| {
-                if rt.get_pending_effects().len() == 1 {
-                    rt.get_mut_pending_effects().pop()
-                } else {
-                    None
+    loop {
+        match step {
+            FlushStep::Done => break,
+            FlushStep::Single(eff_id) => {
+                run_effect(eff_id);
+            }
+            FlushStep::Batch(mut batch, is_sorted) => {
+                if !is_sorted {
+                    batch.sort_by_key(|pair: &(u32, EffectId)| pair.0);
                 }
-            },
-            None,
-        );
-        if let Some(eff_id) = single_opt {
-            run_effect(eff_id);
-            iterations += 1;
-            continue;
-        }
-        let mut batch_ids: Vec<(u32, EffectId)> = with_runtime(
-            |rt: &mut ReactiveRuntime| {
-                let pending: Vec<EffectId> = take(rt.get_mut_pending_effects());
-                let mut pairs: Vec<(u32, EffectId)> = Vec::with_capacity(pending.len());
-                for eff_id in pending.into_iter() {
-                    let slot: SlotId = eff_id.slot();
-                    if let Some(entry) = rt.get_effects().get(slot.as_usize())
-                        && entry.get_generation() == slot.get_generation()
-                        && entry.get_alive()
-                    {
-                        pairs.push((entry.get_depth(), eff_id));
-                    }
+                for (_, eff_id) in batch.drain(..) {
+                    run_effect(eff_id);
                 }
-                pairs
-            },
-            Vec::new(),
-        );
-        if batch_ids.is_empty() {
-            break;
-        }
-        batch_ids.sort_by_key(|pair: &(u32, EffectId)| pair.0);
-        for (_, eff_id) in batch_ids.into_iter() {
-            run_effect(eff_id);
+                reusable_batch = batch;
+            }
         }
         iterations += 1;
+        if iterations >= MAX_FLUSH_ITERATIONS {
+            with_runtime(
+                |rt: &mut ReactiveRuntime| {
+                    if reusable_batch.capacity() > rt.get_flush_batch_scratch().capacity() {
+                        rt.set_flush_batch_scratch(reusable_batch);
+                    }
+                    rt.set_flushing(false);
+                },
+                (),
+            );
+            break;
+        }
+        let passed_batch: Vec<(u32, EffectId)> = take(&mut reusable_batch);
+        step = with_runtime(
+            |rt: &mut ReactiveRuntime| rt.drain_pending_flush_step(passed_batch),
+            FlushStep::Done,
+        );
     }
-    with_runtime(
-        |rt: &mut ReactiveRuntime| {
-            rt.set_flushing(false);
-        },
-        (),
-    );
 }
 
 /// Coalesces multiple signal writes inside `operation` into a single reactive flush pass.
@@ -343,6 +588,7 @@ pub fn reactive_stats() -> ReactiveStats {
 
 /// Resets the current thread's reactive runtime to an empty state.
 pub fn reset_reactive_runtime() {
+    reset_system_event_hub();
     with_runtime(
         |rt: &mut ReactiveRuntime| {
             *rt = ReactiveRuntime::default();

@@ -3,6 +3,9 @@ use super::*;
 /// Re-exported JSON value type used by `AiAppHooks` callbacks without requiring callers to add `serde_json`.
 pub type AiJsonValue = Value;
 
+/// Backward-compatible alias for `AiRuntimeSnapshot` used across AI Schema v1/v2 inspection APIs.
+pub type UiSnapshot = AiRuntimeSnapshot;
+
 /// Callback returning the active application route string.
 pub type AiRouteGetter = Rc<dyn Fn() -> String>;
 

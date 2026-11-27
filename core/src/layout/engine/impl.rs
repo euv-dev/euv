@@ -14,19 +14,294 @@ impl LayoutEngine {
     ///
     /// - `LayoutStats` - Computed vs cached subtree counts.
     pub fn compute(&mut self, tree: &mut SceneTree, viewport: Size) -> LayoutStats {
+        let Self {
+            track_damage,
+            damage_fallback,
+            layout_snapshots,
+            ..
+        } = self;
+        *track_damage = false;
+        *damage_fallback = LAYOUT_FALLBACK_NONE;
+        layout_snapshots.clear();
+        self.compute_inner(tree, viewport)
+    }
+
+    /// Computes layout for `tree` while recording pre/post-layout conservative bounds diffs into a tight `LayoutDamageReport`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable layout engine.
+    /// - `&mut SceneTree` - Retained scene tree to lay out.
+    /// - `Size` - Logical viewport dimensions.
+    /// - `f32` - Active display scale factor for outward-rounded physical damage rects.
+    ///
+    /// # Returns
+    ///
+    /// - `(LayoutStats, LayoutDamageReport)` - Layout pass stats and surgical physical damage or fallback cause.
+    pub(crate) fn compute_with_damage(
+        &mut self,
+        tree: &mut SceneTree,
+        viewport: Size,
+        scale: f32,
+    ) -> (LayoutStats, LayoutDamageReport) {
+        {
+            let Self {
+                track_damage,
+                damage_fallback,
+                layout_snapshots,
+                ..
+            } = self;
+            *track_damage = true;
+            *damage_fallback = LAYOUT_FALLBACK_NONE;
+            layout_snapshots.clear();
+        }
+        let stats: LayoutStats = self.compute_inner(tree, viewport);
+        let fallback_after: u8 = {
+            let Self {
+                track_damage,
+                damage_fallback,
+                ..
+            } = self;
+            *track_damage = false;
+            *damage_fallback
+        };
+        if fallback_after != LAYOUT_FALLBACK_NONE {
+            let Self {
+                layout_snapshots, ..
+            } = self;
+            layout_snapshots.clear();
+            return (
+                stats,
+                LayoutDamageReport {
+                    damage: DamageRegion::full(),
+                    fallback_kind: fallback_after,
+                },
+            );
+        }
+        let mut damage: DamageRegion = DamageRegion::default();
+        let mut final_fallback: u8 = LAYOUT_FALLBACK_NONE;
+        let Self {
+            layout_snapshots, ..
+        } = self;
+        for snap in layout_snapshots.iter().copied() {
+            let Some(node) = tree.get_node(snap.id) else {
+                continue;
+            };
+            let lbox: LayoutBox = node.get_layout_box();
+            let new_bounds: Rect = lbox.get_bounds();
+            let new_content_bounds: Rect = lbox.get_content_bounds();
+            let new_content_size: Size = lbox.get_content_size();
+            let bounds_changed: bool = !Self::rect_approx_eq(snap.old_bounds, new_bounds);
+            let content_changed: bool =
+                !Self::rect_approx_eq(snap.old_content_bounds, new_content_bounds);
+            let is_scroll_box: bool =
+                node.style_ref().layout_ref().get_overflow() == Overflow::Scroll;
+            let scroll_content_changed: bool =
+                is_scroll_box && !Self::size_approx_eq(snap.old_content_size, new_content_size);
+            let geom_changed: bool = bounds_changed || content_changed;
+            if !geom_changed && !scroll_content_changed {
+                continue;
+            }
+            let is_portal_or_fixed: bool = matches!(node.get_kind(), NodeKind::Portal)
+                || node.style_ref().layout_ref().get_position() == Position::Fixed;
+            if is_portal_or_fixed {
+                final_fallback = LAYOUT_FALLBACK_PORTAL;
+                break;
+            }
+            if snap.has_old_screen {
+                damage.add_rect(SceneTree::scale_logical_to_phys_rect(
+                    snap.old_screen,
+                    scale,
+                ));
+            }
+            if new_bounds.get_width() > 0.0 && new_bounds.get_height() > 0.0 {
+                match tree.node_conservative_logical_rect(snap.id) {
+                    Some(new_screen) => {
+                        damage.add_rect(SceneTree::scale_logical_to_phys_rect(new_screen, scale));
+                    }
+                    None => {
+                        final_fallback = LAYOUT_FALLBACK_UNSAFE;
+                        break;
+                    }
+                }
+            }
+        }
+        layout_snapshots.clear();
+        if final_fallback != LAYOUT_FALLBACK_NONE {
+            return (
+                stats,
+                LayoutDamageReport {
+                    damage: DamageRegion::full(),
+                    fallback_kind: final_fallback,
+                },
+            );
+        }
+        (
+            stats,
+            LayoutDamageReport {
+                damage,
+                fallback_kind: LAYOUT_FALLBACK_NONE,
+            },
+        )
+    }
+
+    /// Executes the core layout traversal over `tree` using the current `track_damage` mode.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable layout engine.
+    /// - `&mut SceneTree` - Retained scene tree to lay out.
+    /// - `Size` - Logical viewport dimensions.
+    ///
+    /// # Returns
+    ///
+    /// - `LayoutStats` - Computed vs cached subtree counts.
+    fn compute_inner(&mut self, tree: &mut SceneTree, viewport: Size) -> LayoutStats {
         let root_id: NodeId = tree.get_root();
         let space: AvailableSpace = AvailableSpace::root(viewport);
         let mut stats: LayoutStats = LayoutStats::default();
+        self.get_mut_children_scratch().clear();
+        self.get_mut_flow_scratch().clear();
+        self.get_mut_abs_scratch().clear();
+        self.get_mut_flex_items_scratch().clear();
+        self.get_mut_flex_lines_scratch().clear();
+        self.get_mut_translate_scratch().clear();
         self.layout_node(tree, root_id, space, &mut stats);
+        debug_assert!(self.get_children_scratch().is_empty());
+        debug_assert!(self.get_flow_scratch().is_empty());
+        debug_assert!(self.get_abs_scratch().is_empty());
+        debug_assert!(self.get_flex_items_scratch().is_empty());
+        debug_assert!(self.get_flex_lines_scratch().is_empty());
+        debug_assert!(self.get_mut_translate_scratch().is_empty());
         self.set_last_stats(stats);
         stats
+    }
+
+    /// Records the first pre-layout geometry snapshot of `node_id` when surgical damage tracking is active.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable layout engine.
+    /// - `&SceneTree` - Retained scene tree prior to writing `node_id`'s updated layout box.
+    /// - `NodeId` - Target node handle about to be mutated.
+    #[inline]
+    fn record_layout_snapshot(&mut self, tree: &SceneTree, node_id: NodeId) {
+        let Self {
+            track_damage,
+            damage_fallback,
+            layout_snapshots,
+            ..
+        } = self;
+        if !*track_damage || *damage_fallback != LAYOUT_FALLBACK_NONE {
+            return;
+        }
+        if layout_snapshots
+            .iter()
+            .any(|snap: &LayoutNodeSnapshot| snap.id == node_id)
+        {
+            return;
+        }
+        if layout_snapshots.len() >= DIRTY_PAINT_FULL_THRESHOLD {
+            *damage_fallback = LAYOUT_FALLBACK_OVERFLOW;
+            return;
+        }
+        let Some(node) = tree.get_node(node_id) else {
+            return;
+        };
+        let lbox: LayoutBox = node.get_layout_box();
+        let old_bounds: Rect = lbox.get_bounds();
+        let old_content_bounds: Rect = lbox.get_content_bounds();
+        let old_content_size: Size = lbox.get_content_size();
+        let (has_old_screen, old_screen): (bool, Rect) =
+            if old_bounds.get_width() > 0.0 && old_bounds.get_height() > 0.0 {
+                match tree.node_conservative_logical_rect(node_id) {
+                    Some(rect) => (true, rect),
+                    None => {
+                        *damage_fallback = LAYOUT_FALLBACK_UNSAFE;
+                        return;
+                    }
+                }
+            } else {
+                (false, Rect::default())
+            };
+        layout_snapshots.push(LayoutNodeSnapshot {
+            id: node_id,
+            old_bounds,
+            old_content_bounds,
+            old_content_size,
+            has_old_screen,
+            old_screen,
+        });
+    }
+
+    /// Returns `true` when two layout rectangles are equal within subpixel tolerance.
+    ///
+    /// # Arguments
+    ///
+    /// - `Rect` - First rectangle.
+    /// - `Rect` - Second rectangle.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - Whether position and dimensions match within `0.001` logical pixels.
+    #[inline]
+    fn rect_approx_eq(a: Rect, b: Rect) -> bool {
+        (a.get_x() - b.get_x()).abs() <= 0.001
+            && (a.get_y() - b.get_y()).abs() <= 0.001
+            && (a.get_width() - b.get_width()).abs() <= 0.001
+            && (a.get_height() - b.get_height()).abs() <= 0.001
+    }
+
+    /// Returns `true` when two layout sizes are equal within subpixel tolerance.
+    ///
+    /// # Arguments
+    ///
+    /// - `Size` - First size.
+    /// - `Size` - Second size.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - Whether width and height match within `0.001` logical pixels.
+    #[inline]
+    fn size_approx_eq(a: Size, b: Size) -> bool {
+        (a.get_width() - b.get_width()).abs() <= 0.001
+            && (a.get_height() - b.get_height()).abs() <= 0.001
+    }
+
+    /// Measures text bounding dimensions through the bounded `TextSizeCache`, delegating misses to `TextMeasurer::measure_size`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable layout engine reference.
+    /// - `&str` - UTF-8 text content to measure.
+    /// - `TextStyle` - Active typography style.
+    /// - `Option<f32>` - Optional maximum wrap width in logical pixels.
+    ///
+    /// # Returns
+    ///
+    /// - `Size` - Exact measured bounding dimensions.
+    fn measure_text_cached(
+        &mut self,
+        text: &str,
+        style: TextStyle,
+        max_width: Option<f32>,
+    ) -> Size {
+        let measurer: DeterministicTextMeasurer = self.get_measurer();
+        self.get_mut_text_size_cache().get_or_measure(
+            text,
+            style,
+            max_width,
+            |raw: &str, text_style: TextStyle, limit: Option<f32>| {
+                measurer.measure_size(raw, text_style, limit)
+            },
+        )
     }
 
     /// Performs recursive layout on `node_id` with O(1) clean-subtree caching.
     ///
     /// # Arguments
     ///
-    /// - `&Self` - Layout engine reference.
+    /// - `&Self` - Mutable layout engine reference.
     /// - `&mut SceneTree` - Mutable scene tree.
     /// - `NodeId` - Node handle to compute.
     /// - `AvailableSpace` - Parent space constraint and origin.
@@ -36,103 +311,100 @@ impl LayoutEngine {
     ///
     /// - `Size` - Computed border-box dimensions of `node_id`.
     fn layout_node(
-        &self,
+        &mut self,
         tree: &mut SceneTree,
         node_id: NodeId,
         space: AvailableSpace,
         stats: &mut LayoutStats,
     ) -> Size {
-        if let Some(node) = tree.get_node(node_id) {
-            if !node.get_dirty().intersects(DIRTY_LAYOUT_PASS_MASK)
-                && let Some(prev_space) = node.cached_constraint()
-            {
-                let same_size: bool = (prev_space.get_width() - space.get_width()).abs() <= 0.01
-                    && (prev_space.get_height() - space.get_height()).abs() <= 0.01
-                    && (prev_space.get_viewport().get_width() - space.get_viewport().get_width())
-                        .abs()
-                        <= 0.01
-                    && (prev_space.get_viewport().get_height() - space.get_viewport().get_height())
-                        .abs()
-                        <= 0.01
-                    && prev_space.get_stretch_width() == space.get_stretch_width()
-                    && prev_space.get_stretch_height() == space.get_stretch_height();
-                if same_size {
-                    let dx: f32 = space.get_origin_x() - prev_space.get_origin_x();
-                    let dy: f32 = space.get_origin_y() - prev_space.get_origin_y();
-                    let prev_bounds: Rect = node.get_layout_box().get_bounds();
-                    if dx.abs() > 0.001 || dy.abs() > 0.001 {
-                        self.translate_subtree(tree, node_id, dx, dy);
-                    }
-                    stats.set_subtrees_skipped(stats.get_subtrees_skipped() + 1);
-                    return Size::new(prev_bounds.get_width(), prev_bounds.get_height());
-                }
-            }
-        } else {
-            return Size::default();
-        }
-        let snapshot: Option<LayoutNodeSnapshot> =
-            tree.get_node(node_id).map(|node: &SceneNode| {
-                (
-                    node.get_style(),
-                    node.get_kind().clone(),
-                    node.get_dirty(),
-                    node.cached_constraint(),
-                    node.get_layout_box().get_bounds(),
-                    node.get_children().clone(),
-                )
-            });
-        let Some((style, kind, _, _, _, children)) = snapshot else {
+        let Some(node) = tree.get_node(node_id) else {
             return Size::default();
         };
+        if !node.get_dirty().intersects(DIRTY_LAYOUT_PASS_MASK)
+            && let Some(prev_space) = node.cached_constraint()
+            && prev_space.can_reuse(space)
+        {
+            let prev_bounds: Rect = node.get_layout_box().get_bounds();
+            let cached_size: Size = Size::new(prev_bounds.get_width(), prev_bounds.get_height());
+            if !prev_space.same_origin(space) {
+                let dx: f32 = space.get_origin_x() - prev_space.get_origin_x();
+                let dy: f32 = space.get_origin_y() - prev_space.get_origin_y();
+                self.translate_subtree(tree, node_id, dx, dy);
+            }
+            stats.set_subtrees_skipped(stats.get_subtrees_skipped() + 1);
+            return cached_size;
+        }
         stats.set_nodes_computed(stats.get_nodes_computed() + 1);
-        let layout: LayoutStyle = style.get_layout();
-        if layout.get_display() == Display::None {
-            let mut stack: Vec<NodeId> = vec![node_id];
-            while let Some(hid) = stack.pop() {
-                if let Some(node) = tree.get_node_mut(hid) {
-                    node.get_mut_layout_box().set_bounds(Rect::default());
-                    node.get_mut_layout_box()
-                        .set_content_bounds(Rect::default());
-                    node.set_last_constraint(Some(space));
-                    node.get_mut_dirty().remove(DIRTY_LAYOUT_PASS_MASK);
-                    stack.extend(node.get_children().iter().copied());
+        let style_ref: &Style = node.style_ref();
+        let Style {
+            layout: layout_ref,
+            paint: paint_ref,
+            text: text_ref,
+        } = style_ref;
+        if layout_ref.get_display() == Display::None {
+            let stack_base: usize = self.get_children_scratch().len();
+            self.get_mut_children_scratch().push(node_id);
+            while self.get_children_scratch().len() > stack_base {
+                if let Some(hid) = self.get_mut_children_scratch().pop() {
+                    self.record_layout_snapshot(tree, hid);
+                    if let Some(hidden_node) = tree.get_node_mut(hid) {
+                        hidden_node.get_mut_layout_box().set_bounds(Rect::default());
+                        hidden_node
+                            .get_mut_layout_box()
+                            .set_content_bounds(Rect::default());
+                        if hid == node_id {
+                            hidden_node.set_last_constraint(Some(space));
+                        } else {
+                            hidden_node.set_last_constraint(None);
+                        }
+                        hidden_node.get_mut_dirty().remove(DIRTY_LAYOUT_PASS_MASK);
+                        self.get_mut_children_scratch()
+                            .extend_from_slice(hidden_node.get_children().as_slice());
+                    }
                 }
             }
             return Size::default();
         }
-        let padding: Edges = layout.get_padding();
-        let border_w: f32 = style.get_paint().get_border().get_width();
+        let padding: Edges = layout_ref.get_padding();
+        let border_w: f32 = paint_ref.get_border().get_width();
         let chrome_h: f32 = padding.horizontal() + border_w * 2.0;
         let chrome_v: f32 = padding.vertical() + border_w * 2.0;
-        let mut resolved_w: Option<f32> = layout
+        let explicit_w: Option<f32> = layout_ref
             .get_width()
             .resolve(space.get_width(), space.get_viewport());
-        let mut resolved_h: Option<f32> = layout
+        let explicit_h: Option<f32> = layout_ref
             .get_height()
             .resolve(space.get_height(), space.get_viewport());
-        if resolved_w.is_none() && space.get_stretch_width() {
+        let mut resolved_w: Option<f32> = explicit_w;
+        let mut resolved_h: Option<f32> = explicit_h;
+        let stretched_w: bool = resolved_w.is_none() && space.get_stretch_width();
+        let stretched_h: bool = resolved_h.is_none() && space.get_stretch_height();
+        if stretched_w {
             resolved_w = Some(space.get_width());
         }
-        if resolved_h.is_none() && space.get_stretch_height() {
+        if stretched_h {
             resolved_h = Some(space.get_height());
         }
-        let min_w: f32 = layout
+        let min_w: f32 = layout_ref
             .get_min_width()
             .resolve(space.get_width(), space.get_viewport())
             .unwrap_or(0.0);
-        let min_h: f32 = layout
+        let min_h: f32 = layout_ref
             .get_min_height()
             .resolve(space.get_height(), space.get_viewport())
             .unwrap_or(0.0);
-        let max_w: f32 = layout
+        let max_w: f32 = layout_ref
             .get_max_width()
             .resolve(space.get_width(), space.get_viewport())
-            .unwrap_or(f32::INFINITY);
-        let max_h: f32 = layout
+            .unwrap_or(f32::INFINITY)
+            .max(min_w);
+        let max_h: f32 = layout_ref
             .get_max_height()
             .resolve(space.get_height(), space.get_viewport())
-            .unwrap_or(f32::INFINITY);
-        if let Some(ratio) = layout.aspect_ratio_value()
+            .unwrap_or(f32::INFINITY)
+            .max(min_h);
+        let aspect_ratio: Option<f32> = layout_ref.aspect_ratio_value();
+        if let Some(ratio) = aspect_ratio
             && ratio > 0.0
         {
             if let Some(w) = resolved_w
@@ -145,59 +417,99 @@ impl LayoutEngine {
                 resolved_w = Some(h.clamp(min_h, max_h) * ratio);
             }
         }
-        let inner_avail_w: f32 =
-            (resolved_w.unwrap_or(space.get_width()).min(max_w) - chrome_h).max(0.0);
-        let inner_avail_h: f32 =
-            (resolved_h.unwrap_or(space.get_height()).min(max_h) - chrome_v).max(0.0);
+        let avail_w_outer: f32 = resolved_w
+            .unwrap_or(space.get_width())
+            .max(min_w)
+            .min(max_w);
+        let avail_h_outer: f32 = resolved_h
+            .unwrap_or(space.get_height())
+            .max(min_h)
+            .min(max_h);
+        let inner_avail_w: f32 = (avail_w_outer - chrome_h).max(0.0);
+        let inner_avail_h: f32 = (avail_h_outer - chrome_v).max(0.0);
         let origin_x: f32 = space.get_origin_x();
         let origin_y: f32 = space.get_origin_y();
         let content_origin_x: f32 = origin_x + padding.get_left() + border_w;
         let content_origin_y: f32 = origin_y + padding.get_top() + border_w;
-        let content_size: Size = match &kind {
-            NodeKind::Text(text) => {
-                let measured: TextLayoutResult = self.get_measurer().measure(
-                    text,
-                    style.get_text(),
-                    Some(inner_avail_w.max(1.0)),
-                );
-                measured.get_size()
+        let mut child_range: Option<(usize, usize)> = None;
+        let leaf_content_size: Option<Size> = match node.get_kind() {
+            NodeKind::Text(text) => Some(self.measure_text_cached(
+                text.as_str(),
+                *text_ref,
+                Some(inner_avail_w.max(1.0)),
+            )),
+            NodeKind::Image(img) => {
+                Some(Size::new(img.get_width() as f32, img.get_height() as f32))
             }
-            NodeKind::Image(img) => Size::new(img.get_width() as f32, img.get_height() as f32),
             NodeKind::Input(input_state) => {
                 let sample: &str = if input_state.get_value().is_empty() {
                     input_state.get_placeholder().as_str()
                 } else {
                     input_state.get_value().as_str()
                 };
-                let measured: TextLayoutResult = self.get_measurer().measure(
-                    sample,
-                    style.get_text(),
-                    Some(inner_avail_w.max(1.0)),
-                );
-                Size::new(
-                    measured.get_size().get_width().max(120.0),
-                    measured.get_size().get_height().max(20.0),
-                )
+                let measured_size: Size =
+                    self.measure_text_cached(sample, *text_ref, Some(inner_avail_w.max(1.0)));
+                Some(Size::new(
+                    measured_size.get_width().max(120.0),
+                    measured_size.get_height().max(20.0),
+                ))
             }
             NodeKind::View
             | NodeKind::ScrollView
             | NodeKind::Portal
             | NodeKind::Fragment
             | NodeKind::Canvas => {
-                let frame: ContainerFrame = ContainerFrame::new(
-                    layout,
-                    Size::new(inner_avail_w, inner_avail_h),
-                    space.get_viewport(),
-                    Point::new(content_origin_x, content_origin_y),
-                    resolved_w.is_some(),
-                    resolved_h.is_some(),
-                );
-                self.layout_children(tree, &children, frame, stats)
+                let node_children: &[NodeId] = node.get_children().as_slice();
+                if node_children.is_empty() {
+                    Some(Size::default())
+                } else {
+                    let start: usize = self.get_children_scratch().len();
+                    self.get_mut_children_scratch()
+                        .extend_from_slice(node_children);
+                    let end: usize = self.get_children_scratch().len();
+                    child_range = Some((start, end));
+                    None
+                }
             }
         };
-        let mut final_w: f32 = resolved_w.unwrap_or(content_size.get_width() + chrome_h);
-        let mut final_h: f32 = resolved_h.unwrap_or(content_size.get_height() + chrome_v);
-        if let Some(ratio) = layout.aspect_ratio_value()
+        let node_overflow: Overflow = layout_ref.get_overflow();
+        let node_flex_grow: f32 = layout_ref.get_flex_grow();
+        let content_size: Size = if let Some(size) = leaf_content_size {
+            size
+        } else if let Some((child_start, child_end)) = child_range {
+            let frame: ContainerFrame = ContainerFrame::new(
+                *layout_ref,
+                Size::new(inner_avail_w, inner_avail_h),
+                space.get_viewport(),
+                Point::new(content_origin_x, content_origin_y),
+                resolved_w.is_some(),
+                resolved_h.is_some(),
+            );
+            let size: Size = self.layout_children(tree, child_start, child_end, frame, stats);
+            self.get_mut_children_scratch().truncate(child_start);
+            size
+        } else {
+            Size::default()
+        };
+        let content_outer_w: f32 = content_size.get_width() + chrome_h;
+        let content_outer_h: f32 = content_size.get_height() + chrome_v;
+        let mut final_w: f32 = match (explicit_w, stretched_w) {
+            (Some(w), _) => w,
+            (None, true) => {
+                let base_w: f32 = resolved_w.unwrap_or(content_outer_w);
+                if node_overflow == Overflow::Visible
+                    && node_flex_grow <= 0.0
+                    && content_outer_w > base_w + 0.5
+                {
+                    content_outer_w
+                } else {
+                    base_w
+                }
+            }
+            (None, false) => content_outer_w,
+        };
+        let mut final_h: f32 = resolved_h.unwrap_or(content_outer_h);
+        if let Some(ratio) = aspect_ratio
             && ratio > 0.0
         {
             if resolved_w.is_some() && resolved_h.is_none() {
@@ -215,6 +527,7 @@ impl LayoutEngine {
             (final_w - chrome_h).max(0.0),
             (final_h - chrome_v).max(0.0),
         );
+        self.record_layout_snapshot(tree, node_id);
         if let Some(node) = tree.get_node_mut(node_id) {
             node.get_mut_layout_box().set_bounds(bounds);
             node.get_mut_layout_box().set_content_bounds(content_bounds);
@@ -229,9 +542,10 @@ impl LayoutEngine {
     ///
     /// # Arguments
     ///
-    /// - `&Self` - Layout engine reference.
+    /// - `&Self` - Mutable layout engine reference.
     /// - `&mut SceneTree` - Mutable scene tree.
-    /// - `&[NodeId]` - Ordered child handles.
+    /// - `usize` - Inclusive start index into `children_scratch`.
+    /// - `usize` - Exclusive end index into `children_scratch`.
     /// - `ContainerFrame` - Parent layout constraints and origin.
     /// - `&mut LayoutStats` - Mutable telemetry counters.
     ///
@@ -239,24 +553,49 @@ impl LayoutEngine {
     ///
     /// - `Size` - Intrinsic aggregate content size occupied by flow children.
     fn layout_children(
-        &self,
+        &mut self,
         tree: &mut SceneTree,
-        children: &[NodeId],
+        child_start: usize,
+        child_end: usize,
         frame: ContainerFrame,
         stats: &mut LayoutStats,
     ) -> Size {
-        if children.is_empty() {
+        let child_count: usize = child_end.saturating_sub(child_start);
+        if child_count == 0 {
             return Size::default();
         }
         let parent_layout: LayoutStyle = frame.get_parent_layout();
         let inner_avail: Size = frame.get_inner_avail();
         let viewport: Size = frame.get_viewport();
         let content_origin: Point = frame.get_content_origin();
-        let mut flow_children: Vec<NodeId> = Vec::with_capacity(children.len());
-        let mut abs_children: Vec<NodeId> = Vec::new();
-        for child_id in children.iter().copied() {
+        let flex_dir_opt: Option<FlexDirection> = match parent_layout.get_display() {
+            Display::Grid => None,
+            Display::Block => Some(FlexDirection::Column),
+            Display::Flex | Display::None => Some(parent_layout.get_flex_direction()),
+        };
+        let is_row_dir: bool = matches!(
+            flex_dir_opt,
+            Some(FlexDirection::Row | FlexDirection::RowReverse)
+        );
+        let is_reverse_dir: bool = matches!(
+            flex_dir_opt,
+            Some(FlexDirection::RowReverse | FlexDirection::ColumnReverse)
+        );
+        let parent_align: AlignItems = parent_layout.get_align_items();
+        let parent_height_auto: bool = parent_layout.get_height() == Length::Auto;
+        let mut single_pass_ok: bool = flex_dir_opt.is_some()
+            && parent_layout.get_flex_wrap() != FlexWrap::Wrap
+            && !is_reverse_dir
+            && parent_layout.get_justify_content() == JustifyContent::Start;
+        let flow_start: usize = self.get_flow_scratch().len();
+        let abs_start: usize = self.get_abs_scratch().len();
+        for idx in child_start..child_end {
+            let child_id: NodeId = self.get_children_scratch()[idx];
             if let Some(child_node) = tree.get_node(child_id) {
-                let child_layout: LayoutStyle = child_node.get_style().get_layout();
+                let Style {
+                    layout: child_layout,
+                    ..
+                } = child_node.style_ref();
                 if child_layout.get_display() == Display::None {
                     let _: Size = self.layout_node(
                         tree,
@@ -267,28 +606,57 @@ impl LayoutEngine {
                     continue;
                 }
                 match child_layout.get_position() {
-                    Position::Relative => flow_children.push(child_id),
-                    Position::Absolute | Position::Fixed => abs_children.push(child_id),
+                    Position::Relative => {
+                        if single_pass_ok {
+                            if child_layout.get_flex_grow() > 0.0 {
+                                single_pass_ok = false;
+                            } else {
+                                let align: AlignItems = match child_layout.get_align_self() {
+                                    AlignSelf::Auto => parent_align,
+                                    AlignSelf::Stretch => AlignItems::Stretch,
+                                    AlignSelf::Start => AlignItems::Start,
+                                    AlignSelf::Center => AlignItems::Center,
+                                    AlignSelf::End => AlignItems::End,
+                                };
+                                let non_start_align: bool =
+                                    matches!(align, AlignItems::Center | AlignItems::End);
+                                let auto_row_stretch: bool = align == AlignItems::Stretch
+                                    && is_row_dir
+                                    && child_layout.get_height() == Length::Auto
+                                    && parent_height_auto;
+                                if non_start_align || auto_row_stretch {
+                                    single_pass_ok = false;
+                                }
+                            }
+                        }
+                        self.get_mut_flow_scratch().push(child_id);
+                    }
+                    Position::Absolute | Position::Fixed => {
+                        self.get_mut_abs_scratch().push(child_id)
+                    }
                 }
             }
         }
-        let flow_size: Size = match parent_layout.get_display() {
-            Display::Grid => self.layout_grid(tree, &flow_children, frame, stats),
-            Display::Block => {
-                self.layout_flex(tree, &flow_children, frame, FlexDirection::Column, stats)
-            }
-            Display::Flex | Display::None => self.layout_flex(
+        let flow_end: usize = self.get_flow_scratch().len();
+        let abs_end: usize = self.get_abs_scratch().len();
+        let flow_size: Size = if let Some(flex_dir) = flex_dir_opt {
+            self.layout_flex(
                 tree,
-                &flow_children,
+                (flow_start, flow_end),
                 frame,
-                parent_layout.get_flex_direction(),
+                flex_dir,
+                single_pass_ok,
                 stats,
-            ),
+            )
+        } else {
+            self.layout_grid(tree, flow_start, flow_end, frame, stats)
         };
-        for abs_id in abs_children.into_iter() {
+        self.get_mut_flow_scratch().truncate(flow_start);
+        for abs_idx in abs_start..abs_end {
+            let abs_id: NodeId = self.get_abs_scratch()[abs_idx];
             let child_layout_opt: Option<LayoutStyle> = tree
                 .get_node(abs_id)
-                .map(|node: &SceneNode| node.get_style().get_layout());
+                .map(|node: &SceneNode| node.style_ref().get_layout());
             let Some(child_layout) = child_layout_opt else {
                 continue;
             };
@@ -343,6 +711,7 @@ impl LayoutEngine {
                 AvailableSpace::new(ref_size.get_width(), ref_size.get_height(), viewport, x, y);
             let _: Size = self.layout_node(tree, abs_id, abs_space, stats);
         }
+        self.get_mut_abs_scratch().truncate(abs_start);
         flow_size
     }
 
@@ -350,25 +719,29 @@ impl LayoutEngine {
     ///
     /// # Arguments
     ///
-    /// - `&Self` - Layout engine reference.
+    /// - `&Self` - Mutable layout engine reference.
     /// - `&mut SceneTree` - Mutable scene tree.
-    /// - `&[NodeId]` - Normal-flow children.
+    /// - `(usize, usize)` - Inclusive start and exclusive end indices into `flow_scratch`.
     /// - `ContainerFrame` - Container constraints and origin.
     /// - `FlexDirection` - Effective main-axis direction.
+    /// - `bool` - Whether single-pass flex fast-path eligibility was confirmed while collecting flow children.
     /// - `&mut LayoutStats` - Mutable telemetry counters.
     ///
     /// # Returns
     ///
     /// - `Size` - Aggregate content size of all flex lines.
     fn layout_flex(
-        &self,
+        &mut self,
         tree: &mut SceneTree,
-        children: &[NodeId],
+        flow_range: (usize, usize),
         frame: ContainerFrame,
         direction: FlexDirection,
+        single_pass_ok: bool,
         stats: &mut LayoutStats,
     ) -> Size {
-        if children.is_empty() {
+        let (flow_start, flow_end): (usize, usize) = flow_range;
+        let count_all: usize = flow_end.saturating_sub(flow_start);
+        if count_all == 0 {
             return Size::default();
         }
         let parent_layout: LayoutStyle = frame.get_parent_layout();
@@ -400,306 +773,514 @@ impl LayoutEngine {
         } else {
             inner_avail.get_width()
         };
-        let mut measured_sizes: Vec<(NodeId, Size, LayoutStyle)> =
-            Vec::with_capacity(children.len());
-        let mut ordered: Vec<NodeId> = children.to_vec();
         if is_reverse {
-            ordered.reverse();
+            self.get_mut_flow_scratch()[flow_start..flow_end].reverse();
         }
         let wrap_enabled: bool = parent_layout.get_flex_wrap() == FlexWrap::Wrap;
-        if !wrap_enabled
-            && !is_reverse
-            && parent_layout.get_justify_content() == JustifyContent::Start
-        {
-            let mut single_pass_ok: bool = true;
-            let mut has_stretched_auto: bool = false;
-            for child_id in ordered.iter().copied() {
-                let child_layout: LayoutStyle = tree
-                    .get_node(child_id)
-                    .map(|node: &SceneNode| node.get_style().get_layout())
-                    .unwrap_or_default();
-                if child_layout.get_flex_grow() > 0.0 {
-                    single_pass_ok = false;
-                    break;
-                }
-                let align: AlignItems = match child_layout.get_align_self() {
-                    AlignSelf::Auto => parent_layout.get_align_items(),
-                    AlignSelf::Stretch => AlignItems::Stretch,
-                    AlignSelf::Start => AlignItems::Start,
-                    AlignSelf::Center => AlignItems::Center,
-                    AlignSelf::End => AlignItems::End,
-                };
-                if matches!(align, AlignItems::Center | AlignItems::End) {
-                    single_pass_ok = false;
-                    break;
-                }
-                if align == AlignItems::Stretch {
-                    if is_row {
-                        if child_layout.get_height() == Length::Auto
-                            && parent_layout.get_height() == Length::Auto
-                        {
-                            single_pass_ok = false;
-                            break;
-                        }
-                    } else if child_layout.get_width() == Length::Auto {
-                        has_stretched_auto = true;
-                    }
-                }
-            }
-            if single_pass_ok {
-                let mut main_cursor: f32 = 0.0;
-                let mut max_cross: f32 = 0.0;
-                let count: usize = ordered.len();
-                let mut child_records: Vec<(NodeId, LayoutStyle, Size)> = if has_stretched_auto {
-                    Vec::with_capacity(count)
-                } else {
-                    Vec::new()
-                };
-                for (idx, child_id) in ordered.iter().copied().enumerate() {
-                    let child_layout: LayoutStyle = tree
-                        .get_node(child_id)
-                        .map(|node: &SceneNode| node.get_style().get_layout())
-                        .unwrap_or_default();
-                    let margin: Edges = child_layout.get_margin();
-                    let align: AlignItems = match child_layout.get_align_self() {
-                        AlignSelf::Auto => parent_layout.get_align_items(),
+        if single_pass_ok {
+            let parent_align: AlignItems = parent_layout.get_align_items();
+            let mut main_cursor: f32 = 0.0;
+            let mut max_cross: f32 = 0.0;
+            let records_start: usize = self.get_flex_items_scratch().len();
+            for offset in 0..count_all {
+                let child_id: NodeId = self.get_flow_scratch()[flow_start + offset];
+                let (margin, align, width_auto, height_auto, clean_cache): (
+                    Edges,
+                    AlignItems,
+                    bool,
+                    bool,
+                    Option<(AvailableSpace, Size)>,
+                ) = if let Some(node) = tree.get_node(child_id) {
+                    let Style {
+                        layout: child_layout,
+                        ..
+                    } = node.style_ref();
+                    let a: AlignItems = match child_layout.get_align_self() {
+                        AlignSelf::Auto => parent_align,
                         AlignSelf::Stretch => AlignItems::Stretch,
                         AlignSelf::Start => AlignItems::Start,
                         AlignSelf::Center => AlignItems::Center,
                         AlignSelf::End => AlignItems::End,
                     };
-                    let (x, y): (f32, f32) = if is_row {
-                        (
-                            content_origin.get_x() + main_cursor + margin.get_left(),
-                            content_origin.get_y() + margin.get_top(),
-                        )
-                    } else {
-                        (
-                            content_origin.get_x() + margin.get_left(),
-                            content_origin.get_y() + main_cursor + margin.get_top(),
-                        )
-                    };
-                    let stretch_w: bool = !is_row
-                        && align == AlignItems::Stretch
-                        && child_layout.get_width() == Length::Auto;
-                    let stretch_h: bool = is_row
-                        && align == AlignItems::Stretch
-                        && child_layout.get_height() == Length::Auto;
-                    let space_w: f32 = if stretch_w {
-                        (inner_avail.get_width() - margin.horizontal()).max(0.0)
-                    } else {
-                        inner_avail.get_width()
-                    };
-                    let space_h: f32 = if stretch_h {
-                        (inner_avail.get_height() - margin.vertical()).max(0.0)
-                    } else {
-                        inner_avail.get_height()
-                    };
-                    let final_space: AvailableSpace =
-                        AvailableSpace::new(space_w, space_h, viewport, x, y)
-                            .with_stretch(stretch_w, stretch_h);
-                    let placed: Size = self.layout_node(tree, child_id, final_space, stats);
-                    let target_w: f32 = if stretch_w {
-                        space_w.max(placed.get_width())
-                    } else {
-                        placed.get_width()
-                    };
-                    let target_h: f32 = if stretch_h {
-                        space_h.max(placed.get_height())
-                    } else {
-                        placed.get_height()
-                    };
-                    if ((stretch_w && target_w > placed.get_width() + 0.01)
-                        || (stretch_h && target_h > placed.get_height() + 0.01))
-                        && let Some(node) = tree.get_node_mut(child_id)
-                    {
+                    let cached: Option<(AvailableSpace, Size)> =
+                        if !node.get_dirty().intersects(DIRTY_LAYOUT_PASS_MASK)
+                            && let Some(prev_space) = node.cached_constraint()
+                        {
+                            let prev_bounds: Rect = node.get_layout_box().get_bounds();
+                            Some((
+                                prev_space,
+                                Size::new(prev_bounds.get_width(), prev_bounds.get_height()),
+                            ))
+                        } else {
+                            None
+                        };
+                    (
+                        child_layout.get_margin(),
+                        a,
+                        child_layout.get_width() == Length::Auto,
+                        child_layout.get_height() == Length::Auto,
+                        cached,
+                    )
+                } else {
+                    (Edges::default(), parent_align, true, true, None)
+                };
+                let (x, y): (f32, f32) = if is_row {
+                    (
+                        content_origin.get_x() + main_cursor + margin.get_left(),
+                        content_origin.get_y() + margin.get_top(),
+                    )
+                } else {
+                    (
+                        content_origin.get_x() + margin.get_left(),
+                        content_origin.get_y() + main_cursor + margin.get_top(),
+                    )
+                };
+                let stretch_w: bool = !is_row && align == AlignItems::Stretch && width_auto;
+                let stretch_h: bool = is_row && align == AlignItems::Stretch && height_auto;
+                let space_w: f32 = if stretch_w {
+                    (inner_avail.get_width() - margin.horizontal()).max(0.0)
+                } else {
+                    inner_avail.get_width()
+                };
+                let space_h: f32 = if stretch_h {
+                    (inner_avail.get_height() - margin.vertical()).max(0.0)
+                } else {
+                    inner_avail.get_height()
+                };
+                let final_space: AvailableSpace =
+                    AvailableSpace::new(space_w, space_h, viewport, x, y)
+                        .with_stretch(stretch_w, stretch_h);
+                let placed: Size = if let Some((prev_space, prev_size)) = clean_cache
+                    && prev_space.can_reuse(final_space)
+                {
+                    if !prev_space.same_origin(final_space) {
+                        let dx: f32 = x - prev_space.get_origin_x();
+                        let dy: f32 = y - prev_space.get_origin_y();
+                        self.translate_subtree(tree, child_id, dx, dy);
+                    }
+                    stats.set_subtrees_skipped(stats.get_subtrees_skipped() + 1);
+                    prev_size
+                } else {
+                    self.layout_node(tree, child_id, final_space, stats)
+                };
+                let target_w: f32 = if stretch_w {
+                    space_w.max(placed.get_width())
+                } else {
+                    placed.get_width()
+                };
+                let target_h: f32 = if stretch_h {
+                    space_h.max(placed.get_height())
+                } else {
+                    placed.get_height()
+                };
+                if (stretch_w && target_w > placed.get_width() + 0.01)
+                    || (stretch_h && target_h > placed.get_height() + 0.01)
+                {
+                    self.record_layout_snapshot(tree, child_id);
+                    if let Some(node) = tree.get_node_mut(child_id) {
                         let mut b: Rect = node.get_layout_box().get_bounds();
                         b.set_width(target_w);
                         b.set_height(target_h);
                         node.get_mut_layout_box().set_bounds(b);
                     }
-                    if has_stretched_auto {
-                        child_records.push((child_id, child_layout, Size::new(target_w, target_h)));
-                    }
-                    if is_row {
-                        main_cursor += target_w + margin.horizontal();
-                        max_cross = max_cross.max(target_h + margin.vertical());
-                    } else {
-                        main_cursor += target_h + margin.vertical();
-                        max_cross = max_cross.max(target_w + margin.horizontal());
-                    }
-                    if idx + 1 < count {
-                        main_cursor += main_gap;
-                    }
                 }
-                if has_stretched_auto && max_cross > cross_avail + 0.5 {
-                    for (child_id, child_layout, child_size) in child_records.into_iter() {
-                        let align: AlignItems = match child_layout.get_align_self() {
-                            AlignSelf::Auto => parent_layout.get_align_items(),
-                            AlignSelf::Stretch => AlignItems::Stretch,
-                            AlignSelf::Start => AlignItems::Start,
-                            AlignSelf::Center => AlignItems::Center,
-                            AlignSelf::End => AlignItems::End,
-                        };
-                        if align == AlignItems::Stretch && child_layout.get_width() == Length::Auto
-                        {
-                            let widened: f32 = (max_cross - child_layout.get_margin().horizontal())
-                                .max(child_size.get_width());
-                            if let Some(node) = tree.get_node_mut(child_id) {
-                                let mut b: Rect = node.get_layout_box().get_bounds();
-                                b.set_width(widened);
-                                node.get_mut_layout_box().set_bounds(b);
-                            }
-                        }
-                    }
+                if stretch_w {
+                    self.get_mut_flex_items_scratch().push(FlexItemRecord {
+                        node_id: child_id,
+                        size: Size::new(target_w, target_h),
+                        probed_size: Size::default(),
+                        probed_origin: Point::default(),
+                        margin,
+                        flex_grow: 0.0,
+                        align_self: AlignSelf::Stretch,
+                        overflow: Overflow::Visible,
+                        flags: 0,
+                    });
                 }
-                return if is_row {
-                    Size::new(main_cursor, max_cross)
-                } else {
-                    Size::new(max_cross, main_cursor)
-                };
-            }
-        }
-        let mut total_grow: f32 = 0.0;
-        for child_id in ordered.iter().copied() {
-            let child_layout: LayoutStyle = tree
-                .get_node(child_id)
-                .map(|node: &SceneNode| node.get_style().get_layout())
-                .unwrap_or_default();
-            let grow: f32 = child_layout.get_flex_grow();
-            total_grow += grow;
-            let zero_basis_grow: bool = !wrap_enabled
-                && grow > 0.0
-                && if is_row {
-                    child_layout.get_width() == Length::Auto
-                } else {
-                    child_layout.get_height() == Length::Auto
-                };
-            let child_size: Size = if zero_basis_grow {
                 if is_row {
-                    let h: f32 = child_layout
-                        .get_height()
-                        .resolve(cross_avail, viewport)
-                        .unwrap_or(0.0);
-                    Size::new(0.0, h)
+                    main_cursor += target_w + margin.horizontal();
+                    max_cross = max_cross.max(target_h + margin.vertical());
                 } else {
-                    let w: f32 = child_layout
-                        .get_width()
-                        .resolve(cross_avail, viewport)
-                        .unwrap_or(0.0);
-                    Size::new(w, 0.0)
+                    main_cursor += target_h + margin.vertical();
+                    max_cross = max_cross.max(target_w + margin.horizontal());
                 }
+                if offset + 1 < count_all {
+                    main_cursor += main_gap;
+                }
+            }
+            let records_end: usize = self.get_flex_items_scratch().len();
+            if records_end > records_start && max_cross > cross_avail + 0.5 {
+                for rec_idx in records_start..records_end {
+                    let rec: FlexItemRecord = self.get_flex_items_scratch()[rec_idx];
+                    let widened: f32 =
+                        (max_cross - rec.margin.horizontal()).max(rec.size.get_width());
+                    self.record_layout_snapshot(tree, rec.node_id);
+                    if let Some(node) = tree.get_node_mut(rec.node_id) {
+                        let mut b: Rect = node.get_layout_box().get_bounds();
+                        b.set_width(widened);
+                        node.get_mut_layout_box().set_bounds(b);
+                    }
+                }
+            }
+            self.get_mut_flex_items_scratch().truncate(records_start);
+            return if is_row {
+                Size::new(main_cursor, max_cross)
             } else {
-                let probe_space: AvailableSpace = AvailableSpace::new(
-                    inner_avail.get_width(),
-                    inner_avail.get_height(),
-                    viewport,
-                    content_origin.get_x(),
-                    content_origin.get_y(),
-                );
-                self.layout_node(tree, child_id, probe_space, stats)
+                Size::new(max_cross, main_cursor)
             };
-            measured_sizes.push((child_id, child_size, child_layout));
         }
-        let mut lines: Vec<Vec<(NodeId, Size, LayoutStyle)>> = Vec::new();
-        let mut current_line: Vec<(NodeId, Size, LayoutStyle)> = Vec::new();
-        let mut line_main: f32 = 0.0;
-        for item in measured_sizes.into_iter() {
-            let item_main: f32 = if is_row {
-                item.1.get_width() + item.2.get_margin().horizontal()
-            } else {
-                item.1.get_height() + item.2.get_margin().vertical()
+        let items_start: usize = self.get_flex_items_scratch().len();
+        let probe_template: AvailableSpace = AvailableSpace::new(
+            inner_avail.get_width(),
+            inner_avail.get_height(),
+            viewport,
+            content_origin.get_x(),
+            content_origin.get_y(),
+        );
+        let mut total_grow: f32 = 0.0;
+        let mut single_line_main: f32 = 0.0;
+        let mut single_line_cross: f32 = 0.0;
+        for flow_idx in flow_start..flow_end {
+            let child_id: NodeId = self.get_flow_scratch()[flow_idx];
+            let mut rec: FlexItemRecord = FlexItemRecord {
+                node_id: child_id,
+                size: Size::default(),
+                probed_size: Size::default(),
+                probed_origin: Point::default(),
+                margin: Edges::default(),
+                flex_grow: 0.0,
+                align_self: AlignSelf::Auto,
+                overflow: Overflow::Visible,
+                flags: FLEX_ITEM_DEFAULT_LEAF_FLAGS,
             };
-            let needed: f32 = if current_line.is_empty() {
+            let mut zero_basis_size: Option<Size> = None;
+            let mut clean_probe: Option<(Size, Point)> = None;
+            if let Some(node) = tree.get_node(child_id) {
+                let style_ref: &Style = node.style_ref();
+                let Style {
+                    layout: child_layout,
+                    paint: child_paint,
+                    ..
+                } = style_ref;
+                let width_len: Length = child_layout.get_width();
+                let height_len: Length = child_layout.get_height();
+                let grow: f32 = child_layout.get_flex_grow();
+                let width_auto: bool = width_len == Length::Auto;
+                let height_auto: bool = height_len == Length::Auto;
+                let is_leaf: bool = matches!(
+                    node.get_kind(),
+                    NodeKind::Text(_) | NodeKind::Image(_) | NodeKind::Input(_)
+                ) || node.get_children().is_empty();
+                let mut f: u16 = 0;
+                if width_auto {
+                    f |= FLEX_ITEM_WIDTH_AUTO;
+                }
+                if height_auto {
+                    f |= FLEX_ITEM_HEIGHT_AUTO;
+                }
+                if matches!(width_len, Length::Percent(_)) {
+                    f |= FLEX_ITEM_WIDTH_PERCENT;
+                }
+                if matches!(height_len, Length::Percent(_)) {
+                    f |= FLEX_ITEM_HEIGHT_PERCENT;
+                }
+                if matches!(child_layout.get_min_width(), Length::Percent(_))
+                    || matches!(child_layout.get_max_width(), Length::Percent(_))
+                {
+                    f |= FLEX_ITEM_MINMAX_W_PERCENT;
+                }
+                if matches!(child_layout.get_min_height(), Length::Percent(_))
+                    || matches!(child_layout.get_max_height(), Length::Percent(_))
+                {
+                    f |= FLEX_ITEM_MINMAX_H_PERCENT;
+                }
+                if child_layout.aspect_ratio_value().is_some() {
+                    f |= FLEX_ITEM_HAS_ASPECT_RATIO;
+                }
+                if child_layout.get_min_height() != Length::Auto
+                    || child_layout.get_max_height() != Length::Auto
+                {
+                    f |= FLEX_ITEM_MINMAX_H_SET;
+                }
+                if is_leaf {
+                    f |= FLEX_ITEM_IS_LEAF;
+                }
+                let zero_basis: bool =
+                    !wrap_enabled && grow > 0.0 && if is_row { width_auto } else { height_auto };
+                if zero_basis {
+                    zero_basis_size = if is_row {
+                        let h: f32 = height_len.resolve(cross_avail, viewport).unwrap_or(0.0);
+                        Some(Size::new(0.0, h))
+                    } else {
+                        let w: f32 = width_len.resolve(cross_avail, viewport).unwrap_or(0.0);
+                        Some(Size::new(w, 0.0))
+                    };
+                } else if !node.get_dirty().intersects(DIRTY_LAYOUT_PASS_MASK)
+                    && let Some(prev) = node.cached_constraint()
+                    && prev.can_reuse(probe_template)
+                {
+                    let b: Rect = node.get_layout_box().get_bounds();
+                    let probed_h: f32 = if is_leaf
+                        && height_auto
+                        && (f & (FLEX_ITEM_MINMAX_H_SET | FLEX_ITEM_HAS_ASPECT_RATIO)) == 0
+                    {
+                        let pad: Edges = child_layout.get_padding();
+                        let bw: f32 = child_paint.get_border().get_width();
+                        let chrome_v: f32 = pad.vertical() + bw * 2.0;
+                        (node.get_layout_box().get_content_size().get_height() + chrome_v).max(0.0)
+                    } else {
+                        b.get_height()
+                    };
+                    clean_probe = Some((
+                        Size::new(b.get_width(), probed_h),
+                        Point::new(prev.get_origin_x(), prev.get_origin_y()),
+                    ));
+                }
+                rec.margin = child_layout.get_margin();
+                rec.flex_grow = grow;
+                rec.align_self = child_layout.get_align_self();
+                rec.overflow = child_layout.get_overflow();
+                rec.flags = f;
+            }
+            total_grow += rec.flex_grow;
+            let (child_size, probed_origin): (Size, Point) = if let Some(zb) = zero_basis_size {
+                (zb, content_origin)
+            } else if let Some((cached_size, cached_origin)) = clean_probe {
+                rec.flags |= FLEX_ITEM_PROBED;
+                stats.set_subtrees_skipped(stats.get_subtrees_skipped() + 1);
+                (cached_size, cached_origin)
+            } else {
+                let measured: Size = self.layout_node(tree, child_id, probe_template, stats);
+                rec.flags |= FLEX_ITEM_PROBED;
+                (measured, content_origin)
+            };
+            if !wrap_enabled {
+                if is_row {
+                    single_line_main += child_size.get_width() + rec.margin.horizontal();
+                    single_line_cross =
+                        single_line_cross.max(child_size.get_height() + rec.margin.vertical());
+                } else {
+                    single_line_main += child_size.get_height() + rec.margin.vertical();
+                    single_line_cross =
+                        single_line_cross.max(child_size.get_width() + rec.margin.horizontal());
+                }
+            }
+            rec.size = child_size;
+            rec.probed_size = child_size;
+            rec.probed_origin = probed_origin;
+            self.get_mut_flex_items_scratch().push(rec);
+        }
+        let items_end: usize = self.get_flex_items_scratch().len();
+        if !wrap_enabled {
+            let line_ctx: FlexLineContext = FlexLineContext {
+                frame,
+                is_row,
+                wrap_enabled: false,
+                main_gap,
+                main_avail,
+                cross_avail,
+                total_grow,
+                line_count: 1,
+            };
+            let line_size: Size = self.layout_flex_line(
+                tree,
+                (items_start, items_end),
+                0.0,
+                Some((single_line_main, single_line_cross)),
+                line_ctx,
+                stats,
+            );
+            self.get_mut_flex_items_scratch().truncate(items_start);
+            return line_size;
+        }
+        let lines_start: usize = self.get_flex_lines_scratch().len();
+        let mut cur_line_start: usize = items_start;
+        let mut line_main: f32 = 0.0;
+        for item_idx in items_start..items_end {
+            let item: FlexItemRecord = self.get_flex_items_scratch()[item_idx];
+            let item_main: f32 = if is_row {
+                item.size.get_width() + item.margin.horizontal()
+            } else {
+                item.size.get_height() + item.margin.vertical()
+            };
+            let line_empty: bool = item_idx == cur_line_start;
+            let needed: f32 = if line_empty {
                 item_main
             } else {
                 line_main + main_gap + item_main
             };
-            if wrap_enabled && !current_line.is_empty() && needed > main_avail && main_avail > 0.0 {
-                lines.push(take(&mut current_line));
+            if !line_empty && needed > main_avail && main_avail > 0.0 {
+                self.get_mut_flex_lines_scratch()
+                    .push((cur_line_start, item_idx));
+                cur_line_start = item_idx;
                 line_main = item_main;
-                current_line.push(item);
             } else {
                 line_main = needed;
-                current_line.push(item);
             }
         }
-        if !current_line.is_empty() {
-            lines.push(current_line);
+        if cur_line_start < items_end {
+            self.get_mut_flex_lines_scratch()
+                .push((cur_line_start, items_end));
         }
+        let lines_end: usize = self.get_flex_lines_scratch().len();
         let mut cross_cursor: f32 = 0.0;
         let mut max_main_extent: f32 = 0.0;
-        let line_count: usize = lines.len();
-        for (line_idx, mut line) in lines.into_iter().enumerate() {
-            let count: usize = line.len();
-            let gaps_total: f32 = if count > 1 {
-                main_gap * ((count - 1) as f32)
+        let line_count: usize = lines_end.saturating_sub(lines_start);
+        let line_ctx: FlexLineContext = FlexLineContext {
+            frame,
+            is_row,
+            wrap_enabled: true,
+            main_gap,
+            main_avail,
+            cross_avail,
+            total_grow,
+            line_count,
+        };
+        for line_offset in 0..line_count {
+            let line_range: (usize, usize) =
+                self.get_flex_lines_scratch()[lines_start + line_offset];
+            let line_size: Size =
+                self.layout_flex_line(tree, line_range, cross_cursor, None, line_ctx, stats);
+            if is_row {
+                max_main_extent = max_main_extent.max(line_size.get_width());
+                cross_cursor += line_size.get_height();
             } else {
-                0.0
-            };
-            let used_main: f32 =
-                line.iter()
-                    .fold(0.0_f32, |acc: f32, item: &(NodeId, Size, LayoutStyle)| {
-                        let sz: f32 = if is_row {
-                            item.1.get_width() + item.2.get_margin().horizontal()
-                        } else {
-                            item.1.get_height() + item.2.get_margin().vertical()
-                        };
-                        acc + sz
-                    })
-                    + gaps_total;
-            let has_definite_or_grow: bool = frame.get_definite_width() || total_grow > 0.0;
-            let effective_main_avail: f32 = if is_row {
-                if has_definite_or_grow || wrap_enabled {
-                    main_avail
-                } else {
-                    parent_layout
-                        .get_min_width()
-                        .resolve(viewport.get_width(), viewport)
-                        .map(|mw: f32| (mw - parent_layout.get_padding().horizontal()).max(0.0))
-                        .unwrap_or(0.0)
-                }
-            } else if frame.get_definite_height() {
+                max_main_extent = max_main_extent.max(line_size.get_height());
+                cross_cursor += line_size.get_width();
+            }
+            if line_offset + 1 < line_count {
+                cross_cursor += cross_gap;
+            }
+        }
+        self.get_mut_flex_lines_scratch().truncate(lines_start);
+        self.get_mut_flex_items_scratch().truncate(items_start);
+        if is_row {
+            Size::new(max_main_extent, cross_cursor)
+        } else {
+            Size::new(cross_cursor, max_main_extent)
+        }
+    }
+
+    /// Places a single contiguous flex line slice `[line_start..line_end)` and returns its occupied `(width, height)`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable layout engine reference.
+    /// - `&mut SceneTree` - Mutable scene tree.
+    /// - `(usize, usize)` - Inclusive start and exclusive end indices into `flex_items_scratch`.
+    /// - `f32` - Cross-axis cursor offset where this line begins.
+    /// - `Option<(f32, f32)>` - Optional pre-accumulated `(items_main_sum, line_cross)` for unwrapped single-line passes.
+    /// - `FlexLineContext` - Enclosing container axis and gap parameters.
+    /// - `&mut LayoutStats` - Mutable telemetry counters.
+    ///
+    /// # Returns
+    ///
+    /// - `Size` - Occupied `(width, height)` extent of this flex line.
+    #[inline(always)]
+    fn layout_flex_line(
+        &mut self,
+        tree: &mut SceneTree,
+        line_range: (usize, usize),
+        cross_cursor: f32,
+        precomputed: Option<(f32, f32)>,
+        ctx: FlexLineContext,
+        stats: &mut LayoutStats,
+    ) -> Size {
+        let (line_start, line_end): (usize, usize) = line_range;
+        let frame: ContainerFrame = ctx.frame;
+        let is_row: bool = ctx.is_row;
+        let wrap_enabled: bool = ctx.wrap_enabled;
+        let main_gap: f32 = ctx.main_gap;
+        let main_avail: f32 = ctx.main_avail;
+        let cross_avail: f32 = ctx.cross_avail;
+        let total_grow: f32 = ctx.total_grow;
+        let line_count: usize = ctx.line_count;
+        let parent_layout: LayoutStyle = frame.get_parent_layout();
+        let inner_avail: Size = frame.get_inner_avail();
+        let viewport: Size = frame.get_viewport();
+        let content_origin: Point = frame.get_content_origin();
+        let count: usize = line_end.saturating_sub(line_start);
+        let gaps_total: f32 = if count > 1 {
+            main_gap * ((count - 1) as f32)
+        } else {
+            0.0
+        };
+        let has_definite_or_grow: bool = frame.get_definite_width() || total_grow > 0.0;
+        let effective_main_avail: f32 = if is_row {
+            if has_definite_or_grow || wrap_enabled {
                 main_avail
             } else {
                 parent_layout
-                    .get_min_height()
-                    .resolve(viewport.get_height(), viewport)
-                    .map(|mh: f32| (mh - parent_layout.get_padding().vertical()).max(0.0))
+                    .get_min_width()
+                    .resolve(viewport.get_width(), viewport)
+                    .map(|mw: f32| (mw - parent_layout.get_padding().horizontal()).max(0.0))
                     .unwrap_or(0.0)
+            }
+        } else if frame.get_definite_height() {
+            main_avail
+        } else {
+            parent_layout
+                .get_min_height()
+                .resolve(viewport.get_height(), viewport)
+                .map(|mh: f32| (mh - parent_layout.get_padding().vertical()).max(0.0))
+                .unwrap_or(0.0)
+        };
+        let (final_used_main, line_cross): (f32, f32) = if let Some((items_main, pre_cross)) =
+            precomputed
+            && total_grow == 0.0
+        {
+            (items_main + gaps_total, pre_cross)
+        } else {
+            let used_main: f32 = if let Some((items_main, _)) = precomputed {
+                items_main + gaps_total
+            } else {
+                let mut acc: f32 = gaps_total;
+                for item_idx in line_start..line_end {
+                    let item: FlexItemRecord = self.get_flex_items_scratch()[item_idx];
+                    let sz: f32 = if is_row {
+                        item.size.get_width() + item.margin.horizontal()
+                    } else {
+                        item.size.get_height() + item.margin.vertical()
+                    };
+                    acc += sz;
+                }
+                acc
             };
             let free_main: f32 = (effective_main_avail - used_main).max(0.0);
             if total_grow > 0.0 && free_main > 0.0 && !wrap_enabled {
-                for item in line.iter_mut() {
-                    let grow: f32 = item.2.get_flex_grow();
+                for item_idx in line_start..line_end {
+                    let item: &mut FlexItemRecord =
+                        &mut self.get_mut_flex_items_scratch()[item_idx];
+                    let grow: f32 = item.flex_grow;
                     if grow > 0.0 {
                         let extra: f32 = free_main * (grow / total_grow);
                         if is_row {
-                            item.1.set_width(item.1.get_width() + extra);
+                            item.size.set_width(item.size.get_width() + extra);
                         } else {
-                            item.1.set_height(item.1.get_height() + extra);
+                            item.size.set_height(item.size.get_height() + extra);
                         }
                     }
                 }
             }
-            if !wrap_enabled {
-                for item in line.iter_mut() {
-                    let auto_cross: bool = item.2.get_flex_grow() > 0.0
+            if !wrap_enabled && total_grow > 0.0 {
+                for item_idx in line_start..line_end {
+                    let item: FlexItemRecord = self.get_flex_items_scratch()[item_idx];
+                    let auto_cross: bool = item.flex_grow > 0.0
                         && if is_row {
-                            item.2.get_height() == Length::Auto
+                            (item.flags & FLEX_ITEM_HEIGHT_AUTO) != 0
                         } else {
-                            item.2.get_width() == Length::Auto
+                            (item.flags & FLEX_ITEM_WIDTH_AUTO) != 0
                         };
                     if auto_cross {
                         let probe_w: f32 = if is_row {
-                            item.1.get_width()
+                            item.size.get_width()
                         } else {
                             cross_avail
                         };
                         let probe_h: f32 = if is_row {
                             cross_avail
                         } else {
-                            item.1.get_height()
+                            item.size.get_height()
                         };
                         let probe_sp: AvailableSpace = AvailableSpace::new(
                             probe_w,
@@ -708,163 +1289,214 @@ impl LayoutEngine {
                             content_origin.get_x(),
                             content_origin.get_y(),
                         );
-                        let measured: Size = self.layout_node(tree, item.0, probe_sp, stats);
+                        let measured: Size = self.layout_node(tree, item.node_id, probe_sp, stats);
+                        let slot: &mut FlexItemRecord =
+                            &mut self.get_mut_flex_items_scratch()[item_idx];
                         if is_row {
-                            item.1.set_height(measured.get_height());
+                            slot.size.set_height(measured.get_height());
                         } else {
-                            item.1.set_width(measured.get_width());
+                            slot.size.set_width(measured.get_width());
                         }
+                        slot.flags &= !FLEX_ITEM_PROBED;
                     }
                 }
             }
-            let final_used_main: f32 =
-                line.iter()
-                    .fold(0.0_f32, |acc: f32, item: &(NodeId, Size, LayoutStyle)| {
-                        let sz: f32 = if is_row {
-                            item.1.get_width() + item.2.get_margin().horizontal()
-                        } else {
-                            item.1.get_height() + item.2.get_margin().vertical()
-                        };
-                        acc + sz
-                    })
-                    + gaps_total;
-            let rem: f32 = (effective_main_avail - final_used_main).max(0.0);
-            let (mut main_cursor, extra_step): (f32, f32) =
-                match parent_layout.get_justify_content() {
-                    JustifyContent::Start => (0.0, 0.0),
-                    JustifyContent::Center => (rem * 0.5, 0.0),
-                    JustifyContent::End => (rem, 0.0),
-                    JustifyContent::SpaceBetween => {
-                        if count > 1 {
-                            (0.0, rem / ((count - 1) as f32))
-                        } else {
-                            (0.0, 0.0)
+            let mut sum_main: f32 = gaps_total;
+            let mut max_cross: f32 = 0.0;
+            for item_idx in line_start..line_end {
+                let item: FlexItemRecord = self.get_flex_items_scratch()[item_idx];
+                if is_row {
+                    sum_main += item.size.get_width() + item.margin.horizontal();
+                    max_cross = max_cross.max(item.size.get_height() + item.margin.vertical());
+                } else {
+                    sum_main += item.size.get_height() + item.margin.vertical();
+                    max_cross = max_cross.max(item.size.get_width() + item.margin.horizontal());
+                }
+            }
+            (sum_main, max_cross)
+        };
+        let rem: f32 = (effective_main_avail - final_used_main).max(0.0);
+        let (mut main_cursor, extra_step): (f32, f32) = match parent_layout.get_justify_content() {
+            JustifyContent::Start => (0.0, 0.0),
+            JustifyContent::Center => (rem * 0.5, 0.0),
+            JustifyContent::End => (rem, 0.0),
+            JustifyContent::SpaceBetween => {
+                if count > 1 {
+                    (0.0, rem / ((count - 1) as f32))
+                } else {
+                    (0.0, 0.0)
+                }
+            }
+            JustifyContent::SpaceAround => {
+                let slot: f32 = rem / (count.max(1) as f32);
+                (slot * 0.5, slot)
+            }
+            JustifyContent::SpaceEvenly => {
+                let slot: f32 = rem / ((count + 1) as f32);
+                (slot, slot)
+            }
+        };
+        let definite_cross: bool = !is_row || frame.get_definite_height();
+        let effective_line_cross: f32 = if line_count == 1 && !wrap_enabled && definite_cross {
+            line_cross.max(cross_avail)
+        } else {
+            line_cross
+        };
+        let mut actual_line_cross: f32 = line_cross;
+        let parent_align: AlignItems = parent_layout.get_align_items();
+        for idx in 0..count {
+            let rec: FlexItemRecord = self.get_flex_items_scratch()[line_start + idx];
+            let child_id: NodeId = rec.node_id;
+            let child_size: Size = rec.size;
+            let margin: Edges = rec.margin;
+            let width_auto: bool = (rec.flags & FLEX_ITEM_WIDTH_AUTO) != 0;
+            let height_auto: bool = (rec.flags & FLEX_ITEM_HEIGHT_AUTO) != 0;
+            let is_leaf: bool = (rec.flags & FLEX_ITEM_IS_LEAF) != 0;
+            let item_cross: f32 = if is_row {
+                child_size.get_height()
+            } else {
+                child_size.get_width()
+            };
+            let align: AlignItems = match rec.align_self {
+                AlignSelf::Auto => parent_align,
+                AlignSelf::Stretch => AlignItems::Stretch,
+                AlignSelf::Start => AlignItems::Start,
+                AlignSelf::Center => AlignItems::Center,
+                AlignSelf::End => AlignItems::End,
+            };
+            let avail_item_cross: f32 = (effective_line_cross
+                - if is_row {
+                    margin.vertical()
+                } else {
+                    margin.horizontal()
+                })
+            .max(0.0);
+            let cross_offset: f32 = match align {
+                AlignItems::Start | AlignItems::Stretch => 0.0,
+                AlignItems::Center => ((avail_item_cross - item_cross) * 0.5).max(0.0),
+                AlignItems::End => (avail_item_cross - item_cross).max(0.0),
+            };
+            let auto_cross_grow: bool = !wrap_enabled
+                && rec.flex_grow > 0.0
+                && if is_row { height_auto } else { width_auto };
+            let target_w: f32 = if !is_row && align == AlignItems::Stretch && width_auto {
+                avail_item_cross.max(child_size.get_width())
+            } else {
+                child_size.get_width()
+            };
+            let target_h: f32 = if is_row && align == AlignItems::Stretch && height_auto {
+                avail_item_cross.max(child_size.get_height())
+            } else {
+                child_size.get_height()
+            };
+            let (x, y): (f32, f32) = if is_row {
+                (
+                    content_origin.get_x() + main_cursor + margin.get_left(),
+                    content_origin.get_y() + cross_cursor + cross_offset + margin.get_top(),
+                )
+            } else {
+                (
+                    content_origin.get_x() + cross_cursor + cross_offset + margin.get_left(),
+                    content_origin.get_y() + main_cursor + margin.get_top(),
+                )
+            };
+            let space_w: f32 = if (rec.flags & FLEX_ITEM_WIDTH_PERCENT) != 0 {
+                inner_avail.get_width()
+            } else if auto_cross_grow && !is_row {
+                cross_avail
+            } else {
+                target_w
+            };
+            let space_h: f32 = if (rec.flags & FLEX_ITEM_HEIGHT_PERCENT) != 0 {
+                inner_avail.get_height()
+            } else if auto_cross_grow && is_row {
+                cross_avail
+            } else {
+                target_h
+            };
+            let stretch_child_w: bool = !(auto_cross_grow && !is_row)
+                && ((!is_row && align == AlignItems::Stretch && width_auto)
+                    || (is_row && rec.flex_grow > 0.0 && width_auto));
+            let stretch_child_h: bool = !(auto_cross_grow && is_row)
+                && ((is_row && align == AlignItems::Stretch && height_auto)
+                    || (!is_row && rec.flex_grow > 0.0 && height_auto));
+            let same_w: bool = (target_w - rec.probed_size.get_width()).abs() <= 0.001;
+            let same_h: bool = (target_h - rec.probed_size.get_height()).abs() <= 0.001;
+            let width_fixed_or_leaf: bool = is_leaf || !width_auto;
+            let width_no_pct_bounds: bool = (rec.flags & FLEX_ITEM_MINMAX_W_PERCENT) == 0;
+            let width_invariant: bool = (space_w - inner_avail.get_width()).abs() <= 0.01
+                || (width_fixed_or_leaf && width_no_pct_bounds);
+            let height_fixed_or_leaf: bool = is_leaf || !height_auto;
+            let height_no_pct_bounds: bool = (rec.flags & FLEX_ITEM_MINMAX_H_PERCENT) == 0;
+            let height_invariant: bool = (space_h - inner_avail.get_height()).abs() <= 0.01
+                || (height_fixed_or_leaf && height_no_pct_bounds);
+            let probed_ok: bool = (rec.flags & FLEX_ITEM_PROBED) != 0
+                && !auto_cross_grow
+                && (rec.flags & FLEX_ITEM_HAS_ASPECT_RATIO) == 0
+                && width_invariant
+                && height_invariant;
+            let can_translate_exact: bool = probed_ok
+                && same_w
+                && same_h
+                && (is_leaf || (!stretch_child_w && !stretch_child_h));
+            let can_stretch_leaf_h: bool = probed_ok
+                && is_leaf
+                && is_row
+                && same_w
+                && !stretch_child_w
+                && stretch_child_h
+                && height_auto
+                && (rec.flags & FLEX_ITEM_MINMAX_H_SET) == 0;
+            if can_translate_exact {
+                let dx: f32 = x - rec.probed_origin.get_x();
+                let dy: f32 = y - rec.probed_origin.get_y();
+                if dx.abs() > 0.001 || dy.abs() > 0.001 {
+                    self.translate_subtree(tree, child_id, dx, dy);
+                }
+            } else if can_stretch_leaf_h {
+                self.record_layout_snapshot(tree, child_id);
+                if let Some(node) = tree.get_node_mut(child_id) {
+                    let cur_bounds: Rect = node.get_layout_box().get_bounds();
+                    let same_box: bool = (cur_bounds.get_x() - x).abs() <= 0.001
+                        && (cur_bounds.get_y() - y).abs() <= 0.001
+                        && (cur_bounds.get_width() - target_w).abs() <= 0.001
+                        && (cur_bounds.get_height() - target_h).abs() <= 0.001;
+                    if !same_box {
+                        let Style {
+                            layout: child_layout,
+                            paint: child_paint,
+                            ..
+                        } = node.style_ref();
+                        let pad: Edges = child_layout.get_padding();
+                        let bw: f32 = child_paint.get_border().get_width();
+                        let chrome_h: f32 = pad.horizontal() + bw * 2.0;
+                        let chrome_v: f32 = pad.vertical() + bw * 2.0;
+                        let new_bounds: Rect = Rect::new(x, y, target_w, target_h);
+                        let new_content: Rect = Rect::new(
+                            x + pad.get_left() + bw,
+                            y + pad.get_top() + bw,
+                            (target_w - chrome_h).max(0.0),
+                            (target_h - chrome_v).max(0.0),
+                        );
+                        node.get_mut_layout_box().set_bounds(new_bounds);
+                        node.get_mut_layout_box().set_content_bounds(new_content);
+                        if let Some(mut c) = node.cached_constraint() {
+                            c.set_origin_x(x);
+                            c.set_origin_y(y);
+                            node.set_last_constraint(Some(c));
                         }
                     }
-                    JustifyContent::SpaceAround => {
-                        let slot: f32 = rem / (count.max(1) as f32);
-                        (slot * 0.5, slot)
-                    }
-                    JustifyContent::SpaceEvenly => {
-                        let slot: f32 = rem / ((count + 1) as f32);
-                        (slot, slot)
-                    }
-                };
-            let line_cross: f32 =
-                line.iter()
-                    .fold(0.0_f32, |acc: f32, item: &(NodeId, Size, LayoutStyle)| {
-                        let c: f32 = if is_row {
-                            item.1.get_height() + item.2.get_margin().vertical()
-                        } else {
-                            item.1.get_width() + item.2.get_margin().horizontal()
-                        };
-                        acc.max(c)
-                    });
-            let definite_cross: bool = !is_row || frame.get_definite_height();
-            let effective_line_cross: f32 = if line_count == 1 && !wrap_enabled && definite_cross {
-                line_cross.max(cross_avail)
+                }
             } else {
-                line_cross
-            };
-            let mut actual_line_cross: f32 = line_cross;
-            for (idx, (child_id, child_size, child_layout)) in line.into_iter().enumerate() {
-                let margin: Edges = child_layout.get_margin();
-                let item_cross: f32 = if is_row {
-                    child_size.get_height()
-                } else {
-                    child_size.get_width()
-                };
-                let align: AlignItems = match child_layout.get_align_self() {
-                    AlignSelf::Auto => parent_layout.get_align_items(),
-                    AlignSelf::Stretch => AlignItems::Stretch,
-                    AlignSelf::Start => AlignItems::Start,
-                    AlignSelf::Center => AlignItems::Center,
-                    AlignSelf::End => AlignItems::End,
-                };
-                let avail_item_cross: f32 = (effective_line_cross
-                    - if is_row {
-                        margin.vertical()
-                    } else {
-                        margin.horizontal()
-                    })
-                .max(0.0);
-                let cross_offset: f32 = match align {
-                    AlignItems::Start | AlignItems::Stretch => 0.0,
-                    AlignItems::Center => ((avail_item_cross - item_cross) * 0.5).max(0.0),
-                    AlignItems::End => (avail_item_cross - item_cross).max(0.0),
-                };
-                let auto_cross_grow: bool = !wrap_enabled
-                    && child_layout.get_flex_grow() > 0.0
-                    && if is_row {
-                        child_layout.get_height() == Length::Auto
-                    } else {
-                        child_layout.get_width() == Length::Auto
-                    };
-                let target_w: f32 = if !is_row
-                    && align == AlignItems::Stretch
-                    && child_layout.get_width() == Length::Auto
-                {
-                    avail_item_cross.max(child_size.get_width())
-                } else {
-                    child_size.get_width()
-                };
-                let target_h: f32 = if is_row
-                    && align == AlignItems::Stretch
-                    && child_layout.get_height() == Length::Auto
-                {
-                    avail_item_cross.max(child_size.get_height())
-                } else {
-                    child_size.get_height()
-                };
-                let (x, y): (f32, f32) = if is_row {
-                    (
-                        content_origin.get_x() + main_cursor + margin.get_left(),
-                        content_origin.get_y() + cross_cursor + cross_offset + margin.get_top(),
-                    )
-                } else {
-                    (
-                        content_origin.get_x() + cross_cursor + cross_offset + margin.get_left(),
-                        content_origin.get_y() + main_cursor + margin.get_top(),
-                    )
-                };
-                let space_w: f32 = if matches!(child_layout.get_width(), Length::Percent(_)) {
-                    inner_avail.get_width()
-                } else if auto_cross_grow && !is_row {
-                    cross_avail
-                } else {
-                    target_w
-                };
-                let space_h: f32 = if matches!(child_layout.get_height(), Length::Percent(_)) {
-                    inner_avail.get_height()
-                } else if auto_cross_grow && is_row {
-                    cross_avail
-                } else {
-                    target_h
-                };
-                let stretch_child_w: bool = !(auto_cross_grow && !is_row)
-                    && ((!is_row
-                        && align == AlignItems::Stretch
-                        && child_layout.get_width() == Length::Auto)
-                        || (is_row
-                            && child_layout.get_flex_grow() > 0.0
-                            && child_layout.get_width() == Length::Auto));
-                let stretch_child_h: bool = !(auto_cross_grow && is_row)
-                    && ((is_row
-                        && align == AlignItems::Stretch
-                        && child_layout.get_height() == Length::Auto)
-                        || (!is_row
-                            && child_layout.get_flex_grow() > 0.0
-                            && child_layout.get_height() == Length::Auto));
                 let final_space: AvailableSpace =
                     AvailableSpace::new(space_w, space_h, viewport, x, y)
                         .with_stretch(stretch_child_w, stretch_child_h);
                 let placed: Size = self.layout_node(tree, child_id, final_space, stats);
+                self.record_layout_snapshot(tree, child_id);
                 if let Some(node) = tree.get_node_mut(child_id) {
                     let mut b: Rect = node.get_layout_box().get_bounds();
-                    let is_clipped: bool = matches!(
-                        child_layout.get_overflow(),
-                        Overflow::Hidden | Overflow::Scroll
-                    );
+                    let is_clipped: bool =
+                        matches!(rec.overflow, Overflow::Hidden | Overflow::Scroll);
                     if auto_cross_grow {
                         if is_row {
                             b.set_width(target_w);
@@ -877,7 +1509,7 @@ impl LayoutEngine {
                             actual_line_cross =
                                 actual_line_cross.max(placed.get_width() + margin.horizontal());
                         }
-                    } else if is_clipped || child_layout.get_flex_grow() > 0.0 {
+                    } else if is_clipped || rec.flex_grow > 0.0 {
                         b.set_width(target_w);
                         b.set_height(target_h);
                     } else {
@@ -886,26 +1518,21 @@ impl LayoutEngine {
                     }
                     node.get_mut_layout_box().set_bounds(b);
                 }
-                let advance: f32 = if is_row {
-                    target_w + margin.horizontal()
-                } else {
-                    target_h + margin.vertical()
-                };
-                main_cursor += advance;
-                if idx + 1 < count {
-                    main_cursor += main_gap + extra_step;
-                }
             }
-            max_main_extent = max_main_extent.max(final_used_main);
-            cross_cursor += actual_line_cross;
-            if line_idx + 1 < line_count {
-                cross_cursor += cross_gap;
+            let advance: f32 = if is_row {
+                target_w + margin.horizontal()
+            } else {
+                target_h + margin.vertical()
+            };
+            main_cursor += advance;
+            if idx + 1 < count {
+                main_cursor += main_gap + extra_step;
             }
         }
         if is_row {
-            Size::new(max_main_extent, cross_cursor)
+            Size::new(final_used_main, actual_line_cross)
         } else {
-            Size::new(cross_cursor, max_main_extent)
+            Size::new(actual_line_cross, final_used_main)
         }
     }
 
@@ -913,9 +1540,10 @@ impl LayoutEngine {
     ///
     /// # Arguments
     ///
-    /// - `&Self` - Layout engine reference.
+    /// - `&Self` - Mutable layout engine reference.
     /// - `&mut SceneTree` - Mutable scene tree.
-    /// - `&[NodeId]` - Grid child handles.
+    /// - `usize` - Inclusive start index into `flow_scratch`.
+    /// - `usize` - Exclusive end index into `flow_scratch`.
     /// - `ContainerFrame` - Grid container constraints and origin.
     /// - `&mut LayoutStats` - Mutable telemetry counters.
     ///
@@ -923,13 +1551,14 @@ impl LayoutEngine {
     ///
     /// - `Size` - Aggregate grid content dimensions.
     fn layout_grid(
-        &self,
+        &mut self,
         tree: &mut SceneTree,
-        children: &[NodeId],
+        flow_start: usize,
+        flow_end: usize,
         frame: ContainerFrame,
         stats: &mut LayoutStats,
     ) -> Size {
-        if children.is_empty() {
+        if flow_start >= flow_end {
             return Size::default();
         }
         let parent_layout: LayoutStyle = frame.get_parent_layout();
@@ -941,40 +1570,87 @@ impl LayoutEngine {
         let row_gap: f32 = parent_layout.get_row_gap();
         let total_col_gaps: f32 = col_gap * ((cols.saturating_sub(1)) as f32);
         let col_w: f32 = ((inner_avail.get_width() - total_col_gaps) / (cols as f32)).max(0.0);
+        let col_step: f32 = col_w + col_gap;
+        let origin_x: f32 = content_origin.get_x();
+        let origin_y: f32 = content_origin.get_y();
+        let inner_h: f32 = inner_avail.get_height();
         let mut y_cursor: f32 = 0.0;
-        let mut idx: usize = 0;
-        while idx < children.len() {
-            let row_end: usize = (idx + cols).min(children.len());
+        let mut idx: usize = flow_start;
+        while idx < flow_end {
+            let row_end: usize = (idx + cols).min(flow_end);
             let mut row_h: f32 = 0.0;
-            for (col_idx, child_id) in children[idx..row_end].iter().copied().enumerate() {
-                let x: f32 = content_origin.get_x() + (col_idx as f32) * (col_w + col_gap);
-                let y: f32 = content_origin.get_y() + y_cursor;
-                let auto_w: bool = tree
-                    .get_node(child_id)
-                    .map(|n: &SceneNode| n.get_style().get_layout().get_width() == Length::Auto)
-                    .unwrap_or(false);
+            let mut min_row_h: f32 = f32::INFINITY;
+            let y: f32 = origin_y + y_cursor;
+            let mut x: f32 = origin_x;
+            for pos in idx..row_end {
+                let child_id: NodeId = self.get_flow_scratch()[pos];
+                let (auto_w, clean_cache): (bool, Option<(AvailableSpace, Size)>) =
+                    if let Some(n) = tree.get_node(child_id) {
+                        let Style { layout, .. } = n.style_ref();
+                        let is_auto_w: bool = layout.get_width() == Length::Auto;
+                        let cached: Option<(AvailableSpace, Size)> =
+                            if !n.get_dirty().intersects(DIRTY_LAYOUT_PASS_MASK)
+                                && let Some(prev_space) = n.cached_constraint()
+                            {
+                                let prev_bounds: Rect = n.get_layout_box().get_bounds();
+                                Some((
+                                    prev_space,
+                                    Size::new(prev_bounds.get_width(), prev_bounds.get_height()),
+                                ))
+                            } else {
+                                None
+                            };
+                        (is_auto_w, cached)
+                    } else {
+                        (false, None)
+                    };
                 let cell_space: AvailableSpace =
-                    AvailableSpace::new(col_w, inner_avail.get_height(), viewport, x, y)
-                        .with_stretch(auto_w, false);
-                let child_size: Size = self.layout_node(tree, child_id, cell_space, stats);
-                if let Some(node) = tree.get_node_mut(child_id) {
-                    let mut b: Rect = node.get_layout_box().get_bounds();
-                    b.set_width(col_w);
-                    node.get_mut_layout_box().set_bounds(b);
-                }
-                row_h = row_h.max(child_size.get_height());
-            }
-            for child_id in children[idx..row_end].iter().copied() {
-                if let Some(node) = tree.get_node_mut(child_id) {
-                    let mut b: Rect = node.get_layout_box().get_bounds();
-                    if b.get_height() < row_h {
-                        b.set_height(row_h);
+                    AvailableSpace::new(col_w, inner_h, viewport, x, y).with_stretch(auto_w, false);
+                let child_size: Size = if let Some((prev_space, prev_size)) = clean_cache
+                    && prev_space.can_reuse(cell_space)
+                {
+                    if !prev_space.same_origin(cell_space) {
+                        let dx: f32 = x - prev_space.get_origin_x();
+                        let dy: f32 = y - prev_space.get_origin_y();
+                        self.translate_subtree(tree, child_id, dx, dy);
+                    }
+                    stats.set_subtrees_skipped(stats.get_subtrees_skipped() + 1);
+                    prev_size
+                } else {
+                    self.layout_node(tree, child_id, cell_space, stats)
+                };
+                if (child_size.get_width() - col_w).abs() > 0.001 {
+                    self.record_layout_snapshot(tree, child_id);
+                    if let Some(node) = tree.get_node_mut(child_id) {
+                        let mut b: Rect = node.get_layout_box().get_bounds();
+                        b.set_width(col_w);
                         node.get_mut_layout_box().set_bounds(b);
+                    }
+                }
+                let ch: f32 = child_size.get_height();
+                row_h = row_h.max(ch);
+                min_row_h = min_row_h.min(ch);
+                x += col_step;
+            }
+            if row_end - idx > 1 && min_row_h < row_h {
+                for pos in idx..row_end {
+                    let child_id: NodeId = self.get_flow_scratch()[pos];
+                    let needs_stretch: bool =
+                        tree.get_node(child_id).is_some_and(|n: &SceneNode| {
+                            n.get_layout_box().get_bounds().get_height() < row_h
+                        });
+                    if needs_stretch {
+                        self.record_layout_snapshot(tree, child_id);
+                        if let Some(node) = tree.get_node_mut(child_id) {
+                            let mut b: Rect = node.get_layout_box().get_bounds();
+                            b.set_height(row_h);
+                            node.get_mut_layout_box().set_bounds(b);
+                        }
                     }
                 }
             }
             y_cursor += row_h;
-            if row_end < children.len() {
+            if row_end < flow_end {
                 y_cursor += row_gap;
             }
             idx = row_end;
@@ -986,42 +1662,86 @@ impl LayoutEngine {
     ///
     /// # Arguments
     ///
-    /// - `&Self` - Layout engine reference.
+    /// - `&Self` - Mutable layout engine reference.
     /// - `&mut SceneTree` - Mutable retained scene tree.
     /// - `NodeId` - Root node of the clean subtree being shifted.
     /// - `f32` - Horizontal translation delta in logical pixels.
     /// - `f32` - Vertical translation delta in logical pixels.
-    fn translate_subtree(&self, tree: &mut SceneTree, root_id: NodeId, dx: f32, dy: f32) {
-        let mut stack: Vec<(NodeId, bool)> = vec![(root_id, true)];
-        while let Some((nid, is_root)) = stack.pop() {
-            let children_to_visit: Vec<NodeId> = {
-                let Some(node) = tree.get_node_mut(nid) else {
-                    continue;
-                };
-                let layout: LayoutStyle = node.get_style().get_layout();
-                if !is_root && layout.get_position() == Position::Fixed {
-                    continue;
+    fn translate_subtree(&mut self, tree: &mut SceneTree, root_id: NodeId, dx: f32, dy: f32) {
+        if dx == 0.0 && dy == 0.0 {
+            return;
+        }
+        self.record_layout_snapshot(tree, root_id);
+        let Some(root_node) = tree.get_node_mut(root_id) else {
+            return;
+        };
+        let Style { layout, .. } = root_node.style_ref();
+        let root_none_disp: bool = layout.get_display() == Display::None;
+        if let Some(mut c) = root_node.cached_constraint() {
+            c.set_origin_x(c.get_origin_x() + dx);
+            c.set_origin_y(c.get_origin_y() + dy);
+            root_node.set_last_constraint(Some(c));
+        }
+        if root_none_disp {
+            return;
+        }
+        let mut root_bounds: Rect = root_node.get_layout_box().get_bounds();
+        root_bounds.set_x(root_bounds.get_x() + dx);
+        root_bounds.set_y(root_bounds.get_y() + dy);
+        root_node.get_mut_layout_box().set_bounds(root_bounds);
+        let mut root_content: Rect = root_node.get_layout_box().get_content_bounds();
+        root_content.set_x(root_content.get_x() + dx);
+        root_content.set_y(root_content.get_y() + dy);
+        root_node
+            .get_mut_layout_box()
+            .set_content_bounds(root_content);
+        let root_children: &[NodeId] = root_node.get_children().as_slice();
+        if root_children.is_empty() {
+            return;
+        }
+        self.get_mut_translate_scratch().clear();
+        self.get_mut_translate_scratch()
+            .extend_from_slice(root_children);
+        while let Some(nid) = self.get_mut_translate_scratch().pop() {
+            let (is_fixed_pos, is_none_disp): (bool, bool) = match tree.get_node(nid) {
+                Some(node) => {
+                    let Style { layout, .. } = node.style_ref();
+                    (
+                        layout.get_position() == Position::Fixed,
+                        layout.get_display() == Display::None,
+                    )
                 }
-                if let Some(mut c) = node.cached_constraint() {
-                    c.set_origin_x(c.get_origin_x() + dx);
-                    c.set_origin_y(c.get_origin_y() + dy);
-                    node.set_last_constraint(Some(c));
-                }
-                if layout.get_display() == Display::None {
-                    continue;
-                }
-                let mut bounds: Rect = node.get_layout_box().get_bounds();
-                bounds.set_x(bounds.get_x() + dx);
-                bounds.set_y(bounds.get_y() + dy);
-                node.get_mut_layout_box().set_bounds(bounds);
-                let mut content: Rect = node.get_layout_box().get_content_bounds();
-                content.set_x(content.get_x() + dx);
-                content.set_y(content.get_y() + dy);
-                node.get_mut_layout_box().set_content_bounds(content);
-                node.get_children().clone()
+                None => continue,
             };
-            for child_id in children_to_visit.into_iter() {
-                stack.push((child_id, false));
+            if is_fixed_pos {
+                continue;
+            }
+            if !is_none_disp {
+                self.record_layout_snapshot(tree, nid);
+            }
+            let Some(node) = tree.get_node_mut(nid) else {
+                continue;
+            };
+            if let Some(mut c) = node.cached_constraint() {
+                c.set_origin_x(c.get_origin_x() + dx);
+                c.set_origin_y(c.get_origin_y() + dy);
+                node.set_last_constraint(Some(c));
+            }
+            if is_none_disp {
+                continue;
+            }
+            let mut bounds: Rect = node.get_layout_box().get_bounds();
+            bounds.set_x(bounds.get_x() + dx);
+            bounds.set_y(bounds.get_y() + dy);
+            node.get_mut_layout_box().set_bounds(bounds);
+            let mut content: Rect = node.get_layout_box().get_content_bounds();
+            content.set_x(content.get_x() + dx);
+            content.set_y(content.get_y() + dy);
+            node.get_mut_layout_box().set_content_bounds(content);
+            let children_slice: &[NodeId] = node.get_children().as_slice();
+            if !children_slice.is_empty() {
+                self.get_mut_translate_scratch()
+                    .extend_from_slice(children_slice);
             }
         }
     }

@@ -8,12 +8,41 @@ impl Default for WebPlatform {
     ///
     /// - `Self` - Initialized web platform.
     fn default() -> Self {
+        let initial_hidden: bool = web_document_hidden();
         Self {
             next_id: 1,
             windows: HashMap::new(),
             pending_events: Vec::new(),
             clipboard_cache: None,
+            last_hidden: initial_hidden,
+            last_online: web_navigator_online(),
+            last_theme: web_system_theme(),
+            last_locale: web_navigator_locale(),
+            pump_paused: initial_hidden,
         }
+    }
+}
+
+/// Browser system event injection helpers for `WebPlatform`.
+impl WebPlatform {
+    /// Enqueues a browser `SystemEvent` (e.g. from DOM visibility/focus/online/hashchange listeners).
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable web platform backend.
+    /// - `SystemEvent` - System event to enqueue.
+    pub fn push_system_event(&mut self, event: SystemEvent) {
+        match &event {
+            SystemEvent::Background => {
+                self.set_pump_paused(true);
+            }
+            SystemEvent::Foreground => {
+                self.set_pump_paused(false);
+            }
+            _ => {}
+        }
+        self.get_mut_pending_events()
+            .push(WindowEvent::System(event));
     }
 }
 
@@ -264,7 +293,7 @@ impl PlatformBackend for WebPlatform {
         }
     }
 
-    /// Drains queued web events.
+    /// Drains queued web events and polls live browser visibility, connectivity, theme, and locale transitions.
     ///
     /// # Arguments
     ///
@@ -274,7 +303,70 @@ impl PlatformBackend for WebPlatform {
     ///
     /// - `Vec<WindowEvent>` - Pending events.
     fn poll_events(&mut self) -> Vec<WindowEvent> {
+        let cur_hidden: bool = web_document_hidden();
+        if cur_hidden != self.get_last_hidden() {
+            self.set_last_hidden(cur_hidden);
+            self.set_pump_paused(cur_hidden);
+            let lc_ev: SystemEvent = if cur_hidden {
+                SystemEvent::Background
+            } else {
+                SystemEvent::Foreground
+            };
+            self.get_mut_pending_events()
+                .push(WindowEvent::System(lc_ev));
+        }
+        let cur_online: bool = web_navigator_online();
+        if cur_online != self.get_last_online() {
+            self.set_last_online(cur_online);
+            let net: NetworkStatus = if cur_online {
+                NetworkStatus::Online
+            } else {
+                NetworkStatus::Offline
+            };
+            self.get_mut_pending_events()
+                .push(WindowEvent::System(SystemEvent::NetworkStatusChanged(net)));
+        }
+        let cur_theme: ThemeMode = web_system_theme();
+        if cur_theme != self.get_last_theme() {
+            self.set_last_theme(cur_theme);
+            if let Some(&wid) = self.get_windows().keys().next() {
+                self.get_mut_pending_events()
+                    .push(WindowEvent::ThemeChanged(wid, cur_theme));
+            } else {
+                self.get_mut_pending_events()
+                    .push(WindowEvent::System(SystemEvent::ThemeChanged(cur_theme)));
+            }
+        }
+        let cur_locale: String = web_navigator_locale();
+        if cur_locale != *self.get_last_locale() {
+            self.set_last_locale(cur_locale.clone());
+            self.get_mut_pending_events()
+                .push(WindowEvent::System(SystemEvent::LocaleChanged(cur_locale)));
+        }
         take(self.get_mut_pending_events())
+    }
+
+    /// Pauses or resumes the browser `requestAnimationFrame` pump flag.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable web platform.
+    /// - `bool` - `true` when hidden/backgrounded; `false` when foregrounded.
+    fn set_frame_pump_paused(&mut self, paused: bool) {
+        self.set_pump_paused(paused);
+    }
+
+    /// Returns whether the web `requestAnimationFrame` pump is currently paused for background freeze.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Platform reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when paused in background.
+    fn is_frame_pump_paused(&self) -> bool {
+        self.get_pump_paused()
     }
 
     /// Blits `framebuffer` directly onto the browser `CanvasRenderingContext2d`.
@@ -361,6 +453,7 @@ impl PlatformBackend for WebPlatform {
     /// - `Result<(), PlatformError>` - Write status.
     fn write_clipboard(&mut self, text: &str) -> Result<(), PlatformError> {
         self.set_clipboard_cache(Some(text.to_string()));
+        let _: bool = write_system_clipboard(text);
         Ok(())
     }
 

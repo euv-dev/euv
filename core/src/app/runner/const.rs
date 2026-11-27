@@ -21,3 +21,18 @@ pub(crate) const IME_ACTION_SHOW: &str = "show";
 
 /// Native action argument instructing the host OS to dismiss the system soft keyboard / IME.
 pub(crate) const IME_ACTION_HIDE: &str = "hide";
+
+/// Inactive scrollbar thumb drag axis sentinel.
+pub(crate) const SCROLLBAR_AXIS_NONE: u8 = 0;
+
+/// Active vertical right-edge scrollbar thumb drag axis.
+pub(crate) const SCROLLBAR_AXIS_VERTICAL: u8 = 1;
+
+/// Active horizontal bottom-edge scrollbar thumb drag axis.
+pub(crate) const SCROLLBAR_AXIS_HORIZONTAL: u8 = 2;
+
+/// Maximum elapsed seconds between consecutive clicks on the same text node for double/triple-click selection.
+pub(crate) const TEXT_MULTI_CLICK_MAX_SECS: f32 = 0.45;
+
+/// Maximum pointer drift in logical pixels allowed between consecutive clicks for double/triple-click selection.
+pub(crate) const TEXT_MULTI_CLICK_MAX_DIST_DP: f32 = 16.0;

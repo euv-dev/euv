@@ -36,6 +36,7 @@ impl BvhGeomTri {
     /// # Returns
     ///
     /// - `Option<f32>` - Parametric hit distance if intersected.
+    #[inline(always)]
     #[must_use]
     pub(crate) fn intersect_raw(
         &self,
@@ -107,6 +108,7 @@ impl BvhGeomTri {
     /// # Returns
     ///
     /// - `bool` - `true` when the ray intersects this triangle within `(t_min, t_max)`.
+    #[inline(always)]
     #[must_use]
     pub(crate) fn intersect_any_raw(
         &self,
@@ -160,40 +162,260 @@ impl BvhGeomTri {
     }
 }
 
-/// Scalar-register ray-box slab kernel for 32-byte `BvhFlatNode`.
+/// 4-wide Structure-of-Arrays SIMD-friendly Möller–Trumbore kernels for `BvhTri4`.
+impl BvhTri4 {
+    /// Packs up to 4 contiguous `BvhGeomTri` entries starting at `base_tri_idx` into one `BvhTri4` packet.
+    ///
+    /// # Arguments
+    ///
+    /// - `&[BvhGeomTri]` - Slice of 1..=4 source triangles.
+    /// - `u32` - Global triangle index of `slice[0]` inside `Bvh3D::triangles`.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Packed 4-wide SoA packet with zero-edge sentinel padding for trailing lanes.
+    #[must_use]
+    pub(crate) fn from_geom_chunk(slice: &[BvhGeomTri], base_tri_idx: u32) -> Self {
+        let mut v0x: [f32; 4] = [0.0; 4];
+        let mut v0y: [f32; 4] = [0.0; 4];
+        let mut v0z: [f32; 4] = [0.0; 4];
+        let mut e1x: [f32; 4] = [0.0; 4];
+        let mut e1y: [f32; 4] = [0.0; 4];
+        let mut e1z: [f32; 4] = [0.0; 4];
+        let mut e2x: [f32; 4] = [0.0; 4];
+        let mut e2y: [f32; 4] = [0.0; 4];
+        let mut e2z: [f32; 4] = [0.0; 4];
+        let mut tri_indices: [u32; 4] = [u32::MAX; 4];
+        for (lane, tri) in slice.iter().take(4).enumerate() {
+            v0x[lane] = tri.v0[0];
+            v0y[lane] = tri.v0[1];
+            v0z[lane] = tri.v0[2];
+            e1x[lane] = tri.e1[0];
+            e1y[lane] = tri.e1[1];
+            e1z[lane] = tri.e1[2];
+            e2x[lane] = tri.e2[0];
+            e2y[lane] = tri.e2[1];
+            e2z[lane] = tri.e2[2];
+            tri_indices[lane] = base_tri_idx.wrapping_add(lane as u32);
+        }
+        Self {
+            v0x,
+            v0y,
+            v0z,
+            e1x,
+            e1y,
+            e1z,
+            e2x,
+            e2y,
+            e2z,
+            tri_indices,
+        }
+    }
+
+    /// Tests all 4 triangles in parallel for any shadow/occlusion hit within `(t_min, t_max)`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - 4-wide SoA triangle packet.
+    /// - `[f32; 3]` - Ray origin `(ox, oy, oz)`.
+    /// - `[f32; 3]` - Unit ray direction `(dx, dy, dz)`.
+    /// - `f32` - Minimum valid distance.
+    /// - `f32` - Maximum valid distance.
+    ///
+    /// # Returns
+    ///
+    /// - `u32` - Global triangle index of the first occluding lane, or `u32::MAX` on miss.
+    #[inline(always)]
+    #[must_use]
+    pub(crate) fn intersect_any_4(
+        &self,
+        orig: [f32; 3],
+        dir: [f32; 3],
+        t_min: f32,
+        t_max: f32,
+    ) -> u32 {
+        let Self {
+            v0x,
+            v0y,
+            v0z,
+            e1x,
+            e1y,
+            e1z,
+            e2x,
+            e2y,
+            e2z,
+            tri_indices,
+        } = self;
+        let ox: f32 = orig[0];
+        let oy: f32 = orig[1];
+        let oz: f32 = orig[2];
+        let dx: f32 = dir[0];
+        let dy: f32 = dir[1];
+        let dz: f32 = dir[2];
+        let mut hits: [bool; 4] = [false; 4];
+        for i in 0..4 {
+            let hx: f32 = dy.mul_add(e2z[i], -(dz * e2y[i]));
+            let hy: f32 = dz.mul_add(e2x[i], -(dx * e2z[i]));
+            let hz: f32 = dx.mul_add(e2y[i], -(dy * e2x[i]));
+            let det: f32 = e1x[i].mul_add(hx, e1y[i].mul_add(hy, e1z[i] * hz));
+            let sign: f32 = 1.0_f32.copysign(det);
+            let ad: f32 = det.abs();
+            let sx: f32 = ox - v0x[i];
+            let sy: f32 = oy - v0y[i];
+            let sz: f32 = oz - v0z[i];
+            let su: f32 = sx.mul_add(hx, sy.mul_add(hy, sz * hz)) * sign;
+            let qx: f32 = sy.mul_add(e1z[i], -(sz * e1y[i]));
+            let qy: f32 = sz.mul_add(e1x[i], -(sx * e1z[i]));
+            let qz: f32 = sx.mul_add(e1y[i], -(sy * e1x[i]));
+            let sv: f32 = dx.mul_add(qx, dy.mul_add(qy, dz * qz)) * sign;
+            let st: f32 = e2x[i].mul_add(qx, e2y[i].mul_add(qy, e2z[i] * qz)) * sign;
+            let uv_ok: bool = su >= 0.0 && sv >= 0.0 && (su + sv) <= ad;
+            let t_ok: bool = st > t_min * ad && st < t_max * ad;
+            hits[i] = ad > 1e-6 && uv_ok && t_ok;
+        }
+        if hits[0] {
+            tri_indices[0]
+        } else if hits[1] {
+            tri_indices[1]
+        } else if hits[2] {
+            tri_indices[2]
+        } else if hits[3] {
+            tri_indices[3]
+        } else {
+            u32::MAX
+        }
+    }
+
+    /// Tests all 4 triangles in parallel and updates `(best_t, best_idx)` on any closer hit within `(t_min, *best_t)`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - 4-wide SoA triangle packet.
+    /// - `[f32; 3]` - Ray origin `(ox, oy, oz)`.
+    /// - `[f32; 3]` - Unit ray direction `(dx, dy, dz)`.
+    /// - `f32` - Minimum valid distance.
+    /// - `&mut f32` - Closest hit distance tightened on hit.
+    /// - `&mut usize` - Closest hit triangle index updated on hit.
+    #[inline(always)]
+    pub(crate) fn intersect_closest_4(
+        &self,
+        orig: [f32; 3],
+        dir: [f32; 3],
+        t_min: f32,
+        best_t: &mut f32,
+        best_idx: &mut usize,
+    ) {
+        let Self {
+            v0x,
+            v0y,
+            v0z,
+            e1x,
+            e1y,
+            e1z,
+            e2x,
+            e2y,
+            e2z,
+            tri_indices,
+        } = self;
+        let ox: f32 = orig[0];
+        let oy: f32 = orig[1];
+        let oz: f32 = orig[2];
+        let dx: f32 = dir[0];
+        let dy: f32 = dir[1];
+        let dz: f32 = dir[2];
+        let cur_max: f32 = *best_t;
+        let mut ad_arr: [f32; 4] = [0.0; 4];
+        let mut st_arr: [f32; 4] = [0.0; 4];
+        let mut hits: [bool; 4] = [false; 4];
+        for i in 0..4 {
+            let hx: f32 = dy.mul_add(e2z[i], -(dz * e2y[i]));
+            let hy: f32 = dz.mul_add(e2x[i], -(dx * e2z[i]));
+            let hz: f32 = dx.mul_add(e2y[i], -(dy * e2x[i]));
+            let det: f32 = e1x[i].mul_add(hx, e1y[i].mul_add(hy, e1z[i] * hz));
+            let sign: f32 = 1.0_f32.copysign(det);
+            let ad: f32 = det.abs();
+            let sx: f32 = ox - v0x[i];
+            let sy: f32 = oy - v0y[i];
+            let sz: f32 = oz - v0z[i];
+            let su: f32 = sx.mul_add(hx, sy.mul_add(hy, sz * hz)) * sign;
+            let qx: f32 = sy.mul_add(e1z[i], -(sz * e1y[i]));
+            let qy: f32 = sz.mul_add(e1x[i], -(sx * e1z[i]));
+            let qz: f32 = sx.mul_add(e1y[i], -(sy * e1x[i]));
+            let sv: f32 = dx.mul_add(qx, dy.mul_add(qy, dz * qz)) * sign;
+            let st: f32 = e2x[i].mul_add(qx, e2y[i].mul_add(qy, e2z[i] * qz)) * sign;
+            ad_arr[i] = ad;
+            st_arr[i] = st;
+            let uv_ok: bool = su >= 0.0 && sv >= 0.0 && (su + sv) <= ad;
+            let t_ok: bool = st > t_min * ad && st < cur_max * ad;
+            hits[i] = ad > 1e-6 && uv_ok && t_ok;
+        }
+        let any_01: bool = hits[0] || hits[1];
+        let any_23: bool = hits[2] || hits[3];
+        if any_01 || any_23 {
+            for i in 0..4 {
+                if hits[i] {
+                    let t: f32 = st_arr[i] / ad_arr[i];
+                    if t < *best_t {
+                        *best_t = t;
+                        *best_idx = tri_indices[i] as usize;
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Scalar-register FMA ray-box slab kernel for 32-byte `BvhFlatNode`.
 impl BvhFlatNode {
-    /// Computes branchless near-entry slab intersection distance, or `f32::INFINITY` on miss.
+    /// Constructs a zeroed placeholder 32-byte flat node for sibling-pair slot reservation.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Empty placeholder flat node.
+    #[inline(always)]
+    #[must_use]
+    pub(crate) const fn empty() -> Self {
+        Self {
+            min: [0.0; 3],
+            child_or_first: 0,
+            max: [0.0; 3],
+            tri_count: 0,
+        }
+    }
+
+    /// Computes branchless FMA near-entry slab intersection distance, or `f32::INFINITY` on miss.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Flat node reference.
-    /// - `[f32; 3]` - Ray origin `(ox, oy, oz)`.
     /// - `[f32; 3]` - Precomputed safe reciprocal direction `(ix, iy, iz)`.
+    /// - `[f32; 3]` - Precomputed negated origin-times-inverse `(-ox * ix, -oy * iy, -oz * iz)`.
     /// - `f32` - Minimum valid distance.
     /// - `f32` - Maximum valid distance.
     ///
     /// # Returns
     ///
     /// - `f32` - Near intersection distance if hit, or `f32::INFINITY` on miss.
+    #[inline(always)]
     #[must_use]
-    pub(crate) fn intersect_near(
+    pub(crate) fn intersect_near_fma(
         &self,
-        orig: [f32; 3],
         inv: [f32; 3],
+        neg_orig_inv: [f32; 3],
         t_min: f32,
         t_max: f32,
     ) -> f32 {
         let Self { min, max, .. } = self;
-        let tx1: f32 = (min[0] - orig[0]) * inv[0];
-        let tx2: f32 = (max[0] - orig[0]) * inv[0];
+        let tx1: f32 = min[0].mul_add(inv[0], neg_orig_inv[0]);
+        let tx2: f32 = max[0].mul_add(inv[0], neg_orig_inv[0]);
         let mut tmin: f32 = t_min.max(tx1.min(tx2));
         let mut tmax: f32 = t_max.min(tx1.max(tx2));
-        let ty1: f32 = (min[1] - orig[1]) * inv[1];
-        let ty2: f32 = (max[1] - orig[1]) * inv[1];
+        let ty1: f32 = min[1].mul_add(inv[1], neg_orig_inv[1]);
+        let ty2: f32 = max[1].mul_add(inv[1], neg_orig_inv[1]);
         tmin = tmin.max(ty1.min(ty2));
         tmax = tmax.min(ty1.max(ty2));
-        let tz1: f32 = (min[2] - orig[2]) * inv[2];
-        let tz2: f32 = (max[2] - orig[2]) * inv[2];
+        let tz1: f32 = min[2].mul_add(inv[2], neg_orig_inv[2]);
+        let tz2: f32 = max[2].mul_add(inv[2], neg_orig_inv[2]);
         tmin = tmin.max(tz1.min(tz2));
         tmax = tmax.min(tz1.max(tz2));
         if tmax >= tmin && tmax >= 0.0 {
@@ -260,7 +482,78 @@ impl BvhTriangle {
 
 /// Binned Surface Area Heuristic (SAH) BVH construction and near-child-first ray traversal for `Bvh3D`.
 impl Bvh3D {
-    /// Builds a tight SAH flat BVH over `triangles` and populates its 32-byte DFS node and 36-byte geometry mirrors.
+    /// Recursively flattens `nodes[src_idx]` into `flat_nodes[dst_idx]` with sibling pairs laid out at contiguous even indices `(2k, 2k + 1)`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&[BvhNode3D]` - Source hierarchical BVH nodes.
+    /// - `&[BvhGeomTri]` - Partitioned 36-byte triangle geometry array.
+    /// - `&mut Vec<BvhTri4>` - Destination 4-wide SoA leaf packet buffer.
+    /// - `&mut Vec<BvhFlatNode>` - Destination 32-byte sibling-paired flat node buffer.
+    /// - `usize` - Source index in `nodes`.
+    /// - `usize` - Pre-reserved destination index in `flat_nodes`.
+    fn flatten_sibling_pair(
+        nodes: &[BvhNode3D],
+        geom: &[BvhGeomTri],
+        leaf_packets: &mut Vec<BvhTri4>,
+        flat_nodes: &mut Vec<BvhFlatNode>,
+        src_idx: usize,
+        dst_idx: usize,
+    ) {
+        let n: &BvhNode3D = &nodes[src_idx];
+        let mn: Vec3 = n.get_bounds().get_min();
+        let mx: Vec3 = n.get_bounds().get_max();
+        let tc: u32 = n.get_tri_count();
+        if tc > 0 {
+            let first_tri: usize = n.get_first_tri() as usize;
+            let end_tri: usize = first_tri + (tc as usize);
+            let pkt_first: u32 = leaf_packets.len() as u32;
+            let mut cursor: usize = first_tri;
+            while cursor < end_tri {
+                let next_end: usize = (cursor + 4).min(end_tri);
+                leaf_packets.push(BvhTri4::from_geom_chunk(
+                    &geom[cursor..next_end],
+                    cursor as u32,
+                ));
+                cursor = next_end;
+            }
+            let pkt_count: u32 = (leaf_packets.len() as u32) - pkt_first;
+            flat_nodes[dst_idx] = BvhFlatNode {
+                min: [mn.get_x(), mn.get_y(), mn.get_z()],
+                child_or_first: pkt_first,
+                max: [mx.get_x(), mx.get_y(), mx.get_z()],
+                tri_count: pkt_count,
+            };
+        } else {
+            let first_child: usize = flat_nodes.len();
+            flat_nodes.push(BvhFlatNode::empty());
+            flat_nodes.push(BvhFlatNode::empty());
+            flat_nodes[dst_idx] = BvhFlatNode {
+                min: [mn.get_x(), mn.get_y(), mn.get_z()],
+                child_or_first: first_child as u32,
+                max: [mx.get_x(), mx.get_y(), mx.get_z()],
+                tri_count: 0,
+            };
+            Self::flatten_sibling_pair(
+                nodes,
+                geom,
+                leaf_packets,
+                flat_nodes,
+                n.get_left() as usize,
+                first_child,
+            );
+            Self::flatten_sibling_pair(
+                nodes,
+                geom,
+                leaf_packets,
+                flat_nodes,
+                n.get_right() as usize,
+                first_child + 1,
+            );
+        }
+    }
+
+    /// Builds a tight SAH flat BVH over `triangles` and populates its 32-byte sibling-paired flat nodes, 4-wide SoA leaf packets, and 36-byte geometry mirror.
     ///
     /// # Arguments
     ///
@@ -276,7 +569,8 @@ impl Bvh3D {
             nodes: Vec::with_capacity(tri_len * 2 + 1),
             triangles,
             geom: Vec::with_capacity(tri_len),
-            flat_nodes: Vec::with_capacity(tri_len * 2 + 1),
+            leaf_packets: Vec::with_capacity(tri_len.div_ceil(4) + 16),
+            flat_nodes: Vec::with_capacity(tri_len * 2 + 2),
         };
         if !bvh.get_triangles().is_empty() {
             let total: usize = bvh.get_triangles().len();
@@ -285,27 +579,20 @@ impl Bvh3D {
                 nodes,
                 triangles,
                 geom,
+                leaf_packets,
                 flat_nodes,
             } = &mut bvh;
             geom.clear();
             for tri in triangles.iter() {
                 geom.push(BvhGeomTri::from_triangle(tri));
             }
+            leaf_packets.clear();
             flat_nodes.clear();
-            for n in nodes.iter() {
-                let mn: Vec3 = n.get_bounds().get_min();
-                let mx: Vec3 = n.get_bounds().get_max();
-                let tc: u32 = n.get_tri_count();
-                flat_nodes.push(BvhFlatNode {
-                    min: [mn.get_x(), mn.get_y(), mn.get_z()],
-                    right_or_first: if tc > 0 {
-                        n.get_first_tri()
-                    } else {
-                        n.get_right()
-                    },
-                    max: [mx.get_x(), mx.get_y(), mx.get_z()],
-                    tri_count: tc,
-                });
+            if !nodes.is_empty() {
+                // Slot 0 holds root; slot 1 pads so every sibling pair starts at an even 64-byte-aligned index.
+                flat_nodes.push(BvhFlatNode::empty());
+                flat_nodes.push(BvhFlatNode::empty());
+                Self::flatten_sibling_pair(nodes, geom, leaf_packets, flat_nodes, 0, 0);
             }
         }
         bvh
@@ -349,31 +636,67 @@ impl Bvh3D {
     ) -> Option<(usize, f32)> {
         let bins: usize = 12;
         let extent: Vec3 = cent_bounds.get_max().sub(cent_bounds.get_min());
+        let exts: [f32; 3] = [extent.get_x(), extent.get_y(), extent.get_z()];
+        let cmins: [f32; 3] = [
+            cent_bounds.get_min().get_x(),
+            cent_bounds.get_min().get_y(),
+            cent_bounds.get_min().get_z(),
+        ];
+        let active: [bool; 3] = [exts[0] >= 1e-5, exts[1] >= 1e-5, exts[2] >= 1e-5];
+        let scales: [f32; 3] = [
+            if active[0] {
+                (bins as f32) / exts[0]
+            } else {
+                0.0
+            },
+            if active[1] {
+                (bins as f32) / exts[1]
+            } else {
+                0.0
+            },
+            if active[2] {
+                (bins as f32) / exts[2]
+            } else {
+                0.0
+            },
+        ];
+        let mut bin_bounds: [[Aabb3D; 12]; 3] = [[Aabb3D::empty(); 12]; 3];
+        let mut bin_counts: [[u32; 12]; 3] = [[0; 12]; 3];
+        for tri in tris.iter() {
+            let c: Vec3 = tri.get_centroid();
+            let tb: Aabb3D = tri.get_bounds();
+            if active[0] {
+                let b0: usize = (((c.get_x() - cmins[0]) * scales[0]) as usize).min(bins - 1);
+                bin_counts[0][b0] += 1;
+                bin_bounds[0][b0].expand_box(tb);
+            }
+            if active[1] {
+                let b1: usize = (((c.get_y() - cmins[1]) * scales[1]) as usize).min(bins - 1);
+                bin_counts[1][b1] += 1;
+                bin_bounds[1][b1].expand_box(tb);
+            }
+            if active[2] {
+                let b2: usize = (((c.get_z() - cmins[2]) * scales[2]) as usize).min(bins - 1);
+                bin_counts[2][b2] += 1;
+                bin_bounds[2][b2].expand_box(tb);
+            }
+        }
         let mut best_cost: f32 = (tris.len() as f32) * parent_area;
         let mut best_split: Option<(usize, f32)> = None;
         for axis in 0..3 {
-            let ext: f32 = Self::vec_axis(extent, axis);
-            if ext < 1e-5 {
+            if !active[axis] {
                 continue;
             }
-            let cmin: f32 = Self::vec_axis(cent_bounds.get_min(), axis);
-            let scale: f32 = (bins as f32) / ext;
-            let mut bin_bounds: [Aabb3D; 12] = [Aabb3D::empty(); 12];
-            let mut bin_counts: [u32; 12] = [0; 12];
-            for tri in tris.iter() {
-                let c: f32 = Self::vec_axis(tri.get_centroid(), axis);
-                let b_idx: usize = (((c - cmin) * scale) as usize).min(bins - 1);
-                bin_counts[b_idx] += 1;
-                bin_bounds[b_idx].expand_box(tri.get_bounds());
-            }
+            let counts: &[u32; 12] = &bin_counts[axis];
+            let bounds_arr: &[Aabb3D; 12] = &bin_bounds[axis];
             let mut left_area: [f32; 11] = [0.0; 11];
             let mut left_count: [u32; 11] = [0; 11];
             let mut acc_box: Aabb3D = Aabb3D::empty();
             let mut acc_cnt: u32 = 0;
             for i in 0..(bins - 1) {
-                acc_cnt += bin_counts[i];
-                if bin_counts[i] > 0 {
-                    acc_box.expand_box(bin_bounds[i]);
+                acc_cnt += counts[i];
+                if counts[i] > 0 {
+                    acc_box.expand_box(bounds_arr[i]);
                 }
                 left_count[i] = acc_cnt;
                 left_area[i] = if acc_cnt > 0 {
@@ -384,10 +707,11 @@ impl Bvh3D {
             }
             let mut r_box: Aabb3D = Aabb3D::empty();
             let mut r_cnt: u32 = 0;
+            let step: f32 = exts[axis] / (bins as f32);
             for i in (1..bins).rev() {
-                r_cnt += bin_counts[i];
-                if bin_counts[i] > 0 {
-                    r_box.expand_box(bin_bounds[i]);
+                r_cnt += counts[i];
+                if counts[i] > 0 {
+                    r_box.expand_box(bounds_arr[i]);
                 }
                 let l_cnt: u32 = left_count[i - 1];
                 if l_cnt == 0 || r_cnt == 0 {
@@ -398,7 +722,7 @@ impl Bvh3D {
                     0.5 * parent_area + (l_cnt as f32) * left_area[i - 1] + (r_cnt as f32) * r_area;
                 if cost < best_cost {
                     best_cost = cost;
-                    let split_pos: f32 = cmin + (i as f32) * (ext / (bins as f32));
+                    let split_pos: f32 = cmins[axis] + (i as f32) * step;
                     best_split = Some((axis, split_pos));
                 }
             }
@@ -522,9 +846,12 @@ impl Bvh3D {
         cached_tri: &mut u32,
     ) -> bool {
         let Self {
-            flat_nodes, geom, ..
+            flat_nodes,
+            geom,
+            leaf_packets,
+            ..
         } = self;
-        if flat_nodes.is_empty() || geom.is_empty() {
+        if flat_nodes.is_empty() || leaf_packets.is_empty() {
             return false;
         }
         let hint: usize = *cached_tri as usize;
@@ -532,54 +859,71 @@ impl Bvh3D {
             return true;
         }
         let orig_arr: [f32; 3] = [origin.get_x(), origin.get_y(), origin.get_z()];
+        let dir_arr: [f32; 3] = [dir.get_x(), dir.get_y(), dir.get_z()];
         let inv_arr: [f32; 3] = [inv_dir.get_x(), inv_dir.get_y(), inv_dir.get_z()];
+        let neg_orig_inv: [f32; 3] = [
+            -orig_arr[0] * inv_arr[0],
+            -orig_arr[1] * inv_arr[1],
+            -orig_arr[2] * inv_arr[2],
+        ];
         if !flat_nodes[0]
-            .intersect_near(orig_arr, inv_arr, t_min, t_max)
+            .intersect_near_fma(inv_arr, neg_orig_inv, t_min, t_max)
             .is_finite()
         {
             return false;
         }
-        let mut stack: [u32; 64] = [0; 64];
-        let mut sp: usize = 1;
-        while sp > 0 {
-            sp -= 1;
-            let idx: u32 = stack[sp];
-            let n: &BvhFlatNode = &flat_nodes[idx as usize];
-            let count: usize = n.tri_count as usize;
-            if count > 0 {
-                let first: usize = n.right_or_first as usize;
-                for (off, tri) in geom[first..(first + count)].iter().enumerate() {
-                    if tri.intersect_any_raw(origin, dir, t_min, t_max) {
-                        *cached_tri = (first + off) as u32;
+        let mut stack: [core::mem::MaybeUninit<u32>; 32] =
+            [const { core::mem::MaybeUninit::uninit() }; 32];
+        let mut sp: usize = 0;
+        let mut cur_idx: u32 = 0;
+        loop {
+            let n: &BvhFlatNode = &flat_nodes[cur_idx as usize];
+            let pkt_count: usize = n.tri_count as usize;
+            if pkt_count > 0 {
+                let first_pkt: usize = n.child_or_first as usize;
+                for pkt in leaf_packets[first_pkt..(first_pkt + pkt_count)].iter() {
+                    let hit_tri: u32 = pkt.intersect_any_4(orig_arr, dir_arr, t_min, t_max);
+                    if hit_tri != u32::MAX {
+                        *cached_tri = hit_tri;
                         return true;
                     }
                 }
             } else {
-                let left_idx: u32 = idx + 1;
-                let right_idx: u32 = n.right_or_first;
-                let tl: f32 =
-                    flat_nodes[left_idx as usize].intersect_near(orig_arr, inv_arr, t_min, t_max);
-                let tr: f32 =
-                    flat_nodes[right_idx as usize].intersect_near(orig_arr, inv_arr, t_min, t_max);
+                let left_idx: u32 = n.child_or_first;
+                let right_idx: u32 = left_idx + 1;
+                let pair_start: usize = left_idx as usize;
+                let pair: &[BvhFlatNode] = &flat_nodes[pair_start..(pair_start + 2)];
+                let tl: f32 = pair[0].intersect_near_fma(inv_arr, neg_orig_inv, t_min, t_max);
+                let tr: f32 = pair[1].intersect_near_fma(inv_arr, neg_orig_inv, t_min, t_max);
                 let hit_l: bool = tl.is_finite();
                 let hit_r: bool = tr.is_finite();
-                if hit_l && hit_r && sp + 2 <= 64 {
-                    if tl <= tr {
-                        stack[sp] = right_idx;
-                        stack[sp + 1] = left_idx;
+                if hit_l && hit_r {
+                    let (near_idx, far_idx): (u32, u32) = if tl <= tr {
+                        (left_idx, right_idx)
                     } else {
-                        stack[sp] = left_idx;
-                        stack[sp + 1] = right_idx;
+                        (right_idx, left_idx)
+                    };
+                    if sp < 32 {
+                        let _: &mut u32 = stack[sp].write(far_idx);
+                        sp += 1;
                     }
-                    sp += 2;
-                } else if hit_l && sp < 64 {
-                    stack[sp] = left_idx;
-                    sp += 1;
-                } else if hit_r && sp < 64 {
-                    stack[sp] = right_idx;
-                    sp += 1;
+                    cur_idx = near_idx;
+                    continue;
+                } else if hit_l {
+                    cur_idx = left_idx;
+                    continue;
+                } else if hit_r {
+                    cur_idx = right_idx;
+                    continue;
                 }
             }
+            if sp == 0 {
+                break;
+            }
+            sp -= 1;
+            // SAFETY: `sp` is only incremented immediately after `stack[sp].write(...)`,
+            // guaranteeing `stack[sp]` is initialized prior to reading.
+            cur_idx = unsafe { stack[sp].assume_init() };
         }
         false
     }
@@ -633,64 +977,84 @@ impl Bvh3D {
         t_max: f32,
     ) -> Option<(f32, usize)> {
         let Self {
-            flat_nodes, geom, ..
+            flat_nodes,
+            leaf_packets,
+            ..
         } = self;
-        if flat_nodes.is_empty() || geom.is_empty() {
+        if flat_nodes.is_empty() || leaf_packets.is_empty() {
             return None;
         }
         let orig_arr: [f32; 3] = [origin.get_x(), origin.get_y(), origin.get_z()];
+        let dir_arr: [f32; 3] = [dir.get_x(), dir.get_y(), dir.get_z()];
         let inv_arr: [f32; 3] = [inv_dir.get_x(), inv_dir.get_y(), inv_dir.get_z()];
+        let neg_orig_inv: [f32; 3] = [
+            -orig_arr[0] * inv_arr[0],
+            -orig_arr[1] * inv_arr[1],
+            -orig_arr[2] * inv_arr[2],
+        ];
         if !flat_nodes[0]
-            .intersect_near(orig_arr, inv_arr, t_min, t_max)
+            .intersect_near_fma(inv_arr, neg_orig_inv, t_min, t_max)
             .is_finite()
         {
             return None;
         }
-        let mut stack: [(u32, f32); 64] = [(0, 0.0); 64];
-        let mut sp: usize = 1;
+        let mut stack: [core::mem::MaybeUninit<(u32, f32)>; 32] =
+            [const { core::mem::MaybeUninit::uninit() }; 32];
+        let mut sp: usize = 0;
+        let mut cur_idx: u32 = 0;
         let mut best_t: f32 = t_max;
         let mut best_idx: usize = usize::MAX;
-        while sp > 0 {
-            sp -= 1;
-            let (node_id, node_tmin): (u32, f32) = stack[sp];
-            if node_tmin >= best_t {
-                continue;
-            }
-            let n: &BvhFlatNode = &flat_nodes[node_id as usize];
-            let count: usize = n.tri_count as usize;
-            if count > 0 {
-                let first: usize = n.right_or_first as usize;
-                for (off, tri) in geom[first..(first + count)].iter().enumerate() {
-                    if let Some(t) = tri.intersect_raw(origin, dir, t_min, best_t) {
-                        best_t = t;
-                        best_idx = first + off;
-                    }
+        loop {
+            let n: &BvhFlatNode = &flat_nodes[cur_idx as usize];
+            let pkt_count: usize = n.tri_count as usize;
+            if pkt_count > 0 {
+                let first_pkt: usize = n.child_or_first as usize;
+                for pkt in leaf_packets[first_pkt..(first_pkt + pkt_count)].iter() {
+                    pkt.intersect_closest_4(orig_arr, dir_arr, t_min, &mut best_t, &mut best_idx);
                 }
             } else {
-                let left_idx: u32 = node_id + 1;
-                let right_idx: u32 = n.right_or_first;
-                let tl: f32 =
-                    flat_nodes[left_idx as usize].intersect_near(orig_arr, inv_arr, t_min, best_t);
-                let tr: f32 =
-                    flat_nodes[right_idx as usize].intersect_near(orig_arr, inv_arr, t_min, best_t);
+                let left_idx: u32 = n.child_or_first;
+                let right_idx: u32 = left_idx + 1;
+                let pair_start: usize = left_idx as usize;
+                let pair: &[BvhFlatNode] = &flat_nodes[pair_start..(pair_start + 2)];
+                let tl: f32 = pair[0].intersect_near_fma(inv_arr, neg_orig_inv, t_min, best_t);
+                let tr: f32 = pair[1].intersect_near_fma(inv_arr, neg_orig_inv, t_min, best_t);
                 let hit_l: bool = tl < best_t;
                 let hit_r: bool = tr < best_t;
-                if hit_l && hit_r && sp + 2 <= 64 {
-                    if tl <= tr {
-                        stack[sp] = (right_idx, tr);
-                        stack[sp + 1] = (left_idx, tl);
+                if hit_l && hit_r {
+                    let (near_idx, far_idx, far_t): (u32, u32, f32) = if tl <= tr {
+                        (left_idx, right_idx, tr)
                     } else {
-                        stack[sp] = (left_idx, tl);
-                        stack[sp + 1] = (right_idx, tr);
+                        (right_idx, left_idx, tl)
+                    };
+                    if sp < 32 {
+                        let _: &mut (u32, f32) = stack[sp].write((far_idx, far_t));
+                        sp += 1;
                     }
-                    sp += 2;
-                } else if hit_l && sp < 64 {
-                    stack[sp] = (left_idx, tl);
-                    sp += 1;
-                } else if hit_r && sp < 64 {
-                    stack[sp] = (right_idx, tr);
-                    sp += 1;
+                    cur_idx = near_idx;
+                    continue;
+                } else if hit_l {
+                    cur_idx = left_idx;
+                    continue;
+                } else if hit_r {
+                    cur_idx = right_idx;
+                    continue;
                 }
+            }
+            let mut found_next: bool = false;
+            while sp > 0 {
+                sp -= 1;
+                // SAFETY: `sp` is only incremented immediately after `stack[sp].write(...)`,
+                // guaranteeing `stack[sp]` is initialized prior to reading.
+                let (next_id, next_tmin): (u32, f32) = unsafe { stack[sp].assume_init() };
+                if next_tmin < best_t {
+                    cur_idx = next_id;
+                    found_next = true;
+                    break;
+                }
+            }
+            if !found_next {
+                break;
             }
         }
         if best_idx == usize::MAX {

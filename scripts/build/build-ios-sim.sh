@@ -24,7 +24,7 @@ cat > "${BUILD_DIR}/Cargo.toml" <<EOF
 
 [package]
 name = "euv-ios-host"
-version = "0.43.0"
+version = "0.44.0"
 edition = "2024"
 
 [lib]
@@ -44,8 +44,9 @@ EOF
 cat > "${BUILD_DIR}/src/lib.rs" <<'EOF'
 use std::ffi::{CStr, CString, c_char};
 use euv::{
-    App, ImeEvent, KeyCode, KeyEvent, Modifiers, NativeSystemFont, PlatformKind, PointerEvent,
-    RenderMode, SafeAreaInsets, WindowEvent, WindowId, register_native_action_bridge,
+    App, ImeEvent, KeyCode, KeyEvent, MemoryPressure, Modifiers, NativeSystemFont, NetworkStatus,
+    PlatformKind, PointerEvent, RenderMode, SafeAreaInsets, SystemEvent, SystemTheme, WindowEvent,
+    WindowId, register_native_action_bridge,
 };
 use euv_example::{ShowcaseState, create_showcase_app_for_platform};
 
@@ -128,6 +129,135 @@ pub unsafe extern "C" fn euv_ios_ime_disabled(handle: *mut EuvIosHandle) {
     let h: &mut EuvIosHandle = unsafe { &mut *handle };
     h.app
         .dispatch_window_event(WindowEvent::Ime(h.wid, ImeEvent::Disabled));
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_system_lifecycle(handle: *mut EuvIosHandle, tag: i32) {
+    if handle.is_null() {
+        return;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    let ev: SystemEvent = match tag {
+        1 => SystemEvent::Appear,
+        2 => SystemEvent::Disappear,
+        3 => SystemEvent::Foreground,
+        4 => SystemEvent::Inactive,
+        5 => SystemEvent::Background,
+        6 => SystemEvent::Terminate,
+        _ => return,
+    };
+    h.app.dispatch_system_event(ev);
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_focus(handle: *mut EuvIosHandle, focused: i32) {
+    if handle.is_null() {
+        return;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    h.app
+        .dispatch_system_event(SystemEvent::FocusChanged(focused != 0));
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_keyboard(handle: *mut EuvIosHandle, visible: i32, height: f32) {
+    if handle.is_null() {
+        return;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    h.app
+        .dispatch_system_event(SystemEvent::KeyboardVisibilityChanged {
+            visible: visible != 0,
+            height: height.max(0.0),
+        });
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_theme(handle: *mut EuvIosHandle, is_dark: i32) {
+    if handle.is_null() {
+        return;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    let mode: SystemTheme = if is_dark != 0 {
+        SystemTheme::Dark
+    } else {
+        SystemTheme::Light
+    };
+    h.app.dispatch_system_event(SystemEvent::ThemeChanged(mode));
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_memory_warning(handle: *mut EuvIosHandle) {
+    if handle.is_null() {
+        return;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    h.app
+        .dispatch_system_event(SystemEvent::MemoryWarning(MemoryPressure::Critical));
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_low_power(handle: *mut EuvIosHandle, enabled: i32) {
+    if handle.is_null() {
+        return;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    h.app
+        .dispatch_system_event(SystemEvent::LowPowerModeChanged(enabled != 0));
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_locale(handle: *mut EuvIosHandle, locale: *const c_char) {
+    if handle.is_null() || locale.is_null() {
+        return;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    if let Ok(s) = unsafe { CStr::from_ptr(locale) }.to_str()
+        && !s.is_empty()
+    {
+        h.app
+            .dispatch_system_event(SystemEvent::LocaleChanged(s.to_string()));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_deep_link(handle: *mut EuvIosHandle, uri: *const c_char) {
+    if handle.is_null() || uri.is_null() {
+        return;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    if let Ok(s) = unsafe { CStr::from_ptr(uri) }.to_str()
+        && !s.is_empty()
+    {
+        h.app
+            .dispatch_system_event(SystemEvent::DeepLink(s.to_string()));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_clipboard_changed(handle: *mut EuvIosHandle) {
+    if handle.is_null() {
+        return;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    h.app.dispatch_system_event(SystemEvent::ClipboardChanged);
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_network(handle: *mut EuvIosHandle, status_tag: i32) {
+    if handle.is_null() {
+        return;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    let status: NetworkStatus = match status_tag {
+        0 => NetworkStatus::Offline,
+        1 => NetworkStatus::Online,
+        2 => NetworkStatus::Wifi,
+        3 => NetworkStatus::Cellular,
+        _ => NetworkStatus::Unknown,
+    };
+    h.app
+        .dispatch_system_event(SystemEvent::NetworkStatusChanged(status));
 }
 
 #[unsafe(no_mangle)]
@@ -343,6 +473,10 @@ int32_t euv_ios_invoke_native_action(const char *kind, const char *arg1, const c
                     [v resignFirstResponder];
                 }
             }
+        } else if ([k isEqualToString:@"clipboard"]) {
+            if (a2.length > 0) {
+                [UIPasteboard generalPasteboard].string = a2;
+            }
         } else if ([k isEqualToString:@"haptic"]) {
             UIImpactFeedbackGenerator *gen = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleMedium];
             [gen prepare];
@@ -367,6 +501,16 @@ int32_t euv_ios_invoke_native_action(const char *kind, const char *arg1, const c
 typedef struct EuvIosHandle EuvIosHandle;
 extern EuvIosHandle *euv_ios_create(uint32_t phys_width, uint32_t phys_height, float scale, int32_t is_ipad, float refresh_hz);
 extern void euv_ios_ime_disabled(EuvIosHandle *handle);
+extern void euv_ios_system_lifecycle(EuvIosHandle *handle, int32_t tag);
+extern void euv_ios_focus(EuvIosHandle *handle, int32_t focused);
+extern void euv_ios_keyboard(EuvIosHandle *handle, int32_t visible, float height);
+extern void euv_ios_theme(EuvIosHandle *handle, int32_t is_dark);
+extern void euv_ios_memory_warning(EuvIosHandle *handle);
+extern void euv_ios_low_power(EuvIosHandle *handle, int32_t enabled);
+extern void euv_ios_locale(EuvIosHandle *handle, const char *locale);
+extern void euv_ios_deep_link(EuvIosHandle *handle, const char *uri);
+extern void euv_ios_clipboard_changed(EuvIosHandle *handle);
+extern void euv_ios_network(EuvIosHandle *handle, int32_t status_tag);
 extern void euv_ios_resize(EuvIosHandle *handle, uint32_t phys_width, uint32_t phys_height, float scale);
 extern void euv_ios_set_safe_area(EuvIosHandle *handle, float top, float right, float bottom, float left);
 extern void euv_ios_touch_down(EuvIosHandle *handle, uint64_t pointer_id, float x, float y);
@@ -400,16 +544,62 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
 }
 
 - (void)onKeyboardWillShow:(NSNotification *)note {
-    (void)note;
     _keyboardVisible = YES;
+    CGFloat kbH = 0.0;
+    NSValue *rectVal = note.userInfo[UIKeyboardFrameEndUserInfoKey];
+    if (rectVal) {
+        kbH = [rectVal CGRectValue].size.height;
+    }
+    if (_handle) {
+        euv_ios_keyboard(_handle, 1, (float)kbH);
+    }
 }
 
 - (void)onKeyboardDidHide:(NSNotification *)note {
     (void)note;
     _keyboardVisible = NO;
     if (_handle) {
+        euv_ios_keyboard(_handle, 0, 0.0f);
         euv_ios_ime_disabled(_handle);
     }
+}
+
+- (void)onMemoryWarning:(NSNotification *)note {
+    (void)note;
+    if (_handle) {
+        euv_ios_memory_warning(_handle);
+    }
+}
+
+- (void)onPowerStateChanged:(NSNotification *)note {
+    (void)note;
+    if (_handle) {
+        BOOL lowPower = [[NSProcessInfo processInfo] isLowPowerModeEnabled];
+        euv_ios_low_power(_handle, lowPower ? 1 : 0);
+    }
+}
+
+- (void)onPasteboardChanged:(NSNotification *)note {
+    (void)note;
+    if (_handle) {
+        euv_ios_clipboard_changed(_handle);
+    }
+}
+
+- (void)onLocaleChanged:(NSNotification *)note {
+    (void)note;
+    if (_handle) {
+        NSString *loc = [[NSLocale currentLocale] localeIdentifier];
+        if (loc.length > 0) {
+            euv_ios_locale(_handle, [loc UTF8String]);
+        }
+    }
+}
+
+- (void)syncThemeTrait {
+    if (!_handle) return;
+    BOOL isDark = (self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark);
+    euv_ios_theme(_handle, isDark ? 1 : 0);
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -427,6 +617,22 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
                                                  selector:@selector(onKeyboardDidHide:)
                                                      name:UIKeyboardDidHideNotification
                                                    object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(onMemoryWarning:)
+                                                     name:UIApplicationDidReceiveMemoryWarningNotification
+                                                   object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(onPowerStateChanged:)
+                                                     name:NSProcessInfoPowerStateDidChangeNotification
+                                                   object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(onPasteboardChanged:)
+                                                     name:UIPasteboardChangedNotification
+                                                   object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(onLocaleChanged:)
+                                                     name:NSCurrentLocaleDidChangeNotification
+                                                   object:nil];
         _colorSpace = CGColorSpaceCreateDeviceRGB();
         CGFloat scale = fmin(4.5, UIScreen.mainScreen.scale);
         self.layer.contentsScale = scale;
@@ -443,7 +649,9 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
         _handle = euv_ios_create(physW, physH, (float)scale, isIpad, _targetRefreshHz);
         if (@available(iOS 17.0, *)) {
             [self registerForTraitChanges:@[UITraitDisplayScale.class] withTarget:self action:@selector(syncViewportScaleAndBounds)];
+            [self registerForTraitChanges:@[UITraitUserInterfaceStyle.class] withTarget:self action:@selector(syncThemeTrait)];
         }
+        [self syncThemeTrait];
         [self syncSafeArea];
         [self presentFrameWithDt:(1.0f / _targetRefreshHz) force:YES];
         _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(onDisplayLink:)];
@@ -713,11 +921,31 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
     self.window.rootViewController = [[EuvViewController alloc] init];
     [self.window makeKeyAndVisible];
     [self syncWindowGeometry:windowScene];
+    if (connectionOptions && connectionOptions.URLContexts.count > 0) {
+        [self scene:scene openURLContexts:connectionOptions.URLContexts];
+    }
+}
+
+- (void)sceneWillEnterForeground:(UIScene *)scene {
+    (void)scene;
+    if (self.window && [self.window.rootViewController isKindOfClass:[EuvViewController class]]) {
+        EuvViewController *vc = (EuvViewController *)self.window.rootViewController;
+        if (vc.canvasView && vc.canvasView.handle) {
+            euv_ios_system_lifecycle(vc.canvasView.handle, 1);
+        }
+    }
 }
 
 - (void)sceneDidBecomeActive:(UIScene *)scene {
     if ([scene isKindOfClass:[UIWindowScene class]]) {
         [self syncWindowGeometry:(UIWindowScene *)scene];
+    }
+    if (self.window && [self.window.rootViewController isKindOfClass:[EuvViewController class]]) {
+        EuvViewController *vc = (EuvViewController *)self.window.rootViewController;
+        if (vc.canvasView && vc.canvasView.handle) {
+            euv_ios_system_lifecycle(vc.canvasView.handle, 3);
+            euv_ios_focus(vc.canvasView.handle, 1);
+        }
     }
 }
 
@@ -727,6 +955,31 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
         EuvViewController *vc = (EuvViewController *)self.window.rootViewController;
         if (vc.canvasView && vc.canvasView.handle) {
             euv_ios_touch_cancel(vc.canvasView.handle, 0);
+            euv_ios_focus(vc.canvasView.handle, 0);
+            euv_ios_system_lifecycle(vc.canvasView.handle, 4);
+        }
+    }
+}
+
+- (void)sceneDidEnterBackground:(UIScene *)scene {
+    (void)scene;
+    if (self.window && [self.window.rootViewController isKindOfClass:[EuvViewController class]]) {
+        EuvViewController *vc = (EuvViewController *)self.window.rootViewController;
+        if (vc.canvasView && vc.canvasView.handle) {
+            euv_ios_system_lifecycle(vc.canvasView.handle, 5);
+        }
+    }
+}
+
+- (void)scene:(UIScene *)scene openURLContexts:(NSSet<UIOpenURLContext *> *)URLContexts {
+    (void)scene;
+    if (!self.window || ![self.window.rootViewController isKindOfClass:[EuvViewController class]]) return;
+    EuvViewController *vc = (EuvViewController *)self.window.rootViewController;
+    if (!vc.canvasView || !vc.canvasView.handle) return;
+    for (UIOpenURLContext *ctx in URLContexts) {
+        NSString *urlStr = ctx.URL.absoluteString;
+        if (urlStr.length > 0) {
+            euv_ios_deep_link(vc.canvasView.handle, [urlStr UTF8String]);
         }
     }
 }
@@ -749,6 +1002,14 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
                                                               sessionRole:connectingSceneSession.role];
     cfg.delegateClass = [EuvSceneDelegate class];
     return cfg;
+}
+
+- (void)applicationWillTerminate:(UIApplication *)application {
+    (void)application;
+    EuvCanvasView *v = gEuvActiveCanvasView;
+    if (v && v.handle) {
+        euv_ios_system_lifecycle(v.handle, 6);
+    }
 }
 
 @end
@@ -788,8 +1049,8 @@ cat > "${BUILD_DIR}/Info.plist" <<'EOF'
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
     <key>CFBundleName</key><string>EuvShowcase</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.43.0</string>
-    <key>CFBundleVersion</key><string>5</string>
+    <key>CFBundleShortVersionString</key><string>0.44.0</string>
+    <key>CFBundleVersion</key><string>6</string>
     <key>CADisableMinimumFrameDurationOnPhone</key><true/>
     <key>LSRequiresIPhoneOS</key><true/>
     <key>UIApplicationSceneManifest</key>

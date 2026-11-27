@@ -38,8 +38,15 @@ impl NativeGpuDriver {
             device_handle,
             queue_handle,
             library_handle,
+            staging_buffer_handle: 0,
+            staging_contents_ptr: 0,
+            staging_buffer_capacity: 0,
             submitted_frames: 0,
             uploaded_instances: 0,
+            uploaded_bytes: 0,
+            last_upload_bytes: 0,
+            last_submitted_batches: 0,
+            staging_reallocations: 0,
             fallback,
         }
     }
@@ -106,32 +113,68 @@ impl GpuDriver for NativeGpuDriver {
         clear_color: Color,
         batches: &[GpuBatch],
     ) -> Result<usize, PlatformError> {
-        let uploaded: usize =
-            submit_native_gpu_batches(self.get_device_handle(), self.get_queue_handle(), batches);
         let Self {
+            device_handle,
+            queue_handle,
+            staging_buffer_handle,
+            staging_contents_ptr,
+            staging_buffer_capacity,
             submitted_frames,
             uploaded_instances,
+            uploaded_bytes,
+            last_upload_bytes,
+            last_submitted_batches,
+            staging_reallocations,
             fallback,
             ..
         } = self;
+        let prev_staging_handle: usize = *staging_buffer_handle;
+        let mut staging: (usize, usize, usize) = (
+            *staging_buffer_handle,
+            *staging_contents_ptr,
+            *staging_buffer_capacity,
+        );
+        let uploaded: usize =
+            submit_native_gpu_batches_staged(*device_handle, *queue_handle, &mut staging, batches);
+        (
+            *staging_buffer_handle,
+            *staging_contents_ptr,
+            *staging_buffer_capacity,
+        ) = staging;
+        if *staging_buffer_handle != 0 && *staging_buffer_handle != prev_staging_handle {
+            *staging_reallocations = staging_reallocations.wrapping_add(1);
+        }
+        let frame_bytes: usize = uploaded.saturating_mul(GPU_QUAD_INSTANCE_BYTES);
         *submitted_frames = submitted_frames.wrapping_add(1);
         *uploaded_instances = uploaded_instances.wrapping_add(uploaded as u64);
+        *uploaded_bytes = uploaded_bytes.wrapping_add(frame_bytes as u64);
+        *last_upload_bytes = frame_bytes;
+        *last_submitted_batches = batches.len();
         fallback.submit_batches(width, height, clear_color, batches)
     }
 }
 
 /// Automatic native GPU handle cleanup when `NativeGpuDriver` is dropped.
 impl Drop for NativeGpuDriver {
-    /// Releases retained OS GPU device, command queue, and shader library handles.
+    /// Releases retained OS GPU staging buffer, device, command queue, and shader library handles.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Dropping driver.
     fn drop(&mut self) {
-        release_native_gpu_handles(
-            self.get_device_handle(),
-            self.get_queue_handle(),
-            self.get_library_handle(),
-        );
+        let Self {
+            device_handle,
+            queue_handle,
+            library_handle,
+            staging_buffer_handle,
+            staging_contents_ptr,
+            staging_buffer_capacity,
+            ..
+        } = self;
+        release_native_gpu_staging(*staging_buffer_handle);
+        *staging_buffer_handle = 0;
+        *staging_contents_ptr = 0;
+        *staging_buffer_capacity = 0;
+        release_native_gpu_handles(*device_handle, *queue_handle, *library_handle);
     }
 }

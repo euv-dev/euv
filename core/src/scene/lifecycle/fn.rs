@@ -77,3 +77,27 @@ pub fn finalize_disposed_subtree(scopes: Vec<Scope>, observers: Vec<(NodeId, Rc<
         hook.on_destroy();
     }
 }
+
+/// Dispatches a normalized `SystemEvent` to every `Lifecycle` observer, invoking both its typed lifecycle method and `on_system_event`.
+///
+/// # Arguments
+///
+/// - `&[(NodeId, Rc<dyn Lifecycle>)]` - Collected `(node, lifecycle)` observer pairs.
+/// - `&SystemEvent` - Normalized system event payload.
+pub fn dispatch_lifecycle_system_event(
+    observers: &[(NodeId, Rc<dyn Lifecycle>)],
+    event: &SystemEvent,
+) {
+    for (_, hook) in observers.iter() {
+        match event {
+            SystemEvent::Appear => hook.on_appear(),
+            SystemEvent::Disappear => hook.on_disappear(),
+            SystemEvent::Foreground => hook.on_foreground(),
+            SystemEvent::Background => hook.on_background(),
+            SystemEvent::Inactive => hook.on_inactive(),
+            SystemEvent::Terminate => hook.on_terminate(),
+            _ => {}
+        }
+        hook.on_system_event(event);
+    }
+}

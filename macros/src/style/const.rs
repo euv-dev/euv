@@ -112,6 +112,12 @@ pub(crate) const STYLE_KEY_TEXT_ALIGN: &str = "text_align";
 /// Style property key for text overflow clipping/ellipsis.
 pub(crate) const STYLE_KEY_TEXT_OVERFLOW: &str = "text_overflow";
 
+/// Style property key for enabling or disabling native text selection.
+pub(crate) const STYLE_KEY_SELECTABLE: &str = "selectable";
+
+/// Style property key for text selection highlight color.
+pub(crate) const STYLE_KEY_SELECTION_COLOR: &str = "selection_color";
+
 /// Style property key for opacity.
 pub(crate) const STYLE_KEY_OPACITY: &str = "opacity";
 
@@ -176,6 +182,8 @@ pub(crate) const KNOWN_STYLE_PROPS: &[&str] = &[
     STYLE_KEY_ITALIC,
     STYLE_KEY_TEXT_ALIGN,
     STYLE_KEY_TEXT_OVERFLOW,
+    STYLE_KEY_SELECTABLE,
+    STYLE_KEY_SELECTION_COLOR,
     STYLE_KEY_OPACITY,
     STYLE_KEY_Z_INDEX,
     STYLE_KEY_BORDER,

@@ -2,7 +2,64 @@ use super::*;
 
 /// Magic-byte detection, MIME classification, and pure-Rust decoders for all cross-platform media formats.
 impl MediaCodecRegistry {
-    /// Sniffs `MediaKind` from raw payload magic bytes first, falling back to `uri` extension.
+    /// Checks whether `haystack` starts with `prefix` using zero-allocation ASCII case folding.
+    ///
+    /// # Arguments
+    ///
+    /// - `&[u8]` - Source byte slice.
+    /// - `&[u8]` - Expected ASCII prefix bytes.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when `haystack` begins with `prefix` ignoring ASCII case.
+    #[inline(always)]
+    #[must_use]
+    fn starts_with_ignore_ascii_case(haystack: &[u8], prefix: &[u8]) -> bool {
+        haystack.len() >= prefix.len() && haystack[..prefix.len()].eq_ignore_ascii_case(prefix)
+    }
+
+    /// Checks whether `haystack` ends with `suffix` using zero-allocation ASCII case folding.
+    ///
+    /// # Arguments
+    ///
+    /// - `&[u8]` - Source byte slice.
+    /// - `&[u8]` - Expected ASCII suffix bytes.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when `haystack` ends with `suffix` ignoring ASCII case.
+    #[inline(always)]
+    #[must_use]
+    fn ends_with_ignore_ascii_case(haystack: &[u8], suffix: &[u8]) -> bool {
+        haystack.len() >= suffix.len()
+            && haystack[(haystack.len() - suffix.len())..].eq_ignore_ascii_case(suffix)
+    }
+
+    /// Checks whether `haystack` contains `needle` using zero-allocation ASCII case folding.
+    ///
+    /// # Arguments
+    ///
+    /// - `&[u8]` - Source byte slice.
+    /// - `&[u8]` - Expected ASCII substring bytes.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when `needle` occurs anywhere inside `haystack` ignoring ASCII case.
+    #[inline]
+    #[must_use]
+    fn contains_ignore_ascii_case(haystack: &[u8], needle: &[u8]) -> bool {
+        if needle.is_empty() {
+            return true;
+        }
+        if haystack.len() < needle.len() {
+            return false;
+        }
+        haystack
+            .windows(needle.len())
+            .any(|win: &[u8]| win.eq_ignore_ascii_case(needle))
+    }
+
+    /// Sniffs `MediaKind` from raw payload magic bytes first, falling back to `uri` extension without heap allocations.
     ///
     /// # Arguments
     ///
@@ -26,10 +83,9 @@ impl MediaCodecRegistry {
         if bytes.len() >= 12 && &bytes[0..4] == MAGIC_RIFF && &bytes[8..12] == MAGIC_WEBP {
             return MediaKind::Image;
         }
-        if bytes.starts_with(MAGIC_PNG)
-            || bytes.starts_with(&[0xFF, 0xD8, 0xFF])
-            || bytes.starts_with(MAGIC_BMP)
-        {
+        let is_png_or_jpg: bool =
+            bytes.starts_with(MAGIC_PNG) || bytes.starts_with(&[0xFF, 0xD8, 0xFF]);
+        if is_png_or_jpg || bytes.starts_with(MAGIC_BMP) {
             return MediaKind::Image;
         }
         if bytes.starts_with(MAGIC_ID3)
@@ -41,53 +97,60 @@ impl MediaCodecRegistry {
             return MediaKind::Video;
         }
         if let Ok(text) = from_utf8(bytes) {
-            let trimmed: &str = text.trim_start();
-            let lower: String = trimmed
-                .chars()
-                .take(32)
-                .collect::<String>()
-                .to_ascii_lowercase();
-            if lower.starts_with(TAG_SVG_OPEN) || lower.contains("<svg ") {
+            let trimmed: &[u8] = text.trim_start().as_bytes();
+            let head: &[u8] = &trimmed[..trimmed.len().min(32)];
+            if Self::starts_with_ignore_ascii_case(head, TAG_SVG_OPEN.as_bytes())
+                || Self::contains_ignore_ascii_case(head, b"<svg ")
+            {
                 return MediaKind::Svg;
             }
-            if lower.starts_with("<!doctype html")
-                || lower.starts_with("<html")
-                || lower.starts_with("<article")
-                || lower.starts_with("<div")
-            {
+            let is_doc_or_html: bool = Self::starts_with_ignore_ascii_case(head, b"<!doctype html")
+                || Self::starts_with_ignore_ascii_case(head, b"<html");
+            let is_art_or_div: bool = Self::starts_with_ignore_ascii_case(head, b"<article")
+                || Self::starts_with_ignore_ascii_case(head, b"<div");
+            if is_doc_or_html || is_art_or_div {
                 return MediaKind::Html;
             }
         }
-        let lower_uri: String = uri.to_ascii_lowercase();
-        if lower_uri.ends_with(EXT_GIF) {
-            MediaKind::AnimatedGif
-        } else if lower_uri.ends_with(".live") || lower_uri.ends_with(".livp") {
-            MediaKind::LivePhoto
-        } else if lower_uri.ends_with(".mp4")
-            || lower_uri.ends_with(".mov")
-            || lower_uri.ends_with(".webm")
-            || lower_uri.ends_with(".mkv")
-        {
-            MediaKind::Video
-        } else if lower_uri.ends_with(".wav")
-            || lower_uri.ends_with(".mp3")
-            || lower_uri.ends_with(".aac")
-            || lower_uri.ends_with(".ogg")
-            || lower_uri.ends_with(".flac")
-        {
-            MediaKind::Audio
-        } else if lower_uri.ends_with(".pdf") {
-            MediaKind::Pdf
-        } else if lower_uri.ends_with(".html") || lower_uri.ends_with(".htm") {
-            MediaKind::Html
-        } else if lower_uri.ends_with(EXT_SVG) {
-            MediaKind::Svg
-        } else {
-            MediaKind::Image
+        let uri_b: &[u8] = uri.as_bytes();
+        if Self::ends_with_ignore_ascii_case(uri_b, EXT_GIF.as_bytes()) {
+            return MediaKind::AnimatedGif;
         }
+        if Self::ends_with_ignore_ascii_case(uri_b, b".live")
+            || Self::ends_with_ignore_ascii_case(uri_b, b".livp")
+        {
+            return MediaKind::LivePhoto;
+        }
+        let vid_a: bool = Self::ends_with_ignore_ascii_case(uri_b, b".mp4")
+            || Self::ends_with_ignore_ascii_case(uri_b, b".mov");
+        let vid_b: bool = Self::ends_with_ignore_ascii_case(uri_b, b".webm")
+            || Self::ends_with_ignore_ascii_case(uri_b, b".mkv");
+        if vid_a || vid_b {
+            return MediaKind::Video;
+        }
+        let aud_a: bool = Self::ends_with_ignore_ascii_case(uri_b, b".wav")
+            || Self::ends_with_ignore_ascii_case(uri_b, b".mp3");
+        let aud_b: bool = Self::ends_with_ignore_ascii_case(uri_b, b".aac")
+            || Self::ends_with_ignore_ascii_case(uri_b, b".ogg");
+        let aud_ab: bool = aud_a || aud_b;
+        if aud_ab || Self::ends_with_ignore_ascii_case(uri_b, b".flac") {
+            return MediaKind::Audio;
+        }
+        if Self::ends_with_ignore_ascii_case(uri_b, b".pdf") {
+            return MediaKind::Pdf;
+        }
+        if Self::ends_with_ignore_ascii_case(uri_b, b".html")
+            || Self::ends_with_ignore_ascii_case(uri_b, b".htm")
+        {
+            return MediaKind::Html;
+        }
+        if Self::ends_with_ignore_ascii_case(uri_b, EXT_SVG.as_bytes()) {
+            return MediaKind::Svg;
+        }
+        MediaKind::Image
     }
 
-    /// Detects the encoded `ImageFormat` from leading magic bytes or filename extension.
+    /// Detects the encoded `ImageFormat` from leading magic bytes or filename extension without heap allocations.
     ///
     /// # Arguments
     ///
@@ -114,20 +177,24 @@ impl MediaCodecRegistry {
         if bytes.len() >= 12 && &bytes[0..4] == MAGIC_RIFF && &bytes[8..12] == MAGIC_WEBP {
             return ImageFormat::WebP;
         }
-        let lower: String = uri.to_ascii_lowercase();
-        if lower.ends_with(".jpg") || lower.ends_with(".jpeg") {
+        let uri_b: &[u8] = uri.as_bytes();
+        if Self::ends_with_ignore_ascii_case(uri_b, b".jpg")
+            || Self::ends_with_ignore_ascii_case(uri_b, b".jpeg")
+        {
             ImageFormat::Jpeg
-        } else if lower.ends_with(".webp") {
+        } else if Self::ends_with_ignore_ascii_case(uri_b, b".webp") {
             ImageFormat::WebP
-        } else if lower.ends_with(EXT_GIF) {
+        } else if Self::ends_with_ignore_ascii_case(uri_b, EXT_GIF.as_bytes()) {
             ImageFormat::Gif
-        } else if lower.ends_with(".bmp") {
+        } else if Self::ends_with_ignore_ascii_case(uri_b, b".bmp") {
             ImageFormat::Bmp
-        } else if lower.ends_with(EXT_SVG) {
+        } else if Self::ends_with_ignore_ascii_case(uri_b, EXT_SVG.as_bytes()) {
             ImageFormat::Svg
-        } else if lower.ends_with(".heic") || lower.ends_with(".heif") {
+        } else if Self::ends_with_ignore_ascii_case(uri_b, b".heic")
+            || Self::ends_with_ignore_ascii_case(uri_b, b".heif")
+        {
             ImageFormat::Heic
-        } else if lower.ends_with(".avif") {
+        } else if Self::ends_with_ignore_ascii_case(uri_b, b".avif") {
             ImageFormat::Avif
         } else {
             ImageFormat::Png
@@ -163,34 +230,57 @@ impl MediaCodecRegistry {
         }
         let width: u32 = width_i as u32;
         let height: u32 = height_i.unsigned_abs();
+        let w_usize: usize = width as usize;
+        let h_usize: usize = height as usize;
         let top_down: bool = height_i < 0;
         let bytes_per_pixel: usize = (bpp / 8) as usize;
-        let row_stride: usize = ((width as usize) * bytes_per_pixel + 3) & !3;
-        let needed: usize = data_offset.saturating_add(row_stride.saturating_mul(height as usize));
+        let row_stride: usize = (w_usize * bytes_per_pixel + 3) & !3;
+        let needed: usize = data_offset.saturating_add(row_stride.saturating_mul(h_usize));
         if bytes.len() < needed {
             return Err("truncated BMP pixel payload".to_string());
         }
-        let mut rgba: Vec<u8> = vec![255; (width as usize) * (height as usize) * 4];
-        for y in 0..height {
-            let src_y: usize = if top_down {
-                y as usize
-            } else {
-                (height - 1 - y) as usize
-            };
-            let src_row: usize = data_offset + src_y * row_stride;
-            let dst_row: usize = (y as usize) * (width as usize) * 4;
-            for x in 0..width {
-                let s: usize = src_row + (x as usize) * bytes_per_pixel;
-                let d: usize = dst_row + (x as usize) * 4;
-                rgba[d] = bytes[s + 2];
-                rgba[d + 1] = bytes[s + 1];
-                rgba[d + 2] = bytes[s];
-                rgba[d + 3] = if bytes_per_pixel == 4 {
-                    bytes[s + 3]
-                } else {
-                    255
-                };
+        let total_bytes: usize = w_usize * h_usize * 4;
+        let mut rgba: Vec<u8> = Vec::with_capacity(total_bytes);
+        let dst_ptr: *mut u8 = rgba.as_mut_ptr();
+        let dst_row_bytes: usize = w_usize * 4;
+        if bytes_per_pixel == 4 {
+            let src_row_bytes: usize = w_usize * 4;
+            for y in 0..h_usize {
+                let src_y: usize = if top_down { y } else { h_usize - 1 - y };
+                let src_off: usize = data_offset + src_y * row_stride;
+                let src_slice: &[u8] = &bytes[src_off..(src_off + src_row_bytes)];
+                let dst_row_off: usize = y * dst_row_bytes;
+                for (x, px) in src_slice.as_chunks::<4>().0.iter().enumerate() {
+                    // SAFETY: `dst_row_off + x * 4 + 4 <= total_bytes <= rgba.capacity()`, `[u8; 4]` align is 1.
+                    unsafe {
+                        dst_ptr
+                            .add(dst_row_off + x * 4)
+                            .cast::<[u8; 4]>()
+                            .write([px[2], px[1], px[0], px[3]]);
+                    }
+                }
             }
+        } else {
+            let src_row_bytes: usize = w_usize * 3;
+            for y in 0..h_usize {
+                let src_y: usize = if top_down { y } else { h_usize - 1 - y };
+                let src_off: usize = data_offset + src_y * row_stride;
+                let src_slice: &[u8] = &bytes[src_off..(src_off + src_row_bytes)];
+                let dst_row_off: usize = y * dst_row_bytes;
+                for (x, px) in src_slice.as_chunks::<3>().0.iter().enumerate() {
+                    // SAFETY: `dst_row_off + x * 4 + 4 <= total_bytes <= rgba.capacity()`, `[u8; 4]` align is 1.
+                    unsafe {
+                        dst_ptr
+                            .add(dst_row_off + x * 4)
+                            .cast::<[u8; 4]>()
+                            .write([px[2], px[1], px[0], 255]);
+                    }
+                }
+            }
+        }
+        // SAFETY: Both branches unconditionally initialize all `h_usize * w_usize * 4 == total_bytes` bytes.
+        unsafe {
+            rgba.set_len(total_bytes);
         }
         let meta: MediaMetadata = MediaMetadata {
             title: alt_text.to_string(),
@@ -392,19 +482,25 @@ impl MediaCodecRegistry {
         if pcm_bytes.is_empty() {
             return Err("WAV file contained no data chunk".to_string());
         }
-        let mut samples: Vec<f32> = Vec::new();
-        if bits_per_sample == 16 {
-            for pair in pcm_bytes.as_chunks::<2>().0 {
-                let s: i16 = i16::from_le_bytes([pair[0], pair[1]]);
-                samples.push((s as f32) / 32_768.0);
+        let samples: Vec<f32> = if bits_per_sample == 16 {
+            let inv_scale: f32 = 1.0 / 32_768.0;
+            let chunks: &[[u8; 2]] = pcm_bytes.as_chunks::<2>().0;
+            let mut out: Vec<f32> = Vec::with_capacity(chunks.len());
+            for pair in chunks.iter() {
+                let s: i16 = i16::from_le_bytes(*pair);
+                out.push((s as f32) * inv_scale);
             }
+            out
         } else if bits_per_sample == 8 {
+            let inv_scale: f32 = 1.0 / 128.0;
+            let mut out: Vec<f32> = Vec::with_capacity(pcm_bytes.len());
             for b in pcm_bytes.iter().copied() {
-                samples.push(((b as f32) - 128.0) / 128.0);
+                out.push(((b as f32) - 128.0) * inv_scale);
             }
+            out
         } else {
             return Err("unsupported WAV bit depth (expected 8 or 16 bit PCM)".to_string());
-        }
+        };
         let frames_total: usize = samples.len() / (channels as usize).max(1);
         let duration_secs: f32 = (frames_total as f32) / (sample_rate as f32).max(1.0);
         let waveform_peaks: Vec<f32> = Self::compute_waveform_peaks(&samples, 48);
@@ -591,23 +687,27 @@ impl MediaCodecRegistry {
                     break;
                 };
                 let tag_inner: &str = raw[i + 1..i + close_rel].trim();
-                let lower_tag: String = tag_inner.to_ascii_lowercase();
-                if lower_tag.starts_with("script") || lower_tag.starts_with("style") {
+                let tag_b: &[u8] = tag_inner.as_bytes();
+                if Self::starts_with_ignore_ascii_case(tag_b, b"script")
+                    || Self::starts_with_ignore_ascii_case(tag_b, b"style")
+                {
                     in_script_or_style = true;
-                } else if lower_tag.starts_with("/script") || lower_tag.starts_with("/style") {
+                } else if Self::starts_with_ignore_ascii_case(tag_b, b"/script")
+                    || Self::starts_with_ignore_ascii_case(tag_b, b"/style")
+                {
                     in_script_or_style = false;
-                } else if lower_tag.starts_with("title") {
+                } else if Self::starts_with_ignore_ascii_case(tag_b, b"title") {
                     in_title = true;
-                } else if lower_tag.starts_with("/title") {
+                } else if Self::starts_with_ignore_ascii_case(tag_b, b"/title") {
                     in_title = false;
-                } else if lower_tag.starts_with("hr") {
+                } else if Self::starts_with_ignore_ascii_case(tag_b, b"hr") {
                     blocks.push(HtmlBlock {
                         kind: HtmlNodeKind::HorizontalRule,
                         text: String::new(),
                         href: None,
                         src: None,
                     });
-                } else if lower_tag.starts_with("img") {
+                } else if Self::starts_with_ignore_ascii_case(tag_b, b"img") {
                     let src_val: Option<String> = Self::extract_html_attr(tag_inner, "src");
                     let alt_val: String = Self::extract_html_attr(tag_inner, "alt")
                         .unwrap_or_else(|| "Embedded Image".to_string());
@@ -617,24 +717,30 @@ impl MediaCodecRegistry {
                         href: None,
                         src: src_val,
                     });
-                } else if lower_tag.starts_with("h1") {
+                } else if Self::starts_with_ignore_ascii_case(tag_b, b"h1") {
                     current_kind = Some(HtmlNodeKind::Heading(1));
-                } else if lower_tag.starts_with("h2") {
+                } else if Self::starts_with_ignore_ascii_case(tag_b, b"h2") {
                     current_kind = Some(HtmlNodeKind::Heading(2));
-                } else if lower_tag.starts_with("h3") {
+                } else if Self::starts_with_ignore_ascii_case(tag_b, b"h3") {
                     current_kind = Some(HtmlNodeKind::Heading(3));
-                } else if lower_tag.starts_with("blockquote") {
+                } else if Self::starts_with_ignore_ascii_case(tag_b, b"blockquote") {
                     current_kind = Some(HtmlNodeKind::Blockquote);
-                } else if lower_tag.starts_with("pre") || lower_tag.starts_with("code") {
+                } else if Self::starts_with_ignore_ascii_case(tag_b, b"pre")
+                    || Self::starts_with_ignore_ascii_case(tag_b, b"code")
+                {
                     current_kind = Some(HtmlNodeKind::CodeBlock);
-                } else if lower_tag.starts_with("li") {
+                } else if Self::starts_with_ignore_ascii_case(tag_b, b"li") {
                     current_kind = Some(HtmlNodeKind::ListItem);
-                } else if lower_tag.starts_with("a ") || lower_tag == "a" {
+                } else if Self::starts_with_ignore_ascii_case(tag_b, b"a ")
+                    || tag_b.eq_ignore_ascii_case(b"a")
+                {
                     current_kind = Some(HtmlNodeKind::Link);
                     current_href = Self::extract_html_attr(tag_inner, "href");
-                } else if lower_tag.starts_with("p ") || lower_tag == "p" {
+                } else if Self::starts_with_ignore_ascii_case(tag_b, b"p ")
+                    || tag_b.eq_ignore_ascii_case(b"p")
+                {
                     current_kind = Some(HtmlNodeKind::Paragraph);
-                } else if lower_tag.starts_with('/') {
+                } else if tag_b.starts_with(b"/") {
                     current_kind = None;
                     current_href = None;
                 }

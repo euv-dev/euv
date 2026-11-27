@@ -67,11 +67,33 @@ fn ensure_showcase_routes_registered(state: &ShowcaseState) {
 ///
 /// - `NodeId` - Mounted reactive root container handle.
 pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
+    provide_theme(state.get_theme().clone());
     ensure_showcase_routes_registered(state);
     let global_banner: Signal<ShowcaseGlobalBanner> =
         global_state!(ShowcaseGlobalBanner = ShowcaseGlobalBanner::default());
     let state_c: ShowcaseState = state.clone();
+    let bg_state: ShowcaseState = state.clone();
+    let fg_state: ShowcaseState = state.clone();
+    let sys_log_sig: Signal<Vec<String>> = state.get_system_event_log();
+    let sys_count_sig: Signal<u32> = state.get_system_event_count();
     let (ev_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+        let _: SystemEventSubscription = on_background(move || {
+            bg_state.freeze_for_background();
+        });
+        let _: SystemEventSubscription = on_foreground(move || {
+            fg_state.restore_from_foreground();
+        });
+        let _: SystemEventSubscription = on_system_event(move |ev: &SystemEvent| {
+            let next_seq: u32 = sys_count_sig.get_untracked().saturating_add(1);
+            let _: bool = sys_count_sig.set(next_seq);
+            let entry: String = format!("#{next_seq}: {ev:?}");
+            let _: bool = sys_log_sig.update(|items: &mut Vec<String>| {
+                items.insert(0, entry);
+                if items.len() > SYS_EVENTS_LOG_LIMIT {
+                    items.truncate(SYS_EVENTS_LOG_LIMIT);
+                }
+            });
+        });
         on_event!(ShowcasePulseEvent => move |ev: &ShowcasePulseEvent| {
             let src: String = ev.get_source().clone();
             let _: bool = global_banner.update(|b: &mut ShowcaseGlobalBanner| {
@@ -86,7 +108,7 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
             width: Length::Percent(100.0)
             height: Length::Percent(100.0)
             bind_children: move || {
-                let tokens: ThemeTokens = state_c.get_theme().get_tokens().get();
+                let tokens: ThemeTokens = untracked(|| state_c.get_theme().get_tokens().get());
                 let hub: DynamicUpdateHub = state_c.get_dynamic_hub().clone();
                 let _: u64 = hub.routes_signal().get();
                 let cmd_open: Signal<bool> = state_c.get_cmd_palette_open();
@@ -164,9 +186,28 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                     }
                 };
                 let rctx: Context = current_context();
+                let cmd_theme_sig: Memo<ThemeTokens> = state_c.get_theme().get_tokens();
+                let prev_cmd_tok: Rc<Cell<ThemeTokens>> = Rc::new(Cell::new(tokens));
+                let cmd_theme_ctx: Context = rctx.clone();
+                let (cmd_theme_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+                    Effect::new(move || {
+                        let next_tok: ThemeTokens = cmd_theme_sig.get();
+                        let old_tok: ThemeTokens = prev_cmd_tok.replace(next_tok);
+                        if old_tok == next_tok {
+                            return;
+                        }
+                        cmd_theme_ctx.get_scene().with_write(
+                            |tree: &mut SceneTree| {
+                                remap_subtree_theme_in_place(tree, cmd_modal, old_tok, next_tok);
+                            },
+                            (),
+                        );
+                    })
+                });
                 rctx.get_scene().with_write(
                     |tree: &mut SceneTree| {
                         tree.attach_scope(cmd_modal, cmd_scope);
+                        tree.attach_scope(cmd_modal, cmd_theme_scope);
                     },
                     (),
                 );
@@ -262,6 +303,7 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                             let breadcrumb_sig: Signal<String> = Signal::new(
                                 ShowcaseState::breadcrumb_for_route(&cur_target),
                             );
+                            let page_pad_sig: Signal<Edges> = Signal::new(Edges::all(SPACE_LG));
                             let router_sync_in: EuvRouter = router.clone();
                             let router_path_sig: Signal<String> = router.get_current_path();
                             let sctx: Context = current_context();
@@ -289,6 +331,7 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                                 mount_route_by_name(matched.get_path(), &state_for_outlet, tok)
                             })
                             .with_theme(state_shell.get_theme().clone())
+                            .with_page_padding(page_pad_sig)
                             .with_route_order(swipe_order.clone())
                             .with_double_back_exit(true)
                             .mount();
@@ -301,13 +344,105 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                             let st_dark_top: ShowcaseState = state_shell.clone();
                             let st_scheme_top: ShowcaseState = state_shell.clone();
                             let st_dark_mobile: ShowcaseState = state_shell.clone();
-                            let mode_label: String =
-                            match state_shell.get_theme().get_mode().get_untracked() {
-                                ThemeMode::Dark => LABEL_MODE_LIGHT.to_string(),
-                                ThemeMode::Light => LABEL_MODE_DARK.to_string(),
+                            let theme_mode_sig: Signal<ThemeMode> = state_shell.get_theme().get_mode();
+                            let theme_scheme_sig: Signal<DesignScheme> = state_shell.get_theme().get_scheme();
+                            let mode_text_desktop = move || -> String {
+                                match theme_mode_sig.get() {
+                                    ThemeMode::Dark => LABEL_MODE_LIGHT.to_string(),
+                                    ThemeMode::Light => LABEL_MODE_DARK.to_string(),
+                                }
                             };
-                            let scheme_label: String =
-                            format!("{:?}", state_shell.get_theme().get_scheme().get_untracked());
+                            let mode_text_mobile = move || -> String {
+                                match theme_mode_sig.get() {
+                                    ThemeMode::Dark => LABEL_MODE_LIGHT.to_string(),
+                                    ThemeMode::Light => LABEL_MODE_DARK.to_string(),
+                                }
+                            };
+                            let scheme_text_desktop = move || -> String {
+                                format!("{:?}", theme_scheme_sig.get())
+                            };
+                            let scheme_btn_style = move || -> Style {
+                                let live_tok: ThemeTokens = use_live_tokens(tokens);
+                                let live_p: ThemePalette = live_tok.get_palette();
+                                let live_g: ThemeGeometry = live_tok.get_geometry();
+                                Style::default()
+                                .row()
+                                .height(Length::Px(live_g.get_control_sm()))
+                                .padding(Edges::symmetric(0.0, SPACE_SM))
+                                .justify(JustifyContent::Center)
+                                .align(AlignItems::Center)
+                                .background(live_p.get_secondary())
+                                .border(live_g.get_border_width(), live_p.get_border())
+                                .radius(live_g.get_radius_md())
+                                .cursor(CursorIcon::Pointer)
+                            };
+                            let scheme_lbl_style = move || -> Style {
+                                let live_p: ThemePalette = use_live_tokens(tokens).get_palette();
+                                Style::default()
+                                .font_size(12.5)
+                                .font_weight(FontWeight::SemiBold)
+                                .color(live_p.get_secondary_foreground())
+                                .text_overflow(TextOverflow::Clip)
+                            };
+                            let mode_btn_style = move || -> Style {
+                                let live_tok: ThemeTokens = use_live_tokens(tokens);
+                                let live_p: ThemePalette = live_tok.get_palette();
+                                let live_g: ThemeGeometry = live_tok.get_geometry();
+                                Style::default()
+                                .row()
+                                .height(Length::Px(live_g.get_control_sm()))
+                                .padding(Edges::symmetric(0.0, SPACE_SM))
+                                .justify(JustifyContent::Center)
+                                .align(AlignItems::Center)
+                                .background(live_p.get_background())
+                                .border(live_g.get_border_width(), live_p.get_border())
+                                .radius(live_g.get_radius_md())
+                                .cursor(CursorIcon::Pointer)
+                            };
+                            let mode_lbl_desktop_style = move || -> Style {
+                                let live_p: ThemePalette = use_live_tokens(tokens).get_palette();
+                                Style::default()
+                                .font_size(12.5)
+                                .font_weight(FontWeight::SemiBold)
+                                .color(live_p.get_foreground())
+                                .text_overflow(TextOverflow::Clip)
+                            };
+                            let mode_mobile_style = move || -> Style {
+                                let live_tok: ThemeTokens = use_live_tokens(tokens);
+                                let live_g: ThemeGeometry = live_tok.get_geometry();
+                                Style::default()
+                                .row()
+                                .height(Length::Px(live_g.get_control_sm()))
+                                .padding(Edges::symmetric(0.0, SPACE_SM))
+                                .justify(JustifyContent::Center)
+                                .align(AlignItems::Center)
+                                .background(COLOR_TRANSPARENT)
+                                .radius(live_g.get_radius_md())
+                                .cursor(CursorIcon::Pointer)
+                            };
+                            let mode_lbl_mobile_style = move || -> Style {
+                                let live_p: ThemePalette = use_live_tokens(tokens).get_palette();
+                                Style::default()
+                                .font_size(12.5)
+                                .font_weight(FontWeight::SemiBold)
+                                .color(live_p.get_foreground())
+                                .text_overflow(TextOverflow::Clip)
+                            };
+                            let on_open_cmd_desktop = move |_: &UiEvent| {
+                                let _: bool = cmd_open.set_if_changed(true);
+                            };
+                            let on_open_cmd_mobile = move |_: &UiEvent| {
+                                let _: bool = cmd_open.set_if_changed(true);
+                            };
+                            let on_cycle_scheme = move |_: &UiEvent| {
+                                st_scheme_top.next_scheme();
+                            };
+                            let on_toggle_mode_desktop = move |_: &UiEvent| {
+                                st_dark_top.toggle_theme_mode();
+                            };
+                            let on_toggle_mode_mobile = move |_: &UiEvent| {
+                                st_dark_mobile.toggle_theme_mode();
+                            };
                             let top_actions: NodeId = view! {
                                 row {
                                     gap: SPACE_SM
@@ -317,26 +452,22 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                                         tokens: tokens
                                         outline()
                                         sm()
-                                        on_click: move |_: &UiEvent| {
-                                            let _: bool = cmd_open.set_if_changed(true);
+                                        on_click: on_open_cmd_desktop
+                                    }
+                                    row {
+                                        bind_style: scheme_btn_style
+                                        on_click: on_cycle_scheme
+                                        text {
+                                            bind_style: scheme_lbl_style
+                                            { scheme_text_desktop }
                                         }
                                     }
-                                    EuvButton {
-                                        label: scheme_label
-                                        tokens: tokens
-                                        secondary()
-                                        sm()
-                                        on_click: move |_: &UiEvent| {
-                                            st_scheme_top.next_scheme();
-                                        }
-                                    }
-                                    EuvButton {
-                                        label: mode_label.clone()
-                                        tokens: tokens
-                                        outline()
-                                        sm()
-                                        on_click: move |_: &UiEvent| {
-                                            st_dark_top.toggle_theme_mode();
+                                    row {
+                                        bind_style: mode_btn_style
+                                        on_click: on_toggle_mode_desktop
+                                        text {
+                                            bind_style: mode_lbl_desktop_style
+                                            { mode_text_desktop }
                                         }
                                     }
                                 }
@@ -350,17 +481,14 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                                         tokens: tokens
                                         outline()
                                         sm()
-                                        on_click: move |_: &UiEvent| {
-                                            let _: bool = cmd_open.set_if_changed(true);
-                                        }
+                                        on_click: on_open_cmd_mobile
                                     }
-                                    EuvButton {
-                                        label: mode_label
-                                        tokens: tokens
-                                        ghost()
-                                        sm()
-                                        on_click: move |_: &UiEvent| {
-                                            st_dark_mobile.toggle_theme_mode();
+                                    row {
+                                        bind_style: mode_mobile_style
+                                        on_click: on_toggle_mode_mobile
+                                        text {
+                                            bind_style: mode_lbl_mobile_style
+                                            { mode_text_mobile }
                                         }
                                     }
                                 }
@@ -371,6 +499,8 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                                     sidebar: nav
                                     main_content: page_node
                                     tokens: tokens
+                                    theme: state_shell.get_theme().clone()
+                                    page_padding: page_pad_sig
                                     route: state_shell.get_route()
                                     breadcrumb: breadcrumb_sig
                                     top_bar_actions: top_actions
@@ -913,39 +1043,109 @@ pub fn mount_markdown_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
     let p: ThemePalette = tokens.get_palette();
     let eva: CodeThemePalette = CodeThemePalette::resolve(tokens.get_mode());
     let st_toggle: ShowcaseState = state.clone();
+    let theme_mode_sig: Signal<ThemeMode> = state.get_theme().get_mode();
     let lang_tab: Signal<usize> = state.get_markdown_lang_tab();
+    let selectable_sig: Signal<bool> = state.get_markdown_selectable();
     let copy_log: Signal<String> = state.get_markdown_copy_log();
     let link_log: Signal<String> = state.get_markdown_link_log();
     let tasks_toggled: Signal<u32> = state.get_markdown_tasks_toggled();
     let copy_log_doc: Signal<String> = copy_log;
     let link_log_doc: Signal<String> = link_log;
     let tasks_doc: Signal<u32> = tasks_toggled;
-    let active_theme_desc: String = match tokens.get_mode() {
-        ThemeMode::Light => MD_THEME_DESC_LIGHT.to_string(),
-        ThemeMode::Dark => MD_THEME_DESC_DARK.to_string(),
+    let active_theme_desc = move || -> String {
+        match theme_mode_sig.get() {
+            ThemeMode::Light => MD_THEME_DESC_LIGHT.to_string(),
+            ThemeMode::Dark => MD_THEME_DESC_DARK.to_string(),
+        }
     };
-    let swatch_colors: [Color; 6] = [
-        eva.get_background(),
-        eva.get_keyword(),
-        eva.get_function(),
-        eva.get_number(),
-        eva.get_constant(),
-        eva.get_property(),
-    ];
-    let swatch_nodes: Vec<NodeId> = swatch_colors
-        .into_iter()
-        .map(|col: Color| {
+    let swatch_nodes: Vec<NodeId> = (0usize..6usize)
+        .map(|slot: usize| {
+            let swatch_style = move || -> Style {
+                let live_eva: CodeThemePalette = CodeThemePalette::resolve(theme_mode_sig.get());
+                let col: Color = match slot {
+                    0 => live_eva.get_background(),
+                    1 => live_eva.get_keyword(),
+                    2 => live_eva.get_function(),
+                    3 => live_eva.get_number(),
+                    4 => live_eva.get_constant(),
+                    _ => live_eva.get_property(),
+                };
+                Style::default()
+                    .width(Length::Px(22.0))
+                    .height(Length::Px(22.0))
+                    .radius(6.0)
+                    .background(col)
+                    .border(1.0, live_eva.get_border())
+            };
             view! {
                 view {
-                    width: Length::Px(22.0)
-                    height: Length::Px(22.0)
-                    radius: 6.0
-                    background: col
-                    border: (1.0, eva.get_border())
+                    bind_style: swatch_style
                 }
             }
         })
         .collect();
+    let on_toggle_eva = move |_: &UiEvent| {
+        st_toggle.toggle_theme_mode();
+    };
+    let on_emit_pulse = move |_: &UiEvent| {
+        emit!(ShowcasePulseEvent {
+            source: ROUTE_MARKDOWN.to_string(),
+            seq: 1,
+        });
+    };
+    let build_code_tab = move || -> Vec<NodeId> {
+        let tab: usize = lang_tab.get();
+        let is_sel: bool = selectable_sig.get();
+        let live_tok: ThemeTokens = live_tokens_untracked(tokens);
+        let (src, lang, fname): (&str, &str, &str) = match tab {
+            1 => (MD_SAMPLE_TS, MD_LANG_TS, MD_FILE_TS),
+            2 => (MD_SAMPLE_JSON, MD_LANG_JSON, MD_FILE_JSON),
+            3 => (MD_SAMPLE_DIFF, MD_LANG_DIFF, MD_FILE_DIFF),
+            _ => (MD_SAMPLE_RUST, MD_LANG_RUST, MD_FILE_RUST),
+        };
+        let cb_log: Signal<String> = copy_log;
+        let block: NodeId = EuvCodeBlock::new(src.to_string(), live_tok)
+            .language(lang)
+            .filename(fname)
+            .line_numbers(true)
+            .max_height(260.0)
+            .selectable(is_sel)
+            .on_copy(move |txt: &str| {
+                let _: bool = cb_log.set(format!(
+                    "Copied {} bytes ({lang}) via Eva Bold EuvCodeBlock",
+                    txt.len()
+                ));
+            })
+            .mount();
+        vec![block]
+    };
+    let telemetry_text = move || -> String {
+        format!(
+            "Copy: {} | Link: {} | Tasks Toggled: {} | Selectable: {}",
+            copy_log.get(),
+            link_log.get(),
+            tasks_toggled.get(),
+            selectable_sig.get()
+        )
+    };
+    let build_md_doc = move || -> Vec<NodeId> {
+        let is_sel: bool = selectable_sig.get();
+        let live_tok: ThemeTokens = live_tokens_untracked(tokens);
+        let doc_node: NodeId = EuvMarkdown::new(MD_FULL_DOCUMENT.to_string(), live_tok)
+            .selectable(is_sel)
+            .on_link(move |url: &str| {
+                let _: bool = link_log_doc.set(url.to_string());
+            })
+            .on_copy(move |code: &str| {
+                let _: bool =
+                    copy_log_doc.set(format!("Copied {} bytes from Markdown block", code.len()));
+            })
+            .on_toggle_task(move |_idx: usize, _checked: bool| {
+                let _: bool = tasks_doc.update(|n: &mut u32| *n += 1);
+            })
+            .mount();
+        vec![doc_node]
+    };
     view! {
         EuvPage {
             title: MD_STUDIO_TITLE.to_string()
@@ -972,21 +1172,19 @@ pub fn mount_markdown_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
                         label: BTN_TOGGLE_EVA_MODE.to_string()
                         tokens: tokens
                         sm()
-                        on_click: move |_: &UiEvent| {
-                            st_toggle.toggle_theme_mode();
-                        }
+                        on_click: on_toggle_eva
                     }
                     EuvButton {
                         label: BTN_EMIT_PULSE.to_string()
                         tokens: tokens
                         outline()
                         sm()
-                        on_click: move |_: &UiEvent| {
-                            emit!(ShowcasePulseEvent {
-                                source: ROUTE_MARKDOWN.to_string(),
-                                seq: 1,
-                            });
-                        }
+                        on_click: on_emit_pulse
+                    }
+                    EuvSwitch {
+                        checked: selectable_sig
+                        label: MD_SELECTABLE_LABEL.to_string()
+                        tokens: tokens
                     }
                 }
             }
@@ -1006,51 +1204,23 @@ pub fn mount_markdown_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
                 }
                 column {
                     width: Length::Percent(100.0)
-                    bind_children: move || {
-                        let tab: usize = lang_tab.get();
-                        let (src, lang, fname): (&str, &str, &str) = match tab {
-                            1 => (MD_SAMPLE_TS, MD_LANG_TS, MD_FILE_TS),
-                            2 => (MD_SAMPLE_JSON, MD_LANG_JSON, MD_FILE_JSON),
-                            3 => (MD_SAMPLE_DIFF, MD_LANG_DIFF, MD_FILE_DIFF),
-                            _ => (MD_SAMPLE_RUST, MD_LANG_RUST, MD_FILE_RUST),
-                        };
-                        let cb_log: Signal<String> = copy_log;
-                        let block: NodeId = EuvCodeBlock::new(src.to_string(), tokens)
-                        .language(lang)
-                        .filename(fname)
-                        .line_numbers(true)
-                        .on_copy(move |txt: &str| {
-                            let _: bool = cb_log.set(format!(
-                                "Copied {} bytes ({lang}) via Eva Bold EuvCodeBlock",
-                                txt.len()
-                            ));
-                        })
-                        .mount();
-                        vec![block]
-                    }
+                    bind_children: build_code_tab
                 }
                 text {
                     font_size: 12.0
                     font_family: FontFamily::Monospace
                     color: p.get_primary()
-                    { move || format!("Copy: {} | Link: {} | Tasks Toggled: {}", copy_log.get(), link_log.get(), tasks_toggled.get()) }
+                    { telemetry_text }
                 }
             }
             EuvCard {
                 title: MD_DOC_CARD_TITLE.to_string()
                 tokens: tokens
                 subtitle: MD_DOC_CARD_SUB
-                { EuvMarkdown::new(MD_FULL_DOCUMENT.to_string(), tokens)
-                    .on_link(move |url: &str| {
-                        let _: bool = link_log_doc.set(url.to_string());
-                    })
-                    .on_copy(move |code: &str| {
-                        let _: bool = copy_log_doc.set(format!("Copied {} bytes from Markdown fence", code.len()));
-                    })
-                    .on_toggle_task(move |_idx: usize, _checked: bool| {
-                        let _: bool = tasks_doc.update(|n: &mut u32| *n += 1);
-                    })
-                    .mount() }
+                column {
+                    width: Length::Percent(100.0)
+                    bind_children: build_md_doc
+                }
             }
         }
     }
@@ -1326,11 +1496,118 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     });
     let mut body_id: NodeId = NodeId::default();
     let mut fps_card_id: NodeId = NodeId::default();
+    let app_state_sig: Signal<AppState> = use_app_state();
+    let sys_theme_sig: Signal<SystemTheme> = use_system_theme();
+    let net_status_sig: Signal<NetworkStatus> = use_network_status();
+    let kb_height_sig: Signal<f32> = use_keyboard_height();
+    let safe_area_sig: Signal<SafeAreaInsets> = use_safe_area();
+    let sys_log_sig: Signal<Vec<String>> = state.get_system_event_log();
+    let sys_count_sig: Signal<u32> = state.get_system_event_count();
+    let bg_frozen_sig: Signal<bool> = state.get_bg_frozen();
+    let bg_freeze_cnt: Signal<u32> = state.get_bg_freeze_count();
+    let bg_restore_cnt: Signal<u32> = state.get_bg_restore_count();
+    let page_appear_count: Signal<u32> = Signal::new(0);
+    let page_disappear_count: Signal<u32> = Signal::new(0);
+    let _: SystemEventSubscription = on_appear(move || {
+        let _: bool = page_appear_count.update(|n: &mut u32| *n = n.saturating_add(1));
+    });
+    let _: SystemEventSubscription = on_disappear(move || {
+        let _: bool = page_disappear_count.update(|n: &mut u32| *n = n.saturating_add(1));
+    });
+    let sys_primary_line = move || -> String {
+        format!(
+            "AppState: {:?} | OS Theme: {:?} | Network: {:?}",
+            app_state_sig.get(),
+            sys_theme_sig.get(),
+            net_status_sig.get()
+        )
+    };
+    let sys_freeze_line = move || -> String {
+        let mode: &str = if bg_frozen_sig.get() {
+            BG_FREEZE_STATUS_FROZEN
+        } else {
+            BG_FREEZE_STATUS_ACTIVE
+        };
+        format!(
+            "Background Freeze: {mode} | Freezes: {} | Restores: {}",
+            bg_freeze_cnt.get(),
+            bg_restore_cnt.get()
+        )
+    };
+    let sys_secondary_line = move || -> String {
+        let sa: SafeAreaInsets = safe_area_sig.get();
+        format!(
+            "Keyboard: {:.0}px | SafeArea: T{:.0} R{:.0} B{:.0} L{:.0} | Page Appear: {} / Disappear: {} | Total Events: {}",
+            kb_height_sig.get(),
+            sa.get_top(),
+            sa.get_right(),
+            sa.get_bottom(),
+            sa.get_left(),
+            page_appear_count.get(),
+            page_disappear_count.get(),
+            sys_count_sig.get()
+        )
+    };
+    let build_sys_log_rows = move || -> Vec<NodeId> {
+        let live_tok: ThemeTokens = live_tokens_untracked(tokens);
+        let live_p: ThemePalette = live_tok.get_palette();
+        sys_log_sig
+            .get()
+            .into_iter()
+            .map(|entry: String| {
+                view! {
+                    text {
+                        width: Length::Percent(100.0)
+                        font_size: 12.0
+                        font_family: FontFamily::Monospace
+                        color: live_p.get_muted_foreground()
+                        { entry }
+                    }
+                }
+            })
+            .collect()
+    };
     let page: NodeId = view! {
         EuvPage {
             title: WINDOW_TITLE.to_string()
             subtitle: WINDOW_SUBTITLE.to_string()
             tokens: tokens
+            EuvCard {
+                title: SYS_EVENTS_CARD_TITLE.to_string()
+                tokens: tokens
+                subtitle: SYS_EVENTS_CARD_SUB
+                selectable: true
+                text {
+                    width: Length::Percent(100.0)
+                    font_size: 13.5
+                    font_weight: FontWeight::SemiBold
+                    color: p.get_primary()
+                    { sys_primary_line }
+                }
+                text {
+                    width: Length::Percent(100.0)
+                    font_size: 12.5
+                    font_weight: FontWeight::Medium
+                    color: p.get_success()
+                    { sys_freeze_line }
+                }
+                text {
+                    width: Length::Percent(100.0)
+                    font_size: 12.5
+                    font_family: FontFamily::Monospace
+                    color: p.get_foreground()
+                    { sys_secondary_line }
+                }
+                column {
+                    width: Length::Percent(100.0)
+                    padding: Edges::all(SPACE_SM)
+                    gap: 4.0
+                    background: p.get_muted()
+                    radius: tokens.get_geometry().get_radius_md()
+                    overflow: Overflow::Hidden
+                    bind_children: build_sys_log_rows
+                }
+            }
             EuvCard {
                 title: WINDOW_CARD_TITLE.to_string()
                 tokens: tokens
@@ -1506,10 +1783,14 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                             None => format!("Native Auto ({native_hz:.0} Hz)"),
                             Some(v) => format!("Capped at {v} FPS"),
                         };
-                        format!(
-                            "Frame Rate Policy: {cap_txt} | Live Measured: {:.1} FPS",
-                            live_fps_sig.get()
-                        )
+                        let live_fps: f32 = live_fps_sig.get();
+                        if !live_fps.is_finite() || live_fps <= 0.05 {
+                            format!("Frame Rate Policy: {cap_txt} | Status: Idle (0.0 FPS)")
+                        } else {
+                            format!(
+                                "Frame Rate Policy: {cap_txt} | Live Measured: {live_fps:.1} FPS"
+                            )
+                        }
                     } }
                 }
             }
@@ -1928,13 +2209,19 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         } else {
                             AI_BRIDGE_STATUS_OFF
                         };
+                        let ai_fps: f32 = ai_fps_sig.get();
+                        let fps_display: String = if !ai_fps.is_finite() || ai_fps <= 0.05 {
+                            LABEL_FPS_IDLE.to_string()
+                        } else {
+                            format!("{ai_fps:.1}")
+                        };
                         format!(
-                            "Protocol: {} ({}) | Route: {} | Scheme: {} | Live FPS: {:.1} | Signals: {} | Memos: {} | Effects: {} | Scopes: {} | Clock: {}",
+                            "Protocol: {} ({}) | Route: {} | Scheme: {} | Live FPS: {} | Signals: {} | Memos: {} | Effects: {} | Scopes: {} | Clock: {}",
                             proto_label,
                             bridge_label,
                             ai_route_sig.get(),
                             ai_scheme_sig.get().as_str(),
-                            ai_fps_sig.get(),
+                            fps_display,
                             rs.get_live_signals(),
                             rs.get_live_memos(),
                             rs.get_live_effects(),

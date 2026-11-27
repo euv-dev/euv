@@ -10,11 +10,25 @@ use super::*;
 ///
 /// - `u64` - Deterministic non-zero digest.
 #[must_use]
+#[inline]
 pub fn compute_wasm_checksum(bytes: &[u8]) -> u64 {
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for byte in bytes.iter() {
-        hash ^= *byte as u64;
-        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+    const FNV_PRIME: u64 = 0x0100_0000_01b3;
+    let mut hash: u64 = FNV_OFFSET;
+    let mut slice: &[u8] = bytes;
+    while let Some((chunk, rest)) = slice.split_first_chunk::<8>() {
+        hash = (hash ^ (chunk[0] as u64)).wrapping_mul(FNV_PRIME);
+        hash = (hash ^ (chunk[1] as u64)).wrapping_mul(FNV_PRIME);
+        hash = (hash ^ (chunk[2] as u64)).wrapping_mul(FNV_PRIME);
+        hash = (hash ^ (chunk[3] as u64)).wrapping_mul(FNV_PRIME);
+        hash = (hash ^ (chunk[4] as u64)).wrapping_mul(FNV_PRIME);
+        hash = (hash ^ (chunk[5] as u64)).wrapping_mul(FNV_PRIME);
+        hash = (hash ^ (chunk[6] as u64)).wrapping_mul(FNV_PRIME);
+        hash = (hash ^ (chunk[7] as u64)).wrapping_mul(FNV_PRIME);
+        slice = rest;
+    }
+    for byte in slice.iter().copied() {
+        hash = (hash ^ (byte as u64)).wrapping_mul(FNV_PRIME);
     }
     hash.max(1)
 }
@@ -32,18 +46,35 @@ pub fn compute_wasm_checksum(bytes: &[u8]) -> u64 {
 /// - `String` - Formatted signature tag (`"euv-sig-v1:<hex>"`).
 #[must_use]
 pub fn compute_wasm_signature(bytes: &[u8], version: u64, signing_key: &str) -> String {
+    const FNV_PRIME: u64 = 0x0100_0000_01b3;
+    const SIG_MIX: u64 = 0x517c_c1b7_2722_0a95;
     let mut h1: u64 = 0xcbf2_9ce4_8422_2325 ^ version.wrapping_mul(0x9E37_79B9_7F4A_7C15);
     let mut h2: u64 = 0x8422_2325_cbf2_9ce4 ^ (bytes.len() as u64);
-    for byte in signing_key.as_bytes().iter() {
-        h1 ^= *byte as u64;
-        h1 = h1.wrapping_mul(0x0100_0000_01b3);
-        h2 = h2.rotate_left(7) ^ (*byte as u64);
+    for byte in signing_key.as_bytes().iter().copied() {
+        let b: u64 = byte as u64;
+        h1 = (h1 ^ b).wrapping_mul(FNV_PRIME);
+        h2 = h2.rotate_left(7) ^ b;
     }
-    for byte in bytes.iter() {
-        h1 ^= *byte as u64;
-        h1 = h1.wrapping_mul(0x0100_0000_01b3);
-        h2 ^= (*byte as u64).wrapping_mul(0x517c_c1b7_2722_0a95);
-        h2 = h2.rotate_left(13);
+    let mut slice: &[u8] = bytes;
+    while let Some((chunk, rest)) = slice.split_first_chunk::<4>() {
+        let b0: u64 = chunk[0] as u64;
+        h1 = (h1 ^ b0).wrapping_mul(FNV_PRIME);
+        h2 = (h2 ^ b0.wrapping_mul(SIG_MIX)).rotate_left(13);
+        let b1: u64 = chunk[1] as u64;
+        h1 = (h1 ^ b1).wrapping_mul(FNV_PRIME);
+        h2 = (h2 ^ b1.wrapping_mul(SIG_MIX)).rotate_left(13);
+        let b2: u64 = chunk[2] as u64;
+        h1 = (h1 ^ b2).wrapping_mul(FNV_PRIME);
+        h2 = (h2 ^ b2.wrapping_mul(SIG_MIX)).rotate_left(13);
+        let b3: u64 = chunk[3] as u64;
+        h1 = (h1 ^ b3).wrapping_mul(FNV_PRIME);
+        h2 = (h2 ^ b3.wrapping_mul(SIG_MIX)).rotate_left(13);
+        slice = rest;
+    }
+    for byte in slice.iter().copied() {
+        let b: u64 = byte as u64;
+        h1 = (h1 ^ b).wrapping_mul(FNV_PRIME);
+        h2 = (h2 ^ b.wrapping_mul(SIG_MIX)).rotate_left(13);
     }
     format!("{WASM_SIGNATURE_PREFIX}{h1:016x}{h2:016x}")
 }
@@ -337,12 +368,12 @@ pub fn parse_wasm_binary(
                         ));
                     }
                     let code: Vec<u8> = sec_slice[sc..body_end].to_vec();
+                    let is_pure_no_mem: bool = wasm_body_is_pure_no_memory(code.as_slice());
                     sc = body_end;
-                    module.get_mut_functions().push(WasmParsedFunction::new(
-                        type_idx,
-                        extra_locals,
-                        code,
-                    ));
+                    let mut parsed_fn: WasmParsedFunction =
+                        WasmParsedFunction::new(type_idx, extra_locals, code);
+                    parsed_fn.set_pure_no_memory(is_pure_no_mem);
+                    module.get_mut_functions().push(parsed_fn);
                 }
             }
             WASM_SEC_DATA => {
@@ -423,6 +454,126 @@ fn read_memory_str(memory: &[u8], ptr: u32, len: u32) -> Result<&str, WasmDynami
         .map_err(|_| WasmDynamicError::InvalidUiPayload("non-UTF8 memory buffer".to_string()))
 }
 
+/// Statically inspects a WebAssembly function bytecode body and returns `true` when it touches zero linear memory and performs zero calls.
+///
+/// # Arguments
+///
+/// - `&[u8]` - Raw bytecode instruction slice for one defined function.
+///
+/// # Returns
+///
+/// - `bool` - `true` when linear memory allocation and data segment copying may be skipped safely.
+#[must_use]
+fn wasm_body_is_pure_no_memory(code: &[u8]) -> bool {
+    const MEMORY_OR_CALL_OPS: [u8; 3] = [OP_CALL, OP_I32_LOAD, OP_I32_STORE];
+    const BLOCK_OPS: [u8; 3] = [OP_BLOCK, OP_LOOP, OP_IF];
+    const ULEB_IMM_OPS: [u8; 4] = [OP_LOCAL_GET, OP_LOCAL_SET, OP_BR, OP_BR_IF];
+    const ZERO_IMM_OPS: [u8; 15] = [
+        OP_UNREACHABLE,
+        OP_NOP,
+        OP_ELSE,
+        OP_END,
+        OP_RETURN,
+        OP_DROP,
+        OP_I32_EQZ,
+        OP_I32_EQ,
+        OP_I32_NE,
+        OP_I32_LT_S,
+        OP_I32_GT_S,
+        OP_I32_ADD,
+        OP_I32_SUB,
+        OP_I32_MUL,
+        OP_I32_DIV_S,
+    ];
+    let mut pc: usize = 0;
+    while pc < code.len() {
+        let op: u8 = code[pc];
+        pc += 1;
+        if MEMORY_OR_CALL_OPS.contains(&op) {
+            return false;
+        }
+        if BLOCK_OPS.contains(&op) {
+            if pc >= code.len() {
+                return false;
+            }
+            pc += 1;
+        } else if op == OP_I32_CONST {
+            if read_sleb128(code, &mut pc).is_err() {
+                return false;
+            }
+        } else if ULEB_IMM_OPS.contains(&op) {
+            if read_uleb128(code, &mut pc).is_err() {
+                return false;
+            }
+        } else if !ZERO_IMM_OPS.contains(&op) {
+            return false;
+        }
+    }
+    true
+}
+
+/// Executes a single WASM export against an explicit zeroed linear memory slice and reports the high-water dirty byte offset.
+///
+/// # Arguments
+///
+/// - `&WasmParsedModule` - Validated `.wasm` module.
+/// - `u32` - Absolute function index resolved from exports.
+/// - `&[i32]` - Positional `i32` arguments.
+/// - `&WasmSandboxConfig` - Fuel and memory limits.
+/// - `&mut [u8]` - Pre-zeroed linear memory slice sized to `mem_bytes`.
+///
+/// # Returns
+///
+/// - `(Result<WasmExecutionOutput, WasmDynamicError>, usize)` - Execution result paired with the dirty prefix length to re-zero.
+fn execute_wasm_with_memory_slice(
+    module: &WasmParsedModule,
+    func_idx: u32,
+    args: &[i32],
+    config: &WasmSandboxConfig,
+    memory: &mut [u8],
+) -> (Result<WasmExecutionOutput, WasmDynamicError>, usize) {
+    let mut dirty_end: usize = 0;
+    for seg in module.get_data_segments().iter() {
+        let start: usize = seg.get_offset() as usize;
+        let end: usize = start.saturating_add(seg.get_bytes().len());
+        if end > memory.len() {
+            return (
+                Err(WasmDynamicError::MemoryOutOfBounds {
+                    addr: seg.get_offset(),
+                    len: seg.get_bytes().len() as u32,
+                    memory_size: memory.len(),
+                }),
+                dirty_end,
+            );
+        }
+        memory[start..end].copy_from_slice(seg.get_bytes().as_slice());
+        if end > dirty_end {
+            dirty_end = end;
+        }
+    }
+    let mut out: WasmExecutionOutput = WasmExecutionOutput::default();
+    let mut exec: WasmExecContext<'_> = WasmExecContext {
+        memory,
+        out: &mut out,
+        fuel_used: 0,
+        max_fuel: config.get_max_fuel(),
+        depth: 0,
+        dirty_end,
+    };
+    let ret_res: Result<i32, WasmDynamicError> =
+        execute_wasm_func_index(module, func_idx, args, &mut exec);
+    let final_dirty: usize = exec.dirty_end;
+    let fuel_used: u64 = exec.fuel_used;
+    match ret_res {
+        Ok(ret) => {
+            out.set_return_value(ret);
+            out.set_fuel_used(fuel_used);
+            (Ok(out), final_dirty)
+        }
+        Err(err) => (Err(err), final_dirty),
+    }
+}
+
 /// Executes an exported WebAssembly function inside a fuel-metered, memory-bounded sandbox.
 ///
 /// # Arguments
@@ -453,32 +604,76 @@ pub fn execute_wasm_export(
             limit: config.get_max_memory_bytes(),
         });
     }
-    let mut memory: Vec<u8> = vec![0; mem_bytes];
-    for seg in module.get_data_segments().iter() {
-        let start: usize = seg.get_offset() as usize;
-        let end: usize = start.saturating_add(seg.get_bytes().len());
-        if end > memory.len() {
-            return Err(WasmDynamicError::MemoryOutOfBounds {
-                addr: seg.get_offset(),
-                len: seg.get_bytes().len() as u32,
-                memory_size: memory.len(),
-            });
+    let import_count: usize = module.get_imports().len();
+    let is_pure_no_memory: bool = (func_idx as usize) >= import_count
+        && module
+            .get_functions()
+            .get((func_idx as usize) - import_count)
+            .is_some_and(WasmParsedFunction::get_pure_no_memory);
+    if is_pure_no_memory {
+        for seg in module.get_data_segments().iter() {
+            let start: usize = seg.get_offset() as usize;
+            let end: usize = start.saturating_add(seg.get_bytes().len());
+            if end > mem_bytes {
+                return Err(WasmDynamicError::MemoryOutOfBounds {
+                    addr: seg.get_offset(),
+                    len: seg.get_bytes().len() as u32,
+                    memory_size: mem_bytes,
+                });
+            }
         }
-        memory[start..end].copy_from_slice(seg.get_bytes().as_slice());
+        let mut out: WasmExecutionOutput = WasmExecutionOutput::default();
+        let mut empty_mem: [u8; 0] = [];
+        let mut exec: WasmExecContext<'_> = WasmExecContext {
+            memory: &mut empty_mem,
+            out: &mut out,
+            fuel_used: 0,
+            max_fuel: config.get_max_fuel(),
+            depth: 0,
+            dirty_end: 0,
+        };
+        let ret: i32 = execute_wasm_func_index(module, func_idx, args, &mut exec)?;
+        let fuel_used: u64 = exec.fuel_used;
+        out.set_return_value(ret);
+        out.set_fuel_used(fuel_used);
+        return Ok(out);
     }
-    let mut out: WasmExecutionOutput = WasmExecutionOutput::default();
-    let mut exec: WasmExecContext<'_> = WasmExecContext {
-        memory: &mut memory,
-        out: &mut out,
-        fuel_used: 0,
-        max_fuel: config.get_max_fuel(),
-        depth: 0,
-    };
-    let ret: i32 = execute_wasm_func_index(module, func_idx, args, &mut exec)?;
-    let fuel_used: u64 = exec.fuel_used;
-    out.set_return_value(ret);
-    out.set_fuel_used(fuel_used);
-    Ok(out)
+    WASM_LINEAR_MEMORY_POOL.with(|cell: &RefCell<WasmMemoryPool>| {
+        if let Ok(mut pool) = cell.try_borrow_mut() {
+            if pool.buffer.len() < mem_bytes {
+                pool.buffer.resize(mem_bytes, 0);
+            }
+            let (res, dirty_end): (Result<WasmExecutionOutput, WasmDynamicError>, usize) =
+                execute_wasm_with_memory_slice(
+                    module,
+                    func_idx,
+                    args,
+                    config,
+                    &mut pool.buffer[..mem_bytes],
+                );
+            let clear_len: usize = dirty_end.min(pool.buffer.len());
+            if clear_len > 0 {
+                pool.buffer[..clear_len].fill(0);
+            }
+            let max_retained_bytes: usize = WASM_PAGE_BYTES.saturating_mul(4);
+            if pool.buffer.len() > max_retained_bytes {
+                pool.buffer.truncate(max_retained_bytes);
+                pool.buffer.shrink_to_fit();
+            }
+            res
+        } else {
+            let mut local_mem: Vec<u8> = vec![0; mem_bytes];
+            let (res, _): (Result<WasmExecutionOutput, WasmDynamicError>, usize) =
+                execute_wasm_with_memory_slice(
+                    module,
+                    func_idx,
+                    args,
+                    config,
+                    local_mem.as_mut_slice(),
+                );
+            res
+        }
+    })
 }
 
 /// Evaluates an `i32` binary WebAssembly opcode if `op` matches one.
@@ -597,8 +792,19 @@ fn execute_wasm_func_index(
         .unwrap_or_default();
     let total_locals: usize = sig
         .get_param_count()
-        .saturating_add(func.get_extra_locals());
-    let mut locals: Vec<i32> = vec![0; total_locals.max(args.len())];
+        .saturating_add(func.get_extra_locals())
+        .max(args.len());
+    let mut inline_locals: [i32; 16] = [0; 16];
+    let mut spill_locals: Vec<i32> = if total_locals > inline_locals.len() {
+        vec![0; total_locals]
+    } else {
+        Vec::new()
+    };
+    let locals: &mut [i32] = if spill_locals.is_empty() {
+        &mut inline_locals[..total_locals]
+    } else {
+        spill_locals.as_mut_slice()
+    };
     for (idx, val) in args.iter().copied().enumerate() {
         if idx < locals.len() {
             locals[idx] = val;
@@ -755,15 +961,26 @@ fn execute_wasm_func_index(
                     .get(callee_type as usize)
                     .copied()
                     .unwrap_or_default();
-                let mut call_args: Vec<i32> = vec![0; csig.get_param_count()];
-                for idx in (0..csig.get_param_count()).rev() {
+                let param_count: usize = csig.get_param_count();
+                let mut inline_args: [i32; 8] = [0; 8];
+                let mut spill_args: Vec<i32> = if param_count > inline_args.len() {
+                    vec![0; param_count]
+                } else {
+                    Vec::new()
+                };
+                let call_args: &mut [i32] = if spill_args.is_empty() {
+                    &mut inline_args[..param_count]
+                } else {
+                    spill_args.as_mut_slice()
+                };
+                for idx in (0..param_count).rev() {
                     call_args[idx] = stack.pop().ok_or_else(|| {
                         WasmDynamicError::ExecutionTrap("stack underflow on call".to_string())
                     })?;
                 }
                 exec.depth = exec.depth.saturating_add(1);
                 let call_res: Result<i32, WasmDynamicError> =
-                    execute_wasm_func_index(module, callee, call_args.as_slice(), exec);
+                    execute_wasm_func_index(module, callee, call_args, exec);
                 exec.depth = exec.depth.saturating_sub(1);
                 let call_ret: i32 = call_res?;
                 if csig.get_result_count() > 0 {
@@ -820,7 +1037,11 @@ fn execute_wasm_func_index(
                         memory_size: exec.memory.len(),
                     });
                 }
-                exec.memory[addr..addr + 4].copy_from_slice(&val.to_le_bytes());
+                let write_end: usize = addr + 4;
+                exec.memory[addr..write_end].copy_from_slice(&val.to_le_bytes());
+                if write_end > exec.dirty_end {
+                    exec.dirty_end = write_end;
+                }
             }
             OP_I32_CONST => {
                 let val: i32 = read_sleb128(code, &mut pc)?;

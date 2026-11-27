@@ -130,7 +130,21 @@ fn docs_loader_viewer_and_static_generator_work_end_to_end() {
     assert!(syntax_html.contains("<dl>"));
     assert!(syntax_html.contains("math-inline"));
     assert!(syntax_html.contains("math-display"));
+    assert!(syntax_html.contains("<mark>extended highlights</mark>"));
+    assert!(syntax_html.contains("<sup>16</sup>"));
+    assert!(syntax_html.contains("<sub>2</sub>"));
+    assert!(syntax_html.contains("🚀"));
+    assert!(syntax_html.contains("mermaid-card"));
+    assert!(syntax_html.contains("<svg "));
     assert!(syntax_html.contains("pipeline-diagram.svg"));
     assert!(out_dir.join("guide/pipeline-diagram.svg").exists());
+    let sys_events_html: String =
+        fs::read_to_string(out_dir.join("guide/system-events/index.html")).unwrap();
+    assert!(sys_events_html.contains("#[component] lifecycle callbacks"));
+    for entry_res in fs::read_dir(&out_dir).unwrap() {
+        let entry: DirEntry = entry_res.unwrap();
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        assert!(!name.ends_with(".js"));
+    }
     drop(fs::remove_dir_all(&out_dir));
 }

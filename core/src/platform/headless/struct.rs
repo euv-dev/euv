@@ -51,4 +51,10 @@ pub struct HeadlessPlatform {
     /// In-memory clipboard storage.
     #[get(skip)]
     pub(crate) clipboard: Option<String>,
+    /// Whether the frame pump is currently paused for background freeze.
+    #[get(type(copy))]
+    pub(crate) pump_paused: bool,
+    /// Count of blocking `wait_for_events()` invocations recorded during background sleep.
+    #[get(type(copy))]
+    pub(crate) wait_calls: u64,
 }

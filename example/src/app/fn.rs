@@ -463,9 +463,11 @@ pub fn euv_web_boot() {
     on_win_cancel.forget();
     let on_blur: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
         web_queue_pointer_cancel(0);
+        web_dispatch_system_event(SystemEvent::FocusChanged(false));
     }) as Box<dyn FnMut(Event)>);
     drop(win.add_event_listener_with_callback(WEB_EVENT_BLUR, on_blur.as_ref().unchecked_ref()));
     on_blur.forget();
+    web_attach_system_event_listeners(&win, &doc);
     let canvas_wheel: HtmlCanvasElement = canvas.clone();
     let on_wheel: Closure<dyn FnMut(WheelEvent)> = Closure::wrap(Box::new(move |ev: WheelEvent| {
         ev.prevent_default();
@@ -542,63 +544,282 @@ pub fn euv_web_boot() {
         win.add_event_listener_with_callback(WEB_EVENT_RESIZE, on_resize.as_ref().unchecked_ref()),
     );
     on_resize.forget();
-    let raf_cell: WebRafSlot = Rc::new(RefCell::new(None));
-    let raf_loop: WebRafSlot = raf_cell.clone();
     let win_raf: Window = win.clone();
     let canvas_raf: HtmlCanvasElement = canvas.clone();
-    let last_ts: Rc<RefCell<f64>> = Rc::new(RefCell::new(0.0));
-    let raf_accum_secs: Rc<Cell<f32>> = Rc::new(Cell::new(0.0));
-    let raf_accum_frames: Rc<Cell<u32>> = Rc::new(Cell::new(0));
-    if let Ok(mut slot) = raf_cell.try_borrow_mut() {
-        *slot = Some(Closure::wrap(Box::new(move |ts: f64| {
-            let mut dt: f32 = 1.0 / 60.0;
-            let mut valid_step: bool = false;
-            if let Ok(mut prev) = last_ts.try_borrow_mut() {
-                if *prev > 0.0 {
-                    let raw_dt: f32 = ((ts - *prev) / 1000.0) as f32;
+    WEB_RAF_CALLBACK.with(|slot: &RefCell<Option<WebRafCallback>>| {
+        if let Ok(mut guard) = slot.try_borrow_mut() {
+            *guard = Some(Closure::wrap(Box::new(move |ts: f64| {
+                WEB_RAF_ID.with(|id_cell: &Cell<Option<i32>>| id_cell.set(None));
+                if !web_should_pump_frames() {
+                    WEB_RAF_LAST_TS.with(|ts_cell: &Cell<f64>| ts_cell.set(0.0));
+                    WEB_RAF_ACCUM_SECS.with(|s_cell: &Cell<f32>| s_cell.set(0.0));
+                    WEB_RAF_ACCUM_FRAMES.with(|f_cell: &Cell<u32>| f_cell.set(0));
+                    return;
+                }
+                let prev_ts: f64 = WEB_RAF_LAST_TS.with(|ts_cell: &Cell<f64>| ts_cell.replace(ts));
+                let mut dt: f32 = 1.0 / 60.0;
+                let mut valid_step: bool = false;
+                if prev_ts > 0.0 {
+                    let raw_dt: f32 = ((ts - prev_ts) / 1000.0) as f32;
                     if (0.001..=0.1).contains(&raw_dt) {
                         valid_step = true;
                     }
                     dt = raw_dt.clamp(0.001, 0.05);
                 }
-                *prev = ts;
-            }
-            if valid_step {
-                let next_secs: f32 = raf_accum_secs.get() + dt;
-                let next_frames: u32 = raf_accum_frames.get().saturating_add(1);
-                if next_secs >= 0.35 && next_frames >= 8 {
-                    let measured_hz: f32 = (next_frames as f32) / next_secs;
-                    raf_accum_secs.set(0.0);
-                    raf_accum_frames.set(0);
-                    web_report_host_refresh_rate(measured_hz);
-                } else {
-                    raf_accum_secs.set(next_secs);
-                    raf_accum_frames.set(next_frames);
+                if valid_step {
+                    let next_secs: f32 = WEB_RAF_ACCUM_SECS.with(Cell::get) + dt;
+                    let next_frames: u32 = WEB_RAF_ACCUM_FRAMES.with(Cell::get).saturating_add(1);
+                    if next_secs >= 0.35 && next_frames >= 8 {
+                        let measured_hz: f32 = (next_frames as f32) / next_secs;
+                        WEB_RAF_ACCUM_SECS.with(|s_cell: &Cell<f32>| s_cell.set(0.0));
+                        WEB_RAF_ACCUM_FRAMES.with(|f_cell: &Cell<u32>| f_cell.set(0));
+                        web_report_host_refresh_rate(measured_hz);
+                    } else {
+                        WEB_RAF_ACCUM_SECS.with(|s_cell: &Cell<f32>| s_cell.set(next_secs));
+                        WEB_RAF_ACCUM_FRAMES.with(|f_cell: &Cell<u32>| f_cell.set(next_frames));
+                    }
                 }
-            }
-            let resized_or_scaled: bool = web_sync_exact_viewport(&win_raf, &canvas_raf);
-            let cur_route: String = euv_web_current_route();
-            let on_game: bool = cur_route == ROUTE_GAME || cur_route == ROUTE_GAME_3D;
-            let animating: bool = web_has_active_animations();
-            let dirty: bool = WEB_NEEDS_FRAME.with(|flag: &Cell<bool>| flag.replace(false));
-            if resized_or_scaled || on_game {
-                let _: u64 = web_flush_frame(dt);
-            } else if animating || dirty {
-                let _: u64 = web_flush_frame(dt);
-            }
-            if let Ok(cb_ref) = raf_loop.try_borrow()
-                && let Some(cb) = cb_ref.as_ref()
-            {
-                let func: &Function = cb.as_ref().unchecked_ref();
-                drop(win_raf.request_animation_frame(func));
-            }
-        }) as Box<dyn FnMut(f64)>));
+                let resized_or_scaled: bool = web_sync_exact_viewport(&win_raf, &canvas_raf);
+                let cur_route: String = euv_web_current_route();
+                let on_game: bool = cur_route == ROUTE_GAME || cur_route == ROUTE_GAME_3D;
+                let animating: bool = web_has_active_animations();
+                let dirty: bool = WEB_NEEDS_FRAME.with(|flag: &Cell<bool>| flag.replace(false));
+                let needs_continuous: bool = resized_or_scaled || on_game;
+                let needs_redraw: bool = animating || dirty;
+                if needs_continuous || needs_redraw {
+                    let _: u64 = web_flush_frame(dt);
+                }
+                if web_should_pump_frames() {
+                    web_start_raf_pump(&win_raf);
+                }
+            }) as Box<dyn FnMut(f64)>));
+        }
+    });
+    if doc.hidden() {
+        web_dispatch_system_event(SystemEvent::Background);
+    } else {
+        web_start_raf_pump(&win);
     }
-    if let Ok(cb_ref) = raf_cell.try_borrow()
-        && let Some(cb) = cb_ref.as_ref()
+}
+
+/// Returns `true` when the active WebAssembly `App` should pump `requestAnimationFrame` frames.
+///
+/// # Returns
+///
+/// - `bool` - `false` while background-frozen or shutting down.
+#[cfg(target_arch = "wasm32")]
+fn web_should_pump_frames() -> bool {
+    WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
+        match slot.try_borrow() {
+            Ok(guard) => guard
+                .as_ref()
+                .map(|(app, _): &(App, ShowcaseState)| app.should_pump_frames())
+                .unwrap_or(false),
+            Err(_) => false,
+        }
+    })
+}
+
+/// Schedules the retained browser `requestAnimationFrame` callback if no frame is already pending.
+///
+/// # Arguments
+///
+/// - `&Window` - Active browser `Window`.
+#[cfg(target_arch = "wasm32")]
+fn web_start_raf_pump(win: &Window) {
+    if !web_should_pump_frames() {
+        return;
+    }
+    let already_scheduled: bool =
+        WEB_RAF_ID.with(|id_cell: &Cell<Option<i32>>| id_cell.get().is_some());
+    if already_scheduled {
+        return;
+    }
+    WEB_RAF_CALLBACK.with(|slot: &RefCell<Option<WebRafCallback>>| {
+        if let Ok(cb_ref) = slot.try_borrow()
+            && let Some(cb) = cb_ref.as_ref()
+        {
+            let func: &Function = cb.as_ref().unchecked_ref();
+            if let Ok(req_id) = win.request_animation_frame(func) {
+                WEB_RAF_ID.with(|id_cell: &Cell<Option<i32>>| id_cell.set(Some(req_id)));
+            }
+        }
+    });
+}
+
+/// Cancels any pending browser `requestAnimationFrame` callback and resets rAF timing accumulators for zero-CPU background sleep.
+#[cfg(target_arch = "wasm32")]
+fn web_stop_raf_pump() {
+    let pending_id: Option<i32> = WEB_RAF_ID.with(|id_cell: &Cell<Option<i32>>| id_cell.take());
+    if let Some(req_id) = pending_id
+        && let Some(win) = window()
     {
-        let func: &Function = cb.as_ref().unchecked_ref();
-        drop(win.request_animation_frame(func));
+        drop(win.cancel_animation_frame(req_id));
+    }
+    WEB_RAF_LAST_TS.with(|ts_cell: &Cell<f64>| ts_cell.set(0.0));
+    WEB_RAF_ACCUM_SECS.with(|s_cell: &Cell<f32>| s_cell.set(0.0));
+    WEB_RAF_ACCUM_FRAMES.with(|f_cell: &Cell<u32>| f_cell.set(0));
+}
+
+/// Dispatches a browser-originated `SystemEvent` into the active WebAssembly `App` and pauses or restarts the rAF pump accordingly.
+///
+/// # Arguments
+///
+/// - `SystemEvent` - Cross-platform system or lifecycle event to normalize and dispatch.
+#[cfg(target_arch = "wasm32")]
+fn web_dispatch_system_event(event: SystemEvent) {
+    let mut should_pump: bool = false;
+    let mut handled: bool = false;
+    WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
+        if let Ok(mut borrow) = slot.try_borrow_mut()
+            && let Some((app, _)) = borrow.as_mut()
+        {
+            app.dispatch_system_event(event);
+            should_pump = app.should_pump_frames();
+            handled = true;
+        }
+    });
+    if !handled {
+        return;
+    }
+    if !should_pump {
+        web_stop_raf_pump();
+    } else {
+        WEB_RAF_LAST_TS.with(|ts_cell: &Cell<f64>| ts_cell.set(0.0));
+        web_mark_needs_frame();
+        if let Some(win) = window() {
+            web_start_raf_pump(&win);
+        }
+    }
+}
+
+/// Attaches browser DOM lifecycle, focus, connectivity, color-scheme, deep-link, and soft-keyboard listeners onto `win` and `doc`.
+///
+/// # Arguments
+///
+/// - `&Window` - Active browser `Window`.
+/// - `&Document` - Active browser `Document`.
+#[cfg(target_arch = "wasm32")]
+fn web_attach_system_event_listeners(win: &Window, doc: &Document) {
+    let doc_vis: Document = doc.clone();
+    let on_vis: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+        if doc_vis.hidden() {
+            web_dispatch_system_event(SystemEvent::Background);
+        } else {
+            web_dispatch_system_event(SystemEvent::Foreground);
+        }
+    }) as Box<dyn FnMut(Event)>);
+    drop(doc.add_event_listener_with_callback(
+        WEB_EVENT_VISIBILITY_CHANGE,
+        on_vis.as_ref().unchecked_ref(),
+    ));
+    on_vis.forget();
+    let on_focus: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+        web_dispatch_system_event(SystemEvent::FocusChanged(true));
+    }) as Box<dyn FnMut(Event)>);
+    drop(win.add_event_listener_with_callback(WEB_EVENT_FOCUS, on_focus.as_ref().unchecked_ref()));
+    on_focus.forget();
+    let on_pageshow: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+        web_dispatch_system_event(SystemEvent::Foreground);
+    }) as Box<dyn FnMut(Event)>);
+    drop(win.add_event_listener_with_callback(
+        WEB_EVENT_PAGE_SHOW,
+        on_pageshow.as_ref().unchecked_ref(),
+    ));
+    on_pageshow.forget();
+    let on_pagehide: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+        web_dispatch_system_event(SystemEvent::Background);
+    }) as Box<dyn FnMut(Event)>);
+    drop(win.add_event_listener_with_callback(
+        WEB_EVENT_PAGE_HIDE,
+        on_pagehide.as_ref().unchecked_ref(),
+    ));
+    on_pagehide.forget();
+    let on_unload: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+        web_dispatch_system_event(SystemEvent::Terminate);
+    }) as Box<dyn FnMut(Event)>);
+    drop(win.add_event_listener_with_callback(
+        WEB_EVENT_BEFORE_UNLOAD,
+        on_unload.as_ref().unchecked_ref(),
+    ));
+    on_unload.forget();
+    let on_online: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+        web_dispatch_system_event(SystemEvent::NetworkStatusChanged(NetworkStatus::Online));
+    }) as Box<dyn FnMut(Event)>);
+    drop(
+        win.add_event_listener_with_callback(WEB_EVENT_ONLINE, on_online.as_ref().unchecked_ref()),
+    );
+    on_online.forget();
+    let on_offline: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+        web_dispatch_system_event(SystemEvent::NetworkStatusChanged(NetworkStatus::Offline));
+    }) as Box<dyn FnMut(Event)>);
+    drop(
+        win.add_event_listener_with_callback(
+            WEB_EVENT_OFFLINE,
+            on_offline.as_ref().unchecked_ref(),
+        ),
+    );
+    on_offline.forget();
+    if let Ok(Some(mql)) = win.match_media(WEB_MEDIA_PREFERS_DARK) {
+        let mql_cb: MediaQueryList = mql.clone();
+        let on_theme: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+            let next_theme: SystemTheme = if mql_cb.matches() {
+                ThemeMode::Dark
+            } else {
+                ThemeMode::Light
+            };
+            web_dispatch_system_event(SystemEvent::ThemeChanged(next_theme));
+        })
+            as Box<dyn FnMut(Event)>);
+        drop(
+            mql.add_event_listener_with_callback(
+                WEB_EVENT_CHANGE,
+                on_theme.as_ref().unchecked_ref(),
+            ),
+        );
+        on_theme.forget();
+    }
+    let win_hash: Window = win.clone();
+    let on_hash: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+        if let Ok(href) = win_hash.location().href() {
+            web_dispatch_system_event(SystemEvent::DeepLink(href));
+        }
+    }) as Box<dyn FnMut(Event)>);
+    drop(
+        win.add_event_listener_with_callback(
+            WEB_EVENT_HASH_CHANGE,
+            on_hash.as_ref().unchecked_ref(),
+        ),
+    );
+    on_hash.forget();
+    let vv_key: JsValue = JsValue::from_str(WEB_PROP_VISUAL_VIEWPORT);
+    if let Ok(vv_val) = Reflect::get(win.as_ref(), &vv_key)
+        && let Ok(vv_target) = vv_val.clone().dyn_into::<EventTarget>()
+    {
+        let win_vv: Window = win.clone();
+        let vv_obj: JsValue = vv_val;
+        let on_vv_resize: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+            let inner_h: f32 = win_vv
+                .inner_height()
+                .ok()
+                .and_then(|v: JsValue| v.as_f64())
+                .unwrap_or(0.0) as f32;
+            let h_key: JsValue = JsValue::from_str(WEB_PROP_HEIGHT);
+            let vv_h: f32 = Reflect::get(&vv_obj, &h_key)
+                .ok()
+                .and_then(|v: JsValue| v.as_f64())
+                .unwrap_or(inner_h as f64) as f32;
+            let kb_delta: f32 = (inner_h - vv_h).max(0.0);
+            let visible: bool = kb_delta >= WEB_KEYBOARD_MIN_DELTA_PX;
+            let height: f32 = if visible { kb_delta } else { 0.0 };
+            web_dispatch_system_event(SystemEvent::KeyboardVisibilityChanged { visible, height });
+        })
+            as Box<dyn FnMut(Event)>);
+        drop(vv_target.add_event_listener_with_callback(
+            WEB_EVENT_RESIZE,
+            on_vv_resize.as_ref().unchecked_ref(),
+        ));
+        on_vv_resize.forget();
     }
 }
 
@@ -1425,6 +1646,9 @@ pub fn euv_web_tick(dt_secs: f32) -> u64 {
         let Some((app, state)) = borrow.as_mut() else {
             return 0;
         };
+        if !app.should_pump_frames() {
+            return app.get_renderer().get_last_stats().get_frame_hash();
+        }
         let cur_route: String = state.get_route().get_untracked();
         let on_game: bool = cur_route == ROUTE_GAME || cur_route == ROUTE_GAME_3D;
         if on_game || app.has_active_animations() {

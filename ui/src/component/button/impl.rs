@@ -190,58 +190,76 @@ impl EuvButton {
     /// # Returns
     ///
     /// - `Style` - Compiled cross-platform style.
+    #[inline(always)]
     #[must_use]
     pub fn resolved_style(&self) -> Style {
-        let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
-        let (height, pad_x, font_sz, radius): (f32, f32, f32, f32) = match self.get_size() {
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
+        let size: EuvButtonSize = self.get_size();
+        let disabled: bool = self.get_disabled();
+        let (height, pad_x, font_sz, radius): (f32, f32, f32, f32) = match size {
             EuvButtonSize::Small => (g.get_control_sm(), SPACE_SM, 12.0, g.get_radius_sm()),
             EuvButtonSize::Default => (g.get_control_md(), SPACE_MD, 13.0, g.get_radius_md()),
             EuvButtonSize::Large => (g.get_control_lg(), SPACE_XL, 14.0, g.get_radius_md()),
             EuvButtonSize::Icon => (g.get_control_md(), 0.0, 13.0, g.get_radius_md()),
         };
-        let mut style: Style = Style::default()
-            .row()
-            .justify(JustifyContent::Center)
-            .align(AlignItems::Center)
-            .height(Length::Px(height))
-            .padding(Edges::symmetric(0.0, pad_x))
-            .overflow(Overflow::Hidden)
-            .radius(radius)
-            .font_size(font_sz)
-            .font_weight(FontWeight::Medium)
-            .focus_ring(Border::new(g.get_ring_width(), p.get_ring()))
-            .cursor(if self.get_disabled() {
+        let mut style: Style = Style::default();
+        let layout: &mut LayoutStyle = style.get_mut_layout();
+        layout
+            .set_flex_direction(FlexDirection::Row)
+            .set_justify_content(JustifyContent::Center)
+            .set_align_items(AlignItems::Center)
+            .set_height(Length::Px(height))
+            .set_padding(Edges::symmetric(0.0, pad_x))
+            .set_overflow(Overflow::Hidden);
+        if size == EuvButtonSize::Icon {
+            layout.set_width(Length::Px(height));
+        }
+        let paint: &mut PaintStyle = style.get_mut_paint();
+        paint
+            .set_radius(CornerRadius::all(radius.max(0.0)))
+            .set_focus_ring(Some(Border::new(g.get_ring_width(), p.get_ring())))
+            .set_cursor(if disabled {
                 CursorIcon::NotAllowed
             } else {
                 CursorIcon::Pointer
             });
-        if self.get_size() == EuvButtonSize::Icon {
-            style = style.width(Length::Px(height));
-        }
-        style = match self.get_variant() {
-            EuvButtonVariant::Primary => style
-                .background(p.get_primary())
-                .color(p.get_primary_foreground())
-                .shadow(g.get_shadow_xs()),
-            EuvButtonVariant::Secondary => style
-                .background(p.get_secondary())
-                .color(p.get_secondary_foreground()),
-            EuvButtonVariant::Destructive => style
-                .background(p.get_destructive())
-                .color(p.get_destructive_foreground())
-                .shadow(g.get_shadow_xs()),
-            EuvButtonVariant::Outline => style
-                .background(p.get_card())
-                .border(g.get_border_width(), p.get_border())
-                .color(p.get_foreground())
-                .shadow(g.get_shadow_xs()),
-            EuvButtonVariant::Ghost => style.color(p.get_foreground()),
-            EuvButtonVariant::Link => style.color(p.get_primary()),
+        let text_col: Color = match self.get_variant() {
+            EuvButtonVariant::Primary => {
+                paint
+                    .set_background(Some(p.get_primary()))
+                    .set_shadow(Some(g.get_shadow_xs()));
+                p.get_primary_foreground()
+            }
+            EuvButtonVariant::Secondary => {
+                paint.set_background(Some(p.get_secondary()));
+                p.get_secondary_foreground()
+            }
+            EuvButtonVariant::Destructive => {
+                paint
+                    .set_background(Some(p.get_destructive()))
+                    .set_shadow(Some(g.get_shadow_xs()));
+                p.get_destructive_foreground()
+            }
+            EuvButtonVariant::Outline => {
+                paint
+                    .set_background(Some(p.get_card()))
+                    .set_border(Border::new(g.get_border_width().max(0.0), p.get_border()))
+                    .set_shadow(Some(g.get_shadow_xs()));
+                p.get_foreground()
+            }
+            EuvButtonVariant::Ghost => p.get_foreground(),
+            EuvButtonVariant::Link => p.get_primary(),
         };
-        if self.get_disabled() {
-            style = style.opacity(0.5);
+        if disabled {
+            paint.set_opacity(0.5);
         }
+        style
+            .get_mut_text()
+            .set_font_size(font_sz)
+            .set_weight(FontWeight::Medium)
+            .set_color(text_col);
         style
     }
 }
@@ -268,35 +286,40 @@ impl EuvButton {
         let disabled: bool = self.get_disabled();
         let Self {
             label, on_click, ..
-        } = self.clone();
-        let btn_node: NodeId = view! {
-            view {
-                style: style
-                role: A11yRole::Button
-                a11y_label: label.clone()
-                a11y_disabled: disabled
-                text {
-                    max_width: Length::Percent(100.0)
-                    color: text_color
-                    font_size: font_sz
-                    font_weight: font_wt
-                    text_align: TextAlign::Center
-                    text_overflow: TextOverflow::Ellipsis
-                    { label }
-                }
-            }
+        } = self;
+        let mut a11y: A11yProps = A11yProps::new(A11yRole::Button, label.clone());
+        a11y.set_disabled(disabled);
+        let handler_opt: Option<UiEventHandler> = if !disabled {
+            on_click.as_ref().map(Rc::clone)
+        } else {
+            None
         };
-        if !disabled && let Some(handler) = on_click {
-            ctx.get_scene().with_write(
-                |tree: &mut SceneTree| {
-                    if let Some(node) = tree.get_node_mut(btn_node) {
-                        node.get_mut_handlers().set_on_click(Some(handler));
+        let mut txt_st: Style = Style::default();
+        txt_st
+            .get_mut_layout()
+            .set_max_width(Length::Percent(100.0));
+        txt_st
+            .get_mut_text()
+            .set_color(text_color)
+            .set_font_size(font_sz)
+            .set_weight(font_wt)
+            .set_align(TextAlign::Center)
+            .set_overflow(TextOverflow::Ellipsis);
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                let btn_node: NodeId = tree.create_view(style);
+                if let Some(node) = tree.get_node_mut(btn_node) {
+                    node.set_a11y(Some(a11y));
+                    if let Some(handler_rc) = handler_opt {
+                        node.get_mut_handlers().set_on_click(Some(handler_rc));
                         node.get_mut_interaction().set_focusable(true);
                     }
-                },
-                (),
-            );
-        }
-        btn_node
+                }
+                let txt_node: NodeId = tree.create_text(label.clone(), txt_st);
+                tree.append_child(btn_node, txt_node);
+                btn_node
+            },
+            NodeId::default(),
+        )
     }
 }

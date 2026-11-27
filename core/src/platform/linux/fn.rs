@@ -475,6 +475,209 @@ fn linux_find_window(
     None
 }
 
+/// Translates a single dequeued raw X11 event union into `WindowEvent`s.
+///
+/// # Arguments
+///
+/// - `&X11EventRaw` - Raw X11 event read from `XNextEvent`.
+/// - `*mut c_void` - Optional dynamically resolved `XLookupString` symbol pointer.
+/// - `&mut HashMap<WindowId, LinuxWindowRecord>` - Active Linux windows map.
+/// - `&mut Vec<WindowEvent>` - Event sink receiving translated window events.
+unsafe fn linux_x11_handle_raw_event(
+    raw: &X11EventRaw,
+    lookup_sym: *mut c_void,
+    windows: &mut HashMap<WindowId, LinuxWindowRecord>,
+    out_events: &mut Vec<WindowEvent>,
+) {
+    let ev_type: i32 = (raw.pad[0] & 0xFFFF_FFFF) as i32;
+    // SAFETY: Caller guarantees `raw` was initialized by Xlib `XNextEvent` with LP64 union alignment.
+    unsafe {
+        match ev_type {
+            X11_CONFIGURE_NOTIFY => {
+                let cfg_ev: X11ConfigureEvent =
+                    *(raw as *const X11EventRaw).cast::<X11ConfigureEvent>();
+                if let Some((wid, scale, _)) = linux_find_window(cfg_ev.window, windows) {
+                    let phys_w: u32 = cfg_ev.width.max(1) as u32;
+                    let phys_h: u32 = cfg_ev.height.max(1) as u32;
+                    let exact_lw: f32 = ((phys_w as f32) / scale).max(1.0);
+                    let exact_lh: f32 = ((phys_h as f32) / scale).max(1.0);
+                    let log_w: u32 = exact_lw.round().max(1.0) as u32;
+                    let log_h: u32 = exact_lh.round().max(1.0) as u32;
+                    if let Some(rec) = windows.get_mut(&wid) {
+                        let prev_w: u32 = rec.get_state().get_physical_width();
+                        let prev_h: u32 = rec.get_state().get_physical_height();
+                        if prev_w != phys_w || prev_h != phys_h {
+                            rec.get_mut_config().set_width(log_w);
+                            rec.get_mut_config().set_height(log_h);
+                            rec.get_mut_state().set_logical_width(exact_lw);
+                            rec.get_mut_state().set_logical_height(exact_lh);
+                            rec.get_mut_state().set_physical_width(phys_w);
+                            rec.get_mut_state().set_physical_height(phys_h);
+                            out_events.push(WindowEvent::Resized(wid, log_w, log_h, scale));
+                        }
+                    }
+                }
+            }
+            X11_EXPOSE => {
+                let kb: X11KeyOrButtonEvent =
+                    *(raw as *const X11EventRaw).cast::<X11KeyOrButtonEvent>();
+                if let Some((wid, _, _)) = linux_find_window(kb.window, windows) {
+                    out_events.push(WindowEvent::RedrawRequested(wid));
+                }
+            }
+            X11_CLIENT_MESSAGE => {
+                let cm: X11ClientMessageEvent =
+                    *(raw as *const X11EventRaw).cast::<X11ClientMessageEvent>();
+                if let Some((wid, _, wm_del)) = linux_find_window(cm.window, windows)
+                    && wm_del != 0
+                    && cm.data[0] == wm_del
+                {
+                    out_events.push(WindowEvent::CloseRequested(wid));
+                }
+            }
+            X11_FOCUS_IN | X11_FOCUS_OUT => {
+                let kb: X11KeyOrButtonEvent =
+                    *(raw as *const X11EventRaw).cast::<X11KeyOrButtonEvent>();
+                if let Some((wid, _, _)) = linux_find_window(kb.window, windows) {
+                    let focused: bool = ev_type == X11_FOCUS_IN;
+                    if let Some(rec) = windows.get_mut(&wid) {
+                        rec.get_mut_state().set_focused(focused);
+                    }
+                    out_events.push(WindowEvent::Focused(wid, focused));
+                    let lc_ev: SystemEvent = if focused {
+                        SystemEvent::Foreground
+                    } else {
+                        SystemEvent::Inactive
+                    };
+                    out_events.push(WindowEvent::System(lc_ev));
+                }
+            }
+            X11_UNMAP_NOTIFY => {
+                let kb: X11KeyOrButtonEvent =
+                    *(raw as *const X11EventRaw).cast::<X11KeyOrButtonEvent>();
+                if linux_find_window(kb.window, windows).is_some() {
+                    out_events.push(WindowEvent::System(SystemEvent::Background));
+                }
+            }
+            X11_MAP_NOTIFY => {
+                let kb: X11KeyOrButtonEvent =
+                    *(raw as *const X11EventRaw).cast::<X11KeyOrButtonEvent>();
+                if linux_find_window(kb.window, windows).is_some() {
+                    out_events.push(WindowEvent::System(SystemEvent::Foreground));
+                }
+            }
+            X11_DESTROY_NOTIFY => {
+                let kb: X11KeyOrButtonEvent =
+                    *(raw as *const X11EventRaw).cast::<X11KeyOrButtonEvent>();
+                if linux_find_window(kb.window, windows).is_some() {
+                    out_events.push(WindowEvent::System(SystemEvent::Terminate));
+                }
+            }
+            X11_MOTION_NOTIFY => {
+                let mot: X11MotionEvent = *(raw as *const X11EventRaw).cast::<X11MotionEvent>();
+                if let Some((wid, scale, _)) = linux_find_window(mot.window, windows) {
+                    let pos: Point = Point::new((mot.x as f32) / scale, (mot.y as f32) / scale);
+                    let pressed_btn: f32 = if (mot.state & 0x0100) != 0 { 1.0 } else { 0.0 };
+                    let ev: PointerEvent = PointerEvent::new(
+                        1,
+                        PointerDevice::Mouse,
+                        pos,
+                        PointerButton::Primary,
+                        pressed_btn,
+                        linux_x11_modifiers(mot.state),
+                    );
+                    out_events.push(WindowEvent::PointerMove(wid, ev));
+                }
+            }
+            X11_BUTTON_PRESS | X11_BUTTON_RELEASE => {
+                let btn: X11KeyOrButtonEvent =
+                    *(raw as *const X11EventRaw).cast::<X11KeyOrButtonEvent>();
+                if let Some((wid, scale, _)) = linux_find_window(btn.window, windows) {
+                    if ev_type == X11_BUTTON_PRESS && (btn.detail == 4 || btn.detail == 5) {
+                        let step: f32 = if btn.detail == 4 { -40.0 } else { 40.0 };
+                        let delta: Point = if (btn.state & X11_SHIFT_MASK) != 0 {
+                            Point::new(step, 0.0)
+                        } else {
+                            Point::new(0.0, step)
+                        };
+                        out_events.push(WindowEvent::Scroll(wid, delta));
+                    } else if ev_type == X11_BUTTON_PRESS && (btn.detail == 6 || btn.detail == 7) {
+                        let dx: f32 = if btn.detail == 6 { -40.0 } else { 40.0 };
+                        out_events.push(WindowEvent::Scroll(wid, Point::new(dx, 0.0)));
+                    } else if btn.detail <= 3 {
+                        let button: PointerButton = match btn.detail {
+                            2 => PointerButton::Auxiliary,
+                            3 => PointerButton::Secondary,
+                            _ => PointerButton::Primary,
+                        };
+                        let pos: Point = Point::new((btn.x as f32) / scale, (btn.y as f32) / scale);
+                        let pressed: bool = ev_type == X11_BUTTON_PRESS;
+                        let pev: PointerEvent = PointerEvent::new(
+                            1,
+                            PointerDevice::Mouse,
+                            pos,
+                            button,
+                            if pressed { 1.0 } else { 0.0 },
+                            linux_x11_modifiers(btn.state),
+                        );
+                        if pressed {
+                            out_events.push(WindowEvent::PointerDown(wid, pev));
+                        } else {
+                            out_events.push(WindowEvent::PointerUp(wid, pev));
+                        }
+                    }
+                }
+            }
+            X11_KEY_PRESS | X11_KEY_RELEASE => {
+                let mut key_ev: X11KeyOrButtonEvent =
+                    *(raw as *const X11EventRaw).cast::<X11KeyOrButtonEvent>();
+                if let Some((wid, _, _)) = linux_find_window(key_ev.window, windows) {
+                    let mut buf: [u8; 16] = [0; 16];
+                    let mut keysym: u64 = 0;
+                    let mut len: i32 = 0;
+                    if !lookup_sym.is_null() {
+                        let lookup_fn: unsafe extern "C" fn(
+                            *mut X11KeyOrButtonEvent,
+                            *mut c_char,
+                            i32,
+                            *mut u64,
+                            *mut c_void,
+                        ) -> i32 = transmute(lookup_sym);
+                        len = lookup_fn(
+                            &mut key_ev,
+                            buf.as_mut_ptr().cast::<c_char>(),
+                            16,
+                            &mut keysym,
+                            null_mut(),
+                        );
+                    }
+                    let decoded_str: Option<&str> = if len > 0 {
+                        from_utf8(&buf[..(len as usize).min(16)]).ok()
+                    } else {
+                        None
+                    };
+                    let first_ch: Option<char> = decoded_str.and_then(|s: &str| s.chars().next());
+                    let code: KeyCode = linux_x11_keysym_to_keycode(keysym, first_ch);
+                    let kev: KeyEvent =
+                        KeyEvent::new(code, linux_x11_modifiers(key_ev.state), false);
+                    if ev_type == X11_KEY_PRESS {
+                        out_events.push(WindowEvent::KeyDown(wid, kev));
+                        if let Some(text) = decoded_str
+                            && text.chars().all(|c: char| !c.is_control())
+                            && !text.is_empty()
+                        {
+                            out_events.push(WindowEvent::TextInput(wid, text.to_string()));
+                        }
+                    } else {
+                        out_events.push(WindowEvent::KeyUp(wid, kev));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Pumps all queued X11 events non-blockingly via `XPending` / `XNextEvent` and translates them to `WindowEvent`s.
 ///
 /// # Arguments
@@ -512,188 +715,55 @@ pub(crate) fn linux_x11_pump_events(
         let x_pending: unsafe extern "C" fn(*mut c_void) -> i32 = transmute(pending_sym);
         let x_next: unsafe extern "C" fn(*mut c_void, *mut X11EventRaw) -> i32 =
             transmute(next_sym);
-        let x_lookup: Option<
-            unsafe extern "C" fn(
-                *mut X11KeyOrButtonEvent,
-                *mut c_char,
-                i32,
-                *mut u64,
-                *mut c_void,
-            ) -> i32,
-        > = if lookup_sym.is_null() {
-            None
-        } else {
-            let func: unsafe extern "C" fn(
-                *mut X11KeyOrButtonEvent,
-                *mut c_char,
-                i32,
-                *mut u64,
-                *mut c_void,
-            ) -> i32 = transmute::<
-                *mut c_void,
-                unsafe extern "C" fn(
-                    *mut X11KeyOrButtonEvent,
-                    *mut c_char,
-                    i32,
-                    *mut u64,
-                    *mut c_void,
-                ) -> i32,
-            >(lookup_sym);
-            Some(func)
-        };
         for disp_addr in displays.into_iter() {
             let disp: *mut c_void = disp_addr as *mut c_void;
             let mut raw: X11EventRaw = X11EventRaw { pad: [0; 24] };
             while x_pending(disp) > 0 {
                 let _: i32 = x_next(disp, &mut raw);
-                let ev_type: i32 = (raw.pad[0] & 0xFFFF_FFFF) as i32;
-                match ev_type {
-                    X11_CONFIGURE_NOTIFY => {
-                        let cfg_ev: X11ConfigureEvent =
-                            *(&raw as *const X11EventRaw).cast::<X11ConfigureEvent>();
-                        if let Some((wid, scale, _)) = linux_find_window(cfg_ev.window, windows) {
-                            let phys_w: u32 = cfg_ev.width.max(1) as u32;
-                            let phys_h: u32 = cfg_ev.height.max(1) as u32;
-                            let exact_lw: f32 = ((phys_w as f32) / scale).max(1.0);
-                            let exact_lh: f32 = ((phys_h as f32) / scale).max(1.0);
-                            let log_w: u32 = exact_lw.round().max(1.0) as u32;
-                            let log_h: u32 = exact_lh.round().max(1.0) as u32;
-                            if let Some(rec) = windows.get_mut(&wid) {
-                                let prev_w: u32 = rec.get_state().get_physical_width();
-                                let prev_h: u32 = rec.get_state().get_physical_height();
-                                if prev_w != phys_w || prev_h != phys_h {
-                                    rec.get_mut_config().set_width(log_w);
-                                    rec.get_mut_config().set_height(log_h);
-                                    rec.get_mut_state().set_logical_width(exact_lw);
-                                    rec.get_mut_state().set_logical_height(exact_lh);
-                                    rec.get_mut_state().set_physical_width(phys_w);
-                                    rec.get_mut_state().set_physical_height(phys_h);
-                                    out_events.push(WindowEvent::Resized(wid, log_w, log_h, scale));
-                                }
-                            }
-                        }
-                    }
-                    X11_EXPOSE => {
-                        let kb: X11KeyOrButtonEvent =
-                            *(&raw as *const X11EventRaw).cast::<X11KeyOrButtonEvent>();
-                        if let Some((wid, _, _)) = linux_find_window(kb.window, windows) {
-                            out_events.push(WindowEvent::RedrawRequested(wid));
-                        }
-                    }
-                    X11_CLIENT_MESSAGE => {
-                        let cm: X11ClientMessageEvent =
-                            *(&raw as *const X11EventRaw).cast::<X11ClientMessageEvent>();
-                        if let Some((wid, _, wm_del)) = linux_find_window(cm.window, windows)
-                            && wm_del != 0
-                            && cm.data[0] == wm_del
-                        {
-                            out_events.push(WindowEvent::CloseRequested(wid));
-                        }
-                    }
-                    X11_FOCUS_IN | X11_FOCUS_OUT => {
-                        let kb: X11KeyOrButtonEvent =
-                            *(&raw as *const X11EventRaw).cast::<X11KeyOrButtonEvent>();
-                        if let Some((wid, _, _)) = linux_find_window(kb.window, windows) {
-                            let focused: bool = ev_type == X11_FOCUS_IN;
-                            if let Some(rec) = windows.get_mut(&wid) {
-                                rec.get_mut_state().set_focused(focused);
-                            }
-                            out_events.push(WindowEvent::Focused(wid, focused));
-                        }
-                    }
-                    X11_MOTION_NOTIFY => {
-                        let mot: X11MotionEvent =
-                            *(&raw as *const X11EventRaw).cast::<X11MotionEvent>();
-                        if let Some((wid, scale, _)) = linux_find_window(mot.window, windows) {
-                            let pos: Point =
-                                Point::new((mot.x as f32) / scale, (mot.y as f32) / scale);
-                            let ev: PointerEvent = PointerEvent::new(
-                                1,
-                                PointerDevice::Mouse,
-                                pos,
-                                PointerButton::Primary,
-                                0.0,
-                                linux_x11_modifiers(mot.state),
-                            );
-                            out_events.push(WindowEvent::PointerMove(wid, ev));
-                        }
-                    }
-                    X11_BUTTON_PRESS | X11_BUTTON_RELEASE => {
-                        let btn: X11KeyOrButtonEvent =
-                            *(&raw as *const X11EventRaw).cast::<X11KeyOrButtonEvent>();
-                        if let Some((wid, scale, _)) = linux_find_window(btn.window, windows) {
-                            if ev_type == X11_BUTTON_PRESS && (btn.detail == 4 || btn.detail == 5) {
-                                let dy: f32 = if btn.detail == 4 { -40.0 } else { 40.0 };
-                                out_events.push(WindowEvent::Scroll(wid, Point::new(0.0, dy)));
-                            } else if btn.detail <= 3 {
-                                let button: PointerButton = match btn.detail {
-                                    2 => PointerButton::Auxiliary,
-                                    3 => PointerButton::Secondary,
-                                    _ => PointerButton::Primary,
-                                };
-                                let pos: Point =
-                                    Point::new((btn.x as f32) / scale, (btn.y as f32) / scale);
-                                let pressed: bool = ev_type == X11_BUTTON_PRESS;
-                                let pev: PointerEvent = PointerEvent::new(
-                                    1,
-                                    PointerDevice::Mouse,
-                                    pos,
-                                    button,
-                                    if pressed { 1.0 } else { 0.0 },
-                                    linux_x11_modifiers(btn.state),
-                                );
-                                if pressed {
-                                    out_events.push(WindowEvent::PointerDown(wid, pev));
-                                } else {
-                                    out_events.push(WindowEvent::PointerUp(wid, pev));
-                                }
-                            }
-                        }
-                    }
-                    X11_KEY_PRESS | X11_KEY_RELEASE => {
-                        let mut key_ev: X11KeyOrButtonEvent =
-                            *(&raw as *const X11EventRaw).cast::<X11KeyOrButtonEvent>();
-                        if let Some((wid, _, _)) = linux_find_window(key_ev.window, windows) {
-                            let mut buf: [u8; 16] = [0; 16];
-                            let mut keysym: u64 = 0;
-                            let mut len: i32 = 0;
-                            if let Some(lookup_fn) = x_lookup {
-                                len = lookup_fn(
-                                    &mut key_ev,
-                                    buf.as_mut_ptr().cast::<c_char>(),
-                                    16,
-                                    &mut keysym,
-                                    null_mut(),
-                                );
-                            }
-                            let decoded_str: Option<&str> = if len > 0 {
-                                from_utf8(&buf[..(len as usize).min(16)]).ok()
-                            } else {
-                                None
-                            };
-                            let first_ch: Option<char> =
-                                decoded_str.and_then(|s: &str| s.chars().next());
-                            let code: KeyCode = linux_x11_keysym_to_keycode(keysym, first_ch);
-                            let kev: KeyEvent =
-                                KeyEvent::new(code, linux_x11_modifiers(key_ev.state), false);
-                            if ev_type == X11_KEY_PRESS {
-                                out_events.push(WindowEvent::KeyDown(wid, kev));
-                                if let Some(text) = decoded_str
-                                    && text.chars().all(|c: char| !c.is_control())
-                                    && !text.is_empty()
-                                {
-                                    out_events.push(WindowEvent::TextInput(wid, text.to_string()));
-                                }
-                            } else {
-                                out_events.push(WindowEvent::KeyUp(wid, kev));
-                            }
-                        }
-                    }
-                    _ => {}
-                }
+                linux_x11_handle_raw_event(&raw, lookup_sym, windows, out_events);
             }
         }
     }
+}
+
+/// Blocks on X11 `XNextEvent` with zero CPU usage until an OS event wakes the connection, then drains remaining events.
+///
+/// # Arguments
+///
+/// - `usize` - Loaded `libX11` handle.
+/// - `&mut HashMap<WindowId, LinuxWindowRecord>` - Active Linux windows map.
+/// - `&mut Vec<WindowEvent>` - Event sink receiving translated window events.
+pub(crate) fn linux_x11_wait_events(
+    lib: usize,
+    windows: &mut HashMap<WindowId, LinuxWindowRecord>,
+    out_events: &mut Vec<WindowEvent>,
+) {
+    if lib == 0 || windows.is_empty() {
+        return;
+    }
+    let first_disp: usize = windows
+        .values()
+        .find(|rec: &&LinuxWindowRecord| !rec.get_is_wayland() && rec.get_display() != 0)
+        .map(LinuxWindowRecord::get_display)
+        .unwrap_or(0);
+    if first_disp == 0 {
+        return;
+    }
+    let x11: *mut c_void = lib as *mut c_void;
+    let next_sym: *mut c_void = linux_dlsym(x11, SYM_X_NEXT_EVENT);
+    let lookup_sym: *mut c_void = linux_dlsym(x11, SYM_X_LOOKUP_STRING);
+    if next_sym.is_null() {
+        return;
+    }
+    // SAFETY: Standard blocking Xlib `XNextEvent` wait on active `Display*`.
+    unsafe {
+        let x_next: unsafe extern "C" fn(*mut c_void, *mut X11EventRaw) -> i32 =
+            transmute(next_sym);
+        let mut raw: X11EventRaw = X11EventRaw { pad: [0; 24] };
+        let _: i32 = x_next(first_disp as *mut c_void, &mut raw);
+        linux_x11_handle_raw_event(&raw, lookup_sym, windows, out_events);
+    }
+    linux_x11_pump_events(lib, windows, out_events);
 }
 
 /// Updates an X11 window title via dynamically resolved `XStoreName`.

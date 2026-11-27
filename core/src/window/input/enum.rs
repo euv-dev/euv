@@ -127,6 +127,8 @@ pub enum WindowEvent {
     RedrawRequested(WindowId),
     /// Operating system delivered a custom-scheme or universal deep link URI.
     DeepLink(DeepLinkEvent),
+    /// Normalized cross-platform system or lifecycle event.
+    System(SystemEvent),
 }
 
 /// Cross-platform high-level pointer/touch gesture classification emitted by `App`.

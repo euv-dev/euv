@@ -8,13 +8,37 @@ impl Default for MacOsPlatform {
     ///
     /// - `Self` - Initialized macOS backend.
     fn default() -> Self {
+        let initial_theme: ThemeMode = macos_system_theme();
+        let initial_low_power: bool = macos_low_power_mode();
+        let initial_pb: isize = macos_pasteboard_change_count();
         Self {
             next_id: 1,
             windows: HashMap::new(),
             pending_events: Vec::new(),
             clipboard_cache: None,
             cached_color_space: 0,
+            last_app_active: true,
+            last_miniaturized: false,
+            last_low_power: initial_low_power,
+            last_pasteboard_count: initial_pb,
+            last_theme: initial_theme,
+            last_app_hidden: false,
+            pump_paused: false,
         }
+    }
+}
+
+/// AppKit system event injection helpers for `MacOsPlatform`.
+impl MacOsPlatform {
+    /// Enqueues a normalized macOS `SystemEvent` to be drained on the next `poll_events()` tick.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable macOS platform backend.
+    /// - `SystemEvent` - System event to enqueue.
+    pub fn push_system_event(&mut self, event: SystemEvent) {
+        self.get_mut_pending_events()
+            .push(WindowEvent::System(event));
     }
 }
 
@@ -349,15 +373,36 @@ impl PlatformBackend for MacOsPlatform {
         let mut pumped: Vec<WindowEvent> = Vec::new();
         macos_pump_events(self.get_windows(), &mut pumped);
         let mut resized_events: Vec<(WindowId, u32, u32, f32)> = Vec::new();
+        let mut focus_events: Vec<(WindowId, bool)> = Vec::new();
         let mut closed_ids: Vec<WindowId> = Vec::new();
+        let app_hidden: bool = macos_app_is_hidden();
+        let mut any_miniaturized: bool = false;
+        let mut primary_wid: Option<WindowId> = None;
         for (id, rec) in self.get_mut_windows().iter_mut() {
+            if primary_wid.is_none() {
+                primary_wid = Some(*id);
+            }
             let win_ptr: *mut c_void = rec.get_ns_window() as *mut c_void;
-            if rec.get_config().get_visible()
-                && !win_ptr.is_null()
-                && !objc_send_bool0(win_ptr, objc_sel(OBJC_SEL_IS_VISIBLE))
-            {
-                closed_ids.push(*id);
-                continue;
+            if !win_ptr.is_null() {
+                let is_mini: bool = objc_send_bool0(win_ptr, objc_sel(OBJC_SEL_IS_MINIATURIZED));
+                if is_mini {
+                    any_miniaturized = true;
+                    continue;
+                }
+                if app_hidden {
+                    continue;
+                }
+                if rec.get_config().get_visible()
+                    && !objc_send_bool0(win_ptr, objc_sel(OBJC_SEL_IS_VISIBLE))
+                {
+                    closed_ids.push(*id);
+                    continue;
+                }
+                let is_key: bool = objc_send_bool0(win_ptr, objc_sel(OBJC_SEL_IS_KEY_WINDOW));
+                if is_key != rec.get_state().get_focused() {
+                    rec.get_mut_state().set_focused(is_key);
+                    focus_events.push((*id, is_key));
+                }
             }
             let view_ptr: *mut c_void = rec.get_ns_view() as *mut c_void;
             if let Some((w, h)) = macos_view_logical_size(view_ptr) {
@@ -385,6 +430,61 @@ impl PlatformBackend for MacOsPlatform {
                 }
             }
         }
+        let was_background: bool = self.get_last_miniaturized() || self.get_last_app_hidden();
+        let in_background: bool = any_miniaturized || app_hidden;
+        self.set_last_miniaturized(any_miniaturized);
+        self.set_last_app_hidden(app_hidden);
+        if in_background != was_background {
+            let lc_ev: SystemEvent = if in_background {
+                SystemEvent::Background
+            } else {
+                SystemEvent::Foreground
+            };
+            self.get_mut_pending_events()
+                .push(WindowEvent::System(lc_ev));
+        }
+        let app_active: bool = macos_app_is_active();
+        if app_active != self.get_last_app_active() {
+            self.set_last_app_active(app_active);
+            if !in_background {
+                let act_ev: SystemEvent = if app_active {
+                    SystemEvent::Foreground
+                } else {
+                    SystemEvent::Inactive
+                };
+                self.get_mut_pending_events()
+                    .push(WindowEvent::System(act_ev));
+            }
+        }
+        let cur_theme: ThemeMode = macos_system_theme();
+        if cur_theme != self.get_last_theme() {
+            self.set_last_theme(cur_theme);
+            if let Some(wid) = primary_wid {
+                self.get_mut_pending_events()
+                    .push(WindowEvent::ThemeChanged(wid, cur_theme));
+            } else {
+                self.get_mut_pending_events()
+                    .push(WindowEvent::System(SystemEvent::ThemeChanged(cur_theme)));
+            }
+        }
+        let cur_low_power: bool = macos_low_power_mode();
+        if cur_low_power != self.get_last_low_power() {
+            self.set_last_low_power(cur_low_power);
+            self.get_mut_pending_events().push(WindowEvent::System(
+                SystemEvent::LowPowerModeChanged(cur_low_power),
+            ));
+        }
+        let cur_pb: isize = macos_pasteboard_change_count();
+        let prev_pb: isize = self.get_last_pasteboard_count();
+        if prev_pb >= 0 && cur_pb != prev_pb {
+            self.get_mut_pending_events()
+                .push(WindowEvent::System(SystemEvent::ClipboardChanged));
+        }
+        self.set_last_pasteboard_count(cur_pb);
+        for (id, focused) in focus_events.into_iter() {
+            self.get_mut_pending_events()
+                .push(WindowEvent::Focused(id, focused));
+        }
         for (id, w, h, scale) in resized_events.into_iter() {
             self.get_mut_pending_events()
                 .push(WindowEvent::Resized(id, w, h, scale));
@@ -395,6 +495,47 @@ impl PlatformBackend for MacOsPlatform {
                 .push(WindowEvent::CloseRequested(id));
         }
         take(self.get_mut_pending_events())
+    }
+
+    /// Blocks inside AppKit's kernel run loop until an OS event arrives, consuming zero CPU while backgrounded.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable macOS platform.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<WindowEvent>` - Events received upon wake.
+    fn wait_for_events(&mut self) -> Vec<WindowEvent> {
+        if self.get_pending_events().is_empty() && !self.get_windows().is_empty() {
+            let mut waited: Vec<WindowEvent> = Vec::new();
+            macos_wait_next_event(self.get_windows(), &mut waited);
+            self.get_mut_pending_events().extend(waited);
+        }
+        self.poll_events()
+    }
+
+    /// Updates macOS background frame-pump pause state.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable macOS platform.
+    /// - `bool` - `true` when paused in background; `false` when active.
+    fn set_frame_pump_paused(&mut self, paused: bool) {
+        self.set_pump_paused(paused);
+    }
+
+    /// Returns whether the macOS frame pump is currently paused for background freeze.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Platform reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when paused in background.
+    fn is_frame_pump_paused(&self) -> bool {
+        self.get_pump_paused()
     }
 
     /// Blits the RGBA8 `Framebuffer` directly onto the window's `CALayer` via CoreGraphics.
@@ -454,6 +595,7 @@ impl PlatformBackend for MacOsPlatform {
     /// - `Result<(), PlatformError>` - Write status.
     fn write_clipboard(&mut self, text: &str) -> Result<(), PlatformError> {
         self.set_clipboard_cache(Some(text.to_string()));
+        let _: bool = write_system_clipboard(text);
         Ok(())
     }
 

@@ -156,9 +156,29 @@ where
     ///
     /// - `SignalId` - Underlying arena identifier.
     #[must_use]
+    #[inline(always)]
     pub fn id(&self) -> SignalId {
         let Self { id, .. } = *self;
         id
+    }
+
+    /// Returns whether this signal currently has at least one active downstream subscriber.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Signal handle to inspect.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - True when the signal is alive and observed by at least one memo or effect.
+    #[must_use]
+    #[inline(always)]
+    pub fn has_subscribers(&self) -> bool {
+        let id: SignalId = self.id();
+        with_runtime(
+            |rt: &mut ReactiveRuntime| rt.signal_has_subscribers(id),
+            false,
+        )
     }
 
     /// Records a dependency on this signal in the active observer without cloning its value.
@@ -166,6 +186,7 @@ where
     /// # Arguments
     ///
     /// - `&Self` - Signal handle to track.
+    #[inline(always)]
     pub fn track(&self) {
         let id: SignalId = self.id();
         with_runtime(
@@ -186,6 +207,7 @@ where
     ///
     /// - `Option<T>` - Current value if the signal is still alive.
     #[must_use]
+    #[inline(always)]
     pub fn try_get(&self) -> Option<T>
     where
         T: Clone,
@@ -207,6 +229,7 @@ where
     ///
     /// - `T` - Current value or default fallback.
     #[must_use]
+    #[inline(always)]
     pub fn get(&self) -> T
     where
         T: Clone + Default,
@@ -224,6 +247,7 @@ where
     ///
     /// - `Option<T>` - Current value if alive.
     #[must_use]
+    #[inline(always)]
     pub fn try_get_untracked(&self) -> Option<T>
     where
         T: Clone,
@@ -245,6 +269,7 @@ where
     ///
     /// - `T` - Current value or default fallback.
     #[must_use]
+    #[inline(always)]
     pub fn get_untracked(&self) -> T
     where
         T: Clone + Default,
@@ -262,6 +287,7 @@ where
     /// # Returns
     ///
     /// - `Option<R>` - Closure return value if the signal is alive.
+    #[inline]
     pub fn with<F, R>(&self, reader: F) -> Option<R>
     where
         T: Clone,
@@ -281,6 +307,7 @@ where
     /// # Returns
     ///
     /// - `bool` - True when the signal was alive and updated.
+    #[inline(always)]
     pub fn set(&self, value: T) -> bool {
         let id: SignalId = self.id();
         let (updated, should_flush): (bool, bool) = with_runtime(
@@ -303,6 +330,7 @@ where
     /// # Returns
     ///
     /// - `bool` - True when the value changed and downstream effects were scheduled.
+    #[inline(always)]
     pub fn set_if_changed(&self, value: T) -> bool
     where
         T: PartialEq,
@@ -318,7 +346,7 @@ where
         updated
     }
 
-    /// Mutates the signal value using `updater` outside the runtime borrow and flushes effects.
+    /// Mutates the signal value in place outside the runtime borrow without cloning and flushes effects.
     ///
     /// # Arguments
     ///
@@ -328,16 +356,29 @@ where
     /// # Returns
     ///
     /// - `bool` - True when the signal was alive and updated.
+    #[inline]
     pub fn update<F>(&self, updater: F) -> bool
     where
         T: Clone,
         F: FnOnce(&mut T),
     {
-        let Some(mut current) = self.try_get_untracked() else {
+        let id: SignalId = self.id();
+        let Some(mut boxed) =
+            with_runtime(|rt: &mut ReactiveRuntime| rt.take_signal_box::<T>(id), None)
+        else {
             return false;
         };
-        updater(&mut current);
-        self.set(current)
+        if let Some(current) = boxed.downcast_mut::<T>() {
+            updater(current);
+        }
+        let (updated, should_flush): (bool, bool) = with_runtime(
+            |rt: &mut ReactiveRuntime| rt.commit_signal_box(id, boxed),
+            (false, false),
+        );
+        if should_flush {
+            flush_effects();
+        }
+        updated
     }
 
     /// Disposes this signal and reclaims its arena slot.

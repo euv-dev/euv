@@ -29,3 +29,71 @@ pub enum NodeState {
     /// Guaranteed dirty and must recompute before reading.
     Dirty,
 }
+
+/// Inline small-list storage eliminating heap allocations for 0..=2 reactive subscribers or dependencies.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) enum SmallSubList<T> {
+    /// Zero items stored inline without heap allocation.
+    #[default]
+    Empty,
+    /// Single item stored inline without heap allocation.
+    One(T),
+    /// Two distinct items stored inline in insertion order without heap allocation.
+    Two(T, T),
+    /// Heap-backed fallback used when three or more items are present.
+    Many(Vec<T>),
+}
+
+/// Zero-allocation snapshot of upstream `MemoId` dependencies during `NodeState::Check` verification.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum MemoCheckDeps {
+    /// Up to four upstream memo dependencies stored inline on the stack without heap allocation.
+    Inline([MemoId; 4], u8),
+    /// Cursor-sliced `(start, end)` range in `ReactiveRuntime::check_scratch` for five or more memo dependencies.
+    Spill(usize, usize),
+}
+
+/// Fused single-borrow preparation outcome for reading a typed `Memo<T>`.
+pub(crate) enum MemoReadPrep<T> {
+    /// Target memo slot is disposed or invalid.
+    Dead,
+    /// Memo was already `NodeState::Clean`; dependency tracked and value cloned in one borrow.
+    Ready(Option<T>),
+    /// Memo is `NodeState::Dirty`; compute closure and prior value staged with tracking frame pushed.
+    Compute(StagedMemo),
+    /// Memo is `NodeState::Check`; upstream memo dependencies extracted for pull verification.
+    Check(MemoCheckDeps),
+}
+
+/// Fused single-borrow preparation outcome for `evaluate_memo`.
+pub(crate) enum MemoEvalPrep {
+    /// Memo is already `NodeState::Clean` or disposed and requires no work.
+    Clean,
+    /// Memo is `NodeState::Dirty`; compute closure and prior value staged with tracking frame pushed.
+    Compute(StagedMemo),
+    /// Memo is `NodeState::Check`; upstream memo dependencies extracted for pull verification.
+    Check(MemoCheckDeps),
+}
+
+/// Result of a single fused pending-effect drain step inside `flush_effects`.
+pub(crate) enum FlushStep {
+    /// No pending effects remain; `flushing` has been cleared and scratch capacity preserved.
+    Done,
+    /// Exactly one pending effect popped without touching batch scratch buffers.
+    Single(EffectId),
+    /// Multiple live pending effects drained into the reusable buffer with a sortedness flag.
+    Batch(Vec<(u32, EffectId)>, bool),
+}
+
+/// Zero-allocation copyable subscriber dispatch target for inline dirty propagation.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum DirtyTarget {
+    /// Zero downstream subscribers; dirty propagation exits immediately.
+    Empty,
+    /// Single downstream subscriber handled inline without touching `dirty_queue`.
+    One(SubscriberId),
+    /// Two downstream subscribers handled inline without touching `dirty_queue`.
+    Two(SubscriberId, SubscriberId),
+    /// Three or more subscribers stored in heap `Vec`, drained through reusable `dirty_queue`.
+    Many,
+}

@@ -105,7 +105,25 @@ pub struct EuvMarkdownListItem {
     pub(crate) checked: Option<bool>,
 }
 
-/// VS Code `Eva Light Bold` / `Eva Dark Bold` syntax-highlighted native code block with header bar, line numbers, line highlighting, and animated copy action.
+/// Single term and definition entry inside an `EuvMarkdownDefList`.
+#[derive(Clone, Data, Debug, Eq, New, PartialEq)]
+pub struct EuvMarkdownDefItem {
+    /// Defined term header.
+    pub(crate) term: String,
+    /// One or more definition descriptions for the term.
+    pub(crate) definitions: Vec<String>,
+}
+
+/// Single parsed footnote definition rendered at the bottom of `EuvMarkdown`.
+#[derive(Clone, Data, Debug, Eq, New, PartialEq)]
+pub struct EuvMarkdownFootnote {
+    /// Footnote identifier (e.g. `"1"` or `"perf"`).
+    pub(crate) id: String,
+    /// Footnote Markdown description text.
+    pub(crate) content: String,
+}
+
+/// VS Code `Eva Light Bold` / `Eva Dark Bold` syntax-highlighted native code block with H+V scrolling, line numbers, fullscreen modal, selectable text, and animated copy action.
 #[derive(Clone, CustomDebug, Data, New, Props)]
 pub struct EuvCodeBlock {
     /// Source code text to display and highlight.
@@ -130,6 +148,16 @@ pub struct EuvCodeBlock {
     #[new(skip)]
     #[prop(custom)]
     pub(crate) highlight_lines: Vec<usize>,
+    /// Maximum inline viewport height in logical pixels (`0.0` defaults to `360.0`).
+    #[new(skip)]
+    #[get(type(copy))]
+    #[prop(custom)]
+    pub(crate) max_height: f32,
+    /// Optional explicit text-selectability override (`None` defaults to `true`).
+    #[new(skip)]
+    #[get(skip)]
+    #[prop(custom)]
+    pub(crate) selectable: Option<bool>,
     /// Optional callback invoked with the raw code when the user clicks Copy.
     #[new(skip)]
     #[debug(skip)]
@@ -149,6 +177,11 @@ pub struct EuvMarkdownHeading {
     /// Active theme tokens.
     #[get(type(copy))]
     pub(crate) tokens: ThemeTokens,
+    /// Optional explicit text-selectability override (`None` defaults to `true`).
+    #[new(skip)]
+    #[get(skip)]
+    #[prop(custom)]
+    pub(crate) selectable: Option<bool>,
 }
 
 /// Native Markdown inline code pill styled with exact VS Code Eva inline-code colors.
@@ -161,7 +194,22 @@ pub struct EuvMarkdownInlineCode {
     pub(crate) tokens: ThemeTokens,
 }
 
-/// Native Markdown rich inline paragraph supporting bold, italic, strikethrough, inline code, links, and `<kbd>` caps.
+/// Native Markdown display math block (`$$...$$`) with rich Unicode mathematical formatting.
+#[derive(Clone, Data, Debug, New, Props)]
+pub struct EuvMarkdownMath {
+    /// Raw LaTeX/math expression body.
+    pub(crate) expression: String,
+    /// Active theme tokens.
+    #[get(type(copy))]
+    pub(crate) tokens: ThemeTokens,
+    /// Optional explicit text-selectability override (`None` defaults to `true`).
+    #[new(skip)]
+    #[get(skip)]
+    #[prop(custom)]
+    pub(crate) selectable: Option<bool>,
+}
+
+/// Native Markdown rich inline paragraph supporting bold, italic, bold-italic, strikethrough, highlight, sup/sub, inline code, math, footnotes, images, links, hard breaks, and `<kbd>` caps.
 #[derive(Clone, CustomDebug, Data, New, Props)]
 pub struct EuvMarkdownParagraph {
     /// Parsed inline spans to flow cleanly inside the paragraph.
@@ -169,6 +217,11 @@ pub struct EuvMarkdownParagraph {
     /// Active theme tokens.
     #[get(type(copy))]
     pub(crate) tokens: ThemeTokens,
+    /// Optional explicit text-selectability override (`None` defaults to `true`).
+    #[new(skip)]
+    #[get(skip)]
+    #[prop(custom)]
+    pub(crate) selectable: Option<bool>,
     /// Optional callback invoked when a user taps a Markdown hyperlink.
     #[new(skip)]
     #[debug(skip)]
@@ -178,7 +231,7 @@ pub struct EuvMarkdownParagraph {
 }
 
 /// Native Markdown blockquote and GitHub-flavored Alert callout (`NOTE`, `TIP`, `IMPORTANT`, `WARNING`, `CAUTION`).
-#[derive(Clone, Data, Debug, New, Props)]
+#[derive(Clone, CustomDebug, Data, New, Props)]
 pub struct EuvMarkdownQuote {
     /// Semantic quote or alert variant.
     #[get(type(copy))]
@@ -188,6 +241,17 @@ pub struct EuvMarkdownQuote {
     /// Active theme tokens.
     #[get(type(copy))]
     pub(crate) tokens: ThemeTokens,
+    /// Optional explicit text-selectability override (`None` defaults to `true`).
+    #[new(skip)]
+    #[get(skip)]
+    #[prop(custom)]
+    pub(crate) selectable: Option<bool>,
+    /// Optional link-click callback propagated to paragraphs inside the callout.
+    #[new(skip)]
+    #[debug(skip)]
+    #[get(skip)]
+    #[prop(custom)]
+    pub(crate) on_link: Option<MarkdownStrCallback>,
 }
 
 /// Native Markdown unordered, ordered, nested, and interactive GFM task-checklist component.
@@ -201,6 +265,22 @@ pub struct EuvMarkdownList {
     /// Active theme tokens.
     #[get(type(copy))]
     pub(crate) tokens: ThemeTokens,
+    /// Starting ordinal index for ordered lists (`0` defaults to `1`).
+    #[new(skip)]
+    #[get(type(copy))]
+    #[prop(custom)]
+    pub(crate) start: usize,
+    /// Optional explicit text-selectability override (`None` defaults to `true`).
+    #[new(skip)]
+    #[get(skip)]
+    #[prop(custom)]
+    pub(crate) selectable: Option<bool>,
+    /// Optional link-click handler for hyperlinks inside list items.
+    #[new(skip)]
+    #[debug(skip)]
+    #[get(skip)]
+    #[prop(custom)]
+    pub(crate) on_link: Option<MarkdownStrCallback>,
     /// Optional callback invoked with `(item_index, next_checked)` when toggling a task item.
     #[new(skip)]
     #[debug(skip)]
@@ -209,8 +289,8 @@ pub struct EuvMarkdownList {
     pub(crate) on_toggle_task: Option<MarkdownTaskCallback>,
 }
 
-/// Native GFM Markdown table with column alignment (`Left`, `Center`, `Right`), tinted header, and zebra striping.
-#[derive(Clone, Data, Debug, New, Props)]
+/// Native GFM Markdown table with column alignment (`Left`, `Center`, `Right`), horizontal scroll on narrow viewports, tinted header, and zebra striping.
+#[derive(Clone, CustomDebug, Data, New, Props)]
 pub struct EuvMarkdownTable {
     /// Column header titles.
     pub(crate) headers: Vec<String>,
@@ -221,6 +301,59 @@ pub struct EuvMarkdownTable {
     /// Active theme tokens.
     #[get(type(copy))]
     pub(crate) tokens: ThemeTokens,
+    /// Optional explicit text-selectability override (`None` defaults to `true`).
+    #[new(skip)]
+    #[get(skip)]
+    #[prop(custom)]
+    pub(crate) selectable: Option<bool>,
+    /// Optional link-click handler for links inside table cells.
+    #[new(skip)]
+    #[debug(skip)]
+    #[get(skip)]
+    #[prop(custom)]
+    pub(crate) on_link: Option<MarkdownStrCallback>,
+}
+
+/// Native Markdown definition list rendering bold terms and indented descriptions.
+#[derive(Clone, CustomDebug, Data, New, Props)]
+pub struct EuvMarkdownDefList {
+    /// Term and definition entries.
+    pub(crate) items: Vec<EuvMarkdownDefItem>,
+    /// Active theme tokens.
+    #[get(type(copy))]
+    pub(crate) tokens: ThemeTokens,
+    /// Optional explicit text-selectability override (`None` defaults to `true`).
+    #[new(skip)]
+    #[get(skip)]
+    #[prop(custom)]
+    pub(crate) selectable: Option<bool>,
+    /// Optional link-click handler for links inside definitions.
+    #[new(skip)]
+    #[debug(skip)]
+    #[get(skip)]
+    #[prop(custom)]
+    pub(crate) on_link: Option<MarkdownStrCallback>,
+}
+
+/// Native Markdown footnotes footer section rendering numbered `[^id]` entries.
+#[derive(Clone, CustomDebug, Data, New, Props)]
+pub struct EuvMarkdownFootnotes {
+    /// Ordered footnote entries.
+    pub(crate) footnotes: Vec<EuvMarkdownFootnote>,
+    /// Active theme tokens.
+    #[get(type(copy))]
+    pub(crate) tokens: ThemeTokens,
+    /// Optional explicit text-selectability override (`None` defaults to `true`).
+    #[new(skip)]
+    #[get(skip)]
+    #[prop(custom)]
+    pub(crate) selectable: Option<bool>,
+    /// Optional link-click handler for links inside footnotes.
+    #[new(skip)]
+    #[debug(skip)]
+    #[get(skip)]
+    #[prop(custom)]
+    pub(crate) on_link: Option<MarkdownStrCallback>,
 }
 
 /// Native Markdown thematic horizontal divider (`---`).
@@ -243,8 +376,8 @@ pub struct EuvMarkdownImage {
     pub(crate) tokens: ThemeTokens,
 }
 
-/// Native Markdown collapsible `<details><summary>` disclosure block with smooth expansion.
-#[derive(Clone, Data, Debug, New, Props)]
+/// Native Markdown collapsible `<details><summary>` disclosure block supporting rich nested Markdown content.
+#[derive(Clone, CustomDebug, Data, New, Props)]
 pub struct EuvMarkdownDetails {
     /// Always-visible disclosure header.
     pub(crate) summary: String,
@@ -256,9 +389,32 @@ pub struct EuvMarkdownDetails {
     /// Active theme tokens.
     #[get(type(copy))]
     pub(crate) tokens: ThemeTokens,
+    /// Optional explicit text-selectability override (`None` defaults to `true`).
+    #[new(skip)]
+    #[get(skip)]
+    #[prop(custom)]
+    pub(crate) selectable: Option<bool>,
+    /// Optional link-click handler inside expanded details.
+    #[new(skip)]
+    #[debug(skip)]
+    #[get(skip)]
+    #[prop(custom)]
+    pub(crate) on_link: Option<MarkdownStrCallback>,
+    /// Optional code copy handler inside expanded details.
+    #[new(skip)]
+    #[debug(skip)]
+    #[get(skip)]
+    #[prop(custom)]
+    pub(crate) on_copy: Option<MarkdownStrCallback>,
+    /// Optional task toggle handler inside expanded details.
+    #[new(skip)]
+    #[debug(skip)]
+    #[get(skip)]
+    #[prop(custom)]
+    pub(crate) on_toggle_task: Option<MarkdownTaskCallback>,
 }
 
-/// Complete GitHub-Flavored Markdown native document renderer composing every Markdown component and Eva-themed `EuvCodeBlock`.
+/// Complete GitHub-Flavored & Extended Markdown native document renderer composing every Markdown component, native vector `EuvMermaid`, and Eva-themed `EuvCodeBlock`.
 #[derive(Clone, CustomDebug, Data, New, Props)]
 pub struct EuvMarkdown {
     /// Raw Markdown source text.
@@ -266,6 +422,11 @@ pub struct EuvMarkdown {
     /// Active theme tokens.
     #[get(type(copy))]
     pub(crate) tokens: ThemeTokens,
+    /// Optional explicit text-selectability override (`None` defaults to `true`).
+    #[new(skip)]
+    #[get(skip)]
+    #[prop(custom)]
+    pub(crate) selectable: Option<bool>,
     /// Optional link-click handler receiving the destination URL.
     #[new(skip)]
     #[debug(skip)]

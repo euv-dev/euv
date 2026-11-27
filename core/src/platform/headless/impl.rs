@@ -17,6 +17,8 @@ impl Default for HeadlessPlatform {
             windows: HashMap::new(),
             pending_events: Vec::new(),
             clipboard: None,
+            pump_paused: false,
+            wait_calls: 0,
         }
     }
 }
@@ -51,6 +53,17 @@ impl HeadlessPlatform {
     /// - `WindowEvent` - Synthetic event to inject.
     pub fn push_event(&mut self, event: WindowEvent) {
         self.get_mut_pending_events().push(event);
+    }
+
+    /// Enqueues a synthetic `SystemEvent` wrapped as `PlatformEvent::System` for deterministic testing.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable headless platform.
+    /// - `SystemEvent` - System event to inject.
+    pub fn push_system_event(&mut self, event: SystemEvent) {
+        self.get_mut_pending_events()
+            .push(WindowEvent::System(event));
     }
 
     /// Returns a reference to the last presented `Framebuffer` for `id`.
@@ -319,6 +332,44 @@ impl PlatformBackend for HeadlessPlatform {
     /// - `Vec<WindowEvent>` - Pending events.
     fn poll_events(&mut self) -> Vec<WindowEvent> {
         take(self.get_mut_pending_events())
+    }
+
+    /// Records a background wait invocation and drains any queued synthetic events immediately.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable headless platform.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<WindowEvent>` - Pending events.
+    fn wait_for_events(&mut self) -> Vec<WindowEvent> {
+        let next_calls: u64 = self.get_wait_calls().saturating_add(1);
+        self.set_wait_calls(next_calls);
+        self.poll_events()
+    }
+
+    /// Updates headless frame pump pause state for deterministic background freeze testing.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable headless platform.
+    /// - `bool` - `true` when paused in background; `false` when active.
+    fn set_frame_pump_paused(&mut self, paused: bool) {
+        self.set_pump_paused(paused);
+    }
+
+    /// Returns whether the headless frame pump is currently paused.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Platform reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when paused in background.
+    fn is_frame_pump_paused(&self) -> bool {
+        self.get_pump_paused()
     }
 
     /// Stores a copy of `framebuffer` inside the headless window record for pixel inspection.

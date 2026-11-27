@@ -21,3 +21,9 @@ pub(crate) const SHELL_BOTTOM_NAV_SIDE_MARGIN: f32 = 20.0;
 
 /// Maximum capsule width in logical pixels for the horizontally centered floating bottom dock.
 pub(crate) const SHELL_BOTTOM_NAV_MAX_WIDTH: f32 = 436.0;
+
+/// Status text rendered in the shell FPS pill when no active presentation frames are running.
+pub(crate) const SHELL_FPS_IDLE_LABEL: &str = "Idle";
+
+/// Minimum measured FPS threshold above which the HUD pill reports active frame rate instead of idle.
+pub(crate) const SHELL_FPS_ACTIVE_THRESHOLD: f32 = 0.05;

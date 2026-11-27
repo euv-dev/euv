@@ -80,3 +80,68 @@ impl SystemFontProvider for NativeSystemFont {
         Some(rasterize_glyph(key))
     }
 }
+
+/// Construction helpers for the thread-local Apple CoreText handle cache.
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+impl CoreTextFontCache {
+    /// Creates an empty, zero-allocation CoreText font handle cache.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Empty thread-local CoreText handle cache.
+    #[must_use]
+    pub(crate) const fn new() -> Self {
+        Self {
+            gray_space: null_mut(),
+            fonts: Vec::new(),
+        }
+    }
+}
+
+/// Automatic CoreFoundation and CoreGraphics handle release on thread exit.
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+impl Drop for CoreTextFontCache {
+    /// Releases every cached `CTFontRef` and the singleton `CGColorSpaceRef`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Dropping CoreText cache.
+    fn drop(&mut self) {
+        let Self { gray_space, fonts } = self;
+        release_coretext_cache(*gray_space, fonts);
+        *gray_space = null_mut();
+    }
+}
+
+/// Construction helpers for the thread-local Win32 GDI font handle cache.
+#[cfg(target_os = "windows")]
+impl Win32FontCache {
+    /// Creates an empty, zero-allocation Win32 GDI font handle cache.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Empty thread-local Win32 GDI handle cache.
+    #[must_use]
+    pub(crate) const fn new() -> Self {
+        Self {
+            hdc: null_mut(),
+            fonts: Vec::new(),
+            raw_buf: Vec::new(),
+        }
+    }
+}
+
+/// Automatic Win32 GDI `HFONT` and memory `HDC` release on thread exit.
+#[cfg(target_os = "windows")]
+impl Drop for Win32FontCache {
+    /// Deletes every cached `HFONT` and the persistent memory `HDC`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Dropping Win32 GDI cache.
+    fn drop(&mut self) {
+        let Self { hdc, fonts, .. } = self;
+        release_win32_cache(*hdc, fonts);
+        *hdc = null_mut();
+    }
+}

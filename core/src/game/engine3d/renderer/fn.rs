@@ -93,6 +93,11 @@ where
             work(0, total_items);
             return;
         };
+        let dispatch_workers: usize = pool.worker_count.min(total_chunks.saturating_sub(1));
+        if dispatch_workers == 0 {
+            work(0, total_items);
+            return;
+        }
         let job: Engine3dJob = Engine3dJob {
             trampoline: invoke_engine3d_chunk::<F>,
             ctx_ptr: (&raw const work) as usize,
@@ -102,37 +107,47 @@ where
             next_chunk: AtomicUsize::new(0),
             workers_done: AtomicUsize::new(0),
         };
-        let job_ptr: usize = (&raw const job) as usize;
-        {
-            let (lock, wake_workers, _): &(Mutex<Engine3dPoolState>, Condvar, Condvar) =
-                &pool.shared;
-            if let Ok(mut state) = lock.lock() {
-                let next_epoch: u64 = state.get_epoch().wrapping_add(1);
-                state.set_epoch(next_epoch);
-                state.set_active_job(job_ptr);
-                wake_workers.notify_all();
-            } else {
-                work(0, total_items);
-                return;
+        let shared: &Engine3dPoolShared = &pool.shared;
+        shared
+            .active_workers
+            .store(dispatch_workers, Ordering::Relaxed);
+        shared
+            .active_job
+            .store((&raw const job) as usize, Ordering::Release);
+        let active_slots: &[Engine3dWorkerSlot] = &shared.slots[..dispatch_workers];
+        for slot in active_slots.iter() {
+            let next_epoch: usize = slot.epoch.load(Ordering::Relaxed).wrapping_add(1);
+            slot.epoch.store(next_epoch, Ordering::SeqCst);
+        }
+        for slot in active_slots.iter() {
+            if slot.parked.load(Ordering::SeqCst) != 0
+                && let Ok(_guard) = slot.lock.lock()
+            {
+                slot.wake.notify_one();
             }
         }
         run_engine3d_job_loop(&job);
-        {
-            let (lock, _, wake_caller): &(Mutex<Engine3dPoolState>, Condvar, Condvar) =
-                &pool.shared;
-            if let Ok(mut state) = lock.lock() {
-                while job.workers_done.load(Ordering::Acquire) < pool.worker_count {
-                    match wake_caller.wait(state) {
-                        Ok(next_guard) => state = next_guard,
-                        Err(poisoned) => {
-                            state = poisoned.into_inner();
-                            break;
-                        }
-                    }
+        let mut caller_spins: u32 = 0;
+        while job.workers_done.load(Ordering::Acquire) < dispatch_workers {
+            if caller_spins < ENGINE3D_CALLER_SPIN_LIMIT {
+                caller_spins += 1;
+                spin_loop();
+                continue;
+            }
+            if let Ok(mut guard) = shared.caller_lock.lock() {
+                shared.caller_parked.store(1, Ordering::SeqCst);
+                while job.workers_done.load(Ordering::SeqCst) < dispatch_workers {
+                    let Ok(next_guard) = shared.wake_caller.wait(guard) else {
+                        break;
+                    };
+                    guard = next_guard;
                 }
-                state.set_active_job(0);
+                shared.caller_parked.store(0, Ordering::SeqCst);
+            } else {
+                spin_loop();
             }
         }
+        shared.active_job.store(0, Ordering::Release);
     }
     #[cfg(target_arch = "wasm32")]
     {

@@ -151,6 +151,69 @@ fn parse_lowercase_flag_peek(fork: ParseStream<'_>) -> Result<bool> {
     Ok(!fork.peek(Brace))
 }
 
+/// Returns whether any node in `nodes` expands to code referencing `__euv_ctx`.
+///
+/// # Arguments
+///
+/// - `&[ViewNode]` - Sibling AST nodes to inspect.
+///
+/// # Returns
+///
+/// - `bool` - `true` when at least one descendant requires `__euv_ctx`.
+fn view_nodes_need_ctx(nodes: &[ViewNode]) -> bool {
+    nodes.iter().any(view_node_needs_ctx)
+}
+
+/// Returns whether `node` (or any nested descendant) expands to code referencing `__euv_ctx`.
+///
+/// # Arguments
+///
+/// - `&ViewNode` - Single AST node to inspect.
+///
+/// # Returns
+///
+/// - `bool` - `true` when expansion references `__euv_ctx`.
+fn view_node_needs_ctx(node: &ViewNode) -> bool {
+    match node {
+        ViewNode::StaticText(_) => true,
+        ViewNode::Expr(expr) => matches!(expr.as_ref(), Expr::Closure(_)),
+        ViewNode::Element(elem) => {
+            if is_component_element(&elem.path, elem.args.is_some()) {
+                view_nodes_need_ctx(&elem.children)
+            } else {
+                true
+            }
+        }
+        ViewNode::Spread(_, _) => false,
+        ViewNode::If(if_node) => view_if_needs_ctx(if_node),
+        ViewNode::For(for_node) => view_nodes_need_ctx(&for_node.body),
+        ViewNode::Match(match_node) => match_node
+            .arms
+            .iter()
+            .any(|arm: &ViewMatchArm| view_nodes_need_ctx(&arm.body)),
+    }
+}
+
+/// Returns whether any branch inside `if_node` references `__euv_ctx`.
+///
+/// # Arguments
+///
+/// - `&ViewIf` - Conditional AST node to inspect.
+///
+/// # Returns
+///
+/// - `bool` - `true` when any branch requires `__euv_ctx`.
+fn view_if_needs_ctx(if_node: &ViewIf) -> bool {
+    if view_nodes_need_ctx(&if_node.then_nodes) {
+        return true;
+    }
+    match &if_node.else_branch {
+        Some(ViewElseBranch::ElseIf(nested)) => view_if_needs_ctx(nested),
+        Some(ViewElseBranch::ElseBlock(nodes)) => view_nodes_need_ctx(nodes),
+        None => false,
+    }
+}
+
 /// Expands a parsed `ViewMacroInput` into zero-VDOM arena node construction tokens.
 ///
 /// # Arguments
@@ -161,6 +224,12 @@ fn parse_lowercase_flag_peek(fork: ParseStream<'_>) -> Result<bool> {
 ///
 /// - `proc_macro2::TokenStream` - Generated Rust expression evaluating to `::euv::NodeId`.
 pub(crate) fn expand_view(input: ViewMacroInput) -> proc_macro2::TokenStream {
+    if input.roots.len() == 1
+        && is_single_node_expr(&input.roots[0])
+        && !view_node_needs_ctx(&input.roots[0])
+    {
+        return expand_single_node(&input.roots[0]);
+    }
     let ctx_setup: proc_macro2::TokenStream = quote! {
         let mut __euv_ctx_owned: ::euv::Context = ::euv::current_context();
         let __euv_ctx: &mut ::euv::Context = &mut __euv_ctx_owned;
@@ -271,6 +340,21 @@ fn expand_single_node(node: &ViewNode) -> proc_macro2::TokenStream {
     }
 }
 
+/// Returns whether `children` contains any dynamic loop or spread node that benefits from batched `Vec` attachment.
+///
+/// # Arguments
+///
+/// - `&[ViewNode]` - Sibling child nodes to inspect.
+///
+/// # Returns
+///
+/// - `bool` - `true` when any direct child is `ViewNode::For` or `ViewNode::Spread`.
+fn has_batched_dynamic_child(children: &[ViewNode]) -> bool {
+    children
+        .iter()
+        .any(|child: &ViewNode| matches!(child, ViewNode::For(_) | ViewNode::Spread(_, _)))
+}
+
 /// Expands a slice of sibling `ViewNode` items into optimal batched `append_many` / `append` calls onto `parent`.
 ///
 /// # Arguments
@@ -285,6 +369,44 @@ fn expand_children_into(parent: &Ident, children: &[ViewNode]) -> proc_macro2::T
     if children.is_empty() {
         return quote! {};
     }
+    if children.len() == 1
+        && let ViewNode::Spread(span, expr) = &children[0]
+    {
+        return quote_spanned! {*span=>
+            {
+                let __euv_batch: ::std::vec::Vec<::euv::NodeId> =
+                    ::core::iter::Iterator::collect(::core::iter::Iterator::map(
+                        ::core::iter::IntoIterator::into_iter(#expr),
+                        ::euv::Component::mount,
+                    ));
+                if !__euv_batch.is_empty() {
+                    __euv_ctx.append_many(#parent, &__euv_batch);
+                }
+            }
+        };
+    }
+    if has_batched_dynamic_child(children) {
+        let batch_ident: Ident = Ident::new(IDENT_BATCH, Span::call_site());
+        let static_count: usize = children
+            .iter()
+            .filter(|child: &&ViewNode| is_single_node_expr(child))
+            .count();
+        let vec_init: proc_macro2::TokenStream = if static_count > 0 {
+            quote! { ::std::vec::Vec::with_capacity(#static_count) }
+        } else {
+            quote! { ::std::vec::Vec::new() }
+        };
+        let push_stmts: proc_macro2::TokenStream = expand_children_into_vec(&batch_ident, children);
+        return quote! {
+            {
+                let mut #batch_ident: ::std::vec::Vec<::euv::NodeId> = #vec_init;
+                #push_stmts
+                if !#batch_ident.is_empty() {
+                    __euv_ctx.append_many(#parent, &#batch_ident);
+                }
+            }
+        };
+    }
     let mut out: Vec<proc_macro2::TokenStream> = Vec::new();
     let mut batch: Vec<proc_macro2::TokenStream> = Vec::new();
     for child in children.iter() {
@@ -297,6 +419,113 @@ fn expand_children_into(parent: &Ident, children: &[ViewNode]) -> proc_macro2::T
     }
     flush_child_batch(parent, &mut batch, &mut out);
     quote! { #(#out)* }
+}
+
+/// Expands sibling `ViewNode` items into statements pushing mounted `NodeId` values into `batch`.
+///
+/// # Arguments
+///
+/// - `&Ident` - Mutable `Vec<NodeId>` accumulator identifier.
+/// - `&[ViewNode]` - Ordered sibling children.
+///
+/// # Returns
+///
+/// - `proc_macro2::TokenStream` - Statements appending all mounted child IDs to `batch`.
+fn expand_children_into_vec(batch: &Ident, children: &[ViewNode]) -> proc_macro2::TokenStream {
+    let stmts: Vec<proc_macro2::TokenStream> = children
+        .iter()
+        .map(|child: &ViewNode| match child {
+            ViewNode::Spread(span, expr) => quote_spanned! {*span=>
+                ::core::iter::Extend::extend(
+                    &mut #batch,
+                    ::core::iter::Iterator::map(
+                        ::core::iter::IntoIterator::into_iter(#expr),
+                        ::euv::Component::mount,
+                    ),
+                );
+            },
+            ViewNode::If(if_node) => expand_if_into_vec(batch, if_node),
+            ViewNode::For(for_node) => {
+                let pat: &Pat = &for_node.pat;
+                let iter: &Expr = &for_node.iter;
+                let body: proc_macro2::TokenStream =
+                    expand_children_into_vec(batch, &for_node.body);
+                quote_spanned! {for_node.span=>
+                    {
+                        let __euv_iter = ::core::iter::IntoIterator::into_iter(#iter);
+                        #batch.reserve(::core::iter::Iterator::size_hint(&__euv_iter).0);
+                        for #pat in __euv_iter {
+                            #body
+                        }
+                    }
+                }
+            }
+            ViewNode::Match(match_node) => {
+                let expr: &Expr = &match_node.expr;
+                let arms: Vec<proc_macro2::TokenStream> = match_node
+                    .arms
+                    .iter()
+                    .map(|arm: &ViewMatchArm| {
+                        let pat: &Pat = &arm.pat;
+                        let guard: proc_macro2::TokenStream = match &arm.guard {
+                            Some(g) => quote! { if #g },
+                            None => quote! {},
+                        };
+                        let body: proc_macro2::TokenStream =
+                            expand_children_into_vec(batch, &arm.body);
+                        quote! { #pat #guard => { #body } }
+                    })
+                    .collect();
+                quote_spanned! {match_node.span=>
+                    match #expr {
+                        #(#arms)*
+                    }
+                }
+            }
+            other => {
+                let expr: proc_macro2::TokenStream = expand_single_node(other);
+                quote! {
+                    let __euv_child: ::euv::NodeId = #expr;
+                    #batch.push(__euv_child);
+                }
+            }
+        })
+        .collect();
+    quote! { #(#stmts)* }
+}
+
+/// Expands a `ViewIf` node recursively into statements pushing mounted child IDs into `batch`.
+///
+/// # Arguments
+///
+/// - `&Ident` - Mutable `Vec<NodeId>` accumulator identifier.
+/// - `&ViewIf` - Conditional AST node.
+///
+/// # Returns
+///
+/// - `proc_macro2::TokenStream` - Conditional statements pushing mounted child IDs into `batch`.
+fn expand_if_into_vec(batch: &Ident, if_node: &ViewIf) -> proc_macro2::TokenStream {
+    let cond_tokens: proc_macro2::TokenStream = match &if_node.cond {
+        ViewIfCond::Expr(expr) => quote! { #expr },
+        ViewIfCond::Let(pat, expr) => quote! { let #pat = #expr },
+    };
+    let then_body: proc_macro2::TokenStream = expand_children_into_vec(batch, &if_node.then_nodes);
+    let else_tokens: proc_macro2::TokenStream = match &if_node.else_branch {
+        Some(ViewElseBranch::ElseIf(nested)) => {
+            let nested_if: proc_macro2::TokenStream = expand_if_into_vec(batch, nested);
+            quote! { else #nested_if }
+        }
+        Some(ViewElseBranch::ElseBlock(nodes)) => {
+            let else_body: proc_macro2::TokenStream = expand_children_into_vec(batch, nodes);
+            quote! { else { #else_body } }
+        }
+        None => quote! {},
+    };
+    quote_spanned! {if_node.span=>
+        if #cond_tokens {
+            #then_body
+        } #else_tokens
+    }
 }
 
 /// Flushes accumulated contiguous single-node children into a single `append_many` (or `append` for 1 child).
@@ -343,19 +572,37 @@ fn flush_child_batch(
 fn expand_node_into(parent: &Ident, node: &ViewNode) -> proc_macro2::TokenStream {
     match node {
         ViewNode::Spread(span, expr) => quote_spanned! {*span=>
-            for __euv_spread_item in #expr {
-                let __euv_child: ::euv::NodeId = ::euv::Component::mount(__euv_spread_item);
-                __euv_ctx.append(#parent, __euv_child);
+            {
+                let __euv_batch: ::std::vec::Vec<::euv::NodeId> =
+                    ::core::iter::Iterator::collect(::core::iter::Iterator::map(
+                        ::core::iter::IntoIterator::into_iter(#expr),
+                        ::euv::Component::mount,
+                    ));
+                if !__euv_batch.is_empty() {
+                    __euv_ctx.append_many(#parent, &__euv_batch);
+                }
             }
         },
         ViewNode::If(if_node) => expand_if_into(parent, if_node),
         ViewNode::For(for_node) => {
+            let batch_ident: Ident = Ident::new(IDENT_BATCH, Span::call_site());
             let pat: &Pat = &for_node.pat;
             let iter: &Expr = &for_node.iter;
-            let body: proc_macro2::TokenStream = expand_children_into(parent, &for_node.body);
+            let body: proc_macro2::TokenStream =
+                expand_children_into_vec(&batch_ident, &for_node.body);
             quote_spanned! {for_node.span=>
-                for #pat in #iter {
-                    #body
+                {
+                    let __euv_iter = ::core::iter::IntoIterator::into_iter(#iter);
+                    let mut #batch_ident: ::std::vec::Vec<::euv::NodeId> =
+                        ::std::vec::Vec::with_capacity(
+                            ::core::iter::Iterator::size_hint(&__euv_iter).0,
+                        );
+                    for #pat in __euv_iter {
+                        #body
+                    }
+                    if !#batch_ident.is_empty() {
+                        __euv_ctx.append_many(#parent, &#batch_ident);
+                    }
                 }
             }
         }
@@ -468,17 +715,22 @@ fn expand_component_element(elem: &ViewElement) -> proc_macro2::TokenStream {
         .map(|ch: char| ch.is_ascii_uppercase())
         .unwrap_or(false);
     let args: &[Expr] = elem.args.as_deref().unwrap_or(&[]);
-    let mut builder_expr: proc_macro2::TokenStream = if is_type_ctor {
+    let init_expr: proc_macro2::TokenStream = if is_type_ctor {
         quote! { <#path as ::euv::ComponentProps>::init_props() }
     } else {
         quote! { #path(#(#args),*) }
     };
+    let comp_ident: Ident = Ident::new(IDENT_COMP, Span::call_site());
     let mut seen_props: HashSet<String> = HashSet::new();
     let mut node_ref_expr: Option<&Expr> = None;
+    let mut builder_stmts: Vec<proc_macro2::TokenStream> =
+        Vec::with_capacity(elem.flags.len() + elem.props.len());
     for flag in elem.flags.iter() {
         let fname: &Ident = &flag.name;
         let fargs: &[Expr] = &flag.args;
-        builder_expr = quote! { (#builder_expr).#fname(#(#fargs),*) };
+        builder_stmts.push(quote! {
+            #comp_ident = #comp_ident.#fname(#(#fargs),*);
+        });
     }
     for prop in elem.props.iter() {
         let pname_str: String = prop.name.to_string();
@@ -504,7 +756,9 @@ fn expand_component_element(elem: &ViewElement) -> proc_macro2::TokenStream {
         }
         let pname: &Ident = &prop.name;
         let val: &Expr = &prop.value;
-        builder_expr = quote! { (#builder_expr).#pname(#val) };
+        builder_stmts.push(quote! {
+            #comp_ident = #comp_ident.#pname(#val);
+        });
     }
     let child_method_name: &str = match last_name.as_str() {
         COMP_EUV_PAGE => METHOD_SECTION,
@@ -514,32 +768,37 @@ fn expand_component_element(elem: &ViewElement) -> proc_macro2::TokenStream {
         _ => METHOD_CHILD,
     };
     let child_method: Ident = Ident::new(child_method_name, Span::call_site());
-    let mount_expr: proc_macro2::TokenStream = if elem.children.is_empty() {
-        quote! { ::euv::Component::mount(#builder_expr) }
-    } else if elem.children.iter().all(is_single_node_expr) {
-        let mut chained: proc_macro2::TokenStream = builder_expr;
-        for child in elem.children.iter() {
-            let child_expr: proc_macro2::TokenStream = expand_single_node(child);
-            chained = quote! { (#chained).#child_method(#child_expr) };
-        }
-        quote! { ::euv::Component::mount(#chained) }
+    let has_mutations: bool = !builder_stmts.is_empty() || !elem.children.is_empty();
+    if !has_mutations {
+        return match node_ref_expr {
+            Some(ref_target) => quote! {{
+                let __euv_mounted: ::euv::NodeId = ::euv::Component::mount(#init_expr);
+                ::euv::NodeRefTarget::bind_node_ref(&mut (#ref_target), __euv_mounted);
+                __euv_mounted
+            }},
+            None => quote! { ::euv::Component::mount(#init_expr) },
+        };
+    }
+    let child_stmts: proc_macro2::TokenStream = if elem.children.is_empty() {
+        quote! {}
     } else {
-        let comp_ident: Ident = Ident::new(IDENT_COMP, Span::call_site());
-        let child_stmts: proc_macro2::TokenStream =
-            expand_component_children_into(&comp_ident, &child_method, &elem.children);
-        quote! {{
-            let mut #comp_ident = #builder_expr;
-            #child_stmts
-            ::euv::Component::mount(#comp_ident)
-        }}
+        expand_component_children_into(&comp_ident, &child_method, &elem.children)
     };
     match node_ref_expr {
         Some(ref_target) => quote! {{
-            let __euv_mounted: ::euv::NodeId = #mount_expr;
+            let mut #comp_ident = #init_expr;
+            #(#builder_stmts)*
+            #child_stmts
+            let __euv_mounted: ::euv::NodeId = ::euv::Component::mount(#comp_ident);
             ::euv::NodeRefTarget::bind_node_ref(&mut (#ref_target), __euv_mounted);
             __euv_mounted
         }},
-        None => mount_expr,
+        None => quote! {{
+            let mut #comp_ident = #init_expr;
+            #(#builder_stmts)*
+            #child_stmts
+            ::euv::Component::mount(#comp_ident)
+        }},
     }
 }
 
@@ -684,7 +943,6 @@ fn expand_primitive_element(elem: &ViewElement) -> proc_macro2::TokenStream {
     }
     let mut seen_props: HashSet<String> = HashSet::new();
     let mut base_style: proc_macro2::TokenStream = quote! { ::euv::Style::default() };
-    let mut style_chain: Vec<proc_macro2::TokenStream> = Vec::new();
     let mut style_stmts: Vec<proc_macro2::TokenStream> = Vec::new();
     let mut has_custom_style: bool = false;
     let mut bind_style: Option<&Expr> = None;
@@ -741,8 +999,12 @@ fn expand_primitive_element(elem: &ViewElement) -> proc_macro2::TokenStream {
             PROP_BIND_CHILDREN => bind_children = Some(val),
             PROP_NODE_REF => node_ref = Some(val),
             PROP_FOCUSABLE => focusable = Some(val),
-            PROP_DISPLAY => style_chain.push(quote! { .display(#val) }),
-            PROP_POSITION => style_chain.push(quote! { .position(#val) }),
+            PROP_DISPLAY => style_stmts.push(quote! {
+                __euv_style.get_mut_layout().set_display(#val);
+            }),
+            PROP_POSITION => style_stmts.push(quote! {
+                __euv_style.get_mut_layout().set_position(#val);
+            }),
             PROP_INSET => {
                 style_stmts.push(quote_spanned! {val.span()=>
                     let (__euv_it, __euv_ir, __euv_ib, __euv_il): (
@@ -751,56 +1013,167 @@ fn expand_primitive_element(elem: &ViewElement) -> proc_macro2::TokenStream {
                         ::core::option::Option<f32>,
                         ::core::option::Option<f32>,
                     ) = #val;
-                    __euv_style = __euv_style.inset(__euv_it, __euv_ir, __euv_ib, __euv_il);
+                    __euv_style
+                        .get_mut_layout()
+                        .set_top(__euv_it)
+                        .set_right(__euv_ir)
+                        .set_bottom(__euv_ib)
+                        .set_left(__euv_il);
                 });
             }
-            PROP_WIDTH => style_chain.push(quote! { .width(#val) }),
-            PROP_HEIGHT => style_chain.push(quote! { .height(#val) }),
-            PROP_MIN_WIDTH => style_chain.push(quote! { .min_width(#val) }),
-            PROP_MIN_HEIGHT => style_chain.push(quote! { .min_height(#val) }),
-            PROP_MAX_WIDTH => style_chain.push(quote! { .max_width(#val) }),
-            PROP_MAX_HEIGHT => style_chain.push(quote! { .max_height(#val) }),
-            PROP_ASPECT_RATIO => style_chain.push(quote! { .aspect_ratio(#val) }),
-            PROP_PADDING => style_chain.push(quote! { .padding(#val) }),
-            PROP_MARGIN => style_chain.push(quote! { .margin(#val) }),
-            PROP_GAP => style_chain.push(quote! { .gap(#val) }),
-            PROP_BACKGROUND => style_chain.push(quote! { .background(#val) }),
-            PROP_GRADIENT => style_chain.push(quote! { .gradient(#val) }),
-            PROP_SHADOW => style_chain.push(quote! { .shadow(#val) }),
-            PROP_FOCUS_RING => style_chain.push(quote! { .focus_ring(#val) }),
-            PROP_CURSOR => style_chain.push(quote! { .cursor(#val) }),
-            PROP_POINTER_EVENTS => {
-                style_chain.push(quote! { .pointer_events(#val) });
-            }
-            PROP_STOP_SCROLL_PROPAGATION => {
-                style_chain.push(quote! { .stop_scroll_propagation(#val) });
-            }
-            PROP_STOP_EVENT_PROPAGATION => {
-                style_chain.push(quote! { .stop_event_propagation(#val) });
-            }
-            PROP_COLOR => style_chain.push(quote! { .color(#val) }),
-            PROP_RADIUS => style_chain.push(quote! { .radius(#val) }),
+            PROP_WIDTH => style_stmts.push(quote! {
+                __euv_style.get_mut_layout().set_width(#val);
+            }),
+            PROP_HEIGHT => style_stmts.push(quote! {
+                __euv_style.get_mut_layout().set_height(#val);
+            }),
+            PROP_MIN_WIDTH => style_stmts.push(quote! {
+                __euv_style.get_mut_layout().set_min_width(#val);
+            }),
+            PROP_MIN_HEIGHT => style_stmts.push(quote! {
+                __euv_style.get_mut_layout().set_min_height(#val);
+            }),
+            PROP_MAX_WIDTH => style_stmts.push(quote! {
+                __euv_style.get_mut_layout().set_max_width(#val);
+            }),
+            PROP_MAX_HEIGHT => style_stmts.push(quote! {
+                __euv_style.get_mut_layout().set_max_height(#val);
+            }),
+            PROP_ASPECT_RATIO => style_stmts.push(quote! {
+                let __euv_ratio: f32 = #val;
+                if __euv_ratio > 0.0 && __euv_ratio.is_finite() {
+                    __euv_style
+                        .get_mut_layout()
+                        .set_aspect_ratio(::core::option::Option::Some(__euv_ratio));
+                }
+            }),
+            PROP_PADDING => style_stmts.push(quote! {
+                __euv_style.get_mut_layout().set_padding(#val);
+            }),
+            PROP_MARGIN => style_stmts.push(quote! {
+                __euv_style.get_mut_layout().set_margin(#val);
+            }),
+            PROP_GAP => style_stmts.push(quote! {
+                let __euv_gap: f32 = #val;
+                let __euv_gap_clamped: f32 = __euv_gap.max(0.0);
+                __euv_style
+                    .get_mut_layout()
+                    .set_row_gap(__euv_gap_clamped)
+                    .set_column_gap(__euv_gap_clamped);
+            }),
+            PROP_BACKGROUND => style_stmts.push(quote! {
+                __euv_style
+                    .get_mut_paint()
+                    .set_background(::core::option::Option::Some(#val));
+            }),
+            PROP_GRADIENT => style_stmts.push(quote! {
+                __euv_style
+                    .get_mut_paint()
+                    .set_gradient(::core::option::Option::Some(#val));
+            }),
+            PROP_SHADOW => style_stmts.push(quote! {
+                __euv_style
+                    .get_mut_paint()
+                    .set_shadow(::core::option::Option::Some(#val));
+            }),
+            PROP_FOCUS_RING => style_stmts.push(quote! {
+                __euv_style
+                    .get_mut_paint()
+                    .set_focus_ring(::core::option::Option::Some(#val));
+            }),
+            PROP_CURSOR => style_stmts.push(quote! {
+                __euv_style.get_mut_paint().set_cursor(#val);
+            }),
+            PROP_POINTER_EVENTS => style_stmts.push(quote! {
+                __euv_style.get_mut_paint().set_pointer_events(#val);
+            }),
+            PROP_STOP_SCROLL_PROPAGATION => style_stmts.push(quote! {
+                __euv_style.get_mut_paint().set_stop_scroll_propagation(#val);
+            }),
+            PROP_STOP_EVENT_PROPAGATION => style_stmts.push(quote! {
+                __euv_style.get_mut_paint().set_stop_event_propagation(#val);
+            }),
+            PROP_COLOR => style_stmts.push(quote! {
+                __euv_style.get_mut_text().set_color(#val);
+            }),
+            PROP_RADIUS => style_stmts.push(quote! {
+                let __euv_radius: f32 = #val;
+                __euv_style
+                    .get_mut_paint()
+                    .set_radius(::euv::CornerRadius::all(__euv_radius.max(0.0)));
+            }),
             PROP_BORDER => {
                 style_stmts.push(quote_spanned! {val.span()=>
                     let (__euv_bw, __euv_bc): (f32, ::euv::Color) = #val;
-                    __euv_style = __euv_style.border(__euv_bw, __euv_bc);
+                    __euv_style
+                        .get_mut_paint()
+                        .set_border(::euv::Border::new(__euv_bw.max(0.0), __euv_bc));
                 });
             }
-            PROP_ALIGN => style_chain.push(quote! { .align(#val) }),
-            PROP_JUSTIFY => style_chain.push(quote! { .justify(#val) }),
-            PROP_FLEX_GROW => style_chain.push(quote! { .flex_grow(#val) }),
-            PROP_FLEX_SHRINK => style_chain.push(quote! { .flex_shrink(#val) }),
-            PROP_FLEX_WRAP => style_chain.push(quote! { .wrap(#val) }),
-            PROP_OVERFLOW => style_chain.push(quote! { .overflow(#val) }),
-            PROP_FONT_SIZE => style_chain.push(quote! { .font_size(#val) }),
-            PROP_FONT_WEIGHT => style_chain.push(quote! { .font_weight(#val) }),
-            PROP_FONT_FAMILY => style_chain.push(quote! { .font_family(#val) }),
-            PROP_ITALIC => style_chain.push(quote! { .italic(#val) }),
-            PROP_TEXT_ALIGN => style_chain.push(quote! { .text_align(#val) }),
-            PROP_TEXT_OVERFLOW => style_chain.push(quote! { .text_overflow(#val) }),
-            PROP_Z_INDEX => style_chain.push(quote! { .z_index(#val) }),
-            PROP_OPACITY => style_chain.push(quote! { .opacity(#val) }),
-            PROP_COLUMNS => style_chain.push(quote! { .grid(#val) }),
+            PROP_ALIGN => style_stmts.push(quote! {
+                __euv_style.get_mut_layout().set_align_items(#val);
+            }),
+            PROP_JUSTIFY => style_stmts.push(quote! {
+                __euv_style.get_mut_layout().set_justify_content(#val);
+            }),
+            PROP_FLEX_GROW => style_stmts.push(quote! {
+                let __euv_grow: f32 = #val;
+                __euv_style.get_mut_layout().set_flex_grow(__euv_grow.max(0.0));
+            }),
+            PROP_FLEX_SHRINK => style_stmts.push(quote! {
+                let __euv_shrink: f32 = #val;
+                __euv_style.get_mut_layout().set_flex_shrink(__euv_shrink.max(0.0));
+            }),
+            PROP_FLEX_WRAP => style_stmts.push(quote! {
+                __euv_style.get_mut_layout().set_flex_wrap(#val);
+            }),
+            PROP_OVERFLOW => style_stmts.push(quote! {
+                __euv_style.get_mut_layout().set_overflow(#val);
+            }),
+            PROP_FONT_SIZE => style_stmts.push(quote! {
+                let __euv_font_size: f32 = #val;
+                __euv_style.get_mut_text().set_font_size(__euv_font_size.max(6.0));
+            }),
+            PROP_FONT_WEIGHT => style_stmts.push(quote! {
+                __euv_style.get_mut_text().set_weight(#val);
+            }),
+            PROP_FONT_FAMILY => style_stmts.push(quote! {
+                __euv_style.get_mut_text().set_family(#val);
+            }),
+            PROP_ITALIC => style_stmts.push(quote! {
+                __euv_style.get_mut_text().set_italic(#val);
+            }),
+            PROP_TEXT_ALIGN => style_stmts.push(quote! {
+                __euv_style.get_mut_text().set_align(#val);
+            }),
+            PROP_TEXT_OVERFLOW => style_stmts.push(quote! {
+                __euv_style.get_mut_text().set_overflow(#val);
+            }),
+            PROP_SELECTABLE => style_stmts.push(quote! {
+                __euv_style = __euv_style.selectable(#val);
+            }),
+            PROP_SELECTION_COLOR => style_stmts.push(quote! {
+                __euv_style
+                    .get_mut_text()
+                    .set_selection_color(::core::option::Option::Some(#val));
+            }),
+            PROP_Z_INDEX => style_stmts.push(quote! {
+                __euv_style.get_mut_layout().set_z_index(#val);
+            }),
+            PROP_OPACITY => style_stmts.push(quote! {
+                let __euv_opacity: f32 = #val;
+                __euv_style
+                    .get_mut_paint()
+                    .set_opacity(__euv_opacity.clamp(0.0, 1.0));
+            }),
+            PROP_COLUMNS => style_stmts.push(quote! {
+                let __euv_cols: u16 = #val;
+                let __euv_cols_layout: &mut ::euv::LayoutStyle = __euv_style.get_mut_layout();
+                if __euv_cols_layout.get_display() != ::euv::Display::None {
+                    __euv_cols_layout.set_display(::euv::Display::Grid);
+                }
+                __euv_cols_layout.set_grid_columns(__euv_cols.max(1));
+            }),
             PROP_ON_CLICK => on_click = Some(val),
             PROP_ON_CHANGE => on_change = Some(val),
             PROP_ON_SCROLL => on_scroll = Some(val),
@@ -913,24 +1286,52 @@ fn expand_primitive_element(elem: &ViewElement) -> proc_macro2::TokenStream {
     if a11y_full.is_some() && has_individual_a11y {
         return Error::new(tag_span, ERR_A11Y_CONFLICT).to_compile_error();
     }
-    let dir_chain: proc_macro2::TokenStream = match tag_name.as_str() {
-        TAG_ROW => quote! { .row() },
-        TAG_COLUMN | TAG_COL => quote! { .column() },
-        TAG_SCROLL if !has_custom_style => quote! { .column() },
-        TAG_GRID => quote! { .grid(2) },
+    let dir_stmts: proc_macro2::TokenStream = match tag_name.as_str() {
+        TAG_ROW if has_custom_style => quote! {
+            let __euv_dir_layout: &mut ::euv::LayoutStyle = __euv_style.get_mut_layout();
+            if __euv_dir_layout.get_display() != ::euv::Display::None {
+                __euv_dir_layout.set_display(::euv::Display::Flex);
+            }
+            __euv_dir_layout.set_flex_direction(::euv::FlexDirection::Row);
+        },
+        TAG_COLUMN | TAG_COL if has_custom_style => quote! {
+            let __euv_dir_layout: &mut ::euv::LayoutStyle = __euv_style.get_mut_layout();
+            if __euv_dir_layout.get_display() != ::euv::Display::None {
+                __euv_dir_layout.set_display(::euv::Display::Flex);
+            }
+            __euv_dir_layout.set_flex_direction(::euv::FlexDirection::Column);
+        },
+        TAG_COLUMN | TAG_COL => quote! {
+            __euv_style
+                .get_mut_layout()
+                .set_flex_direction(::euv::FlexDirection::Column);
+        },
+        TAG_SCROLL if !has_custom_style => quote! {
+            __euv_style
+                .get_mut_layout()
+                .set_flex_direction(::euv::FlexDirection::Column);
+        },
+        TAG_GRID if has_custom_style => quote! {
+            let __euv_dir_layout: &mut ::euv::LayoutStyle = __euv_style.get_mut_layout();
+            if __euv_dir_layout.get_display() != ::euv::Display::None {
+                __euv_dir_layout.set_display(::euv::Display::Grid);
+            }
+            __euv_dir_layout.set_grid_columns(2);
+        },
+        TAG_GRID => quote! {
+            __euv_style
+                .get_mut_layout()
+                .set_display(::euv::Display::Grid)
+                .set_grid_columns(2);
+        },
         _ => quote! {},
     };
-    let has_style_expr: bool = has_custom_style
-        || !dir_chain.is_empty()
-        || !style_chain.is_empty()
-        || !style_stmts.is_empty();
-    let style_expr: proc_macro2::TokenStream = if !has_style_expr {
-        quote! { ::euv::Style::default() }
-    } else if style_stmts.is_empty() {
-        quote! { (#base_style) #dir_chain #(#style_chain)* }
+    let style_expr: proc_macro2::TokenStream = if dir_stmts.is_empty() && style_stmts.is_empty() {
+        base_style
     } else {
         quote! {{
-            let mut __euv_style: ::euv::Style = (#base_style) #dir_chain #(#style_chain)*;
+            let mut __euv_style: ::euv::Style = #base_style;
+            #dir_stmts
             #(#style_stmts)*
             __euv_style
         }}
@@ -1058,61 +1459,164 @@ fn expand_primitive_element(elem: &ViewElement) -> proc_macro2::TokenStream {
         _ => quote! { __euv_ctx.fragment() },
     };
     let node_ident: Ident = Ident::new(IDENT_NODE, Span::call_site());
-    let mut post_stmts: Vec<proc_macro2::TokenStream> = Vec::new();
-    if let Some(ref_target) = node_ref {
-        post_stmts.push(quote_spanned! {ref_target.span()=>
-            ::euv::NodeRefTarget::bind_node_ref(&mut (#ref_target), #node_ident);
-        });
-    }
-    if let Some(cb) = bind_style {
-        post_stmts.push(quote_spanned! {cb.span()=> __euv_ctx.bind_style(#node_ident, #cb); });
-    }
-    if let Some(cb) = bind_children {
-        post_stmts.push(quote_spanned! {cb.span()=> __euv_ctx.bind_children(#node_ident, #cb); });
-    }
+    let mut pre_lock_stmts: Vec<proc_macro2::TokenStream> = Vec::new();
+    let mut sync_tree_ops: Vec<proc_macro2::TokenStream> = Vec::new();
+    let mut sync_ctx_stmts: Vec<proc_macro2::TokenStream> = Vec::new();
     if let Some(f) = focusable {
-        post_stmts.push(quote_spanned! {f.span()=> __euv_ctx.set_focusable(#node_ident, #f); });
+        pre_lock_stmts.push(quote_spanned! {f.span()=> let __euv_focusable: bool = #f; });
+        sync_tree_ops.push(quote! {
+            __euv_n.get_mut_interaction().set_focusable(__euv_focusable);
+        });
+        sync_ctx_stmts.push(quote_spanned! {f.span()=> __euv_ctx.set_focusable(#node_ident, #f); });
     }
     if let Some(cb) = on_click {
-        post_stmts.push(quote_spanned! {cb.span()=> __euv_ctx.on_click(#node_ident, #cb); });
+        let wrapped: proc_macro2::TokenStream = wrap_ui_event_handler(cb);
+        pre_lock_stmts.push(quote! { let __euv_on_click: ::euv::UiEventHandler = #wrapped; });
+        sync_tree_ops.push(quote! {
+            __euv_n
+                .get_mut_handlers()
+                .set_on_click(::core::option::Option::Some(__euv_on_click));
+            __euv_n.get_mut_interaction().set_focusable(true);
+            let __euv_p: &mut ::euv::PaintStyle = __euv_n.get_mut_style().get_mut_paint();
+            if __euv_p.get_cursor() == ::euv::CursorIcon::Default {
+                __euv_p.set_cursor(::euv::CursorIcon::Pointer);
+            }
+        });
+        sync_ctx_stmts.push(quote_spanned! {cb.span()=> __euv_ctx.on_click(#node_ident, #cb); });
     }
     if let Some(cb) = on_change {
-        post_stmts.push(quote_spanned! {cb.span()=> __euv_ctx.on_change(#node_ident, #cb); });
+        let wrapped: proc_macro2::TokenStream = wrap_ui_event_handler(cb);
+        pre_lock_stmts.push(quote! { let __euv_on_change: ::euv::UiEventHandler = #wrapped; });
+        sync_tree_ops.push(quote! {
+            __euv_n
+                .get_mut_handlers()
+                .set_on_change(::core::option::Option::Some(__euv_on_change));
+        });
+        sync_ctx_stmts.push(quote_spanned! {cb.span()=> __euv_ctx.on_change(#node_ident, #cb); });
     }
     if let Some(cb) = on_scroll {
-        post_stmts.push(quote_spanned! {cb.span()=> __euv_ctx.on_scroll(#node_ident, #cb); });
+        let wrapped: proc_macro2::TokenStream = wrap_ui_event_handler(cb);
+        pre_lock_stmts.push(quote! { let __euv_on_scroll: ::euv::UiEventHandler = #wrapped; });
+        sync_tree_ops.push(quote! {
+            __euv_n
+                .get_mut_handlers()
+                .set_on_scroll(::core::option::Option::Some(__euv_on_scroll));
+        });
+        sync_ctx_stmts.push(quote_spanned! {cb.span()=> __euv_ctx.on_scroll(#node_ident, #cb); });
     }
     if let Some(cb) = on_pointer_down {
-        post_stmts.push(quote_spanned! {cb.span()=> __euv_ctx.on_pointer_down(#node_ident, #cb); });
+        let wrapped: proc_macro2::TokenStream = wrap_ui_event_handler(cb);
+        pre_lock_stmts.push(quote! { let __euv_on_pdown: ::euv::UiEventHandler = #wrapped; });
+        sync_tree_ops.push(quote! {
+            __euv_n
+                .get_mut_handlers()
+                .set_on_pointer_down(::core::option::Option::Some(__euv_on_pdown));
+            let __euv_p: &mut ::euv::PaintStyle = __euv_n.get_mut_style().get_mut_paint();
+            if __euv_p.get_cursor() == ::euv::CursorIcon::Default {
+                __euv_p.set_cursor(::euv::CursorIcon::Pointer);
+            }
+        });
+        sync_ctx_stmts
+            .push(quote_spanned! {cb.span()=> __euv_ctx.on_pointer_down(#node_ident, #cb); });
     }
     if let Some(cb) = on_pointer_move {
-        post_stmts.push(quote_spanned! {cb.span()=> __euv_ctx.on_pointer_move(#node_ident, #cb); });
+        let wrapped: proc_macro2::TokenStream = wrap_ui_event_handler(cb);
+        pre_lock_stmts.push(quote! { let __euv_on_pmove: ::euv::UiEventHandler = #wrapped; });
+        sync_tree_ops.push(quote! {
+            __euv_n
+                .get_mut_handlers()
+                .set_on_pointer_move(::core::option::Option::Some(__euv_on_pmove));
+        });
+        sync_ctx_stmts
+            .push(quote_spanned! {cb.span()=> __euv_ctx.on_pointer_move(#node_ident, #cb); });
     }
     if let Some(cb) = on_pointer_up {
-        post_stmts.push(quote_spanned! {cb.span()=> __euv_ctx.on_pointer_up(#node_ident, #cb); });
+        let wrapped: proc_macro2::TokenStream = wrap_ui_event_handler(cb);
+        pre_lock_stmts.push(quote! { let __euv_on_pup: ::euv::UiEventHandler = #wrapped; });
+        sync_tree_ops.push(quote! {
+            __euv_n
+                .get_mut_handlers()
+                .set_on_pointer_up(::core::option::Option::Some(__euv_on_pup));
+        });
+        sync_ctx_stmts
+            .push(quote_spanned! {cb.span()=> __euv_ctx.on_pointer_up(#node_ident, #cb); });
     }
     if let Some(cb) = on_pointer_enter {
-        post_stmts
+        let wrapped: proc_macro2::TokenStream = wrap_ui_event_handler(cb);
+        pre_lock_stmts.push(quote! { let __euv_on_penter: ::euv::UiEventHandler = #wrapped; });
+        sync_tree_ops.push(quote! {
+            __euv_n
+                .get_mut_handlers()
+                .set_on_pointer_enter(::core::option::Option::Some(__euv_on_penter));
+        });
+        sync_ctx_stmts
             .push(quote_spanned! {cb.span()=> __euv_ctx.on_pointer_enter(#node_ident, #cb); });
     }
     if let Some(cb) = on_pointer_leave {
-        post_stmts
+        let wrapped: proc_macro2::TokenStream = wrap_ui_event_handler(cb);
+        pre_lock_stmts.push(quote! { let __euv_on_pleave: ::euv::UiEventHandler = #wrapped; });
+        sync_tree_ops.push(quote! {
+            __euv_n
+                .get_mut_handlers()
+                .set_on_pointer_leave(::core::option::Option::Some(__euv_on_pleave));
+        });
+        sync_ctx_stmts
             .push(quote_spanned! {cb.span()=> __euv_ctx.on_pointer_leave(#node_ident, #cb); });
     }
     if let Some(cb) = on_hover {
-        post_stmts.push(quote_spanned! {cb.span()=> __euv_ctx.on_hover(#node_ident, #cb); });
+        let wrapped: proc_macro2::TokenStream = wrap_ui_event_handler(cb);
+        pre_lock_stmts.push(quote! {
+            let __euv_on_hover_enter: ::euv::UiEventHandler = #wrapped;
+            let __euv_on_hover_leave: ::euv::UiEventHandler =
+                ::std::rc::Rc::clone(&__euv_on_hover_enter);
+        });
+        sync_tree_ops.push(quote! {
+            let __euv_h: &mut ::euv::EventHandlers = __euv_n.get_mut_handlers();
+            __euv_h.set_on_pointer_enter(::core::option::Option::Some(__euv_on_hover_enter));
+            __euv_h.set_on_pointer_leave(::core::option::Option::Some(__euv_on_hover_leave));
+        });
+        sync_ctx_stmts.push(quote_spanned! {cb.span()=> __euv_ctx.on_hover(#node_ident, #cb); });
     }
     if let Some(cb) = on_key {
-        post_stmts.push(quote_spanned! {cb.span()=> __euv_ctx.on_key(#node_ident, #cb); });
+        let wrapped: proc_macro2::TokenStream = wrap_ui_event_handler(cb);
+        pre_lock_stmts.push(quote! { let __euv_on_key: ::euv::UiEventHandler = #wrapped; });
+        sync_tree_ops.push(quote! {
+            __euv_n
+                .get_mut_handlers()
+                .set_on_key_down(::core::option::Option::Some(__euv_on_key));
+            __euv_n.get_mut_interaction().set_focusable(true);
+        });
+        sync_ctx_stmts.push(quote_spanned! {cb.span()=> __euv_ctx.on_key(#node_ident, #cb); });
     }
     if let Some(cb) = on_focus {
-        post_stmts.push(quote_spanned! {cb.span()=> __euv_ctx.on_focus(#node_ident, #cb); });
+        let wrapped: proc_macro2::TokenStream = wrap_ui_event_handler(cb);
+        pre_lock_stmts.push(quote! { let __euv_on_focus: ::euv::UiEventHandler = #wrapped; });
+        sync_tree_ops.push(quote! {
+            __euv_n
+                .get_mut_handlers()
+                .set_on_focus(::core::option::Option::Some(__euv_on_focus));
+            __euv_n.get_mut_interaction().set_focusable(true);
+        });
+        sync_ctx_stmts.push(quote_spanned! {cb.span()=> __euv_ctx.on_focus(#node_ident, #cb); });
     }
     if let Some(cb) = on_blur {
-        post_stmts.push(quote_spanned! {cb.span()=> __euv_ctx.on_blur(#node_ident, #cb); });
+        let wrapped: proc_macro2::TokenStream = wrap_ui_event_handler(cb);
+        pre_lock_stmts.push(quote! { let __euv_on_blur: ::euv::UiEventHandler = #wrapped; });
+        sync_tree_ops.push(quote! {
+            __euv_n
+                .get_mut_handlers()
+                .set_on_blur(::core::option::Option::Some(__euv_on_blur));
+        });
+        sync_ctx_stmts.push(quote_spanned! {cb.span()=> __euv_ctx.on_blur(#node_ident, #cb); });
     }
     if let Some(props_expr) = a11y_full {
-        post_stmts.push(
+        pre_lock_stmts.push(
+            quote_spanned! {props_expr.span()=> let __euv_a11y: ::euv::A11yProps = #props_expr; },
+        );
+        sync_tree_ops.push(quote! {
+            __euv_n.set_a11y(::core::option::Option::Some(__euv_a11y));
+        });
+        sync_ctx_stmts.push(
             quote_spanned! {props_expr.span()=> __euv_ctx.set_a11y(#node_ident, #props_expr); },
         );
     } else if has_individual_a11y {
@@ -1140,37 +1644,249 @@ fn expand_primitive_element(elem: &ViewElement) -> proc_macro2::TokenStream {
             Some(c) => quote! { __euv_a11y.set_checked(#c); },
             None => quote! {},
         };
-        post_stmts.push(quote! {
+        let build_a11y: proc_macro2::TokenStream = quote! {
             let mut __euv_a11y: ::euv::A11yProps = ::euv::A11yProps::new(#role_expr, #label_expr);
             #hint_stmt
             #val_stmt
             #dis_stmt
             #chk_stmt
+        };
+        pre_lock_stmts.push(build_a11y.clone());
+        sync_tree_ops.push(quote! {
+            __euv_n.set_a11y(::core::option::Option::Some(__euv_a11y));
+        });
+        sync_ctx_stmts.push(quote! {
+            #build_a11y
             __euv_ctx.set_a11y(#node_ident, __euv_a11y);
         });
+    }
+    let mut async_post_stmts: Vec<proc_macro2::TokenStream> = Vec::new();
+    if let Some(ref_target) = node_ref {
+        async_post_stmts.push(quote_spanned! {ref_target.span()=>
+            ::euv::NodeRefTarget::bind_node_ref(&mut (#ref_target), #node_ident);
+        });
+    }
+    if let Some(cb) = bind_style {
+        async_post_stmts
+            .push(quote_spanned! {cb.span()=> __euv_ctx.bind_style(#node_ident, #cb); });
+    }
+    if let Some(cb) = bind_children {
+        async_post_stmts
+            .push(quote_spanned! {cb.span()=> __euv_ctx.bind_children(#node_ident, #cb); });
     }
     let has_children: bool = tag_name != TAG_TEXT
         && tag_name != TAG_SLOT
         && tag_name != TAG_PAGE_SLOT
         && !elem.children.is_empty();
-    if post_stmts.is_empty() && !has_children {
+    if sync_tree_ops.is_empty() && async_post_stmts.is_empty() && !has_children {
         return quote! {{
             #(#schema_refs)*
             #node_creation
         }};
     }
+    let direct_create_parts: Option<(proc_macro2::TokenStream, proc_macro2::TokenStream)> =
+        if !sync_tree_ops.is_empty() && bind_style.is_none() {
+            match tag_name.as_str() {
+                TAG_VIEW | TAG_ROW | TAG_COLUMN | TAG_COL | TAG_GRID => Some((
+                    quote! { let __euv_s: ::euv::Style = #style_expr; },
+                    quote! { __euv_tree.create_view(__euv_s) },
+                )),
+                TAG_SCROLL => Some((
+                    quote! { let __euv_s: ::euv::Style = #style_expr; },
+                    quote! { __euv_tree.create_scroll_view(__euv_s) },
+                )),
+                TAG_PORTAL => Some((
+                    quote! { let __euv_s: ::euv::Style = #style_expr; },
+                    quote! { __euv_tree.create_portal(__euv_s) },
+                )),
+                TAG_FRAGMENT => Some((quote! {}, quote! { __euv_tree.create_fragment() })),
+                TAG_TEXT => match elem.children.first() {
+                    None => Some((
+                        quote! { let __euv_s: ::euv::Style = #style_expr; },
+                        quote! { __euv_tree.create_text(::std::string::String::new(), __euv_s) },
+                    )),
+                    Some(ViewNode::StaticText(lit)) => Some((
+                        quote_spanned! {lit.span()=>
+                            let __euv_txt: ::std::string::String = ::euv::into_text(#lit);
+                            let __euv_s: ::euv::Style = #style_expr;
+                        },
+                        quote! { __euv_tree.create_text(__euv_txt, __euv_s) },
+                    )),
+                    _ => None,
+                },
+                TAG_INPUT => {
+                    let val_expr: proc_macro2::TokenStream = match input_value {
+                        Some(v) => quote! { ::euv::into_text(#v) },
+                        None => quote! { ::std::string::String::new() },
+                    };
+                    let ph_expr: proc_macro2::TokenStream = match input_placeholder {
+                        Some(p) => quote! { ::euv::into_text(#p) },
+                        None => quote! { ::std::string::String::new() },
+                    };
+                    let caret_expr: proc_macro2::TokenStream = match input_caret {
+                        Some(c) => quote! { #c },
+                        None => quote! { 0usize },
+                    };
+                    let pw_expr: proc_macro2::TokenStream = match input_password {
+                        Some(pw) => quote! { #pw },
+                        None => quote! { false },
+                    };
+                    let ml_expr: proc_macro2::TokenStream = match input_multiline {
+                        Some(ml) => quote! { #ml },
+                        None => quote! { false },
+                    };
+                    let dis_expr: proc_macro2::TokenStream = match input_disabled {
+                        Some(d) => quote! { #d },
+                        None => quote! { false },
+                    };
+                    Some((
+                        quote! {
+                            let __euv_inp: ::euv::InputNodeState = ::euv::InputNodeState::new(
+                                #val_expr, #ph_expr, #caret_expr, #pw_expr, #ml_expr, #dis_expr,
+                            );
+                            let __euv_s: ::euv::Style = #style_expr;
+                        },
+                        quote! { __euv_tree.create_input(__euv_inp, __euv_s) },
+                    ))
+                }
+                TAG_IMAGE => image_source.map(|src: &Expr| {
+                    (
+                        quote_spanned! {src.span()=>
+                            let __euv_img = #src;
+                            let __euv_s: ::euv::Style = #style_expr;
+                        },
+                        quote! { __euv_tree.create_image(__euv_img, __euv_s) },
+                    )
+                }),
+                TAG_CANVAS => canvas_painter.map(|painter: &Expr| {
+                    let wrapped_painter: proc_macro2::TokenStream = wrap_canvas_painter(painter);
+                    (
+                        quote! {
+                            let __euv_s: ::euv::Style = #style_expr;
+                            let __euv_cb: ::euv::CanvasDrawCallback = #wrapped_painter;
+                        },
+                        quote! { __euv_tree.create_canvas(__euv_s, __euv_cb) },
+                    )
+                }),
+                _ => None,
+            }
+        } else {
+            None
+        };
     let children_stmts: proc_macro2::TokenStream = if has_children {
         expand_children_into(&node_ident, &elem.children)
     } else {
         quote! {}
     };
+    if let Some((create_prep, create_in_tree)) = direct_create_parts {
+        return quote! {{
+            #(#schema_refs)*
+            #create_prep
+            #(#pre_lock_stmts)*
+            let #node_ident: ::euv::NodeId = __euv_ctx.get_scene().with_write(
+                |__euv_tree: &mut ::euv::SceneTree| {
+                    let __euv_id: ::euv::NodeId = #create_in_tree;
+                    if let ::core::option::Option::Some(__euv_n) = __euv_tree.get_node_mut(__euv_id) {
+                        #(#sync_tree_ops)*
+                    }
+                    __euv_id
+                },
+                ::euv::NodeId::default(),
+            );
+            #(#async_post_stmts)*
+            #children_stmts
+            #node_ident
+        }};
+    }
+    let sync_post_block: proc_macro2::TokenStream = if sync_tree_ops.len() >= 2 {
+        quote! {
+            #(#pre_lock_stmts)*
+            __euv_ctx.get_scene().with_write(
+                |__euv_tree: &mut ::euv::SceneTree| {
+                    if let ::core::option::Option::Some(__euv_n) =
+                        __euv_tree.get_node_mut(#node_ident)
+                    {
+                        #(#sync_tree_ops)*
+                    }
+                },
+                (),
+            );
+        }
+    } else {
+        quote! { #(#sync_ctx_stmts)* }
+    };
     quote! {{
         #(#schema_refs)*
         let #node_ident: ::euv::NodeId = #node_creation;
-        #(#post_stmts)*
+        #(#async_post_stmts)*
+        #sync_post_block
         #children_stmts
         #node_ident
     }}
+}
+
+/// Wraps a `view!` UI event callback expression into a `::euv::UiEventHandler` while preserving closure parameter type inference.
+///
+/// # Arguments
+///
+/// - `&Expr` - User event callback expression.
+///
+/// # Returns
+///
+/// - `proc_macro2::TokenStream` - Typed `::euv::UiEventHandler` construction expression.
+fn wrap_ui_event_handler(cb: &Expr) -> proc_macro2::TokenStream {
+    quote_spanned! {cb.span()=>
+        {
+            /// Wraps a user event closure into a `::euv::UiEventHandler`.
+            ///
+            /// # Arguments
+            ///
+            /// - `__EuvF` - User event callback closure.
+            ///
+            /// # Returns
+            ///
+            /// - `::euv::UiEventHandler` - Boxed shared event handler.
+            fn __euv_wrap_ev<__EuvF>(__euv_f: __EuvF) -> ::euv::UiEventHandler
+            where
+                __EuvF: ::core::ops::FnMut(&::euv::UiEvent) + 'static,
+            {
+                ::std::rc::Rc::new(::std::cell::RefCell::new(__euv_f))
+            }
+            __euv_wrap_ev(#cb)
+        }
+    }
+}
+
+/// Wraps a `view!` canvas painter callback expression into a `::euv::CanvasDrawCallback` while preserving closure parameter type inference.
+///
+/// # Arguments
+///
+/// - `&Expr` - User canvas painter expression.
+///
+/// # Returns
+///
+/// - `proc_macro2::TokenStream` - Typed `::euv::CanvasDrawCallback` construction expression.
+fn wrap_canvas_painter(painter: &Expr) -> proc_macro2::TokenStream {
+    quote_spanned! {painter.span()=>
+        {
+            /// Wraps a user canvas painter closure into a `::euv::CanvasDrawCallback`.
+            ///
+            /// # Arguments
+            ///
+            /// - `__EuvF` - User canvas painter closure.
+            ///
+            /// # Returns
+            ///
+            /// - `::euv::CanvasDrawCallback` - Boxed shared canvas painter.
+            fn __euv_wrap_canvas<__EuvF>(__euv_f: __EuvF) -> ::euv::CanvasDrawCallback
+            where
+                __EuvF: ::core::ops::FnMut(::euv::Rect, &mut ::euv::DisplayList) + 'static,
+            {
+                ::std::rc::Rc::new(::std::cell::RefCell::new(__euv_f))
+            }
+            __euv_wrap_canvas(#painter)
+        }
+    }
 }
 
 /// Builds the `::euv::DynamicBuilderFn` fallback closure for `slot` and `page_slot` elements.
@@ -1214,8 +1930,12 @@ fn build_slot_fallback(
         ::std::rc::Rc::new(move || -> ::euv::NodeId {
             let mut __euv_ctx_owned: ::euv::Context = ::euv::current_context();
             let __euv_ctx: &mut ::euv::Context = &mut __euv_ctx_owned;
-            let #fb_root: ::euv::NodeId =
-                __euv_ctx.view(::euv::Style::default().column().width(::euv::Length::Percent(100.0)));
+            let mut __euv_fb_style: ::euv::Style = ::euv::Style::default();
+            __euv_fb_style
+                .get_mut_layout()
+                .set_flex_direction(::euv::FlexDirection::Column)
+                .set_width(::euv::Length::Percent(100.0));
+            let #fb_root: ::euv::NodeId = __euv_ctx.view(__euv_fb_style);
             #attach
             #fb_root
         })

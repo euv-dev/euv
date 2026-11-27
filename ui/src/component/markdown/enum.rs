@@ -1,5 +1,23 @@
 use super::*;
 
+/// Pre-resolved syntax language used by the Eva code tokenizer without per-line string allocations.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+pub enum CodeLang {
+    /// Generic programming language syntax.
+    #[default]
+    Generic,
+    /// Rust source syntax (`"rust"`).
+    Rust,
+    /// Unified diff patch syntax (`"diff"`).
+    Diff,
+    /// JSON object/array syntax (`"json"`).
+    Json,
+    /// TOML key-value configuration syntax (`"toml"`).
+    Toml,
+    /// YAML key-value configuration syntax (`"yaml"`).
+    Yaml,
+}
+
 /// Syntax token classification mapped directly to VS Code `Eva Light Bold` / `Eva Dark Bold` TextMate scopes.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub enum CodeTokenKind {
@@ -73,15 +91,34 @@ pub enum EuvMarkdownAlign {
 pub enum EuvMarkdownInline {
     /// Plain body text span.
     Text(String),
-    /// Bold emphasis (`**text**`).
+    /// Bold emphasis (`**text**` or `__text__`).
     Bold(String),
-    /// Italic emphasis (`*text*`).
+    /// Italic emphasis (`*text*` or `_text_`).
     Italic(String),
+    /// Combined bold and italic emphasis (`***text***`).
+    BoldItalic(String),
     /// Strikethrough (`~~text~~`).
     Strike(String),
+    /// Highlighted text (`==text==` or `<mark>text</mark>`).
+    Highlight(String),
+    /// Superscript text (`^text^` or `<sup>text</sup>`).
+    Superscript(String),
+    /// Subscript text (`~text~` or `<sub>text</sub>`).
+    Subscript(String),
     /// Inline monospace code chip (`` `code` ``).
     Code(String),
-    /// Clickable hyperlink (`[label](url)`).
+    /// Inline math expression (`$expr$`) formatted with Unicode math symbols.
+    Math(String),
+    /// Inline footnote reference badge (`[^id]`).
+    FootnoteRef(String),
+    /// Inline image chip (`![alt](url)`).
+    Image {
+        /// Accessible alt caption.
+        alt: String,
+        /// Image source URI.
+        url: String,
+    },
+    /// Clickable hyperlink (`[label](url)`, `[label][ref]`, or `<https://...>`).
     Link {
         /// Visible anchor text.
         label: String,
@@ -90,6 +127,8 @@ pub enum EuvMarkdownInline {
     },
     /// Keyboard shortcut cap (`<kbd>Cmd+K</kbd>`).
     Kbd(String),
+    /// Explicit inline hard line break (`  \n` or `\\\n`).
+    HardBreak,
 }
 
 /// Parsed block-level Markdown AST node rendered natively by `EuvMarkdown`.
@@ -111,10 +150,19 @@ pub enum EuvMarkdownBlock {
         /// Raw code body.
         code: String,
     },
+    /// Native vector Mermaid diagram block (` ```mermaid `).
+    Mermaid {
+        /// Raw Mermaid diagram source text.
+        source: String,
+    },
+    /// Display math block (`$$...$$`).
+    MathBlock(String),
     /// Blockquote or GitHub-flavored Alert callout.
     Quote {
         /// Plain quote or alert kind.
         kind: EuvMarkdownAlertKind,
+        /// Nesting depth (`1` = top level).
+        depth: usize,
         /// Content lines inside the callout.
         lines: Vec<String>,
     },
@@ -122,6 +170,8 @@ pub enum EuvMarkdownBlock {
     List {
         /// Whether items render with ordinal numbers.
         ordered: bool,
+        /// Starting ordinal number for ordered lists (`1` by default).
+        start: usize,
         /// Ordered list items.
         items: Vec<EuvMarkdownListItem>,
     },
@@ -134,6 +184,10 @@ pub enum EuvMarkdownBlock {
         /// Body rows.
         rows: Vec<Vec<String>>,
     },
+    /// Extended Markdown definition list (`Term` + `: Definition`).
+    DefinitionList(Vec<EuvMarkdownDefItem>),
+    /// Bottom footnote definitions section (`[^id]: text`).
+    Footnotes(Vec<EuvMarkdownFootnote>),
     /// Thematic horizontal divider (`---`).
     Divider,
     /// Image figure (`![alt](url)`).

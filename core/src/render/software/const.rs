@@ -16,6 +16,65 @@ pub(crate) const GAUSSIAN_ERFC_LUT: [f32; 513] = build_gaussian_erfc_lut();
 /// Maximum cached `TextLayoutResult` entries retained by `SoftwareRenderer` between frames.
 pub(crate) const TEXT_LAYOUT_CACHE_LIMIT: usize = 512;
 
+/// Default resident memory budget for `TextLayoutCache` (2 MiB) before LRU eviction trims cold entries.
+pub(crate) const TEXT_LAYOUT_CACHE_BUDGET_BYTES: usize = 2 * 1024 * 1024;
+
+/// Fixed per-entry metadata overhead counted toward `TextLayoutCache::resident_bytes`.
+pub(crate) const TEXT_LAYOUT_ENTRY_OVERHEAD_BYTES: usize = 64;
+
+/// Fixed per-line `TextLine` struct overhead counted toward `TextLayoutCache::resident_bytes`.
+pub(crate) const TEXT_LINE_OVERHEAD_BYTES: usize = 32;
+
+/// Initial power-of-two slot table size for `TextLayoutCache` (load factor `<= 0.5` at `TEXT_LAYOUT_CACHE_LIMIT`).
+pub(crate) const TEXT_LAYOUT_CACHE_SLOTS: usize = 1024;
+
+/// 64-bit FxHash mixing multiplier for fast SipHash-free cache hashing and slot indexing.
+pub(crate) const FX_HASH_K64: u64 = 0x517C_C1B7_2722_0A95;
+
+/// Sentinel empty slot for `TextLayoutCache` open-addressed probing.
+pub(crate) const EMPTY_TEXT_LAYOUT_SLOT: TextLayoutSlot = TextLayoutSlot {
+    key_hash: 0,
+    width_key: 0,
+    entry_idx: u32::MAX,
+};
+
+/// Maximum stack-cached width in physical pixels for precomputed 1D vertical rounded-rect edge strips.
+pub(crate) const ROUNDED_EDGE_STRIP_CAP: usize = 16;
+
+/// Maximum cached rounded-clip corner side length in physical pixels (`dim = ceil(r + 1)`).
+pub(crate) const CORNER_MASK_MAX_DIM: u32 = 96;
+
+/// Maximum cached quadrant corner coverage masks retained by `SoftwareRenderer` between frames.
+pub(crate) const CORNER_MASK_CACHE_LIMIT: usize = 128;
+
 /// Thread name prefix assigned to persistent horizontal-band rasterization workers.
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) const BAND_WORKER_THREAD_PREFIX: &str = "euv-band";
+
+/// Maximum total rasterizer threads (caller plus background workers) in `BandWorkerPool`.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) const BAND_WORKER_MAX_THREADS: usize = 16;
+
+/// Short spin-loop iterations performed by idle band workers before parking on the condition variable.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) const BAND_WORKER_SPIN_LIMIT: u32 = 32;
+
+/// Short spin-loop iterations performed by the calling thread before parking on `wake_caller`.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) const BAND_CALLER_SPIN_LIMIT: u32 = 32;
+
+/// Maximum damaged pixel area executed directly on the calling thread without touching `BandWorkerPool`.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) const SMALL_DAMAGE_SINGLE_THREAD_PIXELS: usize = 32_768;
+
+/// Minimum prepared command count before waking `BandWorkerPool` for mid-sized single-row dirty rects.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) const BAND_DISPATCH_MIN_CMDS: usize = 6;
+
+/// Minimum damaged pixel area required before splitting horizontal bands across background worker threads.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) const BAND_DISPATCH_MIN_PIXELS: usize = 65_536;
+
+/// Minimum vertical height in physical rows required for multi-threaded band dispatch.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) const BAND_DISPATCH_MIN_HEIGHT: u32 = 64;

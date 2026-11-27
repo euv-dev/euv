@@ -29,3 +29,29 @@ pub fn dispatch_native_action(kind: &str, arg1: &str, arg2: &str) -> bool {
     let func: NativeActionBridge = unsafe { transmute::<*mut (), NativeActionBridge>(raw) };
     func(kind, arg1, arg2)
 }
+
+/// Copies `text` to the active OS or browser clipboard via direct platform hooks and any registered native action bridge.
+///
+/// # Arguments
+///
+/// - `&str` - UTF-8 text string to place on the system clipboard.
+///
+/// # Returns
+///
+/// - `bool` - `true` when at least one native or host clipboard sink accepted `text`.
+pub fn write_system_clipboard(text: &str) -> bool {
+    let bridge_ok: bool =
+        dispatch_native_action(NATIVE_ACTION_CLIPBOARD, CLIPBOARD_ACTION_WRITE, text);
+    #[cfg(target_os = "macos")]
+    {
+        macos_write_pasteboard(text) || bridge_ok
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        web_write_clipboard(text) || bridge_ok
+    }
+    #[cfg(not(any(target_os = "macos", target_arch = "wasm32")))]
+    {
+        bridge_ok
+    }
+}

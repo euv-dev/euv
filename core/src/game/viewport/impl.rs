@@ -454,20 +454,18 @@ impl<'a> GameRenderContext<'a> {
         let vp: Size = self.viewport_size();
         let vis: Rect = camera.visible_world_rect(vp);
         let zoom: f32 = camera.get_zoom().max(0.25);
+        let n: usize = particles.get_active_count();
         let mut count: usize = 0;
-        for p in particles.get_pool().iter() {
-            if !p.get_active() {
-                continue;
-            }
-            let pos: Point = p.get_position();
+        for i in 0..n {
+            let pos: Point = Point::new(particles.pos_x[i], particles.pos_y[i]);
             if !vis.contains(pos) {
                 continue;
             }
-            let t: f32 = (p.get_age() / p.get_lifetime().max(0.001)).clamp(0.0, 1.0);
-            let r: f32 = ((p.get_start_size() + (p.get_end_size() - p.get_start_size()) * t)
-                * zoom)
-                .max(0.8);
-            let col: Color = p.get_start_color().lerp(p.get_end_color(), t);
+            let t: f32 = (particles.age[i] / particles.lifetime[i].max(0.001)).clamp(0.0, 1.0);
+            let s0: f32 = particles.start_size[i];
+            let s1: f32 = particles.end_size[i];
+            let r: f32 = ((s0 + (s1 - s0) * t) * zoom).max(0.8);
+            let col: Color = particles.start_color[i].lerp(particles.end_color[i], t);
             if col.get_a() == 0 {
                 continue;
             }

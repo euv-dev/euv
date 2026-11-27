@@ -7,14 +7,64 @@ impl Default for ThemeTokens {
     /// # Returns
     ///
     /// - `Self` - Resolved design tokens.
+    #[inline(always)]
     fn default() -> Self {
         Self::resolve(active_feature_scheme(), ThemeMode::Light)
     }
 }
 
-/// Complete 17-scheme x 2-mode deterministic token resolver.
+/// Complete 17-scheme x 2-mode deterministic token resolver backed by compile-time LUTs.
 impl ThemeTokens {
-    /// Resolves complete `ThemeTokens` for any `(DesignScheme, ThemeMode)` pair.
+    /// Maps a `DesignScheme` variant to its canonical `0..17` LUT index.
+    ///
+    /// # Arguments
+    ///
+    /// - `DesignScheme` - Target design language.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Canonical array index in `0..17`.
+    #[inline(always)]
+    const fn scheme_index(scheme: DesignScheme) -> usize {
+        match scheme {
+            DesignScheme::Shadcn => 0,
+            DesignScheme::Cupertino => 1,
+            DesignScheme::Material => 2,
+            DesignScheme::Fluent => 3,
+            DesignScheme::AntDesign => 4,
+            DesignScheme::Bootstrap => 5,
+            DesignScheme::DaisyUi => 6,
+            DesignScheme::Geist => 7,
+            DesignScheme::HeroUi => 8,
+            DesignScheme::Linear => 9,
+            DesignScheme::Mantine => 10,
+            DesignScheme::Monochrome => 11,
+            DesignScheme::Notion => 12,
+            DesignScheme::Park => 13,
+            DesignScheme::Radix => 14,
+            DesignScheme::Stripe => 15,
+            DesignScheme::Supabase => 16,
+        }
+    }
+
+    /// Maps a `ThemeMode` variant to its binary LUT offset (`0` = Light, `1` = Dark).
+    ///
+    /// # Arguments
+    ///
+    /// - `ThemeMode` - Light or Dark appearance.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Mode bit (`0` or `1`).
+    #[inline(always)]
+    const fn mode_index(mode: ThemeMode) -> usize {
+        match mode {
+            ThemeMode::Light => 0,
+            ThemeMode::Dark => 1,
+        }
+    }
+
+    /// Computes a `ThemePalette` at compile time for one `(DesignScheme, ThemeMode)` pair.
     ///
     /// # Arguments
     ///
@@ -23,46 +73,38 @@ impl ThemeTokens {
     ///
     /// # Returns
     ///
-    /// - `Self` - Compiled zero-allocation token bundle.
-    #[must_use]
-    pub fn resolve(scheme: DesignScheme, mode: ThemeMode) -> Self {
-        let (accent_light, accent_dark, radius_md, radius_lg, control_md): (
-            Color,
-            Color,
-            f32,
-            f32,
-            f32,
-        ) = match scheme {
-            DesignScheme::Shadcn => (Color::hex(0x18181B), Color::hex(0xFAFAFA), 6.0, 8.0, 36.0),
-            DesignScheme::Cupertino => {
-                (Color::hex(0x007AFF), Color::hex(0x0A84FF), 10.0, 14.0, 38.0)
-            }
-            DesignScheme::Material => {
-                (Color::hex(0x6750A4), Color::hex(0xD0BCFF), 16.0, 20.0, 40.0)
-            }
-            DesignScheme::Fluent => (Color::hex(0x0067C0), Color::hex(0x60CDFF), 4.0, 8.0, 34.0),
-            DesignScheme::AntDesign => (Color::hex(0x1677FF), Color::hex(0x1668DC), 6.0, 8.0, 34.0),
-            DesignScheme::Bootstrap => (Color::hex(0x0D6EFD), Color::hex(0x3D8BFD), 6.0, 8.0, 38.0),
-            DesignScheme::DaisyUi => (Color::hex(0x570DF8), Color::hex(0x661AE6), 12.0, 16.0, 40.0),
-            DesignScheme::Geist => (Color::hex(0x000000), Color::hex(0xFFFFFF), 6.0, 8.0, 36.0),
-            DesignScheme::HeroUi => (Color::hex(0x006FEE), Color::hex(0x338EF7), 12.0, 14.0, 40.0),
-            DesignScheme::Linear => (Color::hex(0x5E6AD2), Color::hex(0x828FFF), 6.0, 10.0, 34.0),
-            DesignScheme::Mantine => (Color::hex(0x228BE6), Color::hex(0x339AF0), 8.0, 12.0, 36.0),
-            DesignScheme::Monochrome => {
-                (Color::hex(0x111111), Color::hex(0xF5F5F5), 2.0, 4.0, 36.0)
-            }
-            DesignScheme::Notion => (Color::hex(0x2F3437), Color::hex(0xE8E8E8), 4.0, 6.0, 34.0),
-            DesignScheme::Park => (Color::hex(0x334155), Color::hex(0xE2E8F0), 6.0, 8.0, 36.0),
-            DesignScheme::Radix => (Color::hex(0x3E63DD), Color::hex(0x6E8BFF), 6.0, 10.0, 36.0),
-            DesignScheme::Stripe => (Color::hex(0x635BFF), Color::hex(0x7A73FF), 8.0, 12.0, 38.0),
-            DesignScheme::Supabase => (Color::hex(0x3ECF8E), Color::hex(0x3ECF8E), 6.0, 10.0, 36.0),
+    /// - `ThemePalette` - Resolved semantic color palette.
+    const fn build_palette(scheme: DesignScheme, mode: ThemeMode) -> ThemePalette {
+        let (accent_light_hex, accent_dark_hex): (u32, u32) = match scheme {
+            DesignScheme::Shadcn => (0x18181B, 0xFAFAFA),
+            DesignScheme::Cupertino => (0x007AFF, 0x0A84FF),
+            DesignScheme::Material => (0x6750A4, 0xD0BCFF),
+            DesignScheme::Fluent => (0x0067C0, 0x60CDFF),
+            DesignScheme::AntDesign => (0x1677FF, 0x1668DC),
+            DesignScheme::Bootstrap => (0x0D6EFD, 0x3D8BFD),
+            DesignScheme::DaisyUi => (0x570DF8, 0x661AE6),
+            DesignScheme::Geist => (0x000000, 0xFFFFFF),
+            DesignScheme::HeroUi => (0x006FEE, 0x338EF7),
+            DesignScheme::Linear => (0x5E6AD2, 0x828FFF),
+            DesignScheme::Mantine => (0x228BE6, 0x339AF0),
+            DesignScheme::Monochrome => (0x111111, 0xF5F5F5),
+            DesignScheme::Notion => (0x2F3437, 0xE8E8E8),
+            DesignScheme::Park => (0x334155, 0xE2E8F0),
+            DesignScheme::Radix => (0x3E63DD, 0x6E8BFF),
+            DesignScheme::Stripe => (0x635BFF, 0x7A73FF),
+            DesignScheme::Supabase => (0x3ECF8E, 0x3ECF8E),
         };
-        let is_dark: bool = mode == ThemeMode::Dark;
-        let primary: Color = if is_dark { accent_dark } else { accent_light };
-        let light_primary_fg: bool = (primary.get_r() as u32) * 299
-            + (primary.get_g() as u32) * 587
-            + (primary.get_b() as u32) * 114
-            < 145_000;
+        let is_dark: bool = matches!(mode, ThemeMode::Dark);
+        let primary_hex: u32 = if is_dark {
+            accent_dark_hex
+        } else {
+            accent_light_hex
+        };
+        let primary: Color = Color::hex(primary_hex);
+        let primary_r: u32 = (primary_hex >> 16) & 0xFF;
+        let primary_g: u32 = (primary_hex >> 8) & 0xFF;
+        let primary_b: u32 = primary_hex & 0xFF;
+        let light_primary_fg: bool = primary_r * 299 + primary_g * 587 + primary_b * 114 < 145_000;
         let primary_foreground: Color = if light_primary_fg {
             Color::hex(0xFFFFFF)
         } else {
@@ -249,7 +291,7 @@ impl ThemeTokens {
                 Color::hex(0x333333),
             ),
         };
-        let palette: ThemePalette = if is_dark {
+        if is_dark {
             ThemePalette {
                 background: dark_bg,
                 foreground: Color::hex(0xFAFAFA),
@@ -301,39 +343,154 @@ impl ThemeTokens {
                 ring: primary,
                 overlay: Color::rgba(0, 0, 0, 128),
             }
+        }
+    }
+
+    /// Computes `[radius_sm, radius_md, radius_lg, radius_xl, control_sm, control_md, control_lg]` at compile time for `scheme`.
+    ///
+    /// # Arguments
+    ///
+    /// - `DesignScheme` - Target design language.
+    ///
+    /// # Returns
+    ///
+    /// - `[f32; 7]` - Precomputed radius and control height ramp.
+    const fn build_geometry_metrics(scheme: DesignScheme) -> [f32; 7] {
+        let (radius_md, radius_lg, control_md): (f32, f32, f32) = match scheme {
+            DesignScheme::Shadcn => (6.0, 8.0, 36.0),
+            DesignScheme::Cupertino => (10.0, 14.0, 38.0),
+            DesignScheme::Material => (16.0, 20.0, 40.0),
+            DesignScheme::Fluent => (4.0, 8.0, 34.0),
+            DesignScheme::AntDesign => (6.0, 8.0, 34.0),
+            DesignScheme::Bootstrap => (6.0, 8.0, 38.0),
+            DesignScheme::DaisyUi => (12.0, 16.0, 40.0),
+            DesignScheme::Geist => (6.0, 8.0, 36.0),
+            DesignScheme::HeroUi => (12.0, 14.0, 40.0),
+            DesignScheme::Linear => (6.0, 10.0, 34.0),
+            DesignScheme::Mantine => (8.0, 12.0, 36.0),
+            DesignScheme::Monochrome => (2.0, 4.0, 36.0),
+            DesignScheme::Notion => (4.0, 6.0, 34.0),
+            DesignScheme::Park => (6.0, 8.0, 36.0),
+            DesignScheme::Radix => (6.0, 10.0, 36.0),
+            DesignScheme::Stripe => (8.0, 12.0, 38.0),
+            DesignScheme::Supabase => (6.0, 10.0, 36.0),
         };
-        let (sh_xs, sh_sm, sh_md, sh_lg): (Shadow, Shadow, Shadow, Shadow) = if is_dark {
-            (
-                Shadow::new(0.0, 1.0, 2.0, 0.0, Color::rgba(0, 0, 0, 48)),
-                Shadow::new(0.0, 2.0, 6.0, 0.0, Color::rgba(0, 0, 0, 64)),
-                Shadow::new(0.0, 6.0, 16.0, 0.0, Color::rgba(0, 0, 0, 84)),
-                Shadow::new(0.0, 12.0, 26.0, 0.0, Color::rgba(0, 0, 0, 108)),
-            )
+        let raw_radius_sm: f32 = radius_md * 0.65;
+        let radius_sm: f32 = if raw_radius_sm > 2.0 {
+            raw_radius_sm
         } else {
-            (
-                Shadow::new(0.0, 1.0, 2.0, 0.0, Color::rgba(0, 0, 0, 12)),
-                Shadow::new(0.0, 1.0, 3.0, 0.0, Color::rgba(0, 0, 0, 18)),
-                Shadow::new(0.0, 4.0, 12.0, 0.0, Color::rgba(0, 0, 0, 24)),
-                Shadow::new(0.0, 10.0, 20.0, 0.0, Color::rgba(0, 0, 0, 32)),
-            )
+            2.0
         };
-        let geometry: ThemeGeometry = ThemeGeometry {
-            radius_sm: (radius_md * 0.65).max(2.0),
+        let raw_control_sm: f32 = control_md - 6.0;
+        let control_sm: f32 = if raw_control_sm > 28.0 {
+            raw_control_sm
+        } else {
+            28.0
+        };
+        [
+            radius_sm,
             radius_md,
             radius_lg,
-            radius_xl: radius_lg + 4.0,
+            radius_lg + 4.0,
+            control_sm,
+            control_md,
+            control_md + 8.0,
+        ]
+    }
+
+    /// Precomputes all 34 `(DesignScheme, ThemeMode)` semantic color palettes into a compile-time lookup table.
+    ///
+    /// # Returns
+    ///
+    /// - `[ThemePalette; 34]` - Compile-time palette LUT indexed by `(scheme_idx << 1) | dark_idx`.
+    pub(crate) const fn build_palette_lut() -> [ThemePalette; 34] {
+        let schemes: [DesignScheme; 17] = DesignScheme::all();
+        let placeholder: ThemePalette = Self::build_palette(DesignScheme::Shadcn, ThemeMode::Light);
+        let mut lut: [ThemePalette; 34] = [placeholder; 34];
+        let mut idx: usize = 0;
+        while idx < schemes.len() {
+            let scheme: DesignScheme = schemes[idx];
+            lut[idx << 1] = Self::build_palette(scheme, ThemeMode::Light);
+            lut[(idx << 1) | 1] = Self::build_palette(scheme, ThemeMode::Dark);
+            idx += 1;
+        }
+        lut
+    }
+
+    /// Precomputes radius and control height metrics for all 17 design schemes into a compile-time lookup table.
+    ///
+    /// # Returns
+    ///
+    /// - `[[f32; 7]; 17]` - Compile-time geometry metrics LUT indexed by `scheme_idx`.
+    pub(crate) const fn build_geometry_metrics_lut() -> [[f32; 7]; 17] {
+        let schemes: [DesignScheme; 17] = DesignScheme::all();
+        let mut lut: [[f32; 7]; 17] = [[0.0; 7]; 17];
+        let mut idx: usize = 0;
+        while idx < schemes.len() {
+            lut[idx] = Self::build_geometry_metrics(schemes[idx]);
+            idx += 1;
+        }
+        lut
+    }
+
+    /// Resolves complete `ThemeTokens` for any `(DesignScheme, ThemeMode)` pair via O(1) compile-time LUT lookup.
+    ///
+    /// # Arguments
+    ///
+    /// - `DesignScheme` - Target design language.
+    /// - `ThemeMode` - Light or Dark appearance.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Compiled zero-allocation token bundle.
+    #[inline(always)]
+    #[must_use]
+    pub fn resolve(scheme: DesignScheme, mode: ThemeMode) -> Self {
+        let scheme_idx: usize = Self::scheme_index(scheme);
+        let dark_idx: usize = Self::mode_index(mode);
+        let palette: ThemePalette = THEME_PALETTE_LUT[(scheme_idx << 1) | dark_idx];
+        let [
+            radius_sm,
+            radius_md,
+            radius_lg,
+            radius_xl,
+            control_sm,
+            control_md,
+            control_lg,
+        ]: [f32; 7] = THEME_GEOMETRY_METRICS_LUT[scheme_idx];
+        let (shadow_xs, shadow_sm, shadow_md, shadow_lg): (Shadow, Shadow, Shadow, Shadow) =
+            if dark_idx != 0 {
+                (
+                    Shadow::new(0.0, 1.0, 2.0, 0.0, Color::rgba(0, 0, 0, 48)),
+                    Shadow::new(0.0, 2.0, 6.0, 0.0, Color::rgba(0, 0, 0, 64)),
+                    Shadow::new(0.0, 6.0, 16.0, 0.0, Color::rgba(0, 0, 0, 84)),
+                    Shadow::new(0.0, 12.0, 26.0, 0.0, Color::rgba(0, 0, 0, 108)),
+                )
+            } else {
+                (
+                    Shadow::new(0.0, 1.0, 2.0, 0.0, Color::rgba(0, 0, 0, 12)),
+                    Shadow::new(0.0, 1.0, 3.0, 0.0, Color::rgba(0, 0, 0, 18)),
+                    Shadow::new(0.0, 4.0, 12.0, 0.0, Color::rgba(0, 0, 0, 24)),
+                    Shadow::new(0.0, 10.0, 20.0, 0.0, Color::rgba(0, 0, 0, 32)),
+                )
+            };
+        let geometry: ThemeGeometry = ThemeGeometry {
+            radius_sm,
+            radius_md,
+            radius_lg,
+            radius_xl,
             border_width: 1.0,
             ring_width: 2.0,
-            control_sm: (control_md - 6.0).max(28.0),
+            control_sm,
             control_md,
-            control_lg: control_md + 8.0,
+            control_lg,
             font_body: 14.0,
             font_heading: 16.0,
             font_title: 24.0,
-            shadow_xs: sh_xs,
-            shadow_sm: sh_sm,
-            shadow_md: sh_md,
-            shadow_lg: sh_lg,
+            shadow_xs,
+            shadow_sm,
+            shadow_md,
+            shadow_lg,
         };
         Self {
             scheme,
@@ -352,20 +509,29 @@ impl ThemeTokens {
     /// # Returns
     ///
     /// - `Style` - Compiled card box style.
+    #[inline(always)]
     #[must_use]
     pub fn card_style(&self) -> Style {
         let p: ThemePalette = self.get_palette();
         let g: ThemeGeometry = self.get_geometry();
-        Style::default()
-            .column()
-            .padding(Edges::all(SPACE_LG))
-            .gap(SPACE_MD)
-            .background(p.get_card())
-            .border(g.get_border_width(), p.get_border())
-            .radius(g.get_radius_lg())
-            .shadow(g.get_shadow_sm())
-            .overflow(Overflow::Hidden)
-            .color(p.get_card_foreground())
-            .font_size(g.get_font_body())
+        let mut style: Style = Style::default();
+        style
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Column)
+            .set_padding(Edges::all(SPACE_LG))
+            .set_row_gap(SPACE_MD)
+            .set_column_gap(SPACE_MD)
+            .set_overflow(Overflow::Hidden);
+        style
+            .get_mut_paint()
+            .set_background(Some(p.get_card()))
+            .set_border(Border::new(g.get_border_width(), p.get_border()))
+            .set_radius(CornerRadius::all(g.get_radius_lg()))
+            .set_shadow(Some(g.get_shadow_sm()));
+        style
+            .get_mut_text()
+            .set_color(p.get_card_foreground())
+            .set_font_size(g.get_font_body());
+        style
     }
 }

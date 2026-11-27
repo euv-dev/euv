@@ -40,10 +40,12 @@ impl ShowcasePage {
         let _: bool = st
             .get_lifecycle_last_event()
             .set_if_changed(format!("MOUNT {route} (PageRetention::Freeze)"));
-        if route == ROUTE_GAME {
-            st.get_game_host().set_paused(false);
-        } else if route == ROUTE_GAME_3D {
-            st.get_game3d_host().set_paused(false);
+        if !st.get_bg_frozen().get_untracked() {
+            if route == ROUTE_GAME {
+                st.get_game_host().set_paused(false);
+            } else if route == ROUTE_GAME_3D {
+                st.get_game3d_host().set_paused(false);
+            }
         }
     }
 
@@ -56,10 +58,12 @@ impl ShowcasePage {
     fn on_activate(&self, _node: NodeId) {
         let route: &str = self.get_route();
         let st: &ShowcaseState = self.get_state();
-        if route == ROUTE_GAME {
-            st.get_game_host().set_paused(false);
-        } else if route == ROUTE_GAME_3D {
-            st.get_game3d_host().set_paused(false);
+        if !st.get_bg_frozen().get_untracked() {
+            if route == ROUTE_GAME {
+                st.get_game_host().set_paused(false);
+            } else if route == ROUTE_GAME_3D {
+                st.get_game3d_host().set_paused(false);
+            }
         }
     }
 
@@ -96,10 +100,12 @@ impl ShowcasePage {
         let _: bool = st
             .get_lifecycle_last_event()
             .set_if_changed(format!("RESUME {route} (coalesced state synced)"));
-        if route == ROUTE_GAME {
-            st.get_game_host().set_paused(false);
-        } else if route == ROUTE_GAME_3D {
-            st.get_game3d_host().set_paused(false);
+        if !st.get_bg_frozen().get_untracked() {
+            if route == ROUTE_GAME {
+                st.get_game_host().set_paused(false);
+            } else if route == ROUTE_GAME_3D {
+                st.get_game3d_host().set_paused(false);
+            }
         }
     }
 

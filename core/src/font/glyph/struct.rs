@@ -1,7 +1,7 @@
 use super::*;
 
 /// Cache key uniquely identifying a rasterized glyph bitmap.
-#[derive(Clone, Copy, Debug, Default, Eq, Getter, Hash, New, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Default, Eq, Getter, New)]
 pub struct GlyphKey {
     /// Unicode scalar value of the character.
     #[get(type(copy))]

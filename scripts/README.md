@@ -7,7 +7,8 @@ Unified environment provisioning, cross-platform build, theme packaging, benchma
 ```text
 scripts/
 ├── bench/
-│   └── stress-bench.sh            # High-load layout, list, reactivity & 3D stress benchmarks
+│   ├── run-stress-report.py       # Canonical release benchmark, stress-matrix, automation & report runner
+│   └── stress-bench.sh            # Backward-compatible shell entrypoint forwarding to run-stress-report.py
 ├── build/
 │   ├── build-web.sh               # Zero-JS WebAssembly release bundle (dist/web)
 │   ├── build-ios-sim.sh           # Release iOS Simulator .app build & launch
@@ -37,5 +38,7 @@ scripts/
 ./scripts/build/build-theme-variants.sh # Build all 17 theme-feature WebAssembly variants
 ./scripts/build/build-android-apk.sh --install
 ./scripts/build/build-ios-sim.sh
+./scripts/bench/stress-bench.sh       # Run 27 benchmarks, stress matrix & automation release checks
+./scripts/bench/stress-bench.sh --runs 5 --write-report  # Update performance/BENCHMARK_REPORT.md
 ./scripts/test/e2e-all.sh             # Run full E2E & release-stripping verification
 ```

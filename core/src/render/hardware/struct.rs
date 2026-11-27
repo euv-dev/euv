@@ -60,7 +60,25 @@ pub struct RecordingGpuDriver {
     pub(crate) last_clear: Color,
 }
 
-/// Hardware GPU renderer compiling `DisplayList` streams into coalesced instanced `GpuBatch` calls.
+/// Per-batch coalescing metadata tracking whether all queued instances are unclipped within `bounds`.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct GpuBatchCoalesceState {
+    /// True only while every instance in the active tail batch lies strictly inside its safe unclipped region.
+    pub(crate) all_unclipped: bool,
+    /// Conservative physical bounding box covering all instances in the active tail batch.
+    pub(crate) bounds: Rect,
+}
+
+/// Active physical clip scope pairing the scissor rectangle with its corner-free interior safe rectangle.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct GpuClipEntry {
+    /// Intersected physical scissor rectangle.
+    pub(crate) scissor: Rect,
+    /// Conservative interior safe rectangle strictly clear of any active rounded-clip corners.
+    pub(crate) safe_inner: Rect,
+}
+
+/// Hardware GPU renderer compiling `DisplayList` streams into order-preserving coalesced instanced `GpuBatch` calls.
 #[derive(Data, Debug, Default)]
 pub struct HardwareRenderer {
     /// Active physical OS GPU driver handling shader compilation and batch submission.
@@ -70,6 +88,41 @@ pub struct HardwareRenderer {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) batches: Vec<GpuBatch>,
+    /// Count of active `GpuBatch` slots populated for the latest frame so inner `Vec` capacities persist across frames.
+    #[get(type(copy))]
+    #[get_mut(skip)]
+    #[set(pub(crate))]
+    pub(crate) active_batches: usize,
+    /// Persistent physical clip-rectangle and safe-inner stack reused across frames without heap reallocation.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) clip_stack: Vec<GpuClipEntry>,
+    /// Number of draw batches submitted in the most recent frame.
+    #[get(type(copy))]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) last_submitted_batches: usize,
+    /// Number of adjacent cross-clip batch splits eliminated via order-preserving coalescing in the latest frame.
+    #[get(type(copy))]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) last_coalesced_merges: usize,
+    /// Number of completely off-clip instances culled prior to GPU upload in the latest frame.
+    #[get(type(copy))]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) last_culled_instances: usize,
+    /// Number of `GpuQuadInstance` records uploaded in the latest frame.
+    #[get(type(copy))]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) last_uploaded_instances: usize,
+    /// Total instance payload bytes uploaded in the latest frame (`last_uploaded_instances * GPU_QUAD_INSTANCE_BYTES`).
+    #[get(type(copy))]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) last_uploaded_bytes: usize,
     /// Optional software readback mirror used for deterministic pixel-parity testing.
     pub(crate) readback: SoftwareRenderer,
     /// Whether readback mirroring is enabled.

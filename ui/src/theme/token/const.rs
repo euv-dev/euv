@@ -1,3 +1,5 @@
+use super::*;
+
 /// Universal 4px base spacing step (`xs`).
 pub const SPACE_XS: f32 = 4.0;
 
@@ -48,3 +50,10 @@ pub const Z_INDEX_MODAL: i32 = 1000;
 
 /// Z-index layer for toast notifications.
 pub const Z_INDEX_TOAST: i32 = 1100;
+
+/// Compile-time lookup table of all 17 schemes x 2 modes (`(scheme_idx << 1) | dark_idx`) semantic palettes.
+pub(crate) const THEME_PALETTE_LUT: [ThemePalette; 34] = ThemeTokens::build_palette_lut();
+
+/// Compile-time lookup table of precomputed `[radius_sm, radius_md, radius_lg, radius_xl, control_sm, control_md, control_lg]` per design scheme.
+pub(crate) const THEME_GEOMETRY_METRICS_LUT: [[f32; 7]; 17] =
+    ThemeTokens::build_geometry_metrics_lut();

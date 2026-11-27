@@ -197,6 +197,59 @@ impl DynamicStyleSpec {
         border_hex
     }
 
+    /// Applies all configured style overrides directly in place onto `style` without copying `Style` by value.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Style override specification.
+    /// - `&mut Style` - Target mutable native style to update in place.
+    #[inline]
+    pub fn apply_in_place(&self, style: &mut Style) {
+        if self.get_full_width() {
+            style.get_mut_layout().set_width(Length::Percent(100.0));
+        }
+        if let Some(w) = self.width_px() {
+            style.get_mut_layout().set_width(Length::Px(w));
+        }
+        if let Some(h) = self.height_px() {
+            style.get_mut_layout().set_height(Length::Px(h));
+        }
+        if let Some(p) = self.padding_px() {
+            style.get_mut_layout().set_padding(Edges::all(p));
+        }
+        if let Some(g) = self.gap_px() {
+            let clamped: f32 = g.max(0.0);
+            let layout: &mut LayoutStyle = style.get_mut_layout();
+            layout.set_row_gap(clamped);
+            layout.set_column_gap(clamped);
+        }
+        if let Some(r) = self.radius_px() {
+            style
+                .get_mut_paint()
+                .set_radius(CornerRadius::all(r.max(0.0)));
+        }
+        if let Some(sz) = self.font_size_px() {
+            style.get_mut_text().set_font_size(sz.max(6.0));
+        }
+        if self.get_bold() {
+            style.get_mut_text().set_weight(FontWeight::Bold);
+        }
+        if let Some(bg) = self.background_hex_value() {
+            style.get_mut_paint().set_background(Some(Color::hex(bg)));
+        }
+        if let Some(fg) = self.color_hex_value() {
+            style.get_mut_text().set_color(Color::hex(fg));
+        }
+        if let (Some(bw), Some(bc)) = (self.border_width_px(), self.border_hex_value()) {
+            style
+                .get_mut_paint()
+                .set_border(Border::new(bw.max(0.0), Color::hex(bc)));
+        }
+        if self.get_flex_grow() > 0.0 {
+            style.get_mut_layout().set_flex_grow(self.get_flex_grow());
+        }
+    }
+
     /// Applies all configured style overrides onto `base` and returns the resolved native `Style`.
     ///
     /// # Arguments
@@ -209,42 +262,7 @@ impl DynamicStyleSpec {
     /// - `Style` - Compiled native style.
     #[must_use]
     pub fn apply_to(&self, mut base: Style) -> Style {
-        if self.get_full_width() {
-            base = base.width(Length::Percent(100.0));
-        }
-        if let Some(w) = self.width_px() {
-            base = base.width(Length::Px(w));
-        }
-        if let Some(h) = self.height_px() {
-            base = base.height(Length::Px(h));
-        }
-        if let Some(p) = self.padding_px() {
-            base = base.padding(Edges::all(p));
-        }
-        if let Some(g) = self.gap_px() {
-            base = base.gap(g);
-        }
-        if let Some(r) = self.radius_px() {
-            base = base.radius(r);
-        }
-        if let Some(sz) = self.font_size_px() {
-            base = base.font_size(sz);
-        }
-        if self.get_bold() {
-            base = base.font_weight(FontWeight::Bold);
-        }
-        if let Some(bg) = self.background_hex_value() {
-            base = base.background(Color::hex(bg));
-        }
-        if let Some(fg) = self.color_hex_value() {
-            base = base.color(Color::hex(fg));
-        }
-        if let (Some(bw), Some(bc)) = (self.border_width_px(), self.border_hex_value()) {
-            base = base.border(bw, Color::hex(bc));
-        }
-        if self.get_flex_grow() > 0.0 {
-            base = base.flex_grow(self.get_flex_grow());
-        }
+        self.apply_in_place(&mut base);
         base
     }
 }
@@ -665,21 +683,34 @@ impl DynamicUpdateHub {
                 checksum: actual_checksum,
                 payload: DynamicPayload::Spec(update.spec),
             };
-            state.components.entry(id.clone()).or_default().push(record);
-            let sig: Signal<u64> = *state
-                .component_signals
-                .entry(id)
-                .or_insert_with(|| Signal::new_detached(0));
+            if let Some(stack) = state.components.get_mut(&id) {
+                stack.push(record);
+            } else {
+                let _: Option<Vec<DynamicSlotRecord>> =
+                    state.components.insert(id.clone(), vec![record]);
+            }
+            let sig: Signal<u64> = if let Some(existing) = state.component_signals.get(&id) {
+                *existing
+            } else {
+                let created: Signal<u64> = Signal::new_detached(0);
+                let _: Option<Signal<u64>> = state.component_signals.insert(id, created);
+                created
+            };
             let mut tel: DynamicTelemetry = state.telemetry_signal.get_untracked();
             tel.set_components_applied(tel.get_components_applied().saturating_add(1));
             Ok((sig, state.telemetry_signal, tel))
         });
         match rev_sig_opt {
             Ok((sig, tel_sig, tel)) => {
-                batch(|| {
-                    let _: bool = sig.update(|v: &mut u64| *v = v.wrapping_add(1));
+                if tel_sig.has_subscribers() {
+                    batch(|| {
+                        let _: bool = sig.update(|v: &mut u64| *v = v.wrapping_add(1));
+                        let _: bool = tel_sig.set(tel);
+                    });
+                } else {
                     let _: bool = tel_sig.set(tel);
-                });
+                    let _: bool = sig.update(|v: &mut u64| *v = v.wrapping_add(1));
+                }
                 Ok(incoming_ver)
             }
             Err(err) => {
@@ -799,29 +830,33 @@ impl DynamicUpdateHub {
     ///
     /// - `Result<u64, DynamicUpdateError>` - Restored active version (`0` means compiled fallback).
     pub fn rollback_component(&self, id: &str) -> Result<u64, DynamicUpdateError> {
-        let key: String = id.trim().to_string();
+        let key: &str = id.trim();
         let res: Result<
             (u64, Signal<u64>, Signal<DynamicTelemetry>, DynamicTelemetry),
             DynamicUpdateError,
         > = self.with_state_mut(|state: &mut DynamicHubState| {
             let popped: bool = state
                 .components
-                .get_mut(&key)
+                .get_mut(key)
                 .and_then(|stack: &mut Vec<DynamicSlotRecord>| stack.pop())
                 .is_some();
             if !popped {
-                return Err(DynamicUpdateError::NoHistoryToRollback(key.clone()));
+                return Err(DynamicUpdateError::NoHistoryToRollback(key.to_string()));
             }
             let next_ver: u64 = state
                 .components
-                .get(&key)
+                .get(key)
                 .and_then(|stack: &Vec<DynamicSlotRecord>| stack.last())
                 .map(|rec: &DynamicSlotRecord| rec.version)
                 .unwrap_or(0);
-            let sig: Signal<u64> = *state
-                .component_signals
-                .entry(key)
-                .or_insert_with(|| Signal::new_detached(0));
+            let sig: Signal<u64> = if let Some(existing) = state.component_signals.get(key) {
+                *existing
+            } else {
+                let created: Signal<u64> = Signal::new_detached(0);
+                let _: Option<Signal<u64>> =
+                    state.component_signals.insert(key.to_string(), created);
+                created
+            };
             let mut tel: DynamicTelemetry = state.telemetry_signal.get_untracked();
             tel.set_rollbacks(tel.get_rollbacks().saturating_add(1));
             Ok((next_ver, sig, state.telemetry_signal, tel))
@@ -832,10 +867,15 @@ impl DynamicUpdateHub {
             Signal<DynamicTelemetry>,
             DynamicTelemetry,
         ) = res?;
-        batch(|| {
-            let _: bool = sig.update(|v: &mut u64| *v = v.wrapping_add(1));
+        if tel_sig.has_subscribers() {
+            batch(|| {
+                let _: bool = sig.update(|v: &mut u64| *v = v.wrapping_add(1));
+                let _: bool = tel_sig.set(tel);
+            });
+        } else {
             let _: bool = tel_sig.set(tel);
-        });
+            let _: bool = sig.update(|v: &mut u64| *v = v.wrapping_add(1));
+        }
         Ok(next_ver)
     }
 
@@ -1112,6 +1152,7 @@ impl DynamicUpdateHub {
         let validation: Result<BundleApplyCommit, DynamicUpdateError> =
             self.with_state_mut(|state: &mut DynamicHubState| {
                 let mut staged_comp_vers: HashMap<String, u64> = HashMap::new();
+                let mut comp_checksums: Vec<u64> = Vec::with_capacity(bundle.components.len());
                 for comp in bundle.components.iter() {
                     let id: String = comp.get_id().trim().to_string();
                     if id.is_empty() {
@@ -1142,8 +1183,10 @@ impl DynamicUpdateHub {
                         });
                     }
                     staged_comp_vers.insert(id, comp.get_version());
+                    comp_checksums.push(actual);
                 }
                 let mut staged_page_vers: HashMap<String, u64> = HashMap::new();
+                let mut page_checksums: Vec<u64> = Vec::with_capacity(bundle.pages.len());
                 for page in bundle.pages.iter() {
                     let route: String = normalize_dynamic_route(page.get_route());
                     if route.is_empty() {
@@ -1174,13 +1217,13 @@ impl DynamicUpdateHub {
                         });
                     }
                     staged_page_vers.insert(route, page.get_version());
+                    page_checksums.push(actual);
                 }
                 let mut dirty_signals: Vec<Signal<u64>> =
                     Vec::with_capacity(bundle.components.len() + bundle.pages.len());
                 let mut tel: DynamicTelemetry = state.telemetry_signal.get_untracked();
-                for comp in bundle.components.into_iter() {
+                for (comp, digest) in bundle.components.into_iter().zip(comp_checksums) {
                     let id: String = comp.get_id().trim().to_string();
-                    let digest: u64 = comp.get_spec().checksum();
                     let record: DynamicSlotRecord = DynamicSlotRecord {
                         version: comp.version,
                         title: String::new(),
@@ -1196,7 +1239,7 @@ impl DynamicUpdateHub {
                     tel.set_components_applied(tel.get_components_applied().saturating_add(1));
                 }
                 let mut added_route: bool = false;
-                for page in bundle.pages.into_iter() {
+                for (page, digest) in bundle.pages.into_iter().zip(page_checksums) {
                     let route: String = normalize_dynamic_route(page.get_route());
                     let is_new: bool = state
                         .pages
@@ -1206,7 +1249,6 @@ impl DynamicUpdateHub {
                     if is_new {
                         added_route = true;
                     }
-                    let digest: u64 = page.get_spec().checksum();
                     let record: DynamicSlotRecord = DynamicSlotRecord {
                         version: page.version,
                         title: page.title,
@@ -1556,18 +1598,28 @@ impl DynamicUpdateHub {
     /// - `NodeId` - Mounted native scene node handle.
     #[must_use]
     pub fn mount_component_or_fallback(&self, id: &str, fallback: &DynamicBuilderFn) -> NodeId {
-        let key: String = id.trim().to_string();
-        let payload_opt: Option<DynamicPayload> = self.with_state(|state: &DynamicHubState| {
-            state
+        let key: &str = id.trim();
+        let Self { inner } = self;
+        let native_builder: Option<DynamicBuilderFn> = if let Ok(state) = inner.try_borrow() {
+            match state
                 .components
-                .get(&key)
+                .get(key)
                 .and_then(|stack: &Vec<DynamicSlotRecord>| stack.last())
-                .map(|rec: &DynamicSlotRecord| rec.payload.clone())
-        });
-        match payload_opt {
-            Some(DynamicPayload::Spec(spec)) => mount_dynamic_spec(&spec, &key, self),
-            Some(DynamicPayload::Native(builder)) => builder(),
-            None => fallback(),
+                .map(|rec: &DynamicSlotRecord| &rec.payload)
+            {
+                Some(DynamicPayload::Spec(spec)) => {
+                    return mount_dynamic_spec(spec, key, self);
+                }
+                Some(DynamicPayload::Native(builder)) => Some(Rc::clone(builder)),
+                None => None,
+            }
+        } else {
+            None
+        };
+        if let Some(builder) = native_builder {
+            builder()
+        } else {
+            fallback()
         }
     }
 
@@ -1584,18 +1636,38 @@ impl DynamicUpdateHub {
     /// - `NodeId` - Mounted native page node handle.
     #[must_use]
     pub fn mount_page_or_fallback(&self, route: &str, fallback: &DynamicBuilderFn) -> NodeId {
-        let key: String = normalize_dynamic_route(route);
-        let payload_opt: Option<DynamicPayload> = self.with_state(|state: &DynamicHubState| {
-            state
+        let trimmed: &str = route.trim();
+        let owned_key: String = if trimmed.is_empty() || trimmed.starts_with('/') {
+            String::new()
+        } else {
+            format!("/{trimmed}")
+        };
+        let key: &str = if owned_key.is_empty() {
+            trimmed
+        } else {
+            owned_key.as_str()
+        };
+        let Self { inner } = self;
+        let native_builder: Option<DynamicBuilderFn> = if let Ok(state) = inner.try_borrow() {
+            match state
                 .pages
-                .get(&key)
+                .get(key)
                 .and_then(|stack: &Vec<DynamicSlotRecord>| stack.last())
-                .map(|rec: &DynamicSlotRecord| rec.payload.clone())
-        });
-        match payload_opt {
-            Some(DynamicPayload::Spec(spec)) => mount_dynamic_spec(&spec, &key, self),
-            Some(DynamicPayload::Native(builder)) => builder(),
-            None => fallback(),
+                .map(|rec: &DynamicSlotRecord| &rec.payload)
+            {
+                Some(DynamicPayload::Spec(spec)) => {
+                    return mount_dynamic_spec(spec, key, self);
+                }
+                Some(DynamicPayload::Native(builder)) => Some(Rc::clone(builder)),
+                None => None,
+            }
+        } else {
+            None
+        };
+        if let Some(builder) = native_builder {
+            builder()
+        } else {
+            fallback()
         }
     }
 

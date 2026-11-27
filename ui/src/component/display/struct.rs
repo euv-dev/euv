@@ -27,6 +27,11 @@ pub struct EuvAlert {
     /// Active theme tokens.
     #[get(type(copy))]
     pub(crate) tokens: ThemeTokens,
+    /// Whether alert text is selectable (`false` by default).
+    #[new(skip)]
+    #[get(type(copy))]
+    #[prop(custom)]
+    pub(crate) selectable: bool,
 }
 
 /// Linear progress bar displaying normalized completion in `[0.0, 1.0]`.
@@ -68,6 +73,27 @@ pub struct EuvVirtualList {
     /// Active theme tokens.
     #[get(type(copy))]
     pub(crate) tokens: ThemeTokens,
+}
+
+/// Mounted `EuvVirtualList` controller enabling O(1) stable-ID single-row patches and refreshes without rebuilding sibling rows.
+#[derive(Clone, CustomDebug)]
+pub struct EuvVirtualListHandle {
+    /// Mounted scrollable container root node handle.
+    pub(crate) container: NodeId,
+    /// Persistent inner column hosting the materialized sliding-window rows.
+    pub(crate) rows_host: NodeId,
+    /// Shared scene handle for single-lock targeted row updates.
+    #[debug(skip)]
+    pub(crate) scene: SceneHandle,
+    /// Ambient build context preserved for isolated single-row refreshes.
+    #[debug(skip)]
+    pub(crate) ctx: Context,
+    /// Active sliding window mapping logical indices to `(scope, node)`.
+    #[debug(skip)]
+    pub(crate) window: VirtualRowWindow,
+    /// Shared row factory invoked only when a specific visible row is refreshed.
+    #[debug(skip)]
+    pub(crate) builder: Rc<RefCell<VirtualRowBuilder>>,
 }
 
 /// Simple structured cross-platform data table.

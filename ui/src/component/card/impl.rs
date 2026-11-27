@@ -33,6 +33,22 @@ impl EuvCard {
         self.get_mut_children().push(child);
         self
     }
+
+    /// Controls whether text inside the card is selectable.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source card.
+    /// - `bool` - `true` to enable text selection across the card subtree.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated card.
+    #[must_use]
+    pub fn selectable(mut self, enabled: bool) -> Self {
+        self.set_selectable(enabled);
+        self
+    }
 }
 
 /// Declarative `#[component]` implementation for `EuvCard`.
@@ -49,39 +65,55 @@ impl EuvCard {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
+        let ctx: Context = current_context();
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
+        let is_selectable: bool = self.get_selectable();
         let Self {
             title,
             subtitle,
             children,
             ..
-        } = self.clone();
-        view! {
-            view {
-                style: tokens.card_style()
-                width: Length::Percent(100.0)
+        } = self;
+        let mut root_st: Style = tokens.card_style().selectable(is_selectable);
+        root_st.get_mut_layout().set_width(Length::Percent(100.0));
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                let root: NodeId = tree.create_view(root_st);
+                let mut head_nodes: [NodeId; 2] = [NodeId::default(); 2];
+                let mut head_len: usize = 0;
                 if !title.is_empty() {
-                    text {
-                        width: Length::Percent(100.0)
-                        font_size: g.get_font_heading()
-                        font_weight: FontWeight::SemiBold
-                        color: p.get_card_foreground()
-                        { title }
-                    }
+                    let mut title_st: Style = Style::default();
+                    title_st.get_mut_layout().set_width(Length::Percent(100.0));
+                    title_st
+                        .get_mut_text()
+                        .set_font_size(g.get_font_heading())
+                        .set_weight(FontWeight::SemiBold)
+                        .set_color(p.get_card_foreground());
+                    head_nodes[head_len] = tree.create_text(title.clone(), title_st);
+                    head_len += 1;
                 }
                 if !subtitle.is_empty() {
-                    text {
-                        width: Length::Percent(100.0)
-                        font_size: 13.0
-                        color: p.get_muted_foreground()
-                        { subtitle }
-                    }
+                    let mut sub_st: Style = Style::default();
+                    sub_st.get_mut_layout().set_width(Length::Percent(100.0));
+                    sub_st
+                        .get_mut_text()
+                        .set_font_size(13.0)
+                        .set_color(p.get_muted_foreground());
+                    head_nodes[head_len] = tree.create_text(subtitle.clone(), sub_st);
+                    head_len += 1;
                 }
-                ..children
-            }
-        }
+                if head_len > 0 {
+                    tree.append_children(root, &head_nodes[..head_len]);
+                }
+                if !children.is_empty() {
+                    tree.append_children(root, children);
+                }
+                root
+            },
+            NodeId::default(),
+        )
     }
 }
 
@@ -99,47 +131,73 @@ impl EuvHeader {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
-        let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let ctx: Context = current_context();
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
         let Self {
             title, subtitle, ..
-        } = self.clone();
+        } = self;
         let mut a11y: A11yProps = A11yProps::new(A11yRole::Heading, title.clone());
         a11y.set_heading_level(1);
-        view! {
-            column {
-                width: Length::Percent(100.0)
-                gap: SPACE_XS
-                padding: Edges::new(0.0, 0.0, SPACE_MD, 0.0)
-                row {
-                    width: Length::Percent(100.0)
-                    align: AlignItems::Center
-                    gap: SPACE_SM
-                    view {
-                        width: Length::Px(4.0)
-                        height: Length::Px(24.0)
-                        radius: 99.0
-                        background: p.get_primary()
-                    }
-                    text {
-                        flex_grow: 1.0
-                        font_size: g.get_font_title()
-                        font_weight: FontWeight::Bold
-                        color: p.get_foreground()
-                        a11y: a11y
-                        { title }
-                    }
+        let mut col_st: Style = Style::default();
+        col_st
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Column)
+            .set_width(Length::Percent(100.0))
+            .set_row_gap(SPACE_XS)
+            .set_column_gap(SPACE_XS)
+            .set_padding(Edges::new(0.0, 0.0, SPACE_MD, 0.0));
+        let mut row_st: Style = Style::default();
+        row_st
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Row)
+            .set_width(Length::Percent(100.0))
+            .set_align_items(AlignItems::Center)
+            .set_row_gap(SPACE_SM)
+            .set_column_gap(SPACE_SM);
+        let mut accent_st: Style = Style::default();
+        accent_st
+            .get_mut_layout()
+            .set_width(Length::Px(4.0))
+            .set_height(Length::Px(24.0));
+        accent_st
+            .get_mut_paint()
+            .set_radius(CornerRadius::all(99.0))
+            .set_background(Some(p.get_primary()));
+        let mut title_st: Style = Style::default();
+        title_st.get_mut_layout().set_flex_grow(1.0);
+        title_st
+            .get_mut_text()
+            .set_font_size(g.get_font_title())
+            .set_weight(FontWeight::Bold)
+            .set_color(p.get_foreground());
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                let root: NodeId = tree.create_view(col_st);
+                let header_row: NodeId = tree.create_view(row_st);
+                let accent: NodeId = tree.create_view(accent_st);
+                let title_id: NodeId = tree.create_text(title.clone(), title_st);
+                if let Some(node) = tree.get_node_mut(title_id) {
+                    node.set_a11y(Some(a11y));
                 }
+                tree.append_children(header_row, &[accent, title_id]);
                 if !subtitle.is_empty() {
-                    text {
-                        width: Length::Percent(100.0)
-                        font_size: g.get_font_body()
-                        color: p.get_muted_foreground()
-                        { subtitle }
-                    }
+                    let mut sub_st: Style = Style::default();
+                    sub_st.get_mut_layout().set_width(Length::Percent(100.0));
+                    sub_st
+                        .get_mut_text()
+                        .set_font_size(g.get_font_body())
+                        .set_color(p.get_muted_foreground());
+                    let sub_id: NodeId = tree.create_text(subtitle.clone(), sub_st);
+                    tree.append_children(root, &[header_row, sub_id]);
+                } else {
+                    tree.append_child(root, header_row);
                 }
-            }
-        }
+                root
+            },
+            NodeId::default(),
+        )
     }
 }
 
@@ -157,64 +215,96 @@ impl EuvStatCard {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
+        let ctx: Context = current_context();
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
         let Self {
             label,
             value,
             caption,
             ..
-        } = self.clone();
-        view! {
-            view {
-                style: tokens.card_style()
-                width: Length::Percent(100.0)
-                gap: SPACE_SM
-                row {
-                    width: Length::Percent(100.0)
-                    justify: JustifyContent::SpaceBetween
-                    align: AlignItems::Center
-                    text {
-                        flex_shrink: 1.0
-                        min_width: Length::Px(0.0)
-                        font_size: 12.0
-                        font_weight: FontWeight::SemiBold
-                        color: p.get_muted_foreground()
-                        { label }
-                    }
-                    view {
-                        width: Length::Px(24.0)
-                        height: Length::Px(4.0)
-                        flex_shrink: 0.0
-                        radius: 99.0
-                        background: p.get_primary()
-                    }
-                }
-                text {
-                    width: Length::Percent(100.0)
-                    font_size: 26.0
-                    font_weight: FontWeight::Bold
-                    color: p.get_foreground()
-                    { value }
-                }
+        } = self;
+        let mut root_st: Style = tokens.card_style();
+        root_st
+            .get_mut_layout()
+            .set_width(Length::Percent(100.0))
+            .set_row_gap(SPACE_SM)
+            .set_column_gap(SPACE_SM);
+        let mut head_row_st: Style = Style::default();
+        head_row_st
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Row)
+            .set_width(Length::Percent(100.0))
+            .set_justify_content(JustifyContent::SpaceBetween)
+            .set_align_items(AlignItems::Center);
+        let mut lbl_st: Style = Style::default();
+        lbl_st
+            .get_mut_layout()
+            .set_flex_shrink(1.0)
+            .set_min_width(Length::Px(0.0));
+        lbl_st
+            .get_mut_text()
+            .set_font_size(12.0)
+            .set_weight(FontWeight::SemiBold)
+            .set_color(p.get_muted_foreground());
+        let mut bar_st: Style = Style::default();
+        bar_st
+            .get_mut_layout()
+            .set_width(Length::Px(24.0))
+            .set_height(Length::Px(4.0))
+            .set_flex_shrink(0.0);
+        bar_st
+            .get_mut_paint()
+            .set_radius(CornerRadius::all(99.0))
+            .set_background(Some(p.get_primary()));
+        let mut val_st: Style = Style::default();
+        val_st.get_mut_layout().set_width(Length::Percent(100.0));
+        val_st
+            .get_mut_text()
+            .set_font_size(26.0)
+            .set_weight(FontWeight::Bold)
+            .set_color(p.get_foreground());
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                let root: NodeId = tree.create_view(root_st);
+                let head_row: NodeId = tree.create_view(head_row_st);
+                let lbl_id: NodeId = tree.create_text(label.clone(), lbl_st);
+                let bar_id: NodeId = tree.create_view(bar_st);
+                tree.append_children(head_row, &[lbl_id, bar_id]);
+                let val_id: NodeId = tree.create_text(value.clone(), val_st);
                 if !caption.is_empty() {
-                    row {
-                        max_width: Length::Percent(100.0)
-                        padding: Edges::symmetric(4.0, 10.0)
-                        radius: 12.0
-                        background: p.get_primary().with_alpha(24)
-                        align: AlignItems::Center
-                        overflow: Overflow::Hidden
-                        text {
-                            max_width: Length::Percent(100.0)
-                            font_size: 11.0
-                            font_weight: FontWeight::SemiBold
-                            color: p.get_primary()
-                            { caption }
-                        }
-                    }
+                    let mut cap_row_st: Style = Style::default();
+                    cap_row_st
+                        .get_mut_layout()
+                        .set_flex_direction(FlexDirection::Row)
+                        .set_max_width(Length::Percent(100.0))
+                        .set_padding(Edges::symmetric(4.0, 10.0))
+                        .set_align_items(AlignItems::Center)
+                        .set_overflow(Overflow::Hidden);
+                    cap_row_st
+                        .get_mut_paint()
+                        .set_radius(CornerRadius::all(g.get_radius_sm().max(0.0)))
+                        .set_background(Some(p.get_primary().with_alpha(24)));
+                    let mut cap_txt_st: Style = Style::default();
+                    cap_txt_st
+                        .get_mut_layout()
+                        .set_max_width(Length::Percent(100.0));
+                    cap_txt_st
+                        .get_mut_text()
+                        .set_font_size(11.0)
+                        .set_weight(FontWeight::SemiBold)
+                        .set_color(p.get_primary());
+                    let cap_row: NodeId = tree.create_view(cap_row_st);
+                    let cap_txt: NodeId = tree.create_text(caption.clone(), cap_txt_st);
+                    tree.append_child(cap_row, cap_txt);
+                    tree.append_children(root, &[head_row, val_id, cap_row]);
+                } else {
+                    tree.append_children(root, &[head_row, val_id]);
                 }
-            }
-        }
+                root
+            },
+            NodeId::default(),
+        )
     }
 }

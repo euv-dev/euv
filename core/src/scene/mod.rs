@@ -7,11 +7,12 @@ mod id;
 mod kind;
 mod lifecycle;
 mod node;
+mod selection;
 mod tree;
 
 pub use {
     animation::*, dsl::*, event::*, flags::*, focus::*, id::*, kind::*, lifecycle::*, node::*,
-    tree::*,
+    selection::*, tree::*,
 };
 
 use super::*;

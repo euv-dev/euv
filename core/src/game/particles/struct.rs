@@ -73,12 +73,75 @@ pub struct ParticleEmitterConfig {
     pub(crate) drag: f32,
 }
 
-/// Zero-allocation fixed-capacity 2D particle simulation engine.
+/// Zero-allocation fixed-capacity 2D particle simulation engine using active-prefix SoA hot kinematics.
 #[derive(Clone, Data, Debug)]
 pub struct ParticleSystem {
-    /// Pre-allocated contiguous particle pool.
-    pub(crate) pool: Vec<Particle>,
-    /// Next circular allocation cursor.
+    /// Maximum concurrent particle slots pre-allocated in every SoA lane.
+    #[get(type(copy))]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) capacity: usize,
+    /// Hot SoA world-space X coordinates compacted in `[0..active_count)`.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) pos_x: Vec<f32>,
+    /// Hot SoA world-space Y coordinates compacted in `[0..active_count)`.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) pos_y: Vec<f32>,
+    /// Hot SoA X velocities compacted in `[0..active_count)`.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) vel_x: Vec<f32>,
+    /// Hot SoA Y velocities compacted in `[0..active_count)`.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) vel_y: Vec<f32>,
+    /// Hot SoA elapsed particle ages in seconds compacted in `[0..active_count)`.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) age: Vec<f32>,
+    /// Hot SoA total particle lifetimes in seconds compacted in `[0..active_count)`.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) lifetime: Vec<f32>,
+    /// Hot SoA linear drag coefficients compacted in `[0..active_count)`.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) drag: Vec<f32>,
+    /// Cold SoA starting particle radii aligned 1:1 with `[0..active_count)`.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) start_size: Vec<f32>,
+    /// Cold SoA ending particle radii aligned 1:1 with `[0..active_count)`.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) end_size: Vec<f32>,
+    /// Cold SoA starting RGBA colors aligned 1:1 with `[0..active_count)`.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) start_color: Vec<Color>,
+    /// Cold SoA ending RGBA colors aligned 1:1 with `[0..active_count)`.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) end_color: Vec<Color>,
+    /// Conservative lower bound on remaining lifetime across active particles enabling branchless updates.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) min_remaining_life: f32,
+    /// Next circular overwrite cursor used when `active_count == capacity`.
     #[get(pub(crate), type(copy))]
     #[set(pub(crate))]
     pub(crate) cursor: usize,
@@ -89,7 +152,7 @@ pub struct ParticleSystem {
     /// Gravity applied to active particles.
     #[get(type(copy))]
     pub(crate) gravity: Point,
-    /// Live active particle count updated during `update`.
+    /// Live active particle count occupying `[0..active_count)`.
     #[get(type(copy))]
     pub(crate) active_count: usize,
 }

@@ -66,6 +66,9 @@ pub(crate) const WINDOW_CARD_TITLE: &str = "Runtime Platform Telemetry";
 pub(crate) const WINDOW_CARD_SUB: &str =
     "Identical API surface across desktop, tablet, mobile, and browser.";
 pub(crate) const SWITCH_FULLSCREEN: &str = "Request Fullscreen Mode";
+pub(crate) const SYS_EVENTS_CARD_TITLE: &str = "System Events & Lifecycle Monitor";
+pub(crate) const SYS_EVENTS_CARD_SUB: &str = "Live normalized AppState, OS theme, network, keyboard, safe area, and Appear/Disappear hooks across all 7 targets.";
+pub(crate) const SYS_EVENTS_LOG_LIMIT: usize = 8;
 pub(crate) const CODE_WINDOW_SNIPPET: &str = "let mut w: WindowConfig = WindowConfig::default();\nw.set_title(\"euv\".into()).set_size(1280, 800);\nw.set_render(RenderConfig::default());";
 
 pub(crate) const FORMS_TITLE: &str = "Interactive Form Controls";
@@ -181,9 +184,9 @@ pub(crate) const TREE_NODE_RENDER: &str = "Renderer (SW/GPU)";
 pub(crate) const TREE_NODE_REACTIVE: &str = "Reactive Signals";
 pub(crate) const TREE_NONE_SELECTED: &str = "None";
 pub(crate) const TREE_SELECTED_PREFIX: &str = "Selected Tree Node";
-pub(crate) const HERO_BADGE_VER: &str = "euv 0.43";
-pub(crate) const LAB_ITEM_VER: &str = "v0.43";
-pub(crate) const HOVER_CARD_ENGINE_TITLE: &str = "euv 0.43 Native Engine";
+pub(crate) const HERO_BADGE_VER: &str = "euv 0.44";
+pub(crate) const LAB_ITEM_VER: &str = "v0.44";
+pub(crate) const HOVER_CARD_ENGINE_TITLE: &str = "euv 0.44 Native Engine";
 pub(crate) const HERO_BADGE_ZERO_WV: &str = "Zero WebView";
 pub(crate) const HERO_BADGE_EVA: &str = "VS Code Eva Bold";
 pub(crate) const HERO_BADGE_FREEZE: &str = "Freeze Router";
@@ -197,31 +200,51 @@ pub(crate) const BTN_OPEN_3D_RT: &str = "3D Engine (Full GI)";
 pub(crate) const BTN_EMIT_PULSE: &str = "Emit Custom Event";
 pub(crate) const BTN_LOCAL_INC: &str = "Local State (+1)";
 pub(crate) const MD_STUDIO_TITLE: &str = "Markdown & Code Studio";
-pub(crate) const MD_STUDIO_SUBTITLE: &str = "Full GitHub-Flavored Markdown suite paired with exact VS Code Eva Light Bold / Eva Dark Bold syntax highlighting.";
-pub(crate) const MD_THEME_CARD_TITLE: &str = "VS Code Eva Bold Theme Alignment";
-pub(crate) const MD_THEME_CARD_SUB: &str = "Toggle Light / Dark to flip verbatim between Eva Light Bold (#EBEEF5) and Eva Dark Bold (#282C34).";
+pub(crate) const MD_STUDIO_SUBTITLE: &str = "Complete GFM & Extended Markdown, native vector Mermaid diagrams, Unicode LaTeX math, selectable text, and scrollable fullscreen Eva Bold code blocks.";
+pub(crate) const MD_THEME_CARD_TITLE: &str = "VS Code Eva Bold Theme & Selection Controls";
+pub(crate) const MD_THEME_CARD_SUB: &str = "Toggle Light/Dark in-place without losing scroll position, or toggle selectable text across Markdown and Code blocks.";
 pub(crate) const BTN_TOGGLE_EVA_MODE: &str = "Switch Eva Light / Dark Bold";
-pub(crate) const MD_CODE_CARD_TITLE: &str = "EuvCodeBlock Multi-Language Inspector";
-pub(crate) const MD_CODE_CARD_SUB: &str = "Line numbers, highlighted lines, filename chrome, Eva Bold token colors, and interactive Copy callback.";
-pub(crate) const MD_DOC_CARD_TITLE: &str = "Complete Native GFM Markdown Document";
-pub(crate) const MD_DOC_CARD_SUB: &str = "Headings, rich inline text, GitHub Alerts, interactive checklists, aligned tables, images, and collapsible disclosures.";
+pub(crate) const MD_SELECTABLE_LABEL: &str = "Selectable Text";
+pub(crate) const MD_CODE_CARD_TITLE: &str =
+    "EuvCodeBlock Multi-Language Scrollable & Fullscreen Inspector";
+pub(crate) const MD_CODE_CARD_SUB: &str = "Smooth horizontal + vertical scroll, Fullscreen modal portal, line numbers, highlighted lines, selectable code, and native clipboard Copy.";
+pub(crate) const MD_DOC_CARD_TITLE: &str = "Complete Native GFM, Math & Mermaid Document";
+pub(crate) const MD_DOC_CARD_SUB: &str = "Headings, inline styles, Emoji, Math, all 5 GitHub Alerts, Definition Lists, Footnotes, scrollable Tables, interactive Checklists, Disclosures, and Vector Mermaid.";
 pub(crate) const MD_SAMPLE_RUST: &str = r#"#[component(retention = Freeze)]
 impl MarkdownStudioPage {
     fn on_freeze(&self, _node: NodeId) {
         emit!(ShowcasePulseEvent { source: "markdown".into(), seq: 1 });
     }
+
     fn render(&self) -> NodeId {
         let count: LocalState<i32> = local_state!(42);
+        let long_pipeline_description: &str = "Zero-WebView retained scene graph with coupled 1:1 edge-to-edge route transitions, O(1) clean-subtree caching, and 2D/3D hardware + software rendering";
         let box_style: Style = style! {
             AlignItems::Center
             Overflow::Hidden
+            width: Length::Percent(100.0)
+        };
+        let on_copy_cb = move |copied_source: &str| {
+            let _: usize = copied_source.len();
+        };
+        let label_fn = move || -> String {
+            format!("Reactive count = {} | {}", count.get(), long_pipeline_description)
         };
         view! {
-            EuvCodeBlock {
-                code: source
-                tokens: tokens
-                language: "rust"
-                line_numbers: true
+            column {
+                style: box_style
+                EuvCodeBlock {
+                    code: source
+                    tokens: tokens
+                    language: "rust"
+                    line_numbers: true
+                    max_height: 260.0
+                    selectable: true
+                    on_copy: on_copy_cb
+                }
+                text {
+                    { label_fn }
+                }
             }
         }
     }
@@ -251,50 +274,122 @@ pub(crate) const MD_SAMPLE_DIFF: &str = r##"@@ -1,4 +1,5 @@
 -impl Mountable for MyPage { fn mount(self, ctx: &mut BuildContext) -> NodeId { ... } }
 +#[component(retention = Freeze)]
 +impl MyPage { fn render(&self) -> NodeId { view! { ... } } }"##;
-pub(crate) const MD_FULL_DOCUMENT: &str = r##"# Native Rust Markdown Architecture
+pub(crate) const MD_FULL_DOCUMENT: &str = r##"# Native Rust Markdown & Vector Mermaid :rocket:
 
-Welcome to **Euv Markdown Studio** — featuring *zero WebView*, ~~DOM bloat~~, exact `Eva Bold` syntax colors, keyboard shortcuts like <kbd>Cmd+K</kbd>, and interactive [Documentation Links](https://euv.ltpp.vip/docs/markdown).
+Welcome to **Euv Markdown Studio** :sparkles: — featuring *zero WebView*, ***bold italic typography***, ~~DOM bloat~~, ==highlighted callouts==, exponents 2^16^, chemical H~2~O, exact `Eva Bold` syntax colors, keyboard shortcuts like <kbd>Cmd+K</kbd>, inline math $O(n \log n)$ & $\alpha + \beta = \gamma$, [Documentation Links](https://euv.ltpp.vip/docs/markdown), [Reference Links][euv-ref], autolinks <https://euv.ltpp.vip>, and footnotes[^1][^2].
+
+First line with explicit hard break  
+Second line starts directly beneath via trailing two-space break. :check:
 
 > [!NOTE]
-> Every Markdown block below compiles directly to native `euv` scene nodes with bit-identical rendering across all 7 platforms.
+> :info: Every Markdown block and Mermaid diagram below compiles directly to native `euv` scene nodes with bit-identical rendering across all 7 platforms.
 
 > [!TIP]
-> Tap **Switch Eva Light / Dark Bold** above to compare `Eva Light Bold` (`#EBEEF5`) and `Eva Dark Bold` (`#282C34`) live!
+> :bulb: Toggle **Light / Dark** above — the theme updates reactively in-place without tearing down pages or losing your scroll position!
 
 > [!IMPORTANT]
-> Inactive showcase routes use `PageRetention::Freeze` — reactive effects and 3D engines suspend at 0% CPU until resumed.
+> Inactive showcase routes use `PageRetention::Freeze` — reactive effects, scroll offsets, and 3D engines persist at 0% CPU until resumed.
 
 > [!WARNING]
-> Always place each style statement inside `style! { ... }` on its own line without semicolons.
+> :warning: Always place each style statement inside `style! { ... }` on its own line without semicolons.
 
 > [!CAUTION]
-> Legacy `Mountable` and `Style::empty()` APIs have been removed in favor of `Component`, `Lifecycle`, and `Style::default()`.
+> :fire: Legacy `Mountable` and `Style::empty()` APIs have been removed in favor of `Component`, `Lifecycle`, and `Style::default()`.
 
-## Interactive GFM Checklist
+## Native Vector Mermaid Diagrams
+
+### Architecture Flowchart
+
+```mermaid
+flowchart LR
+    A[Reactive Signals] --> B(SceneTree Arena)
+    B --> C{Render Mode}
+    C -->|GPU| D([Metal / Vulkan / WebGPU])
+    C -->|CPU| E([Software Rasterizer])
+    D --> F((60-240Hz Frame))
+    E --> F
+```
+
+### Coupled Transition Sequence
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Shell as EuvAppShell
+    participant Router as EuvRouterOutlet
+    User->>Shell: Swipe or Tap Tab
+    Shell->>Router: Coupled 1:1 Slide
+    Router-->>User: EaseOutCubic 0ms Gap
+```
+
+### State Machine & Telemetry Breakdown
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active
+    Active --> Frozen: Leave Route
+    Frozen --> Active: Resume Coalesced
+    Active --> [*]: Destroy
+```
+
+```mermaid
+pie title Native Frame Budget
+    "Layout Cache" : 12
+    "DisplayList Paint" : 28
+    "GPU / Raster" : 48
+    "Idle Headroom" : 12
+```
+
+```mermaid
+gantt
+    title Release Pipeline Milestones
+    section Core
+    Retained Scene Graph :done, 2026-01-01, 20d
+    Coupled Transitions :active, 2026-01-21, 14d
+    section UI
+    Vector Mermaid + Math :2026-02-04, 10d
+```
+
+## Display Math & LaTeX Equations
+
+$$L_o(p, \omega_o) = L_e(p, \omega_o) + \int_{\Omega} f_r(p, \omega_i, \omega_o) L_i(p, \omega_i) (\omega_i \cdot n) \, d\omega_i$$
+
+$$x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}, \quad \sum_{k=1}^{\infty} \frac{1}{k^2} = \frac{\pi^2}{6}$$
+
+## Interactive GFM Checklist & Nested Lists
 
 - [x] Standalone `Lifecycle` + `Component` traits and `#[component(retention = Freeze)]`
-- [x] Exact VS Code `Eva Light Bold` & `Eva Dark Bold` code highlighting
-- [x] Full-screen gesture swipe area with game/canvas exclusion
+- [x] Coupled 1:1 edge-to-edge route slide transitions + sliding `EuvBottomNav` indicator
+- [x] Scrollable & Fullscreen `EuvCodeBlock` with selectable text and native clipboard
 - [ ] Tap any checkbox row to toggle completion state live
 
-### Ordered Architecture Layers
+### Ordered Architecture Layers (Custom Start)
 
-1. Fine-grained `Signal`, `LocalState`, `GlobalState`, and `EventBus`
-2. Declarative `view!` & `style!` proc macros formatted by `euv fmt`
-3. Persistent multi-core software + 3D BVH ray-traced renderer
+3. Fine-grained `Signal`, `LocalState`, `GlobalState`, and `EventBus`
+4. Declarative `view!` & `style!` proc macros formatted by `euv fmt`
+5. Persistent multi-core software + 3D BVH ray-traced renderer
+
+## Definition Lists
+
+`PageRetention::Freeze`
+: Suspends reactive effects while preserving exact per-page scroll position and DOM/scene subtree cache.
+
+`EuvMermaid`
+: Pure-Rust native vector canvas renderer supporting flowcharts, sequence, state, class, ER, pie, and Gantt charts with fullscreen inspection.
 
 ## Cross-Platform Target Matrix
 
-| Target | Graphics API | Retention Policy |
-| :--- | :---: | ---: |
-| iOS & macOS | Metal / CoreGraphics | Freeze |
-| Android | Vulkan / NDK ANativeWindow | Freeze |
-| WebAssembly | WebGPU / Canvas2D | Freeze |
+| Target | Graphics API | Retention Policy | Text Selection |
+| :--- | :---: | :---: | ---: |
+| **iOS & macOS** | `Metal / CoreGraphics` | Freeze | Native Clipboard |
+| **Android** | `Vulkan / NDK` | Freeze | Native Clipboard |
+| **WebAssembly** | `WebGPU / Canvas2D` | Freeze | Native Clipboard |
+| **Windows & Linux** | `DX12 / Vulkan` | Freeze | Native Clipboard |
 
 ```rust
-let global = global_state!(ShowcaseGlobalBanner = ShowcaseGlobalBanner::default());
-let _sub = on_event!(ShowcasePulseEvent => move |ev: &ShowcasePulseEvent| {
-    let _ = global.update(|g: &mut ShowcaseGlobalBanner| g.set_pulses(g.get_pulses() + ev.get_seq()));
+let global: Signal<ShowcaseGlobalBanner> = global_state!(ShowcaseGlobalBanner = ShowcaseGlobalBanner::default());
+let _sub: Effect = on_event!(ShowcasePulseEvent => move |ev: &ShowcasePulseEvent| {
+    let _: bool = global.update(|g: &mut ShowcaseGlobalBanner| g.set_pulses(g.get_pulses() + ev.get_seq()));
 });
 ```
 
@@ -302,13 +397,22 @@ let _sub = on_event!(ShowcasePulseEvent => move |ev: &ShowcasePulseEvent| {
 
 <details>
 <summary>Expand Lifecycle & Cross-Page Sync Details</summary>
-When leaving a route, `Scope::freeze()` suspends effects while marking dirty cross-page writes.
-Upon returning, `Scope::resume()` coalesces all pending updates into a single atomic flush.
+
+When leaving a route, `Scope::freeze()` suspends effects while marking dirty cross-page writes and preserving exact scroll offsets.
+
+- Zero teardown on Light/Dark or 17-scheme switches
+- Atomic single-flush resume when returning to a frozen page
+
 </details>
 
 ---
 
-> "Fast, lossless, and idiomatic — native Rust UI from mobile touchscreens to 4K desktop displays."
+> Outer quote highlighting zero-WebView performance.
+> > Nested quote: *"Fast, lossless, and idiomatic — native Rust UI from 360px touchscreens to 4K displays."*
+
+[euv-ref]: https://euv.ltpp.vip
+[^1]: Exact VS Code `Eva Light Bold` (`#EBEEF5`) and `Eva Dark Bold` (`#282C34`) syntax color tokens.
+[^2]: Zero JavaScript or WebView dependencies — every diagram, formula, and table draws directly onto `euv`'s retained scene graph.
 "##;
 pub(crate) const BTN_OPEN_STRESS_LAB: &str = "Open Stress Lab";
 pub(crate) const BTN_TRY_REACTIVITY: &str = "Try Reactivity";
@@ -388,3 +492,10 @@ pub(crate) const HOME_DIR_DESC_RN: &str = "Auto / Software / Hardware / Hybrid r
 pub(crate) const HOME_DIR_DESC_OS: &str = "Dynamic Island, permissions, haptics & safe area";
 pub(crate) const HOME_DIR_DESC_2D: &str = "2D physics arena with particles & touch joystick";
 pub(crate) const HOME_DIR_DESC_OT: &str = "Signed partial & global .wasm hot-swap runtime";
+
+/// Label displayed in showcase telemetry readouts when no active frame presentation is occurring.
+pub(crate) const LABEL_FPS_IDLE: &str = "Idle";
+/// Status label displayed in the System Events Monitor when background freeze is active.
+pub(crate) const BG_FREEZE_STATUS_FROZEN: &str = "FROZEN (0% CPU/GPU)";
+/// Status label displayed in the System Events Monitor when foreground execution is active.
+pub(crate) const BG_FREEZE_STATUS_ACTIVE: &str = "ACTIVE";

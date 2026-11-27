@@ -36,4 +36,15 @@ pub struct TextStyle {
     /// Whether text has strikethrough decoration.
     #[get(type(copy))]
     pub(crate) strikethrough: bool,
+    /// Whether text can be interactively selected and copied by the user.
+    #[get(type(copy))]
+    pub(crate) selectable: bool,
+    /// Whether `selectable` was explicitly configured on this node (enabling opt-out under selectable ancestors).
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) selectable_explicit: bool,
+    /// Optional override fill color for text selection highlight rectangles.
+    #[get(skip)]
+    pub(crate) selection_color: Option<Color>,
 }

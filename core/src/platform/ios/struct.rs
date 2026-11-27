@@ -40,4 +40,12 @@ pub struct IosPlatform {
     /// Clipboard cache synchronized with `UIPasteboard`.
     #[get(skip)]
     pub(crate) clipboard_cache: Option<String>,
+    /// Optional attached `CADisplayLink*` pointer paused automatically while in background.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) display_link: usize,
+    /// Whether the UIKit `CADisplayLink` frame pump is currently paused for background freeze.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) pump_paused: bool,
 }

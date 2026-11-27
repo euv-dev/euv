@@ -18,9 +18,10 @@ pub use {component::*, hook::*, overlay_stack::*, router::*, theme::*};
 
 use std::{
     cell::{Cell, Ref, RefCell, RefMut},
-    collections::HashMap,
-    f32::consts::{FRAC_PI_2, TAU},
-    mem::take,
+    cmp::Ordering,
+    collections::{HashMap, VecDeque},
+    f32::consts::{FRAC_1_SQRT_2, FRAC_PI_2, PI, TAU},
+    mem::{replace, take},
     rc::Rc,
 };
 

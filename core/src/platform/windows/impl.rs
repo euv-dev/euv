@@ -14,7 +14,22 @@ impl Default for WindowsPlatform {
             windows: HashMap::new(),
             pending_events: Vec::new(),
             clipboard_cache: None,
+            pump_paused: false,
         }
+    }
+}
+
+/// Win32 system event injection helpers for `WindowsPlatform`.
+impl WindowsPlatform {
+    /// Enqueues a normalized Windows `SystemEvent` to be drained on the next `poll_events()` tick.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable Windows platform backend.
+    /// - `SystemEvent` - System event to enqueue.
+    pub fn push_system_event(&mut self, event: SystemEvent) {
+        self.get_mut_pending_events()
+            .push(WindowEvent::System(event));
     }
 }
 
@@ -231,6 +246,45 @@ impl PlatformBackend for WindowsPlatform {
         take(pending_events)
     }
 
+    /// Blocks via Win32 `WaitMessage` with zero CPU usage until an OS message arrives, then drains all messages.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable Windows platform.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<WindowEvent>` - Events received upon wake.
+    fn wait_for_events(&mut self) -> Vec<WindowEvent> {
+        if self.get_pending_events().is_empty() && !self.get_windows().is_empty() {
+            win32_wait_for_message();
+        }
+        self.poll_events()
+    }
+
+    /// Updates Win32 background frame-pump pause state.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable Windows platform.
+    /// - `bool` - `true` when paused in background; `false` when active.
+    fn set_frame_pump_paused(&mut self, paused: bool) {
+        self.set_pump_paused(paused);
+    }
+
+    /// Returns whether the Win32 frame pump is currently paused for background freeze.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Platform reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when paused in background.
+    fn is_frame_pump_paused(&self) -> bool {
+        self.get_pump_paused()
+    }
+
     /// Blits `framebuffer` directly to the Win32 `HWND` via GDI `StretchDIBits`.
     ///
     /// # Arguments
@@ -283,6 +337,7 @@ impl PlatformBackend for WindowsPlatform {
     /// - `Result<(), PlatformError>` - Write status.
     fn write_clipboard(&mut self, text: &str) -> Result<(), PlatformError> {
         self.set_clipboard_cache(Some(text.to_string()));
+        let _: bool = write_system_clipboard(text);
         Ok(())
     }
 

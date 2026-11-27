@@ -2,7 +2,7 @@
 
 # euv-automation
 
-**Dev-Only AI Schema v1 Bridge & Programmatic UI Automation**
+**Dev-Only Async AI Schema v2 Bridge, `euv.ui-e2e.v1` & Programmatic UI Automation**
 
 [![Crates.io Version](https://flat.badgen.net/crates/v/euv-automation)](https://crates.io/crates/euv-automation)
 [![Crates.io Downloads](https://flat.badgen.net/crates/d/euv-automation)](https://crates.io/crates/euv-automation)
@@ -19,13 +19,14 @@
 
 ## Overview
 
-`euv-automation` provides deterministic headless UI querying, pointer/keyboard/scroll interaction automation (`UiAutomator`), and the dev-only **AI Schema v1** JSON protocol (`AiSchemaProtocol` / `DevAutomationBridge`) for inspecting live `euv` scene trees, accessibility roles, hit-test bounds, and reactive telemetry. All dev automation endpoints are strictly gated behind `cfg(debug_assertions)` and compile down to **0 bytes** in release builds.
+`euv-automation` provides deterministic headless UI querying, pointer/keyboard/scroll interaction automation (`UiAutomator`), the `euv.ui-e2e.v1` / `euv.ui-e2e.result.v1` recorder & replayer, and the dev-only async **AI Schema v2** JSON protocol (`AiSchemaProtocol` / `DevAutomationBridge`) for inspecting live `euv` scene trees, accessibility roles, hit-test bounds, password redaction, same-frame captures, and reactive telemetry. All dev automation endpoints are strictly gated behind `cfg(debug_assertions)` and compile down to **0 bytes** in release builds.
 
 ## Responsibilities & Module Layout
 
-- `automator` — High-level `UiAutomator` driver for label/role queries, synthetic clicks, hovers, text input, resizes, and scripted flows
-- `schema` — `AiSchemaRequest` / `AiSchemaResponse` protocol handlers (`describe`, `snapshot`, `query`, `hit_test`, `action`) plus optional `AiAppHooks`
-- `bridge` — Local loopback HTTP dev bridge (`DevAutomationBridge`) serving `euv.ai.schema.v1` in debug builds only
+- `automator` — High-level `UiAutomator` driver with zero-snapshot direct `SceneTree` queries, synthetic clicks, hovers, text input, resizes, and scripted flows
+- `schema` — `AiSchemaRequest` / `AiSchemaResponse` protocol handlers (`describe`, `snapshot`, `query`, `hit_test`, `action`, `capture_same_frame`) with secret redaction plus optional `AiAppHooks`
+- `bridge` — Resident background-thread loopback HTTP dev bridge (`DevAutomationBridge`) with bounded backpressure queue and `poll_budgeted` in debug builds only
+- `e2e` — `UiE2eFlowV1`, `UiE2eRecorder`, `UiE2eReplayer`, `UiE2eResultV1`, and `UiE2eMigrationProposal` deterministic E2E testing contracts
 
 ## Installation & Usage
 

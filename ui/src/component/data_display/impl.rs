@@ -14,30 +14,43 @@ impl EuvTag {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
-        let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let ctx: Context = current_context();
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
         let (accent, _): (Color, Color) = self.get_tone().colors(p);
-        let Self { label, .. } = self.clone();
-        view! {
-            row {
-                height: Length::Px(24.0)
-                justify: JustifyContent::Center
-                align: AlignItems::Center
-                padding: Edges::symmetric(0.0, SPACE_SM)
-                overflow: Overflow::Hidden
-                background: p.get_muted()
-                border: (g.get_border_width(), accent)
-                radius: g.get_radius_sm()
-                text {
-                    font_size: 12.0
-                    font_weight: FontWeight::Medium
-                    color: p.get_foreground()
-                    text_align: TextAlign::Center
-                    text_overflow: TextOverflow::Ellipsis
-                    { label }
-                }
-            }
-        }
+        let Self { label, .. } = self;
+        let mut row_st: Style = Style::default();
+        row_st
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Row)
+            .set_height(Length::Px(24.0))
+            .set_justify_content(JustifyContent::Center)
+            .set_align_items(AlignItems::Center)
+            .set_padding(Edges::symmetric(0.0, SPACE_SM))
+            .set_overflow(Overflow::Hidden);
+        row_st
+            .get_mut_paint()
+            .set_background(Some(p.get_muted()))
+            .set_border(Border::new(g.get_border_width().max(0.0), accent))
+            .set_radius(CornerRadius::all(g.get_radius_sm().max(0.0)));
+        let mut txt_st: Style = Style::default();
+        txt_st
+            .get_mut_text()
+            .set_font_size(12.0)
+            .set_weight(FontWeight::Medium)
+            .set_color(p.get_foreground())
+            .set_align(TextAlign::Center)
+            .set_overflow(TextOverflow::Ellipsis);
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                let root: NodeId = tree.create_view(row_st);
+                let txt_id: NodeId = tree.create_text(label.clone(), txt_st);
+                tree.append_child(root, txt_id);
+                root
+            },
+            NodeId::default(),
+        )
     }
 }
 
@@ -55,26 +68,38 @@ impl EuvAvatar {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
+        let ctx: Context = current_context();
         let p: ThemePalette = self.get_tokens().get_palette();
         let sz: f32 = self.get_size();
-        let Self { initials, .. } = self.clone();
-        view! {
-            row {
-                width: Length::Px(sz)
-                height: Length::Px(sz)
-                justify: JustifyContent::Center
-                align: AlignItems::Center
-                background: p.get_primary()
-                radius: sz * 0.5
-                text {
-                    font_size: (sz * 0.42).max(10.0)
-                    font_weight: FontWeight::Bold
-                    color: p.get_primary_foreground()
-                    text_align: TextAlign::Center
-                    { initials }
-                }
-            }
-        }
+        let Self { initials, .. } = self;
+        let mut row_st: Style = Style::default();
+        row_st
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Row)
+            .set_width(Length::Px(sz))
+            .set_height(Length::Px(sz))
+            .set_justify_content(JustifyContent::Center)
+            .set_align_items(AlignItems::Center);
+        row_st
+            .get_mut_paint()
+            .set_background(Some(p.get_primary()))
+            .set_radius(CornerRadius::all((sz * 0.5).max(0.0)));
+        let mut txt_st: Style = Style::default();
+        txt_st
+            .get_mut_text()
+            .set_font_size((sz * 0.42).max(10.0))
+            .set_weight(FontWeight::Bold)
+            .set_color(p.get_primary_foreground())
+            .set_align(TextAlign::Center);
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                let root: NodeId = tree.create_view(row_st);
+                let txt_id: NodeId = tree.create_text(initials.clone(), txt_st);
+                tree.append_child(root, txt_id);
+                root
+            },
+            NodeId::default(),
+        )
     }
 }
 
@@ -92,23 +117,33 @@ impl EuvIcon {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
+        let ctx: Context = current_context();
         let sz: f32 = self.get_size();
         let color: Color = self.get_color();
-        let Self { symbol, .. } = self.clone();
-        view! {
-            row {
-                width: Length::Px(sz)
-                height: Length::Px(sz)
-                justify: JustifyContent::Center
-                align: AlignItems::Center
-                text {
-                    font_size: sz * 0.78
-                    font_weight: FontWeight::SemiBold
-                    color: color
-                    { symbol }
-                }
-            }
-        }
+        let Self { symbol, .. } = self;
+        let mut row_st: Style = Style::default();
+        row_st
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Row)
+            .set_width(Length::Px(sz))
+            .set_height(Length::Px(sz))
+            .set_justify_content(JustifyContent::Center)
+            .set_align_items(AlignItems::Center);
+        let mut txt_st: Style = Style::default();
+        txt_st
+            .get_mut_text()
+            .set_font_size(sz * 0.78)
+            .set_weight(FontWeight::SemiBold)
+            .set_color(color);
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                let root: NodeId = tree.create_view(row_st);
+                let txt_id: NodeId = tree.create_text(symbol.clone(), txt_st);
+                tree.append_child(root, txt_id);
+                root
+            },
+            NodeId::default(),
+        )
     }
 }
 
@@ -126,27 +161,40 @@ impl EuvKbd {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
-        let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
-        let Self { key, .. } = self.clone();
-        view! {
-            row {
-                justify: JustifyContent::Center
-                align: AlignItems::Center
-                padding: Edges::symmetric(2.0, 6.0)
-                background: p.get_muted()
-                border: (g.get_border_width(), p.get_border())
-                radius: g.get_radius_sm()
-                text {
-                    font_family: FontFamily::Monospace
-                    font_size: 11.0
-                    color: p.get_foreground()
-                    text_align: TextAlign::Center
-                    text_overflow: TextOverflow::Clip
-                    { key }
-                }
-            }
-        }
+        let ctx: Context = current_context();
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
+        let Self { key, .. } = self;
+        let mut row_st: Style = Style::default();
+        row_st
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Row)
+            .set_justify_content(JustifyContent::Center)
+            .set_align_items(AlignItems::Center)
+            .set_padding(Edges::symmetric(2.0, 6.0));
+        row_st
+            .get_mut_paint()
+            .set_background(Some(p.get_muted()))
+            .set_border(Border::new(g.get_border_width().max(0.0), p.get_border()))
+            .set_radius(CornerRadius::all(g.get_radius_sm().max(0.0)));
+        let mut txt_st: Style = Style::default();
+        txt_st
+            .get_mut_text()
+            .set_family(FontFamily::Monospace)
+            .set_font_size(11.0)
+            .set_color(p.get_foreground())
+            .set_align(TextAlign::Center)
+            .set_overflow(TextOverflow::Clip);
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                let root: NodeId = tree.create_view(row_st);
+                let txt_id: NodeId = tree.create_text(key.clone(), txt_st);
+                tree.append_child(root, txt_id);
+                root
+            },
+            NodeId::default(),
+        )
     }
 }
 
@@ -164,34 +212,41 @@ impl EuvTypography {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
-        let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
         let variant: EuvTypographyVariant = self.get_variant();
-        let Self { text, .. } = self.clone();
-        let style: Style = match variant {
-            EuvTypographyVariant::H1 => Style::default()
-                .font_size(g.get_font_title())
-                .font_weight(FontWeight::Bold)
-                .color(p.get_foreground()),
-            EuvTypographyVariant::H2 => Style::default()
-                .font_size(g.get_font_heading())
-                .font_weight(FontWeight::Bold)
-                .color(p.get_foreground()),
-            EuvTypographyVariant::H3 => Style::default()
-                .font_size(15.0)
-                .font_weight(FontWeight::SemiBold)
-                .color(p.get_foreground()),
-            EuvTypographyVariant::Body => Style::default()
-                .font_size(g.get_font_body())
-                .color(p.get_foreground()),
-            EuvTypographyVariant::Caption => Style::default()
-                .font_size(12.0)
-                .color(p.get_muted_foreground()),
-        };
+        let Self { text, .. } = self;
+        let mut style: Style = Style::default();
+        let ts: &mut TextStyle = style.get_mut_text();
+        match variant {
+            EuvTypographyVariant::H1 => {
+                ts.set_font_size(g.get_font_title())
+                    .set_weight(FontWeight::Bold)
+                    .set_color(p.get_foreground());
+            }
+            EuvTypographyVariant::H2 => {
+                ts.set_font_size(g.get_font_heading())
+                    .set_weight(FontWeight::Bold)
+                    .set_color(p.get_foreground());
+            }
+            EuvTypographyVariant::H3 => {
+                ts.set_font_size(15.0)
+                    .set_weight(FontWeight::SemiBold)
+                    .set_color(p.get_foreground());
+            }
+            EuvTypographyVariant::Body => {
+                ts.set_font_size(g.get_font_body())
+                    .set_color(p.get_foreground());
+            }
+            EuvTypographyVariant::Caption => {
+                ts.set_font_size(12.0).set_color(p.get_muted_foreground());
+            }
+        }
         view! {
             text {
                 style: style
-                { text }
+                { text.as_str() }
             }
         }
     }
@@ -211,11 +266,12 @@ impl EuvEmpty {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
-        let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
         let Self {
             title, description, ..
-        } = self.clone();
+        } = self;
         view! {
             column {
                 width: Length::Percent(100.0)
@@ -233,12 +289,12 @@ impl EuvEmpty {
                     font_size: 15.0
                     font_weight: FontWeight::SemiBold
                     color: p.get_foreground()
-                    { title }
+                    { title.as_str() }
                 }
                 text {
                     font_size: 13.0
                     color: p.get_muted_foreground()
-                    { description }
+                    { description.as_str() }
                 }
             }
         }
@@ -291,29 +347,27 @@ impl EuvSpinner {
     fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
         let sz: f32 = self.get_size();
+        let primary: Color = p.get_primary();
+        let paint_spinner = move |bounds: Rect, dl: &mut DisplayList| {
+            let cx: f32 = bounds.get_x() + bounds.get_width() * 0.5;
+            let cy: f32 = bounds.get_y() + bounds.get_height() * 0.5;
+            let outer_r: f32 = (bounds.get_width().min(bounds.get_height()) * 0.42).max(4.0);
+            let inner_r: f32 = outer_r * 0.56;
+            let stroke_w: f32 = (outer_r * 0.24).clamp(1.6, 3.2);
+            for &(cos_a, sin_a, alpha) in SPINNER_SPOKES.iter() {
+                dl.push(DrawCommand::Line {
+                    from: Point::new(cx + cos_a * inner_r, cy + sin_a * inner_r),
+                    to: Point::new(cx + cos_a * outer_r, cy + sin_a * outer_r),
+                    color: primary.multiply_alpha(alpha),
+                    width: stroke_w,
+                });
+            }
+        };
         view! {
             canvas {
                 width: Length::Px(sz)
                 height: Length::Px(sz)
-                painter: move |bounds: Rect, dl: &mut DisplayList| {
-                    let cx: f32 = bounds.get_x() + bounds.get_width() * 0.5;
-                    let cy: f32 = bounds.get_y() + bounds.get_height() * 0.5;
-                    let outer_r: f32 = (bounds.get_width().min(bounds.get_height()) * 0.42).max(4.0);
-                    let inner_r: f32 = outer_r * 0.56;
-                    let stroke_w: f32 = (outer_r * 0.24).clamp(1.6, 3.2);
-                    let spokes: usize = 8;
-                    for i in 0..spokes {
-                        let angle: f32 = (i as f32) * (TAU / (spokes as f32));
-                        let (sin_a, cos_a): (f32, f32) = angle.sin_cos();
-                        let alpha: f32 = 0.22 + 0.78 * ((i + 1) as f32 / (spokes as f32));
-                        dl.push(DrawCommand::Line {
-                            from: Point::new(cx + cos_a * inner_r, cy + sin_a * inner_r),
-                            to: Point::new(cx + cos_a * outer_r, cy + sin_a * outer_r),
-                            color: p.get_primary().multiply_alpha(alpha),
-                            width: stroke_w,
-                        });
-                    }
-                }
+                painter: paint_spinner
             }
         }
     }
@@ -334,12 +388,12 @@ impl EuvTimeline {
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
-        let Self { items, .. } = self.clone();
+        let Self { items, .. } = self;
         view! {
             column {
                 width: Length::Percent(100.0)
                 gap: SPACE_MD
-                for item in items.into_iter() {
+                for item in items.iter() {
                     row {
                         width: Length::Percent(100.0)
                         gap: SPACE_MD
@@ -356,17 +410,17 @@ impl EuvTimeline {
                                 font_size: 14.0
                                 font_weight: FontWeight::SemiBold
                                 color: p.get_foreground()
-                                { item.get_title().clone() }
+                                { item.get_title().as_str() }
                             }
                             text {
                                 font_size: 11.0
                                 color: p.get_muted_foreground()
-                                { item.get_timestamp().clone() }
+                                { item.get_timestamp().as_str() }
                             }
                             text {
                                 font_size: 13.0
                                 color: p.get_muted_foreground()
-                                { item.get_detail().clone() }
+                                { item.get_detail().as_str() }
                             }
                         }
                     }
@@ -390,9 +444,10 @@ impl EuvList {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
-        let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
-        let Self { items, .. } = self.clone();
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
+        let Self { items, .. } = self;
         view! {
             column {
                 width: Length::Percent(100.0)
@@ -400,7 +455,7 @@ impl EuvList {
                 border: (g.get_border_width(), p.get_border())
                 radius: g.get_radius_md()
                 overflow: Overflow::Hidden
-                for (idx, item) in items.into_iter().enumerate() {
+                for (idx, item) in items.iter().enumerate() {
                     if idx > 0 {
                         view {
                             width: Length::Percent(100.0)
@@ -414,7 +469,7 @@ impl EuvList {
                         text {
                             font_size: 13.0
                             color: p.get_foreground()
-                            { item }
+                            { item.as_str() }
                         }
                     }
                 }
@@ -445,21 +500,21 @@ impl EuvTree {
     ///
     /// # Arguments
     ///
-    /// - `&mut Context` - Active build context.
     /// - `&[EuvTreeNode]` - Sibling tree nodes.
     /// - `usize` - Current indentation depth.
     /// - `(ThemePalette, ThemeGeometry)` - Active theme palette and geometry.
     /// - `Option<Signal<Option<String>>>` - Optional active selection signal.
+    /// - `&mut Vec<(NodeId, String)>` - Collector of `(row_node, label)` pairs for O(1) selector binding.
     ///
     /// # Returns
     ///
     /// - `Vec<NodeId>` - Mounted sibling tree nodes ready for spread attachment.
     fn build_branch(
-        ctx: &mut Context,
         nodes: &[EuvTreeNode],
         depth: usize,
         theme: (ThemePalette, ThemeGeometry),
         selected: Option<Signal<Option<String>>>,
+        bound_rows: &mut Vec<(NodeId, String)>,
     ) -> Vec<NodeId> {
         let (palette, geom): (ThemePalette, ThemeGeometry) = theme;
         let mut out: Vec<NodeId> = Vec::with_capacity(nodes.len() * 2);
@@ -467,79 +522,79 @@ impl EuvTree {
             let has_children: bool = !node.get_children().is_empty();
             let expanded: Signal<bool> = Signal::new(true);
             let indent: f32 = (depth as f32) * 16.0;
-            let label_str: String = node.get_label().clone();
-            let lbl_for_txt: String = label_str.clone();
-            let lbl_click: String = label_str.clone();
+            let label_str: &str = node.get_label().as_str();
+            let lbl_click: String = node.get_label().clone();
+            let on_row_click = move |_: &UiEvent| {
+                if has_children {
+                    let _: bool = expanded.update(|v: &mut bool| *v = !*v);
+                }
+                if let Some(sel_sig) = selected {
+                    let _: bool = sel_sig.set_if_changed(Some(lbl_click.clone()));
+                }
+            };
+            let label_node: NodeId = if has_children {
+                let lbl_for_txt: String = node.get_label().clone();
+                let branch_label = move || -> String {
+                    let pfx: &str = if expanded.get() {
+                        TREE_EXPAND_PREFIX
+                    } else {
+                        TREE_COLLAPSED_PREFIX
+                    };
+                    format!("{pfx}{lbl_for_txt}")
+                };
+                view! {
+                    text {
+                        font_size: 13.0
+                        font_weight: FontWeight::Medium
+                        color: palette.get_foreground()
+                        { branch_label }
+                    }
+                }
+            } else {
+                let leaf_label: String = format!("{TREE_LEAF_PREFIX}{label_str}");
+                view! {
+                    text {
+                        font_size: 13.0
+                        color: palette.get_foreground()
+                        { leaf_label }
+                    }
+                }
+            };
             let row: NodeId = view! {
                 row {
                     width: Length::Percent(100.0)
                     padding: Edges::new(SPACE_XS, SPACE_SM, SPACE_XS, SPACE_SM + indent)
                     radius: geom.get_radius_sm()
+                    background: COLOR_TRANSPARENT
                     cursor: CursorIcon::Pointer
-                    on_click: move |_: &UiEvent| {
-                        if has_children {
-                            let _: bool = expanded.update(|v: &mut bool| *v = !*v);
-                        }
-                        if let Some(sel_sig) = selected {
-                            let _: bool = sel_sig.set_if_changed(Some(lbl_click.clone()));
-                        }
-                    }
-                    if has_children {
-                        text {
-                            font_size: 13.0
-                            font_weight: FontWeight::Medium
-                            color: palette.get_foreground()
-                            { move || {
-                                let pfx: &str = if expanded.get() {
-                                    TREE_EXPAND_PREFIX
-                                } else {
-                                    TREE_COLLAPSED_PREFIX
-                                };
-                                format!("{pfx}{lbl_for_txt}")
-                            } }
-                        }
-                    } else {
-                        text {
-                            font_size: 13.0
-                            color: palette.get_foreground()
-                            { format!("{TREE_LEAF_PREFIX}{label_str}") }
-                        }
-                    }
+                    on_click: on_row_click
+                    { label_node }
                 }
             };
-            if let Some(sel_sig) = selected {
-                let lbl_cmp: String = node.get_label().clone();
-                ctx.bind_style(row, move || {
-                    let is_sel: bool = sel_sig.get().as_deref() == Some(lbl_cmp.as_str());
-                    Style::default()
-                        .row()
-                        .width(Length::Percent(100.0))
-                        .padding(Edges::new(SPACE_XS, SPACE_SM, SPACE_XS, SPACE_SM + indent))
-                        .radius(geom.get_radius_sm())
-                        .background(if is_sel {
-                            palette.get_accent()
-                        } else {
-                            COLOR_TRANSPARENT
-                        })
-                        .cursor(CursorIcon::Pointer)
-                });
+            if selected.is_some() {
+                bound_rows.push((row, node.get_label().clone()));
             }
             out.push(row);
             if has_children {
                 let child_nodes: Vec<NodeId> =
-                    Self::build_branch(ctx, node.get_children(), depth + 1, theme, selected);
+                    Self::build_branch(node.get_children(), depth + 1, theme, selected, bound_rows);
+                let mut branch_base: Style = Style::default();
+                branch_base
+                    .get_mut_layout()
+                    .set_flex_direction(FlexDirection::Column)
+                    .set_width(Length::Percent(100.0));
+                let branch_style = move || -> Style {
+                    let mut st: Style = branch_base;
+                    st.get_mut_layout().set_display(if expanded.get() {
+                        Display::Flex
+                    } else {
+                        Display::None
+                    });
+                    st
+                };
                 let branch_box: NodeId = view! {
                     column {
-                        bind_style: move || {
-                            Style::default()
-                            .column()
-                            .display(if expanded.get() {
-                                Display::Flex
-                                } else {
-                                    Display::None
-                            })
-                            .width(Length::Percent(100.0))
-                        }
+                        bind_style: branch_style
                         ..child_nodes
                     }
                 };
@@ -564,14 +619,16 @@ impl EuvTree {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
-        let mut ctx: Context = current_context();
-        let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
         let Self {
             roots, selected, ..
-        } = self.clone();
-        let branch_nodes: Vec<NodeId> = Self::build_branch(&mut ctx, &roots, 0, (p, g), selected);
-        view! {
+        } = self;
+        let mut bound_rows: Vec<(NodeId, String)> = Vec::new();
+        let branch_nodes: Vec<NodeId> =
+            Self::build_branch(roots, 0, (p, g), *selected, &mut bound_rows);
+        let root: NodeId = view! {
             column {
                 width: Length::Percent(100.0)
                 padding: Edges::all(SPACE_SM)
@@ -581,6 +638,58 @@ impl EuvTree {
                 overflow: Overflow::Hidden
                 ..branch_nodes
             }
+        };
+        if let Some(sel_sig) = *selected
+            && !bound_rows.is_empty()
+        {
+            let ctx: Context = current_context();
+            let scene: SceneHandle = ctx.get_scene().clone();
+            let accent_col: Color = p.get_accent();
+            let (tree_scope, _): (Scope, ()) = Scope::run(|_: Scope| {
+                let sel: Rc<Selector<Option<String>>> =
+                    Rc::new(Selector::new(move || sel_sig.get()));
+                let sel_cleanup: Rc<Selector<Option<String>>> = Rc::clone(&sel);
+                on_cleanup(move || {
+                    sel_cleanup.dispose();
+                });
+                for (row_node, lbl_cmp) in bound_rows.into_iter() {
+                    let sel_row: Rc<Selector<Option<String>>> = Rc::clone(&sel);
+                    let scene_row: SceneHandle = scene.clone();
+                    let mut prev_sel: bool = false;
+                    let mut has_synced: bool = false;
+                    let _: Effect = Effect::new(move || {
+                        let is_sel: bool = sel_row.is_selected(Some(lbl_cmp.clone()));
+                        if has_synced && is_sel == prev_sel {
+                            return;
+                        }
+                        prev_sel = is_sel;
+                        has_synced = true;
+                        let bg: Color = if is_sel {
+                            accent_col
+                        } else {
+                            COLOR_TRANSPARENT
+                        };
+                        scene_row.with_write(
+                            |tree: &mut SceneTree| {
+                                if let Some(node) = tree.get_node_mut(row_node) {
+                                    let mut st: Style = node.get_style();
+                                    st.get_mut_paint().set_background(Some(bg));
+                                    node.set_style(st);
+                                }
+                                tree.mark_dirty(row_node, DIRTY_PAINT);
+                            },
+                            (),
+                        );
+                    });
+                }
+            });
+            ctx.get_scene().with_write(
+                |tree: &mut SceneTree| {
+                    tree.attach_scope(root, tree_scope);
+                },
+                (),
+            );
         }
+        root
     }
 }

@@ -135,7 +135,7 @@ pub struct AiA11yNode {
     pub(crate) label: String,
     /// Supplemental assistive hint string.
     pub(crate) hint: String,
-    /// Current human-readable control value.
+    /// Current human-readable control value (redacted for sensitive inputs).
     pub(crate) value: String,
     /// Optional checked/toggled state for switches and checkboxes.
     #[get(skip)]
@@ -233,7 +233,7 @@ pub struct AiStyleSummary {
     pub(crate) cursor: String,
 }
 
-/// Hierarchical scene and layout node exported by AI Schema v1.
+/// Hierarchical scene and layout node exported by AI Schema v1/v2.
 #[derive(Clone, Data, Debug, Deserialize, PartialEq, Serialize)]
 pub struct AiLayoutNode {
     /// Arena index of the retained scene node.
@@ -246,6 +246,22 @@ pub struct AiLayoutNode {
     pub(crate) kind: String,
     /// Semantic accessibility role (explicit `A11yProps` role when present, otherwise inferred).
     pub(crate) role: String,
+    /// Measurement state (`Measured` vs `Unmeasured` for hidden/unmounted nodes).
+    #[serde(default)]
+    #[get(type(copy))]
+    pub(crate) layout_state: AiLayoutState,
+    /// Arena-independent stable semantic key resolved from node key, `test_id`, or explicit accessibility label.
+    #[serde(default)]
+    #[get(skip)]
+    pub(crate) stable_key: Option<String>,
+    /// Author-declared test identifier resolved from `test_id:` hint or node reconciliation key.
+    #[serde(default)]
+    #[get(skip)]
+    pub(crate) test_id: Option<String>,
+    /// Whether sensitive text or input value on this node was masked with `[REDACTED]`.
+    #[serde(default)]
+    #[get(type(copy))]
+    pub(crate) redacted: bool,
     /// Explicit accessibility label when set on the node.
     #[get(skip)]
     pub(crate) a11y_label: Option<String>,
@@ -255,13 +271,13 @@ pub struct AiLayoutNode {
     /// Whether the control is marked disabled in accessibility or input state.
     #[get(type(copy))]
     pub(crate) disabled: bool,
-    /// Optional static text content.
+    /// Optional static text content (redacted when node key indicates a secret).
     #[get(skip)]
     pub(crate) text: Option<String>,
     /// Optional input placeholder text.
     #[get(skip)]
     pub(crate) placeholder: Option<String>,
-    /// Optional current input value.
+    /// Optional current input value (redacted when masked as password or secret-keyed).
     #[get(skip)]
     pub(crate) value: Option<String>,
     /// Screen-space logical bounding rectangle (after ancestor scroll offsets).
@@ -322,11 +338,26 @@ pub struct AiLayoutAnomaly {
     pub(crate) bounds: AiRect,
 }
 
-/// Complete AI Schema v1 (`euv.ai.schema.v1`) runtime snapshot.
+/// Complete AI Schema v1/v2 (`euv.ai.schema.v1` / `euv.ai.schema.v2`) runtime snapshot.
 #[derive(Clone, Data, Debug, Deserialize, PartialEq, Serialize)]
 pub struct AiRuntimeSnapshot {
-    /// Protocol version tag (`"euv.ai.schema.v1"`).
+    /// Protocol version tag (`"euv.ai.schema.v1"` or `"euv.ai.schema.v2"`).
     pub(crate) protocol_version: String,
+    /// Explicit schema version field (`"euv.ai.schema.v1"` or `"euv.ai.schema.v2"`).
+    #[serde(default)]
+    pub(crate) schema_version: String,
+    /// Deterministic frame identifier bound to this snapshot capture boundary.
+    #[serde(default)]
+    #[get(type(copy))]
+    pub(crate) frame_id: u64,
+    /// Retained scene tree mutation revision bound to this snapshot capture boundary.
+    #[serde(default)]
+    #[get(type(copy))]
+    pub(crate) scene_revision: u64,
+    /// Auditable count of sensitive fields redacted in this snapshot.
+    #[serde(default)]
+    #[get(type(copy))]
+    pub(crate) redacted_field_count: usize,
     /// Window and viewport metrics.
     pub(crate) window: AiWindowInfo,
     /// Rendering, FPS, and layout telemetry.
@@ -348,6 +379,27 @@ pub struct AiRuntimeSnapshot {
     pub(crate) layout_tree: Option<AiLayoutNode>,
     /// Automatically detected layout/visual anomalies.
     pub(crate) anomalies: Vec<AiLayoutAnomaly>,
+}
+
+/// Same-frame diagnostic bundle pairing `frame_id`, `scene_revision`, AI Schema v2 snapshot, and optional RGBA FNV-1a digest.
+#[derive(Clone, Data, Debug, Deserialize, PartialEq, Serialize)]
+pub struct AiSameFrameCapture {
+    /// Monotonic frame identifier shared across snapshot and pixel capture.
+    #[get(type(copy))]
+    pub(crate) frame_id: u64,
+    /// Scene mutation revision shared across snapshot and pixel capture.
+    #[get(type(copy))]
+    pub(crate) scene_revision: u64,
+    /// AI Schema v2 runtime & layout snapshot captured at the same frame boundary.
+    pub(crate) snapshot: AiRuntimeSnapshot,
+    /// Optional deterministic FNV-1a hash of the RGBA8 framebuffer captured at the same frame boundary.
+    #[get(skip)]
+    pub(crate) rgba_fnv1a: Option<u64>,
+    /// Source of the pixel digest (`"software-framebuffer"`, `"hybrid-framebuffer"`, `"hardware-readback"`, or `"none"`).
+    pub(crate) capture_source: String,
+    /// Whether pixel state and scene tree revision are verified synchronized on the same rendered frame.
+    #[get(type(copy))]
+    pub(crate) synced: bool,
 }
 
 /// Optional host-application telemetry and interactive control hooks bound to `AiSchemaProtocol` or `DevAutomationBridge`.
@@ -388,17 +440,17 @@ pub struct AiHitTestResult {
     /// Hit node semantic role.
     #[get(skip)]
     pub(crate) hit_role: Option<String>,
-    /// Hit node text or value if present.
+    /// Hit node text or value if present (redacted for sensitive nodes).
     #[get(skip)]
     pub(crate) hit_text: Option<String>,
     /// Ancestor chain of node indices from hit leaf up to root.
     pub(crate) ancestor_indices: Vec<u32>,
 }
 
-/// Unified AI Schema v1 JSON response envelope.
+/// Unified AI Schema v1/v2 JSON response envelope.
 #[derive(Clone, Data, Debug, Deserialize, New, PartialEq, Serialize)]
 pub struct AiSchemaResponse {
-    /// Protocol version (`"euv.ai.schema.v1"`).
+    /// Protocol version (`"euv.ai.schema.v1"` or `"euv.ai.schema.v2"`).
     pub(crate) protocol_version: String,
     /// Whether the request succeeded.
     #[get(type(copy))]
@@ -408,8 +460,13 @@ pub struct AiSchemaResponse {
     pub(crate) error: Option<String>,
     /// Structured JSON payload matching the executed operation.
     pub(crate) data: Value,
+    /// Optional machine-readable error code (e.g. `"BACKPRESSURE"`).
+    #[new(skip)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[get(skip)]
+    pub(crate) code: Option<String>,
 }
 
-/// Stateless AI Schema v1 protocol dispatcher and runtime inspector facade.
+/// Stateless AI Schema v1/v2 protocol dispatcher and runtime inspector facade.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AiSchemaProtocol;

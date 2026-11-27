@@ -18,12 +18,16 @@ mod tests;
 pub use {args::*, command::*, fmt::*, hot::*, platform::*};
 
 use std::{
-    collections::BTreeMap,
+    borrow::Cow,
+    cmp,
+    collections::{BTreeMap, btree_map},
     env::{self, VarError},
-    ffi::OsStr,
+    ffi::{OsStr, OsString},
     fs::{self, DirEntry, Metadata},
     io::{self, BufRead, BufReader, Error, ErrorKind, Write},
+    iter::Peekable,
     net::{SocketAddr, TcpListener, TcpStream},
+    num::NonZeroUsize,
     path::{Path, PathBuf},
     process::{Child, Command, Output, Stdio},
     str::SplitWhitespace,
@@ -31,7 +35,7 @@ use std::{
         Arc, Mutex, MutexGuard,
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
-    thread::{self, JoinHandle},
+    thread::{self, JoinHandle, Scope, ScopedJoinHandle},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 

@@ -29,6 +29,7 @@ pub(crate) fn expand_global_state_attr(item: ItemStruct) -> proc_macro2::TokenSt
     /// # Returns
     ///
     /// - `::euv::Signal<Self>` - A `::euv::Signal<Self>` value.
+                #[cfg_attr(not(target_arch = "wasm32"), inline)]
                 pub fn provide(self) -> ::euv::Signal<Self> {
                     ::euv::GlobalState::provide(self)
                 }
@@ -39,6 +40,7 @@ pub(crate) fn expand_global_state_attr(item: ItemStruct) -> proc_macro2::TokenSt
     ///
     /// - `::core::option::Option<::euv::Signal<Self>>` - A `::core::option::Option<::euv::Signal<Self>>` value.
                 #[must_use]
+                #[cfg_attr(not(target_arch = "wasm32"), inline)]
                 pub fn use_global() -> ::core::option::Option<::euv::Signal<Self>> {
                     ::euv::GlobalState::use_state::<Self>()
                 }
@@ -49,6 +51,7 @@ pub(crate) fn expand_global_state_attr(item: ItemStruct) -> proc_macro2::TokenSt
     ///
     /// - `::core::option::Option<Self>` - A `::core::option::Option<Self>` value.
                 #[must_use]
+                #[cfg_attr(not(target_arch = "wasm32"), inline)]
                 pub fn get_global() -> ::core::option::Option<Self> {
                     ::euv::GlobalState::get::<Self>()
                 }
@@ -62,6 +65,7 @@ pub(crate) fn expand_global_state_attr(item: ItemStruct) -> proc_macro2::TokenSt
     /// # Returns
     ///
     /// - `bool` - A boolean.
+                #[cfg_attr(not(target_arch = "wasm32"), inline)]
                 pub fn set_global(value: Self) -> bool {
                     ::euv::GlobalState::set(value)
                 }
@@ -75,6 +79,7 @@ pub(crate) fn expand_global_state_attr(item: ItemStruct) -> proc_macro2::TokenSt
     /// # Returns
     ///
     /// - `bool` - A boolean.
+                #[cfg_attr(not(target_arch = "wasm32"), inline)]
                 pub fn update_global<__EuvStF>(updater: __EuvStF) -> bool
                 where
                     __EuvStF: FnOnce(&mut Self),
@@ -92,6 +97,7 @@ pub(crate) fn expand_global_state_attr(item: ItemStruct) -> proc_macro2::TokenSt
     ///
     /// - `::core::option::Option<::euv::Effect>` - A `::core::option::Option<::euv::Effect>` value.
                 #[must_use]
+                #[cfg_attr(not(target_arch = "wasm32"), inline)]
                 pub fn watch_global<__EuvStW>(handler: __EuvStW) -> ::core::option::Option<::euv::Effect>
                 where
                     __EuvStW: FnMut(&Self, &Self) + 'static,
@@ -136,11 +142,17 @@ pub(crate) fn expand_global_state(input: GlobalStateInput) -> proc_macro2::Token
             }
         }
         GlobalStateInput::Init { ty, init } => {
-            let span: Span = init.span();
-            quote_spanned! {span=>
-                match ::euv::GlobalState::use_state::<#ty>() {
-                    ::core::option::Option::Some(__euv_sig) => __euv_sig,
-                    ::core::option::Option::None => ::euv::GlobalState::provide::<#ty>(#init),
+            if let Expr::Call(call) = init.as_ref()
+                && call.attrs.is_empty()
+                && call.args.is_empty()
+            {
+                let func: &Expr = call.func.as_ref();
+                quote! {
+                    ::euv::GlobalState::use_or_init::<#ty, _>(#func)
+                }
+            } else {
+                quote! {
+                    ::euv::GlobalState::use_or_init::<#ty, _>(|| #init)
                 }
             }
         }

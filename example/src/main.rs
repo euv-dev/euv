@@ -91,6 +91,17 @@ fn main() {
                     let mut last_stats: FrameStats = FrameStats::default();
                     let mut prev_tick: Instant = Instant::now();
                     while app.get_running() {
+                        if !app.should_pump_frames() {
+                            match app.wait_background_events() {
+                                Ok(stats) => last_stats = stats,
+                                Err(err) => {
+                                    eprintln!("{err}");
+                                    break;
+                                }
+                            }
+                            prev_tick = Instant::now();
+                            continue;
+                        }
                         let frame_start: Instant = Instant::now();
                         let dt: f32 = frame_start
                             .duration_since(prev_tick)

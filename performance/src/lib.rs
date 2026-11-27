@@ -3,13 +3,14 @@
 //! Reproducible CPU, reactive propagation, retained layout cache, and
 //! multi-mode rendering benchmark suite for the cross-platform euv runtime.
 
+mod stress;
 mod suite;
 
 #[cfg(test)]
 #[path = "../tests/mod.rs"]
 mod tests;
 
-pub use suite::*;
+pub use {stress::*, suite::*};
 
 use std::{
     rc::Rc,

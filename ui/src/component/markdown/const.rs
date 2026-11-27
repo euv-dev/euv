@@ -113,6 +113,9 @@ pub(crate) const CODE_LANG_JSON: &str = "json";
 pub(crate) const CODE_LANG_TOML: &str = "toml";
 pub(crate) const CODE_LANG_YAML: &str = "yaml";
 pub(crate) const CODE_LANG_HTTP: &str = "http";
+pub(crate) const CODE_LANG_MERMAID: &str = "mermaid";
+pub(crate) const CODE_LANG_MATH: &str = "math";
+pub(crate) const CODE_LANG_LATEX: &str = "latex";
 pub(crate) const CODE_HINT_FN: &str = "fn ";
 pub(crate) const CODE_HINT_LET: &str = "let ";
 pub(crate) const CODE_HINT_IMPL: &str = "impl ";
@@ -121,8 +124,18 @@ pub(crate) const CODE_HINT_GET: &str = "GET ";
 pub(crate) const CODE_HINT_POST: &str = "POST ";
 pub(crate) const CODE_BTN_COPY: &str = "Copy";
 pub(crate) const CODE_BTN_COPIED: &str = "Copied";
+pub(crate) const CODE_BTN_FULLSCREEN: &str = "Fullscreen";
+pub(crate) const CODE_BTN_CLOSE: &str = "Close";
+pub(crate) const CODE_FULLSCREEN_OVERLAY_NAME: &str = "EuvCodeBlockFullscreen";
 pub(crate) const CODE_THEME_LABEL_LIGHT: &str = "Eva Light Bold";
 pub(crate) const CODE_THEME_LABEL_DARK: &str = "Eva Dark Bold";
+pub(crate) const CODE_DEFAULT_MAX_HEIGHT: f32 = 360.0;
+pub(crate) const CODE_MODAL_PADDING: f32 = 16.0;
+pub(crate) const CODE_MODAL_MAX_WIDTH: f32 = 1120.0;
+pub(crate) const CODE_MODAL_MAX_HEIGHT: f32 = 760.0;
+pub(crate) const CODE_FONT_SIZE: f32 = 12.5;
+pub(crate) const CODE_MODAL_FONT_SIZE: f32 = 13.5;
+pub(crate) const CODE_GUTTER_WIDTH: f32 = 38.0;
 pub(crate) const MD_ALERT_LABEL_NOTE: &str = "NOTE";
 pub(crate) const MD_ALERT_LABEL_TIP: &str = "TIP";
 pub(crate) const MD_ALERT_LABEL_IMPORTANT: &str = "IMPORTANT";
@@ -133,6 +146,13 @@ pub(crate) const MD_ALERT_TAG_TIP: &str = "[!TIP]";
 pub(crate) const MD_ALERT_TAG_IMPORTANT: &str = "[!IMPORTANT]";
 pub(crate) const MD_ALERT_TAG_WARNING: &str = "[!WARNING]";
 pub(crate) const MD_ALERT_TAG_CAUTION: &str = "[!CAUTION]";
+pub(crate) const MD_CALLOUT_FENCE: &str = ":::";
+pub(crate) const MD_CALLOUT_NOTE: &str = "note";
+pub(crate) const MD_CALLOUT_TIP: &str = "tip";
+pub(crate) const MD_CALLOUT_IMPORTANT: &str = "important";
+pub(crate) const MD_CALLOUT_WARNING: &str = "warning";
+pub(crate) const MD_CALLOUT_DANGER: &str = "danger";
+pub(crate) const MD_CALLOUT_CAUTION: &str = "caution";
 pub(crate) const MD_CHECKBOX_ON: &str = "[x]";
 pub(crate) const MD_CHECKBOX_OFF: &str = "[ ]";
 pub(crate) const MD_DETAILS_OPEN_TAG: &str = "<details";
@@ -141,78 +161,274 @@ pub(crate) const MD_SUMMARY_OPEN_TAG: &str = "<summary>";
 pub(crate) const MD_SUMMARY_CLOSE_TAG: &str = "</summary>";
 pub(crate) const MD_DETAILS_DEFAULT_SUMMARY: &str = "Details";
 pub(crate) const MD_IMAGE_BADGE: &str = "IMAGE";
+pub(crate) const MD_MATH_BADGE: &str = "MATH";
+pub(crate) const MD_FOOTNOTES_TITLE: &str = "Footnotes";
 pub(crate) const MD_KBD_OPEN: &str = "<kbd>";
 pub(crate) const MD_KBD_CLOSE: &str = "</kbd>";
-pub(crate) const CODE_KEYWORDS: &[&str] = &[
-    "fn",
-    "let",
-    "mut",
-    "pub",
-    "mod",
-    "struct",
-    "enum",
-    "trait",
-    "impl",
-    "const",
-    "static",
-    "type",
-    "ref",
-    "async",
-    "function",
-    "class",
-    "interface",
-    "var",
-    "def",
-    "lambda",
-    "local",
-    "table",
-    "create",
+pub(crate) const MD_MARK_OPEN: &str = "<mark>";
+pub(crate) const MD_MARK_CLOSE: &str = "</mark>";
+pub(crate) const MD_SUP_OPEN: &str = "<sup>";
+pub(crate) const MD_SUP_CLOSE: &str = "</sup>";
+pub(crate) const MD_SUB_OPEN: &str = "<sub>";
+pub(crate) const MD_SUB_CLOSE: &str = "</sub>";
+pub(crate) const MD_SCHEME_HTTP: &str = "http://";
+pub(crate) const MD_SCHEME_HTTPS: &str = "https://";
+pub(crate) const MD_SCHEME_MAILTO: &str = "mailto:";
+pub(crate) const MD_LATEX_FRAC: &str = "frac";
+pub(crate) const MD_LATEX_SQRT: &str = "sqrt";
+pub(crate) const MD_LATEX_TEXT: &str = "text";
+pub(crate) const MD_LATEX_MATHRM: &str = "mathrm";
+pub(crate) const MD_LATEX_MATHBF: &str = "mathbf";
+pub(crate) const MD_LATEX_MATHIT: &str = "mathit";
+pub(crate) const MD_LATEX_LEFT: &str = "left";
+pub(crate) const MD_LATEX_RIGHT: &str = "right";
+pub(crate) const MD_TABLE_COL_MIN_WIDTH: f32 = 120.0;
+pub(crate) const MD_HIGHLIGHT_LIGHT_BG: u32 = 0xFEF08A;
+pub(crate) const MD_HIGHLIGHT_DARK_BG: u32 = 0x854D0E;
+pub(crate) const MD_HIGHLIGHT_LIGHT_FG: u32 = 0x1E293B;
+pub(crate) const MD_HIGHLIGHT_DARK_FG: u32 = 0xFEF9C3;
+
+pub(crate) const MD_EMOJI_MAX_LEN: usize = 18;
+
+pub(crate) const MD_EMOJI_TABLE: &[(&str, &str)] = &[
+    ("+1", "👍"),
+    ("100", "💯"),
+    ("art", "🎨"),
+    ("book", "📖"),
+    ("bug", "🐛"),
+    ("bulb", "💡"),
+    ("chart", "📊"),
+    ("check", "✅"),
+    ("clock", "⏱️"),
+    ("fire", "🔥"),
+    ("gear", "⚙️"),
+    ("globe", "🌐"),
+    ("heart", "❤️"),
+    ("info", "ℹ️"),
+    ("information_source", "ℹ️"),
+    ("link", "🔗"),
+    ("lock", "🔒"),
+    ("memo", "📝"),
+    ("package", "📦"),
+    ("rocket", "🚀"),
+    ("shield", "🛡️"),
+    ("sparkles", "✨"),
+    ("star", "⭐"),
+    ("tada", "🎉"),
+    ("thumbsup", "👍"),
+    ("warning", "⚠️"),
+    ("white_check_mark", "✅"),
+    ("wrench", "🔧"),
+    ("x", "❌"),
+    ("zap", "⚡"),
 ];
-pub(crate) const CODE_CONTROL_KEYWORDS: &[&str] = &[
-    "use", "for", "in", "while", "loop", "if", "else", "match", "return", "break", "continue",
-    "where", "as", "move", "await", "unsafe", "extern", "crate", "super", "self", "Self", "dyn",
-    "export", "import", "from", "default", "new", "try", "catch", "throw", "finally", "switch",
-    "case", "with", "yield", "pass", "elif", "and", "or", "not", "select", "insert", "update",
-    "delete", "echo", "then", "fi", "done", "do",
+
+pub(crate) const MD_LATEX_SYMBOLS: &[(&str, &str)] = &[
+    ("Delta", "Δ"),
+    ("Gamma", "Γ"),
+    ("Lambda", "Λ"),
+    ("Leftarrow", "⇐"),
+    ("Leftrightarrow", "⇔"),
+    ("Omega", "Ω"),
+    ("Phi", "Φ"),
+    ("Pi", "Π"),
+    ("Psi", "Ψ"),
+    ("Rightarrow", "⇒"),
+    ("Sigma", "Σ"),
+    ("Theta", "Θ"),
+    ("Xi", "Ξ"),
+    ("alpha", "α"),
+    ("angle", "∠"),
+    ("approx", "≈"),
+    ("beta", "β"),
+    ("cap", "∩"),
+    ("cdot", "·"),
+    ("cdots", "⋯"),
+    ("chi", "χ"),
+    ("cup", "∪"),
+    ("degree", "°"),
+    ("delta", "δ"),
+    ("div", "÷"),
+    ("dots", "…"),
+    ("emptyset", "∅"),
+    ("epsilon", "ε"),
+    ("equiv", "≡"),
+    ("eta", "η"),
+    ("exists", "∃"),
+    ("forall", "∀"),
+    ("gamma", "γ"),
+    ("ge", "≥"),
+    ("geq", "≥"),
+    ("iff", "⇔"),
+    ("iiint", "∭"),
+    ("iint", "∬"),
+    ("in", "∈"),
+    ("infty", "∞"),
+    ("int", "∫"),
+    ("iota", "ι"),
+    ("kappa", "κ"),
+    ("lambda", "λ"),
+    ("land", "∧"),
+    ("ldots", "…"),
+    ("le", "≤"),
+    ("leftarrow", "←"),
+    ("leftrightarrow", "↔"),
+    ("leq", "≤"),
+    ("lor", "∨"),
+    ("mapsto", "↦"),
+    ("mp", "∓"),
+    ("mu", "μ"),
+    ("nabla", "∇"),
+    ("ne", "≠"),
+    ("neg", "¬"),
+    ("neq", "≠"),
+    ("notin", "∉"),
+    ("nu", "ν"),
+    ("oint", "∮"),
+    ("omega", "ω"),
+    ("oplus", "⊕"),
+    ("otimes", "⊗"),
+    ("parallel", "∥"),
+    ("partial", "∂"),
+    ("perp", "⊥"),
+    ("phi", "φ"),
+    ("pi", "π"),
+    ("pm", "±"),
+    ("prod", "∏"),
+    ("propto", "∝"),
+    ("psi", "ψ"),
+    ("qquad", "    "),
+    ("quad", "  "),
+    ("rho", "ρ"),
+    ("rightarrow", "→"),
+    ("sigma", "σ"),
+    ("sim", "∼"),
+    ("simeq", "≃"),
+    ("subset", "⊂"),
+    ("subseteq", "⊆"),
+    ("sum", "∑"),
+    ("supset", "⊃"),
+    ("supseteq", "⊇"),
+    ("tau", "τ"),
+    ("theta", "θ"),
+    ("times", "×"),
+    ("to", "→"),
+    ("upsilon", "υ"),
+    ("varepsilon", "ε"),
+    ("varnothing", "∅"),
+    ("varphi", "ϕ"),
+    ("xi", "ξ"),
+    ("zeta", "ζ"),
 ];
-pub(crate) const CODE_CONSTANTS: &[&str] = &[
-    "true",
-    "false",
-    "None",
-    "Some",
-    "Ok",
-    "Err",
-    "null",
-    "undefined",
-    "NaN",
-    "Infinity",
-    "True",
-    "False",
-];
-pub(crate) const CODE_PRIMITIVE_TYPES: &[&str] = &[
-    "bool", "char", "str", "u8", "u16", "u32", "u64", "u128", "usize", "i8", "i16", "i32", "i64",
-    "i128", "isize", "f32", "f64", "number", "string", "boolean", "void", "any",
-];
-pub(crate) const CODE_RESULT_TYPES: &[&str] = &["Result", "Option"];
-pub(crate) const CODE_TYPES: &[&str] = &[
-    "String",
-    "Vec",
-    "Box",
-    "Rc",
-    "Arc",
-    "Signal",
-    "Memo",
-    "Effect",
-    "Scope",
-    "Context",
-    "NodeId",
-    "Style",
-    "Color",
-    "ThemeTokens",
-    "PageRetention",
-    "Lifecycle",
-    "Component",
-];
+
+pub(crate) const KW_FN: &str = "fn";
+pub(crate) const KW_LET: &str = "let";
+pub(crate) const KW_MUT: &str = "mut";
+pub(crate) const KW_PUB: &str = "pub";
+pub(crate) const KW_MOD: &str = "mod";
+pub(crate) const KW_STRUCT: &str = "struct";
+pub(crate) const KW_ENUM: &str = "enum";
+pub(crate) const KW_TRAIT: &str = "trait";
+pub(crate) const KW_IMPL: &str = "impl";
+pub(crate) const KW_CONST: &str = "const";
+pub(crate) const KW_STATIC: &str = "static";
+pub(crate) const KW_TYPE: &str = "type";
+pub(crate) const KW_REF: &str = "ref";
+pub(crate) const KW_ASYNC: &str = "async";
+pub(crate) const KW_FUNCTION: &str = "function";
+pub(crate) const KW_CLASS: &str = "class";
+pub(crate) const KW_INTERFACE: &str = "interface";
+pub(crate) const KW_VAR: &str = "var";
+pub(crate) const KW_DEF: &str = "def";
+pub(crate) const KW_LAMBDA: &str = "lambda";
+pub(crate) const KW_LOCAL: &str = "local";
+pub(crate) const KW_TABLE: &str = "table";
+pub(crate) const KW_CREATE: &str = "create";
+pub(crate) const KW_CTRL_USE: &str = "use";
+pub(crate) const KW_CTRL_FOR: &str = "for";
+pub(crate) const KW_CTRL_IN: &str = "in";
+pub(crate) const KW_CTRL_WHILE: &str = "while";
+pub(crate) const KW_CTRL_LOOP: &str = "loop";
+pub(crate) const KW_CTRL_IF: &str = "if";
+pub(crate) const KW_CTRL_ELSE: &str = "else";
+pub(crate) const KW_CTRL_MATCH: &str = "match";
+pub(crate) const KW_CTRL_RETURN: &str = "return";
+pub(crate) const KW_CTRL_BREAK: &str = "break";
+pub(crate) const KW_CTRL_CONTINUE: &str = "continue";
+pub(crate) const KW_CTRL_WHERE: &str = "where";
+pub(crate) const KW_CTRL_AS: &str = "as";
+pub(crate) const KW_CTRL_MOVE: &str = "move";
+pub(crate) const KW_CTRL_AWAIT: &str = "await";
+pub(crate) const KW_CTRL_UNSAFE: &str = "unsafe";
+pub(crate) const KW_CTRL_EXTERN: &str = "extern";
+pub(crate) const KW_CTRL_CRATE: &str = "crate";
+pub(crate) const KW_CTRL_SUPER: &str = "super";
+pub(crate) const KW_CTRL_SELF: &str = "self";
+pub(crate) const KW_CTRL_SELF_UPPER: &str = "Self";
+pub(crate) const KW_CTRL_DYN: &str = "dyn";
+pub(crate) const KW_CTRL_EXPORT: &str = "export";
+pub(crate) const KW_CTRL_IMPORT: &str = "import";
+pub(crate) const KW_CTRL_FROM: &str = "from";
+pub(crate) const KW_CTRL_DEFAULT: &str = "default";
+pub(crate) const KW_CTRL_NEW: &str = "new";
+pub(crate) const KW_CTRL_TRY: &str = "try";
+pub(crate) const KW_CTRL_CATCH: &str = "catch";
+pub(crate) const KW_CTRL_THROW: &str = "throw";
+pub(crate) const KW_CTRL_FINALLY: &str = "finally";
+pub(crate) const KW_CTRL_SWITCH: &str = "switch";
+pub(crate) const KW_CTRL_CASE: &str = "case";
+pub(crate) const KW_CTRL_WITH: &str = "with";
+pub(crate) const KW_CTRL_YIELD: &str = "yield";
+pub(crate) const KW_CTRL_PASS: &str = "pass";
+pub(crate) const KW_CTRL_ELIF: &str = "elif";
+pub(crate) const KW_CTRL_AND: &str = "and";
+pub(crate) const KW_CTRL_OR: &str = "or";
+pub(crate) const KW_CTRL_NOT: &str = "not";
+pub(crate) const KW_CTRL_SELECT: &str = "select";
+pub(crate) const KW_CTRL_INSERT: &str = "insert";
+pub(crate) const KW_CTRL_UPDATE: &str = "update";
+pub(crate) const KW_CTRL_DELETE: &str = "delete";
+pub(crate) const KW_CTRL_ECHO: &str = "echo";
+pub(crate) const KW_CTRL_THEN: &str = "then";
+pub(crate) const KW_CTRL_FI: &str = "fi";
+pub(crate) const KW_CTRL_DONE: &str = "done";
+pub(crate) const KW_CTRL_DO: &str = "do";
+pub(crate) const KW_CONST_TRUE: &str = "true";
+pub(crate) const KW_CONST_FALSE: &str = "false";
+pub(crate) const KW_CONST_NONE: &str = "None";
+pub(crate) const KW_CONST_SOME: &str = "Some";
+pub(crate) const KW_CONST_OK: &str = "Ok";
+pub(crate) const KW_CONST_ERR: &str = "Err";
+pub(crate) const KW_CONST_NULL: &str = "null";
+pub(crate) const KW_CONST_UNDEFINED: &str = "undefined";
+pub(crate) const KW_CONST_NAN: &str = "NaN";
+pub(crate) const KW_CONST_INFINITY: &str = "Infinity";
+pub(crate) const KW_CONST_TRUE_PY: &str = "True";
+pub(crate) const KW_CONST_FALSE_PY: &str = "False";
+pub(crate) const KW_PRIM_BOOL: &str = "bool";
+pub(crate) const KW_PRIM_CHAR: &str = "char";
+pub(crate) const KW_PRIM_STR: &str = "str";
+pub(crate) const KW_PRIM_U8: &str = "u8";
+pub(crate) const KW_PRIM_U16: &str = "u16";
+pub(crate) const KW_PRIM_U32: &str = "u32";
+pub(crate) const KW_PRIM_U64: &str = "u64";
+pub(crate) const KW_PRIM_U128: &str = "u128";
+pub(crate) const KW_PRIM_USIZE: &str = "usize";
+pub(crate) const KW_PRIM_I8: &str = "i8";
+pub(crate) const KW_PRIM_I16: &str = "i16";
+pub(crate) const KW_PRIM_I32: &str = "i32";
+pub(crate) const KW_PRIM_I64: &str = "i64";
+pub(crate) const KW_PRIM_I128: &str = "i128";
+pub(crate) const KW_PRIM_ISIZE: &str = "isize";
+pub(crate) const KW_PRIM_F32: &str = "f32";
+pub(crate) const KW_PRIM_F64: &str = "f64";
+pub(crate) const KW_PRIM_NUMBER: &str = "number";
+pub(crate) const KW_PRIM_STRING: &str = "string";
+pub(crate) const KW_PRIM_BOOLEAN: &str = "boolean";
+pub(crate) const KW_PRIM_VOID: &str = "void";
+pub(crate) const KW_PRIM_ANY: &str = "any";
+pub(crate) const KW_RES_RESULT: &str = "Result";
+pub(crate) const KW_RES_OPTION: &str = "Option";
 pub(crate) const CODE_BYTE_SLASH: u8 = b'/';
 pub(crate) const CODE_BYTE_DQUOTE: u8 = b'"';
 pub(crate) const CODE_BYTE_SQUOTE: u8 = b'\'';
@@ -225,3 +441,59 @@ pub(crate) const CODE_BYTE_UNDERSCORE: u8 = b'_';
 pub(crate) const CODE_BYTE_BANG: u8 = b'!';
 pub(crate) const CODE_BYTE_LPAREN: u8 = b'(';
 pub(crate) const CODE_BYTE_HASH: u8 = b'#';
+pub(crate) const CODE_BYTE_TILDE: u8 = b'~';
+pub(crate) const MD_BYTE_PIPE: u8 = b'|';
+pub(crate) const MD_BYTE_DASH: u8 = b'-';
+pub(crate) const MD_BYTE_STAR: u8 = b'*';
+pub(crate) const MD_BYTE_PLUS: u8 = b'+';
+pub(crate) const MD_BYTE_NEWLINE: u8 = b'\n';
+pub(crate) const MD_BYTE_DOLLAR: u8 = b'$';
+pub(crate) const MD_BYTE_EQ: u8 = b'=';
+pub(crate) const MD_BYTE_LT: u8 = b'<';
+pub(crate) const MD_BYTE_CARET: u8 = b'^';
+pub(crate) const MD_BYTE_LBRACKET: u8 = b'[';
+
+pub(crate) const MD_INLINE_TRIGGER_LUT: [bool; 256] = {
+    let mut lut: [bool; 256] = [false; 256];
+    lut[CODE_BYTE_BACKSLASH as usize] = true;
+    lut[MD_BYTE_NEWLINE as usize] = true;
+    lut[CODE_BYTE_BACKTICK as usize] = true;
+    lut[MD_BYTE_DOLLAR as usize] = true;
+    lut[MD_BYTE_STAR as usize] = true;
+    lut[CODE_BYTE_UNDERSCORE as usize] = true;
+    lut[CODE_BYTE_TILDE as usize] = true;
+    lut[MD_BYTE_EQ as usize] = true;
+    lut[MD_BYTE_LT as usize] = true;
+    lut[MD_BYTE_CARET as usize] = true;
+    lut[CODE_BYTE_BANG as usize] = true;
+    lut[MD_BYTE_LBRACKET as usize] = true;
+    lut[CODE_BYTE_COLON as usize] = true;
+    lut
+};
+
+pub(crate) const MD_ESCAPABLE_BYTE_LUT: [bool; 256] = {
+    let mut lut: [bool; 256] = [false; 256];
+    lut[b'\\' as usize] = true;
+    lut[b'`' as usize] = true;
+    lut[b'*' as usize] = true;
+    lut[b'_' as usize] = true;
+    lut[b'{' as usize] = true;
+    lut[b'}' as usize] = true;
+    lut[b'[' as usize] = true;
+    lut[b']' as usize] = true;
+    lut[b'(' as usize] = true;
+    lut[b')' as usize] = true;
+    lut[b'#' as usize] = true;
+    lut[b'+' as usize] = true;
+    lut[b'-' as usize] = true;
+    lut[b'.' as usize] = true;
+    lut[b'!' as usize] = true;
+    lut[b'~' as usize] = true;
+    lut[b'^' as usize] = true;
+    lut[b'=' as usize] = true;
+    lut[b'$' as usize] = true;
+    lut[b':' as usize] = true;
+    lut[b'<' as usize] = true;
+    lut[b'>' as usize] = true;
+    lut
+};

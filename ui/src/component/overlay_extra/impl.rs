@@ -20,7 +20,8 @@ impl EuvDrawer {
         let vp_sig: Signal<Size> = ctx.get_viewport_size();
         let open: Signal<bool> = self.get_open();
         let body: NodeId = self.get_body();
-        let Self { title, .. } = self.clone();
+        let Self { title, .. } = self;
+        let title_owned: String = title.clone();
         let init_open: bool = open.get_untracked();
         let expanded: Signal<bool> = Signal::new(false);
         let drag_active: Rc<Cell<bool>> = Rc::new(Cell::new(false));
@@ -81,7 +82,7 @@ impl EuvDrawer {
                             font_size: g.get_font_heading()
                             font_weight: FontWeight::Bold
                             color: p.get_card_foreground()
-                            { title }
+                            { title_owned }
                         }
                         { body }
                     }
@@ -135,11 +136,10 @@ impl EuvDrawer {
                     h_move.with_write(
                         |tree: &mut SceneTree| {
                             if let Some(n) = tree.get_node_mut(panel) {
-                                let mut st: Style = n.get_style();
+                                let st: &mut Style = n.get_mut_style();
                                 st.get_mut_layout().set_width(Length::Px(next_w));
                                 st.get_mut_paint()
                                     .set_transform(Transform2D::new(tx, 0.0, 1.0, 1.0, 0.0));
-                                n.set_style(st);
                                 let layout_dirty: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
                                 tree.mark_dirty(panel, layout_dirty | DIRTY_PAINT);
                             }
@@ -182,10 +182,9 @@ impl EuvDrawer {
                 h_up.with_write(
                     |tree: &mut SceneTree| {
                         if let Some(n) = tree.get_node_mut(panel) {
-                            let mut st: Style = n.get_style();
+                            let st: &mut Style = n.get_mut_style();
                             st.get_mut_layout().set_width(Length::Px(target_w));
                             st.get_mut_paint().set_transform(Transform2D::default());
-                            n.set_style(st);
                             let layout_dirty: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
                             tree.mark_dirty(panel, layout_dirty | DIRTY_PAINT);
                         }
@@ -216,10 +215,18 @@ impl EuvDrawer {
                 let target_w: f32 = if is_exp { max_w } else { def_w };
                 handle_dim.with_write(
                     |tree: &mut SceneTree| {
-                        if let Some(n) = tree.get_node_mut(panel) {
-                            let mut st: Style = n.get_style();
-                            st.get_mut_layout().set_width(Length::Px(target_w));
-                            n.set_style(st);
+                        let next_len: Length = Length::Px(target_w);
+                        let changed: bool = if let Some(n) = tree.get_node_mut(panel) {
+                            if n.style_ref().get_layout().get_width() != next_len {
+                                n.get_mut_style().get_mut_layout().set_width(next_len);
+                                true
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        };
+                        if changed {
                             let layout_dirty: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
                             tree.mark_dirty(panel, layout_dirty | DIRTY_PAINT);
                         }
@@ -240,34 +247,33 @@ impl EuvDrawer {
                     handle.with_write(
                         |tree: &mut SceneTree| {
                             if let Some(n) = tree.get_node_mut(scrim) {
-                                let mut st: Style = n.get_style();
-                                st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
-                                n.set_style(st);
+                                n.get_mut_style()
+                                    .get_mut_paint()
+                                    .set_pointer_events(PointerEvents::Auto);
                             }
                             if let Some(n) = tree.get_node_mut(panel) {
-                                let mut st: Style = n.get_style();
+                                let st: &mut Style = n.get_mut_style();
                                 st.get_mut_layout().set_width(Length::Px(def_w));
                                 st.get_mut_paint().set_transform(Transform2D::default());
-                                n.set_style(st);
                             }
+                            tree.start_transition(
+                                NodeTransition::fade(scrim, 0.0, 1.0, 0.22, false)
+                                    .with_easing(Easing::EaseOutCubic),
+                            );
+                            tree.start_transition(
+                                NodeTransition::slide_fade(
+                                    panel,
+                                    Point::new(def_w, 0.0),
+                                    Point::new(0.0, 0.0),
+                                    1.0,
+                                    1.0,
+                                    0.26,
+                                    false,
+                                )
+                                .with_easing(Easing::EaseOutQuint),
+                            );
                         },
                         (),
-                    );
-                    handle.start_transition(
-                        NodeTransition::fade(scrim, 0.0, 1.0, 0.22, false)
-                            .with_easing(Easing::EaseOutCubic),
-                    );
-                    handle.start_transition(
-                        NodeTransition::slide_fade(
-                            panel,
-                            Point::new(def_w, 0.0),
-                            Point::new(0.0, 0.0),
-                            1.0,
-                            1.0,
-                            0.26,
-                            false,
-                        )
-                        .with_easing(Easing::EaseOutQuint),
                     );
                 } else {
                     let _: bool = expanded.set_if_changed(false);
@@ -276,28 +282,28 @@ impl EuvDrawer {
                     handle.with_write(
                         |tree: &mut SceneTree| {
                             if let Some(n) = tree.get_node_mut(scrim) {
-                                let mut st: Style = n.get_style();
-                                st.get_mut_paint().set_pointer_events(PointerEvents::None);
-                                n.set_style(st);
+                                n.get_mut_style()
+                                    .get_mut_paint()
+                                    .set_pointer_events(PointerEvents::None);
                             }
+                            tree.start_transition(
+                                NodeTransition::slide_fade(
+                                    panel,
+                                    Point::new(0.0, 0.0),
+                                    Point::new(slide_w, 0.0),
+                                    1.0,
+                                    1.0,
+                                    0.20,
+                                    false,
+                                )
+                                .with_easing(Easing::EaseOutCubic),
+                            );
+                            tree.start_transition(
+                                NodeTransition::fade(scrim, 1.0, 0.0, 0.20, true)
+                                    .with_easing(Easing::EaseOutCubic),
+                            );
                         },
                         (),
-                    );
-                    handle.start_transition(
-                        NodeTransition::slide_fade(
-                            panel,
-                            Point::new(0.0, 0.0),
-                            Point::new(slide_w, 0.0),
-                            1.0,
-                            1.0,
-                            0.20,
-                            false,
-                        )
-                        .with_easing(Easing::EaseOutCubic),
-                    );
-                    handle.start_transition(
-                        NodeTransition::fade(scrim, 1.0, 0.0, 0.20, true)
-                            .with_easing(Easing::EaseOutCubic),
                     );
                 }
             })
@@ -332,7 +338,8 @@ impl EuvSheet {
         let vp_sig: Signal<Size> = ctx.get_viewport_size();
         let open: Signal<bool> = self.get_open();
         let body: NodeId = self.get_body();
-        let Self { title, .. } = self.clone();
+        let Self { title, .. } = self;
+        let title_owned: String = title.clone();
         let init_open: bool = open.get_untracked();
         let expanded: Signal<bool> = Signal::new(false);
         let drag_active: Rc<Cell<bool>> = Rc::new(Cell::new(false));
@@ -397,7 +404,7 @@ impl EuvSheet {
                             font_size: g.get_font_heading()
                             font_weight: FontWeight::Bold
                             color: p.get_card_foreground()
-                            { title }
+                            { title_owned }
                         }
                         { body }
                     }
@@ -451,11 +458,10 @@ impl EuvSheet {
                     h_move.with_write(
                         |tree: &mut SceneTree| {
                             if let Some(n) = tree.get_node_mut(panel) {
-                                let mut st: Style = n.get_style();
+                                let st: &mut Style = n.get_mut_style();
                                 st.get_mut_layout().set_height(Length::Px(next_h));
                                 st.get_mut_paint()
                                     .set_transform(Transform2D::new(0.0, ty, 1.0, 1.0, 0.0));
-                                n.set_style(st);
                                 let layout_dirty: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
                                 tree.mark_dirty(panel, layout_dirty | DIRTY_PAINT);
                             }
@@ -498,10 +504,9 @@ impl EuvSheet {
                 h_up.with_write(
                     |tree: &mut SceneTree| {
                         if let Some(n) = tree.get_node_mut(panel) {
-                            let mut st: Style = n.get_style();
+                            let st: &mut Style = n.get_mut_style();
                             st.get_mut_layout().set_height(Length::Px(target_h));
                             st.get_mut_paint().set_transform(Transform2D::default());
-                            n.set_style(st);
                             let layout_dirty: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
                             tree.mark_dirty(panel, layout_dirty | DIRTY_PAINT);
                         }
@@ -532,10 +537,18 @@ impl EuvSheet {
                 let target_h: f32 = if is_exp { max_h } else { def_h };
                 handle_dim.with_write(
                     |tree: &mut SceneTree| {
-                        if let Some(n) = tree.get_node_mut(panel) {
-                            let mut st: Style = n.get_style();
-                            st.get_mut_layout().set_height(Length::Px(target_h));
-                            n.set_style(st);
+                        let next_len: Length = Length::Px(target_h);
+                        let changed: bool = if let Some(n) = tree.get_node_mut(panel) {
+                            if n.style_ref().get_layout().get_height() != next_len {
+                                n.get_mut_style().get_mut_layout().set_height(next_len);
+                                true
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        };
+                        if changed {
                             let layout_dirty: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
                             tree.mark_dirty(panel, layout_dirty | DIRTY_PAINT);
                         }
@@ -556,34 +569,33 @@ impl EuvSheet {
                     handle.with_write(
                         |tree: &mut SceneTree| {
                             if let Some(n) = tree.get_node_mut(scrim) {
-                                let mut st: Style = n.get_style();
-                                st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
-                                n.set_style(st);
+                                n.get_mut_style()
+                                    .get_mut_paint()
+                                    .set_pointer_events(PointerEvents::Auto);
                             }
                             if let Some(n) = tree.get_node_mut(panel) {
-                                let mut st: Style = n.get_style();
+                                let st: &mut Style = n.get_mut_style();
                                 st.get_mut_layout().set_height(Length::Px(def_h));
                                 st.get_mut_paint().set_transform(Transform2D::default());
-                                n.set_style(st);
                             }
+                            tree.start_transition(
+                                NodeTransition::fade(scrim, 0.0, 1.0, 0.22, false)
+                                    .with_easing(Easing::EaseOutCubic),
+                            );
+                            tree.start_transition(
+                                NodeTransition::slide_fade(
+                                    panel,
+                                    Point::new(0.0, def_h),
+                                    Point::new(0.0, 0.0),
+                                    1.0,
+                                    1.0,
+                                    0.26,
+                                    false,
+                                )
+                                .with_easing(Easing::EaseOutQuint),
+                            );
                         },
                         (),
-                    );
-                    handle.start_transition(
-                        NodeTransition::fade(scrim, 0.0, 1.0, 0.22, false)
-                            .with_easing(Easing::EaseOutCubic),
-                    );
-                    handle.start_transition(
-                        NodeTransition::slide_fade(
-                            panel,
-                            Point::new(0.0, def_h),
-                            Point::new(0.0, 0.0),
-                            1.0,
-                            1.0,
-                            0.26,
-                            false,
-                        )
-                        .with_easing(Easing::EaseOutQuint),
                     );
                 } else {
                     let _: bool = expanded.set_if_changed(false);
@@ -592,28 +604,28 @@ impl EuvSheet {
                     handle.with_write(
                         |tree: &mut SceneTree| {
                             if let Some(n) = tree.get_node_mut(scrim) {
-                                let mut st: Style = n.get_style();
-                                st.get_mut_paint().set_pointer_events(PointerEvents::None);
-                                n.set_style(st);
+                                n.get_mut_style()
+                                    .get_mut_paint()
+                                    .set_pointer_events(PointerEvents::None);
                             }
+                            tree.start_transition(
+                                NodeTransition::slide_fade(
+                                    panel,
+                                    Point::new(0.0, 0.0),
+                                    Point::new(0.0, slide_h),
+                                    1.0,
+                                    1.0,
+                                    0.20,
+                                    false,
+                                )
+                                .with_easing(Easing::EaseOutCubic),
+                            );
+                            tree.start_transition(
+                                NodeTransition::fade(scrim, 1.0, 0.0, 0.20, true)
+                                    .with_easing(Easing::EaseOutCubic),
+                            );
                         },
                         (),
-                    );
-                    handle.start_transition(
-                        NodeTransition::slide_fade(
-                            panel,
-                            Point::new(0.0, 0.0),
-                            Point::new(0.0, slide_h),
-                            1.0,
-                            1.0,
-                            0.20,
-                            false,
-                        )
-                        .with_easing(Easing::EaseOutCubic),
-                    );
-                    handle.start_transition(
-                        NodeTransition::fade(scrim, 1.0, 0.0, 0.20, true)
-                            .with_easing(Easing::EaseOutCubic),
                     );
                 }
             })
@@ -761,7 +773,8 @@ impl EuvTooltip {
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let trigger: NodeId = self.get_trigger();
         let pinned: bool = self.get_always_visible();
-        let Self { text, .. } = self.clone();
+        let Self { text, .. } = self;
+        let text_owned: String = text.clone();
         let hovered: Signal<bool> = Signal::new(pinned);
         let mut tip: NodeId = NodeId::default();
         let wrap: NodeId = view! {
@@ -781,7 +794,7 @@ impl EuvTooltip {
                     text {
                         font_size: 11.0
                         color: p.get_background()
-                        { text }
+                        { text_owned }
                     }
                 }
             }
@@ -793,22 +806,41 @@ impl EuvTooltip {
             ctx.on_pointer_leave(wrap, move |_: &UiEvent| {
                 let _: bool = hovered.set_if_changed(false);
             });
-            ctx.bind_style(tip, move || {
-                let vis: Display = if hovered.get() {
-                    Display::Flex
-                } else {
-                    Display::None
-                };
-                Style::default()
-                    .row()
-                    .display(vis)
-                    .padding(Edges::symmetric(SPACE_XS, SPACE_SM))
-                    .background(p.get_foreground())
-                    .radius(g.get_radius_sm())
-                    .shadow(g.get_shadow_md())
-                    .pointer_events(PointerEvents::None)
-                    .z_index(Z_INDEX_TOOLTIP)
+            let handle_tip: SceneHandle = ctx.get_scene().clone();
+            let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+                Effect::new(move || {
+                    let vis: Display = if hovered.get() {
+                        Display::Flex
+                    } else {
+                        Display::None
+                    };
+                    handle_tip.with_write(
+                        |tree: &mut SceneTree| {
+                            let changed: bool = if let Some(n) = tree.get_node_mut(tip) {
+                                if n.style_ref().get_layout().get_display() != vis {
+                                    n.get_mut_style().get_mut_layout().set_display(vis);
+                                    true
+                                } else {
+                                    false
+                                }
+                            } else {
+                                false
+                            };
+                            if changed {
+                                let dirty_lay: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                                tree.mark_dirty(tip, dirty_lay | DIRTY_PAINT);
+                            }
+                        },
+                        (),
+                    );
+                })
             });
+            ctx.get_scene().with_write(
+                |tree: &mut SceneTree| {
+                    tree.attach_scope(tip, scope);
+                },
+                (),
+            );
         }
         wrap
     }
@@ -873,9 +905,10 @@ impl EuvDropdown {
             open: open_opt,
             last_selected: sel_opt,
             ..
-        } = self.clone();
+        } = self;
         let open: Signal<bool> = open_opt.unwrap_or_else(|| Signal::new(false));
         let last_selected: Signal<Option<usize>> = sel_opt.unwrap_or_else(|| Signal::new(None));
+        let label_owned: String = label.clone();
         let init_open: bool = open.get_untracked();
         let mut menu: NodeId = NodeId::default();
         let chevron_color: Color = p.get_muted_foreground();
@@ -899,9 +932,9 @@ impl EuvDropdown {
             });
         };
         let menu_items: Vec<NodeId> = items
-            .into_iter()
+            .iter()
             .enumerate()
-            .map(|(idx, item_label): (usize, String)| {
+            .map(|(idx, item_label): (usize, &String)| {
                 let on_pick = move |_: &UiEvent| {
                     let _: bool = last_selected.set_if_changed(Some(idx));
                     let _: bool = open.set_if_changed(false);
@@ -923,7 +956,7 @@ impl EuvDropdown {
                             font_size: 13.0
                             color: p.get_foreground()
                             text_overflow: TextOverflow::Ellipsis
-                            { item_label }
+                            { item_label.clone() }
                         }
                     }
                 }
@@ -946,7 +979,7 @@ impl EuvDropdown {
                     overflow: Overflow::Hidden
                     cursor: CursorIcon::Pointer
                     role: A11yRole::Button
-                    a11y_label: label.clone()
+                    a11y_label: label_owned.clone()
                     on_click: on_toggle
                     text {
                         flex_grow: 1.0
@@ -956,7 +989,7 @@ impl EuvDropdown {
                         font_weight: FontWeight::Medium
                         color: p.get_foreground()
                         text_overflow: TextOverflow::Ellipsis
-                        { label }
+                        { label_owned }
                     }
                     canvas {
                         width: Length::Px(12.0)
@@ -1072,7 +1105,9 @@ impl EuvNotification {
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let (accent, _): (Color, Color) = self.get_tone().colors(p);
         let visible: Signal<bool> = self.get_visible();
-        let Self { title, message, .. } = self.clone();
+        let Self { title, message, .. } = self;
+        let title_owned: String = title.clone();
+        let message_owned: String = message.clone();
         let init_vis: bool = visible.get_untracked();
         let card: NodeId = view! {
             portal {
@@ -1091,17 +1126,17 @@ impl EuvNotification {
                 overflow: Overflow::Hidden
                 z_index: Z_INDEX_TOAST
                 role: A11yRole::Alert
-                a11y_label: title.clone()
+                a11y_label: title_owned.clone()
                 text {
                     font_size: 14.0
                     font_weight: FontWeight::Bold
                     color: p.get_card_foreground()
-                    { title }
+                    { title_owned }
                 }
                 text {
                     font_size: 12.0
                     color: p.get_muted_foreground()
-                    { message }
+                    { message_owned }
                 }
             }
         };
@@ -1173,7 +1208,8 @@ impl EuvLoading {
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let active: Signal<bool> = self.get_active();
-        let Self { label, .. } = self.clone();
+        let Self { label, .. } = self;
+        let label_owned: String = label.clone();
         let init_active: bool = active.get_untracked();
         let portal: NodeId = view! {
             portal {
@@ -1197,7 +1233,7 @@ impl EuvLoading {
                     font_size: 14.0
                     font_weight: FontWeight::Medium
                     color: p.get_foreground()
-                    { label }
+                    { label_owned }
                 }
             }
         };
@@ -1221,26 +1257,30 @@ impl EuvLoading {
                     handle.with_write(
                         |tree: &mut SceneTree| {
                             if let Some(n) = tree.get_node_mut(portal) {
-                                let mut st: Style = n.get_style();
-                                st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
-                                n.set_style(st);
+                                n.get_mut_style()
+                                    .get_mut_paint()
+                                    .set_pointer_events(PointerEvents::Auto);
                             }
+                            tree.start_transition(NodeTransition::fade(
+                                portal, 0.0, 1.0, 0.18, false,
+                            ));
                         },
                         (),
                     );
-                    handle.start_transition(NodeTransition::fade(portal, 0.0, 1.0, 0.18, false));
                 } else {
                     handle.with_write(
                         |tree: &mut SceneTree| {
                             if let Some(n) = tree.get_node_mut(portal) {
-                                let mut st: Style = n.get_style();
-                                st.get_mut_paint().set_pointer_events(PointerEvents::None);
-                                n.set_style(st);
+                                n.get_mut_style()
+                                    .get_mut_paint()
+                                    .set_pointer_events(PointerEvents::None);
                             }
+                            tree.start_transition(NodeTransition::fade(
+                                portal, 1.0, 0.0, 0.18, true,
+                            ));
                         },
                         (),
                     );
-                    handle.start_transition(NodeTransition::fade(portal, 1.0, 0.0, 0.18, true));
                 }
             })
         });

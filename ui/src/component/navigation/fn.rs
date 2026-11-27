@@ -212,3 +212,40 @@ pub(crate) fn draw_bottom_nav_icon(
         color,
     });
 }
+
+/// Determines whether tab `tab_idx` is currently covered by the sliding `EuvBottomNav` active pill.
+///
+/// # Arguments
+///
+/// - `usize` - Zero-based tab index being styled or painted.
+/// - `Option<usize>` - Currently active route tab index.
+/// - `usize` - Total tab count in the bottom navigation dock.
+/// - `f32` - Live horizontal swipe drag offset in logical pixels.
+/// - `f32` - Active viewport width in logical pixels.
+///
+/// # Returns
+///
+/// - `bool` - `true` when the active pill sits squarely behind `tab_idx`.
+pub(crate) fn bottom_nav_tab_under_pill(
+    tab_idx: usize,
+    active_idx: Option<usize>,
+    item_count: usize,
+    dx: f32,
+    vp_w: f32,
+) -> bool {
+    let Some(cur_i) = active_idx else {
+        return false;
+    };
+    if dx.abs() <= 0.5 {
+        return tab_idx == cur_i;
+    }
+    let mut frac: f32 = (-dx / vp_w.max(1.0)).clamp(-1.0, 1.0);
+    if cur_i == 0 && frac < 0.0 {
+        frac = 0.0;
+    }
+    if cur_i + 1 >= item_count && frac > 0.0 {
+        frac = 0.0;
+    }
+    let pill_pos: f32 = (cur_i as f32) + frac;
+    ((tab_idx as f32) - pill_pos).abs() <= 0.28
+}

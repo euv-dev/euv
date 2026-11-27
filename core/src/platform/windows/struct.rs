@@ -90,6 +90,24 @@ pub(crate) struct BitmapInfo {
     pub(crate) colors: [u32; 1],
 }
 
+/// Win32 `SYSTEM_POWER_STATUS` ABI struct for `GetSystemPowerStatus`.
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Win32SystemPowerStatus {
+    /// AC power status (`0` = offline, `1` = online, `255` = unknown).
+    pub(crate) ac_line_status: u8,
+    /// Battery charge flag bitmask.
+    pub(crate) battery_flag: u8,
+    /// Percentage of full battery charge remaining (`0..=100`, `255` = unknown).
+    pub(crate) battery_life_percent: u8,
+    /// Battery saver status (`1` = Battery Saver active on Windows 10+).
+    pub(crate) system_status_flag: u8,
+    /// Remaining battery lifetime in seconds (`u32::MAX` = unknown).
+    pub(crate) battery_life_time: u32,
+    /// Full battery lifetime in seconds (`u32::MAX` = unknown).
+    pub(crate) battery_full_life_time: u32,
+}
+
 /// Win32 `MSG` ABI struct.
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -146,4 +164,8 @@ pub struct WindowsPlatform {
     /// Clipboard cache.
     #[get(skip)]
     pub(crate) clipboard_cache: Option<String>,
+    /// Whether the Win32 frame pump is paused for background freeze.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) pump_paused: bool,
 }

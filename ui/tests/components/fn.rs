@@ -1441,3 +1441,1263 @@ fn floating_bottom_nav_is_centered_with_side_margins_and_bottom_lift() {
         assert!(h_f - dock.bottom() >= 12.0);
     }
 }
+
+#[test]
+fn coupled_route_transition_moves_outgoing_and_incoming_edge_to_edge_1_to_1() {
+    reset_reactive_runtime();
+    let theme: UiThemeState = UiThemeState::new(DesignScheme::Shadcn, ThemeMode::Light);
+    let tokens: ThemeTokens = untracked(|| theme.get_tokens().get());
+    let router: EuvRouter = EuvRouter::new("/").with_default_retention(PageRetention::Freeze);
+    let router_c: EuvRouter = router.clone();
+    let theme_c: UiThemeState = theme.clone();
+    let order: Vec<String> = vec!["/".to_string(), "/docs".to_string(), "/lab".to_string()];
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(800, 600).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let outlet_id: NodeId = app.mount(move || {
+        router_c
+            .outlet(move |m: &EuvRouteMatch| {
+                let label: String = format!("Page {}", m.get_path());
+                view! {
+                    column {
+                        width: Length::Percent(100.0)
+                        height: Length::Px(900.0)
+                        text {
+                            font_size: 16.0
+                            color: tokens.get_palette().get_foreground()
+                            { label }
+                        }
+                    }
+                }
+            })
+            .with_theme(theme_c)
+            .with_route_order(order)
+            .mount()
+    });
+    let _: FrameStats = app.step_frame().unwrap();
+    let outlet_w: f32 = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_node(outlet_id)
+                .map(|n: &SceneNode| n.get_layout_box().get_bounds().get_width())
+                .unwrap_or(0.0)
+        },
+        0.0,
+    );
+    assert!((outlet_w - 800.0).abs() <= 1.0);
+    router.push("/docs");
+    for _ in 0..8 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let mid_fwd: Vec<(f32, f32)> = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let children: Vec<NodeId> = tree
+                .get_node(outlet_id)
+                .map(|n: &SceneNode| n.get_children().clone())
+                .unwrap_or_default();
+            children
+                .into_iter()
+                .filter_map(|cid: NodeId| {
+                    let node: &SceneNode = tree.get_node(cid)?;
+                    if !node.get_alive()
+                        || node.get_style().get_layout().get_display() == Display::None
+                    {
+                        return None;
+                    }
+                    let paint: PaintStyle = node.get_style().get_paint();
+                    Some((paint.get_transform().get_translate_x(), paint.get_opacity()))
+                })
+                .collect()
+        },
+        Vec::new(),
+    );
+    assert_eq!(mid_fwd.len(), 2);
+    let mut xs_fwd: Vec<f32> = mid_fwd.iter().map(|p: &(f32, f32)| p.0).collect();
+    xs_fwd.sort_by(|a: &f32, b: &f32| a.total_cmp(b));
+    assert!(xs_fwd[0] < -10.0);
+    assert!(xs_fwd[1] > 10.0);
+    assert!(((xs_fwd[1] - xs_fwd[0]) - outlet_w).abs() <= 2.0);
+    assert!(
+        mid_fwd
+            .iter()
+            .all(|p: &(f32, f32)| (p.1 - 1.0).abs() < 0.01)
+    );
+    for _ in 0..24 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    router.push("/");
+    for _ in 0..8 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let mid_back: Vec<f32> = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let children: Vec<NodeId> = tree
+                .get_node(outlet_id)
+                .map(|n: &SceneNode| n.get_children().clone())
+                .unwrap_or_default();
+            children
+                .into_iter()
+                .filter_map(|cid: NodeId| {
+                    let node: &SceneNode = tree.get_node(cid)?;
+                    if !node.get_alive()
+                        || node.get_style().get_layout().get_display() == Display::None
+                    {
+                        return None;
+                    }
+                    Some(
+                        node.get_style()
+                            .get_paint()
+                            .get_transform()
+                            .get_translate_x(),
+                    )
+                })
+                .collect()
+        },
+        Vec::new(),
+    );
+    assert_eq!(mid_back.len(), 2);
+    let mut xs_back: Vec<f32> = mid_back;
+    xs_back.sort_by(|a: &f32, b: &f32| a.total_cmp(b));
+    assert!(xs_back[0] < -10.0);
+    assert!(xs_back[1] > 10.0);
+    assert!(((xs_back[1] - xs_back[0]) - outlet_w).abs() <= 2.0);
+    for _ in 0..24 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let _: bool = app.get_context().get_swipe_drag_offset().set(-160.0);
+    let _: FrameStats = app.step_frame().unwrap();
+    let drag_xs: Vec<f32> = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let children: Vec<NodeId> = tree
+                .get_node(outlet_id)
+                .map(|n: &SceneNode| n.get_children().clone())
+                .unwrap_or_default();
+            children
+                .into_iter()
+                .filter_map(|cid: NodeId| {
+                    let node: &SceneNode = tree.get_node(cid)?;
+                    if !node.get_alive()
+                        || node.get_style().get_layout().get_display() == Display::None
+                    {
+                        return None;
+                    }
+                    Some(
+                        node.get_style()
+                            .get_paint()
+                            .get_transform()
+                            .get_translate_x(),
+                    )
+                })
+                .collect()
+        },
+        Vec::new(),
+    );
+    assert_eq!(drag_xs.len(), 2);
+    let mut sorted_drag: Vec<f32> = drag_xs;
+    sorted_drag.sort_by(|a: &f32, b: &f32| a.total_cmp(b));
+    assert!((sorted_drag[0] - (-160.0)).abs() <= 1.0);
+    assert!((sorted_drag[1] - (outlet_w - 160.0)).abs() <= 1.0);
+}
+
+#[test]
+fn router_preserves_per_page_scroll_on_freeze_and_theme_toggle_and_resets_on_destroy() {
+    reset_reactive_runtime();
+    let theme: UiThemeState = UiThemeState::new(DesignScheme::Shadcn, ThemeMode::Light);
+    let mounts_a: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let mounts_c: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let ma: Rc<Cell<u32>> = Rc::clone(&mounts_a);
+    let mc: Rc<Cell<u32>> = Rc::clone(&mounts_c);
+    let theme_route_c: UiThemeState = theme.clone();
+    let router: EuvRouter = EuvRouter::new("/a")
+        .with_default_retention(PageRetention::Freeze)
+        .route_with_retention(
+            "/c",
+            "Destroy Page",
+            PageRetention::Destroy,
+            move |_: &EuvRouteMatch| {
+                mc.set(mc.get() + 1);
+                let tok: ThemeTokens = untracked(|| theme_route_c.get_tokens().get());
+                let rows: Vec<NodeId> = (0usize..36usize)
+                    .map(|idx: usize| {
+                        view! {
+                            row {
+                                width: Length::Percent(100.0)
+                                height: Length::Px(32.0)
+                                background: tok.get_palette().get_card()
+                                text {
+                                    color: tok.get_palette().get_foreground()
+                                    { format!("/c row {}", idx) }
+                                }
+                            }
+                        }
+                    })
+                    .collect();
+                view! {
+                    column {
+                        width: Length::Percent(100.0)
+                        gap: 4.0
+                        ..rows
+                    }
+                }
+            },
+        );
+    let router_c: EuvRouter = router.clone();
+    let theme_c: UiThemeState = theme.clone();
+    let theme_outlet: UiThemeState = theme.clone();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(640, 400).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let outlet_id: NodeId = app.mount(move || {
+        router_c
+            .outlet(move |m: &EuvRouteMatch| {
+                if m.get_path() == "/a" {
+                    ma.set(ma.get() + 1);
+                }
+                let tok: ThemeTokens = untracked(|| theme_c.get_tokens().get());
+                let rows: Vec<NodeId> = (0usize..36usize)
+                    .map(|idx: usize| {
+                        view! {
+                            row {
+                                width: Length::Percent(100.0)
+                                height: Length::Px(32.0)
+                                background: tok.get_palette().get_card()
+                                text {
+                                    color: tok.get_palette().get_foreground()
+                                    { format!("{} row {}", m.get_path(), idx) }
+                                }
+                            }
+                        }
+                    })
+                    .collect();
+                view! {
+                    column {
+                        width: Length::Percent(100.0)
+                        gap: 4.0
+                        ..rows
+                    }
+                }
+            })
+            .with_theme(theme_outlet)
+            .mount()
+    });
+    let _: FrameStats = app.step_frame().unwrap();
+    assert_eq!(mounts_a.get(), 1);
+    let scroll_a: NodeId = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_node(outlet_id)
+                .and_then(|n: &SceneNode| n.get_children().first().copied())
+                .unwrap()
+        },
+        NodeId::default(),
+    );
+    app.get_scene().with_write(
+        |tree: &mut SceneTree| {
+            if let Some(node) = tree.get_node_mut(scroll_a) {
+                node.get_mut_layout_box()
+                    .set_scroll_offset(Point::new(0.0, 220.0));
+            }
+        },
+        (),
+    );
+    let _: FrameStats = app.step_frame().unwrap();
+    let _: bool = theme.get_mode().set_if_changed(ThemeMode::Dark);
+    theme.select_scheme(DesignScheme::AntDesign);
+    let _: FrameStats = app.step_frame().unwrap();
+    assert_eq!(mounts_a.get(), 1);
+    let scroll_after_theme: f32 = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_node(scroll_a)
+                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset().get_y())
+                .unwrap_or(-1.0)
+        },
+        -1.0,
+    );
+    assert!((scroll_after_theme - 220.0).abs() <= 1.0);
+    router.push("/b");
+    for _ in 0..24 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    router.push("/a");
+    for _ in 0..24 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert_eq!(mounts_a.get(), 1);
+    let scroll_after_resume: f32 = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_node(scroll_a)
+                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset().get_y())
+                .unwrap_or(-1.0)
+        },
+        -1.0,
+    );
+    assert!((scroll_after_resume - 220.0).abs() <= 1.0);
+    router.push("/c");
+    for _ in 0..24 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert_eq!(mounts_c.get(), 1);
+    let scroll_c1: NodeId = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_node(outlet_id)
+                .and_then(|n: &SceneNode| {
+                    n.get_children().iter().copied().find(|cid: &NodeId| {
+                        tree.get_node(*cid)
+                            .map(|cn: &SceneNode| {
+                                cn.get_alive()
+                                    && cn.get_style().get_layout().get_display() != Display::None
+                            })
+                            .unwrap_or(false)
+                    })
+                })
+                .unwrap()
+        },
+        NodeId::default(),
+    );
+    app.get_scene().with_write(
+        |tree: &mut SceneTree| {
+            if let Some(node) = tree.get_node_mut(scroll_c1) {
+                node.get_mut_layout_box()
+                    .set_scroll_offset(Point::new(0.0, 180.0));
+            }
+        },
+        (),
+    );
+    router.push("/a");
+    for _ in 0..24 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    router.push("/c");
+    for _ in 0..24 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert_eq!(mounts_c.get(), 2);
+    let scroll_c2_y: f32 = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_node(outlet_id)
+                .and_then(|n: &SceneNode| {
+                    n.get_children().iter().copied().find_map(|cid: NodeId| {
+                        let cn: &SceneNode = tree.get_node(cid)?;
+                        if cn.get_alive()
+                            && cn.get_style().get_layout().get_display() != Display::None
+                        {
+                            Some(cn.get_layout_box().get_scroll_offset().get_y())
+                        } else {
+                            None
+                        }
+                    })
+                })
+                .unwrap_or(-1.0)
+        },
+        -1.0,
+    );
+    assert!(scroll_c2_y.abs() <= 0.5);
+}
+
+#[test]
+fn code_block_supports_hv_scroll_fullscreen_modal_clipboard_and_selectable() {
+    reset_reactive_runtime();
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Dark);
+    let mut lines: Vec<String> = Vec::with_capacity(32);
+    lines.push(
+        "pub fn very_long_function_signature_demonstrating_horizontal_scroll(alpha: usize, beta: usize, gamma: usize, delta: usize) -> usize {"
+            .to_string(),
+    );
+    for idx in 1..31 {
+        lines.push(format!(
+            "    let accumulator_{idx}: usize = alpha + beta + gamma + delta + {idx};"
+        ));
+    }
+    lines.push("    accumulator_30".to_string());
+    lines.push("}".to_string());
+    let sample_code: String = lines.join("\n");
+    let copied_len: Rc<Cell<usize>> = Rc::new(Cell::new(0));
+    let copied_c: Rc<Cell<usize>> = Rc::clone(&copied_len);
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(360, 600).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(move || {
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                padding: Edges::all(12.0)
+                EuvCodeBlock {
+                    code: sample_code
+                    tokens: tokens
+                    language: "rust"
+                    filename: "long_scroll.rs"
+                    line_numbers: true
+                    max_height: 200.0
+                    selectable: true
+                    on_copy: move |s: &str| {
+                        copied_c.set(s.len());
+                    }
+                }
+            }
+        }
+    });
+    let wid: WindowId = app.get_window_state().get_id();
+    let _: FrameStats = app.step_frame().unwrap();
+    let (max_x, max_y, has_selectable_code, fs_btn_pt, copy_btn_pt, card_h, closed_portal_ok): (
+        f32,
+        f32,
+        bool,
+        Option<Point>,
+        Option<Point>,
+        f32,
+        bool,
+    ) = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let mut mx: f32 = 0.0;
+            let mut my: f32 = 0.0;
+            let mut sel_ok: bool = false;
+            let mut fs_pt: Option<Point> = None;
+            let mut cp_pt: Option<Point> = None;
+            let mut root_card_h: f32 = 0.0;
+            let mut portal_hidden: bool = false;
+            for (idx, n) in tree.get_nodes().iter().enumerate() {
+                if !n.get_alive() {
+                    continue;
+                }
+                let nid: NodeId = NodeId::new(idx as u32, n.get_generation());
+                let lay: LayoutStyle = n.get_style().get_layout();
+                if matches!(n.get_kind(), NodeKind::Portal) {
+                    portal_hidden = lay.get_display() == Display::None
+                        && lay.get_position() == Position::Fixed
+                        && lay.get_z_index() == Z_INDEX_MODAL;
+                }
+                if matches!(n.get_kind(), NodeKind::ScrollView) {
+                    let lb: LayoutBox = n.get_layout_box();
+                    let cur_mx: f32 = (lb.get_content_size().get_width()
+                        - lb.get_content_bounds().get_width())
+                    .max(0.0);
+                    let cur_my: f32 = (lb.get_content_size().get_height()
+                        - lb.get_content_bounds().get_height())
+                    .max(0.0);
+                    mx = mx.max(cur_mx);
+                    my = my.max(cur_my);
+                    if let Some(pid) = n.parent_id()
+                        && let Some(pnode) = tree.get_node(pid)
+                    {
+                        root_card_h =
+                            root_card_h.max(pnode.get_layout_box().get_bounds().get_height());
+                    }
+                }
+                if let NodeKind::Text(t) = n.get_kind() {
+                    if t.contains("very_long_function_signature") && tree.is_node_selectable(nid) {
+                        sel_ok = true;
+                    }
+                    if t == "Fullscreen"
+                        && let Some(b) = tree.node_screen_bounds(nid)
+                    {
+                        fs_pt = Some(Point::new(
+                            b.get_x() + b.get_width() * 0.5,
+                            b.get_y() + b.get_height() * 0.5,
+                        ));
+                    }
+                    if t == "Copy"
+                        && let Some(b) = tree.node_screen_bounds(nid)
+                    {
+                        cp_pt = Some(Point::new(
+                            b.get_x() + b.get_width() * 0.5,
+                            b.get_y() + b.get_height() * 0.5,
+                        ));
+                    }
+                }
+            }
+            (mx, my, sel_ok, fs_pt, cp_pt, root_card_h, portal_hidden)
+        },
+        (0.0, 0.0, false, None, None, 0.0, false),
+    );
+    assert!(max_x > 20.0);
+    assert!(max_y > 20.0);
+    assert!(has_selectable_code);
+    assert!(card_h > 40.0 && card_h < 280.0);
+    assert!(closed_portal_ok);
+    let cp_pt: Point = copy_btn_pt.expect("copy button must exist");
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::mouse(cp_pt.get_x(), cp_pt.get_y()),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::mouse(cp_pt.get_x(), cp_pt.get_y()),
+    ));
+    let _: FrameStats = app.step_frame().unwrap();
+    assert!(copied_len.get() > 100);
+    let fs_pt: Point = fs_btn_pt.expect("fullscreen button must exist");
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::mouse(fs_pt.get_x(), fs_pt.get_y()),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::mouse(fs_pt.get_x(), fs_pt.get_y()),
+    ));
+    let _: FrameStats = app.step_frame().unwrap();
+    assert!(EuvOverlayStack::active_count() >= 1);
+    let (has_close_btn, open_portal_ok): (bool, bool) = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let close_ok: bool = tree.get_nodes().iter().any(|n: &SceneNode| {
+                n.get_alive() && matches!(n.get_kind(), NodeKind::Text(t) if t == "Close")
+            });
+            let portal_vis: bool = tree.get_nodes().iter().any(|n: &SceneNode| {
+                n.get_alive()
+                    && matches!(n.get_kind(), NodeKind::Portal)
+                    && n.get_style().get_layout().get_display() == Display::Flex
+                    && n.get_style().get_layout().get_position() == Position::Fixed
+                    && n.get_style().get_layout().get_z_index() == Z_INDEX_MODAL
+            });
+            (close_ok, portal_vis)
+        },
+        (false, false),
+    );
+    assert!(has_close_btn);
+    assert!(open_portal_ok);
+    assert!(EuvOverlayStack::dismiss_top());
+    for _ in 0..16 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert_eq!(EuvOverlayStack::active_count(), 0);
+    let portal_rehidden: bool = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes().iter().any(|n: &SceneNode| {
+                n.get_alive()
+                    && matches!(n.get_kind(), NodeKind::Portal)
+                    && n.get_style().get_layout().get_display() == Display::None
+            })
+        },
+        false,
+    );
+    assert!(portal_rehidden);
+}
+
+#[test]
+fn full_markdown_and_vector_mermaid_parse_and_render_all_constructs() {
+    reset_reactive_runtime();
+    let inlines: Vec<EuvMarkdownInline> = parse_markdown_inlines(
+        "**bold** *italic* ***both*** ~~del~~ ==mark== ^2^ ~2~ `code` $x^2 + \\alpha$ [^1] <kbd>K</kbd> :rocket: <https://euv.ltpp.vip>",
+    );
+    assert!(
+        inlines
+            .iter()
+            .any(|i: &EuvMarkdownInline| matches!(i, EuvMarkdownInline::Bold(_)))
+    );
+    assert!(
+        inlines
+            .iter()
+            .any(|i: &EuvMarkdownInline| matches!(i, EuvMarkdownInline::Italic(_)))
+    );
+    assert!(
+        inlines
+            .iter()
+            .any(|i: &EuvMarkdownInline| matches!(i, EuvMarkdownInline::BoldItalic(_)))
+    );
+    assert!(
+        inlines
+            .iter()
+            .any(|i: &EuvMarkdownInline| matches!(i, EuvMarkdownInline::Strike(_)))
+    );
+    assert!(
+        inlines
+            .iter()
+            .any(|i: &EuvMarkdownInline| matches!(i, EuvMarkdownInline::Highlight(_)))
+    );
+    assert!(
+        inlines
+            .iter()
+            .any(|i: &EuvMarkdownInline| matches!(i, EuvMarkdownInline::Superscript(_)))
+    );
+    assert!(
+        inlines
+            .iter()
+            .any(|i: &EuvMarkdownInline| matches!(i, EuvMarkdownInline::Subscript(_)))
+    );
+    assert!(
+        inlines
+            .iter()
+            .any(|i: &EuvMarkdownInline| matches!(i, EuvMarkdownInline::Math(_)))
+    );
+    assert!(
+        inlines
+            .iter()
+            .any(|i: &EuvMarkdownInline| matches!(i, EuvMarkdownInline::FootnoteRef(_)))
+    );
+    assert!(
+        inlines
+            .iter()
+            .any(|i: &EuvMarkdownInline| matches!(i, EuvMarkdownInline::Kbd(_)))
+    );
+    assert!(
+        inlines
+            .iter()
+            .any(|i: &EuvMarkdownInline| matches!(i, EuvMarkdownInline::Link { .. }))
+    );
+    assert_eq!(resolve_emoji_shortcode("rocket"), Some("🚀"));
+    let math_out: String = format_latex_math("\\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a} \\to \\infty");
+    assert!(math_out.contains('±'));
+    assert!(math_out.contains('√'));
+    assert!(math_out.contains('→'));
+    assert!(math_out.contains('∞'));
+    assert!(matches!(
+        parse_mermaid_diagram("flowchart LR\nA[Start] --> B{Decide}\nB -->|Yes| C((Done))"),
+        MermaidDiagram::Flowchart { .. }
+    ));
+    assert!(matches!(
+        parse_mermaid_diagram("sequenceDiagram\nAlice->>Bob: Hello\nBob-->>Alice: Hi"),
+        MermaidDiagram::Sequence { .. }
+    ));
+    assert!(matches!(
+        parse_mermaid_diagram("stateDiagram-v2\n[*] --> Idle\nIdle --> Running: go"),
+        MermaidDiagram::State { .. }
+    ));
+    assert!(matches!(
+        parse_mermaid_diagram("classDiagram\nclass Engine {\n+render()\n}\nEngine <|-- Native"),
+        MermaidDiagram::Class { .. }
+    ));
+    assert!(matches!(
+        parse_mermaid_diagram("erDiagram\nUSER ||--o{ ORDER : places"),
+        MermaidDiagram::Er { .. }
+    ));
+    assert!(matches!(
+        parse_mermaid_diagram("pie title Budget\n\"Layout\" : 20\n\"Paint\" : 80"),
+        MermaidDiagram::Pie { .. }
+    ));
+    assert!(matches!(
+        parse_mermaid_diagram("gantt\ntitle Plan\nsection Core\nTask A :done, 2026-01-01, 10d"),
+        MermaidDiagram::Gantt { .. }
+    ));
+    let full_doc: &str = "# Title {#custom}\n\nParagraph with [Ref][r] and [^1].\n\n> [!NOTE]\n> Note line\n\n> [!WARNING]\n> Warn line\n\n$$\\sum_{k=1}^{\\infty} \\frac{1}{k^2} = \\frac{\\pi^2}{6}$$\n\nTerm\n: Definition line\n\n```mermaid\nflowchart TD\nA[Input] --> B[Output]\n```\n\n```mermaid\npie title Share\n\"A\" : 40\n\"B\" : 60\n```\n\n[r]: https://euv.ltpp.vip\n[^1]: Footnote body.\n";
+    let blocks: Vec<EuvMarkdownBlock> = parse_markdown_blocks(full_doc);
+    assert!(
+        blocks
+            .iter()
+            .any(|b: &EuvMarkdownBlock| matches!(b, EuvMarkdownBlock::MathBlock(_)))
+    );
+    assert!(
+        blocks
+            .iter()
+            .any(|b: &EuvMarkdownBlock| matches!(b, EuvMarkdownBlock::DefinitionList(_)))
+    );
+    assert!(
+        blocks
+            .iter()
+            .any(|b: &EuvMarkdownBlock| matches!(b, EuvMarkdownBlock::Footnotes(_)))
+    );
+    assert_eq!(
+        blocks
+            .iter()
+            .filter(|b: &&EuvMarkdownBlock| matches!(b, EuvMarkdownBlock::Mermaid { .. }))
+            .count(),
+        2
+    );
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(800, 900).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(move || {
+        view! {
+            scroll {
+                style: Style::default().column()
+                width: Length::Percent(100.0)
+                height: Length::Percent(100.0)
+                gap: SPACE_MD
+                EuvCard {
+                    title: "Selectable Card".to_string()
+                    tokens: tokens
+                    selectable: true
+                    EuvAlert {
+                        title: "Selectable Alert".to_string()
+                        description: "Alert description text".to_string()
+                        tone: EuvTone::Primary
+                        tokens: tokens
+                        selectable: true
+                    }
+                }
+                EuvMarkdown {
+                    source: full_doc.to_string()
+                    tokens: tokens
+                    selectable: true
+                }
+            }
+        }
+    });
+    let stats: FrameStats = app.step_frame().unwrap();
+    assert_ne!(stats.get_frame_hash(), 0);
+    assert!(stats.get_draw_commands() >= 20);
+    let (card_sel, alert_sel): (bool, bool) = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let mut c_ok: bool = false;
+            let mut a_ok: bool = false;
+            for (idx, n) in tree.get_nodes().iter().enumerate() {
+                if !n.get_alive() {
+                    continue;
+                }
+                let nid: NodeId = NodeId::new(idx as u32, n.get_generation());
+                if let NodeKind::Text(t) = n.get_kind() {
+                    if t == "Selectable Card" && tree.is_node_selectable(nid) {
+                        c_ok = true;
+                    }
+                    if t == "Alert description text" && tree.is_node_selectable(nid) {
+                        a_ok = true;
+                    }
+                }
+            }
+            (c_ok, a_ok)
+        },
+        (false, false),
+    );
+    assert!(card_sel);
+    assert!(alert_sel);
+}
+
+#[test]
+fn bottom_nav_uses_disciplined_radii_and_slides_active_indicator() {
+    reset_reactive_runtime();
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
+    let route: Signal<String> = Signal::new("/".to_string());
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(1280, 800).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(move || {
+        let nav: NodeId = view! {
+            EuvSidebarNav {
+                items: vec![EuvNavItem::new("/".to_string(), "Home".to_string())]
+                active_route: route
+                tokens: tokens
+            }
+        };
+        let bottom: NodeId = view! {
+            EuvBottomNav {
+                items: vec![
+                    EuvNavItem::new("/".to_string(), "Home".to_string()),
+                    EuvNavItem::new("/markdown".to_string(), "Docs".to_string()),
+                    EuvNavItem::new("/lab".to_string(), "Cases".to_string()),
+                    EuvNavItem::new("/stress".to_string(), "Stress".to_string()),
+                    EuvNavItem::new("/game3d".to_string(), "3D".to_string()),
+                ]
+                active_route: route
+                tokens: tokens
+            }
+        };
+        let body: NodeId = view! {
+            column {
+                width: Length::Percent(100.0)
+                text { "Dock Test" }
+            }
+        };
+        view! {
+            EuvAppShell {
+                brand: "Dock".to_string()
+                sidebar: nav
+                main_content: body
+                tokens: tokens
+                route: route
+                bottom_nav: bottom
+            }
+        }
+    });
+    let _: FrameStats = app.step_frame().unwrap();
+    let (dock_radius, ind_node, ind_radius, ind_cy, tab_cy): (f32, NodeId, f32, f32, f32) =
+        app.get_scene().with_read(
+            |tree: &SceneTree| {
+                let mut d_rad: f32 = 999.0;
+                let mut i_id: NodeId = NodeId::default();
+                let mut i_rad: f32 = 999.0;
+                let mut i_cy: f32 = 0.0;
+                let mut t_cy: f32 = 0.0;
+                for (idx, n) in tree.get_nodes().iter().enumerate() {
+                    if !n.get_alive() {
+                        continue;
+                    }
+                    let lay: LayoutStyle = n.get_style().get_layout();
+                    let b: Rect = n.get_layout_box().get_bounds();
+                    if lay.get_position() == Position::Fixed
+                        && lay.get_z_index() == Z_INDEX_CHROME
+                        && (b.get_height() - 60.0).abs() < 1.0
+                    {
+                        d_rad = n.get_style().get_paint().get_radius().get_top_left();
+                    }
+                    if lay.get_position() == Position::Absolute
+                        && lay.get_z_index() == 0
+                        && (b.get_height() - 46.0).abs() < 1.0
+                    {
+                        i_id = NodeId::new(idx as u32, n.get_generation());
+                        i_cy = b.get_y() + b.get_height() * 0.5;
+                        if let Some(&child_id) = n.get_children().first()
+                            && let Some(child_n) = tree.get_node(child_id)
+                        {
+                            i_rad = child_n.get_style().get_paint().get_radius().get_top_left();
+                        }
+                    }
+                    if lay.get_z_index() == 1 && (b.get_height() - 46.0).abs() < 1.0 && t_cy == 0.0
+                    {
+                        t_cy = b.get_y() + b.get_height() * 0.5;
+                    }
+                }
+                (d_rad, i_id, i_rad, i_cy, t_cy)
+            },
+            (999.0, NodeId::default(), 999.0, 0.0, 0.0),
+        );
+    assert!(dock_radius <= 14.0);
+    assert!(ind_radius <= 10.0);
+    assert!((ind_cy - tab_cy).abs() <= 1.0);
+    let expected_muted: Color = tokens.get_palette().get_muted_foreground();
+    let expected_primary_fg: Color = tokens.get_palette().get_primary_foreground();
+    let _: bool = app
+        .get_context()
+        .get_swipe_drag_offset()
+        .set_if_changed(-480.0);
+    let _: FrameStats = app.step_frame().unwrap();
+    let home_color_mid_drag: Option<Color> = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes().iter().find_map(|n: &SceneNode| {
+                if n.get_alive()
+                    && matches!(n.get_kind(), NodeKind::Text(t) if t == "Home")
+                    && (n.get_style().get_text().get_font_size() - 10.5).abs() < 0.2
+                {
+                    Some(n.get_style().get_text().get_color())
+                } else {
+                    None
+                }
+            })
+        },
+        None,
+    );
+    assert_eq!(home_color_mid_drag, Some(expected_muted));
+    let _: bool = app
+        .get_context()
+        .get_swipe_drag_offset()
+        .set_if_changed(0.0);
+    let _: FrameStats = app.step_frame().unwrap();
+    let home_color_settled: Option<Color> = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes().iter().find_map(|n: &SceneNode| {
+                if n.get_alive()
+                    && matches!(n.get_kind(), NodeKind::Text(t) if t == "Home")
+                    && (n.get_style().get_text().get_font_size() - 10.5).abs() < 0.2
+                {
+                    Some(n.get_style().get_text().get_color())
+                } else {
+                    None
+                }
+            })
+        },
+        None,
+    );
+    assert_eq!(home_color_settled, Some(expected_primary_fg));
+    let _: bool = route.set_if_changed("/lab".to_string());
+    for _ in 0..4 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let mid_tx: f32 = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_node(ind_node)
+                .map(|n: &SceneNode| n.get_style().get_paint().get_transform().get_translate_x())
+                .unwrap_or(0.0)
+        },
+        0.0,
+    );
+    assert!(mid_tx < -5.0);
+    for _ in 0..24 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let end_tx: f32 = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_node(ind_node)
+                .map(|n: &SceneNode| n.get_style().get_paint().get_transform().get_translate_x())
+                .unwrap_or(99.0)
+        },
+        99.0,
+    );
+    assert!(end_tx.abs() <= 0.5);
+}
+
+#[test]
+fn bottom_nav_active_label_stays_contrasting_after_route_switch_and_dark_toggle() {
+    reset_reactive_runtime();
+    clear_provided_theme();
+    let theme: UiThemeState = UiThemeState::new(DesignScheme::Shadcn, ThemeMode::Light);
+    let init_tokens: ThemeTokens = untracked(|| theme.get_tokens().get());
+    let route: Signal<String> = Signal::new("/".to_string());
+    let theme_shell: UiThemeState = theme.clone();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(1280, 800).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(move || {
+        let nav: NodeId = view! {
+            EuvSidebarNav {
+                items: vec![
+                    EuvNavItem::new("/".to_string(), "Home".to_string()),
+                    EuvNavItem::new("/markdown".to_string(), "Docs".to_string()),
+                ]
+                active_route: route
+                tokens: init_tokens
+            }
+        };
+        let bottom: NodeId = view! {
+            EuvBottomNav {
+                items: vec![
+                    EuvNavItem::new("/".to_string(), "Home".to_string()),
+                    EuvNavItem::new("/markdown".to_string(), "Docs".to_string()),
+                ]
+                active_route: route
+                tokens: init_tokens
+            }
+        };
+        let body: NodeId = view! {
+            column {
+                width: Length::Percent(100.0)
+                text { "Theme Switch Body" }
+            }
+        };
+        view! {
+            EuvAppShell {
+                brand: "ThemeDock".to_string()
+                sidebar: nav
+                main_content: body
+                tokens: init_tokens
+                theme: theme_shell
+                route: route
+                bottom_nav: bottom
+            }
+        }
+    });
+    let _: FrameStats = app.step_frame().unwrap();
+    let _: bool = route.set_if_changed("/markdown".to_string());
+    let _: FrameStats = app.step_frame().unwrap();
+    let _: bool = route.set_if_changed("/".to_string());
+    let _: FrameStats = app.step_frame().unwrap();
+    let _: bool = theme.get_mode().set_if_changed(ThemeMode::Dark);
+    let _: FrameStats = app.step_frame().unwrap();
+    let dark_tokens: ThemeTokens = untracked(|| theme.get_tokens().get());
+    let expected_dark_fg: Color = dark_tokens.get_palette().get_primary_foreground();
+    let expected_dark_primary: Color = dark_tokens.get_palette().get_primary();
+    let expected_dark_dock_bg: Color = dark_tokens.get_palette().get_card().with_alpha(244);
+    let (home_color, dock_bg, pill_bg): (Option<Color>, Option<Color>, Option<Color>) =
+        app.get_scene().with_read(
+            |tree: &SceneTree| {
+                let mut h_col: Option<Color> = None;
+                let mut d_bg: Option<Color> = None;
+                let mut p_bg: Option<Color> = None;
+                for n in tree.get_nodes().iter() {
+                    if !n.get_alive() {
+                        continue;
+                    }
+                    let lay: LayoutStyle = n.get_style().get_layout();
+                    let b: Rect = n.get_layout_box().get_bounds();
+                    if lay.get_position() == Position::Fixed
+                        && lay.get_z_index() == Z_INDEX_CHROME
+                        && (b.get_height() - 60.0).abs() < 1.0
+                    {
+                        d_bg = n.get_style().get_paint().background_color();
+                    }
+                    if lay.get_position() == Position::Absolute
+                        && lay.get_z_index() == 0
+                        && (b.get_height() - 46.0).abs() < 1.0
+                        && let Some(&child_id) = n.get_children().first()
+                        && let Some(child_n) = tree.get_node(child_id)
+                    {
+                        p_bg = child_n.get_style().get_paint().background_color();
+                    }
+                    if matches!(n.get_kind(), NodeKind::Text(t) if t == "Home")
+                        && (n.get_style().get_text().get_font_size() - 10.5).abs() < 0.2
+                    {
+                        h_col = Some(n.get_style().get_text().get_color());
+                    }
+                }
+                (h_col, d_bg, p_bg)
+            },
+            (None, None, None),
+        );
+    assert_eq!(home_color, Some(expected_dark_fg));
+    assert_eq!(pill_bg, Some(expected_dark_primary));
+    assert_eq!(dock_bg, Some(expected_dark_dock_bg));
+    clear_provided_theme();
+}
+
+#[test]
+fn mermaid_state_cycle_and_markdown_heading_emoji_and_def_list_render_cleanly() {
+    reset_reactive_runtime();
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
+    let state_src: &str = "stateDiagram-v2\n    [*] --> Active\n    Active --> Frozen: Leave Route\n    Frozen --> Active: Resume Coalesced\n    Active --> [*]: Destroy\n";
+    let md_src: &str = "# Markdown Studio :rocket:\n\n`PageRetention::Freeze`\n: Suspends inactive routes cleanly.\n\n$$x = 1$$\n";
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(800, 900).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(move || {
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                gap: SPACE_MD
+                EuvMermaid {
+                    source: state_src.to_string()
+                    tokens: tokens
+                }
+                EuvMarkdown {
+                    source: md_src.to_string()
+                    tokens: tokens
+                }
+            }
+        }
+    });
+    let _: FrameStats = app.step_frame().unwrap();
+    let (
+        mermaid_cb,
+        mermaid_bounds,
+        has_rocket_h1,
+        has_literal_rocket,
+        has_clean_term,
+        has_literal_tick,
+    ): (Option<CanvasDrawCallback>, Rect, bool, bool, bool, bool) = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let mut cb_opt: Option<CanvasDrawCallback> = None;
+            let mut cb_rect: Rect = Rect::default();
+            let mut rocket_ok: bool = false;
+            let mut lit_rocket: bool = false;
+            let mut clean_term: bool = false;
+            let mut lit_tick: bool = false;
+            for n in tree.get_nodes().iter() {
+                if !n.get_alive() {
+                    continue;
+                }
+                if matches!(n.get_kind(), NodeKind::Canvas)
+                    && n.get_layout_box().get_bounds().get_height() >= 120.0
+                    && cb_opt.is_none()
+                {
+                    cb_opt = n.canvas_callback();
+                    cb_rect = n.get_layout_box().get_bounds();
+                }
+                if let NodeKind::Text(t) = n.get_kind() {
+                    if t.contains("Markdown Studio 🚀") {
+                        rocket_ok = true;
+                    }
+                    if t.contains(":rocket:") {
+                        lit_rocket = true;
+                    }
+                    if t == "PageRetention::Freeze" {
+                        clean_term = true;
+                    }
+                    if t.contains("`PageRetention::Freeze`") {
+                        lit_tick = true;
+                    }
+                }
+            }
+            (cb_opt, cb_rect, rocket_ok, lit_rocket, clean_term, lit_tick)
+        },
+        (None, Rect::default(), false, false, false, false),
+    );
+    assert!(has_rocket_h1);
+    assert!(!has_literal_rocket);
+    assert!(has_clean_term);
+    assert!(!has_literal_tick);
+    let paint_cb: CanvasDrawCallback = mermaid_cb.expect("mermaid canvas painter must exist");
+    let mut dl: DisplayList = DisplayList::default();
+    (paint_cb.borrow_mut())(mermaid_bounds, &mut dl);
+    let mut active_r: Option<Rect> = None;
+    let mut frozen_r: Option<Rect> = None;
+    let mut leave_r: Option<Rect> = None;
+    let mut resume_r: Option<Rect> = None;
+    let mut destroy_r: Option<Rect> = None;
+    for cmd in dl.get_commands().iter() {
+        if let DrawCommand::TextRun { text, rect, .. } = cmd {
+            match text.as_str() {
+                "Active" => active_r = Some(*rect),
+                "Frozen" => frozen_r = Some(*rect),
+                "Leave Route" => leave_r = Some(*rect),
+                "Resume Coalesced" => resume_r = Some(*rect),
+                "Destroy" => destroy_r = Some(*rect),
+                _ => {}
+            }
+        }
+    }
+    let a: Rect = active_r.expect("Active label must be drawn");
+    let f: Rect = frozen_r.expect("Frozen label must be drawn");
+    let l: Rect = leave_r.expect("Leave Route label must be drawn");
+    let r: Rect = resume_r.expect("Resume Coalesced label must be drawn");
+    let d: Rect = destroy_r.expect("Destroy label must be drawn");
+    assert!(a.get_y() < f.get_y());
+    for (x, y) in [(l, r), (l, d), (r, d), (d, a), (d, f)].into_iter() {
+        let hit: bool = x.get_x() < y.right()
+            && x.right() > y.get_x()
+            && x.get_y() < y.bottom()
+            && x.bottom() > y.get_y();
+        assert!(!hit);
+    }
+}
+
+#[derive(Clone, Debug, New)]
+struct AppearTrackedPage {
+    label: String,
+    appear_hits: Rc<Cell<u32>>,
+    disappear_hits: Rc<Cell<u32>>,
+}
+
+#[component(retention = Freeze)]
+impl AppearTrackedPage {
+    fn on_appear(&self) {
+        self.appear_hits.set(self.appear_hits.get() + 1);
+    }
+
+    fn on_disappear(&self) {
+        self.disappear_hits.set(self.disappear_hits.get() + 1);
+    }
+
+    fn render(&self) -> NodeId {
+        let title: String = self.label.clone();
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                text {
+                    { title }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn router_outlet_emits_subtree_appear_and_disappear_hooks_on_route_transitions() {
+    reset_reactive_runtime();
+    let theme: UiThemeState = UiThemeState::new(DesignScheme::Shadcn, ThemeMode::Light);
+    let a_appear: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let a_disappear: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let b_comp_appear: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let b_comp_disappear: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let b_hook_appear: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let b_hook_disappear: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let c_appear: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let c_disappear: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let aa: Rc<Cell<u32>> = Rc::clone(&a_appear);
+    let ad: Rc<Cell<u32>> = Rc::clone(&a_disappear);
+    let bca: Rc<Cell<u32>> = Rc::clone(&b_comp_appear);
+    let bcd: Rc<Cell<u32>> = Rc::clone(&b_comp_disappear);
+    let bha: Rc<Cell<u32>> = Rc::clone(&b_hook_appear);
+    let bhd: Rc<Cell<u32>> = Rc::clone(&b_hook_disappear);
+    let ca: Rc<Cell<u32>> = Rc::clone(&c_appear);
+    let cd: Rc<Cell<u32>> = Rc::clone(&c_disappear);
+    let router: EuvRouter = EuvRouter::new("/a")
+        .with_default_retention(PageRetention::Freeze)
+        .route_with_retention(
+            "/a",
+            "Page A",
+            PageRetention::Freeze,
+            move |_: &EuvRouteMatch| {
+                let aa_in: Rc<Cell<u32>> = Rc::clone(&aa);
+                let ad_in: Rc<Cell<u32>> = Rc::clone(&ad);
+                let _: SystemEventSubscription = on_appear(move || {
+                    aa_in.set(aa_in.get() + 1);
+                });
+                let _: SystemEventSubscription = on_disappear(move || {
+                    ad_in.set(ad_in.get() + 1);
+                });
+                view! {
+                    column {
+                        text { "Page A" }
+                    }
+                }
+            },
+        )
+        .route_with_retention(
+            "/b",
+            "Page B",
+            PageRetention::Freeze,
+            move |_: &EuvRouteMatch| {
+                let bha_in: Rc<Cell<u32>> = Rc::clone(&bha);
+                let bhd_in: Rc<Cell<u32>> = Rc::clone(&bhd);
+                let _: SystemEventSubscription = on_appear(move || {
+                    bha_in.set(bha_in.get() + 1);
+                });
+                let _: SystemEventSubscription = on_disappear(move || {
+                    bhd_in.set(bhd_in.get() + 1);
+                });
+                AppearTrackedPage::new("Page B".to_string(), Rc::clone(&bca), Rc::clone(&bcd))
+                    .mount()
+            },
+        )
+        .route_with_retention(
+            "/c",
+            "Page C",
+            PageRetention::Destroy,
+            move |_: &EuvRouteMatch| {
+                let ca_in: Rc<Cell<u32>> = Rc::clone(&ca);
+                let cd_in: Rc<Cell<u32>> = Rc::clone(&cd);
+                let _: SystemEventSubscription = on_appear(move || {
+                    ca_in.set(ca_in.get() + 1);
+                });
+                let _: SystemEventSubscription = on_disappear(move || {
+                    cd_in.set(cd_in.get() + 1);
+                });
+                view! {
+                    column {
+                        text { "Page C" }
+                    }
+                }
+            },
+        );
+    let router_c: EuvRouter = router.clone();
+    let theme_outlet: UiThemeState = theme.clone();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(640, 480).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(move || {
+        router_c
+            .outlet(move |_: &EuvRouteMatch| view! { column {} })
+            .with_theme(theme_outlet)
+            .mount()
+    });
+    let _: FrameStats = app.step_frame().unwrap();
+    assert_eq!(a_appear.get(), 1);
+    assert_eq!(a_disappear.get(), 0);
+    assert_eq!(b_comp_appear.get(), 0);
+    assert_eq!(b_hook_appear.get(), 0);
+    router.push("/b");
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert_eq!(a_appear.get(), 1);
+    assert_eq!(a_disappear.get(), 1);
+    assert_eq!(b_comp_appear.get(), 1);
+    assert_eq!(b_hook_appear.get(), 1);
+    assert_eq!(b_comp_disappear.get(), 0);
+    assert_eq!(b_hook_disappear.get(), 0);
+    let _: bool = theme.get_mode().set_if_changed(ThemeMode::Dark);
+    let _: FrameStats = app.step_frame().unwrap();
+    assert_eq!(b_comp_appear.get(), 1);
+    assert_eq!(b_comp_disappear.get(), 0);
+    router.push("/a");
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert_eq!(b_comp_disappear.get(), 1);
+    assert_eq!(b_hook_disappear.get(), 1);
+    assert_eq!(a_appear.get(), 2);
+    assert_eq!(a_disappear.get(), 1);
+    router.push("/c");
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert_eq!(a_disappear.get(), 2);
+    assert_eq!(c_appear.get(), 1);
+    assert_eq!(c_disappear.get(), 0);
+    router.push("/a");
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert_eq!(c_disappear.get(), 1);
+    assert_eq!(a_appear.get(), 3);
+}

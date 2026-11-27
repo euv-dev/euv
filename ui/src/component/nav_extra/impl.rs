@@ -33,67 +33,120 @@ impl EuvBreadcrumb {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
+        let mut ctx: Context = current_context();
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let Self {
             segments, active, ..
-        } = self.clone();
+        } = self;
+        let active: Option<Signal<usize>> = *active;
         let last_idx: usize = segments.len().saturating_sub(1);
-        view! {
+        let fg_active: Color = p.get_foreground();
+        let fg_muted: Color = p.get_muted_foreground();
+        let mut seg_texts: Vec<NodeId> = Vec::with_capacity(segments.len());
+        let mut row_items: Vec<NodeId> = Vec::with_capacity(segments.len() * 2);
+        let init_active: usize = active
+            .map(|s: Signal<usize>| s.get_untracked())
+            .unwrap_or(0);
+        for (idx, seg) in segments.iter().enumerate() {
+            if let Some(active_sig) = active {
+                let is_cur: bool = init_active == idx;
+                let mut txt_id: NodeId = NodeId::default();
+                let on_pick = move |_: &UiEvent| {
+                    let _: bool = active_sig.set_if_changed(idx);
+                };
+                let item: NodeId = view! {
+                    row {
+                        padding: Edges::symmetric(2.0, 6.0)
+                        radius: g.get_radius_sm()
+                        cursor: CursorIcon::Pointer
+                        on_click: on_pick
+                        text {
+                            node_ref: txt_id
+                            font_size: 13.0
+                            font_weight: if is_cur { FontWeight::SemiBold } else { FontWeight::Normal }
+                            color: if is_cur { fg_active } else { fg_muted }
+                            { seg.as_str() }
+                        }
+                    }
+                };
+                seg_texts.push(txt_id);
+                row_items.push(item);
+            } else {
+                row_items.push(view! {
+                    text {
+                        font_size: 13.0
+                        color: if idx == last_idx { fg_active } else { fg_muted }
+                        { seg.as_str() }
+                    }
+                });
+            }
+            if idx < last_idx {
+                row_items.push(view! {
+                    text {
+                        font_size: 12.0
+                        color: fg_muted
+                        { BREADCRUMB_SEP }
+                    }
+                });
+            }
+        }
+        let root: NodeId = view! {
             row {
                 flex_wrap: FlexWrap::Wrap
                 width: Length::Percent(100.0)
                 align: AlignItems::Center
                 gap: SPACE_XS
-                for (idx, seg) in segments.into_iter().enumerate() {
-                    if let Some(active_sig) = active {
-                        row {
-                            padding: Edges::symmetric(2.0, 6.0)
-                            radius: g.get_radius_sm()
-                            cursor: CursorIcon::Pointer
-                            on_click: move |_: &UiEvent| {
-                                let _: bool = active_sig.set_if_changed(idx);
-                            }
-                            text {
-                                bind_style: move || {
-                                    let is_cur: bool = active_sig.get() == idx;
-                                    Style::default()
-                                    .font_size(13.0)
-                                    .font_weight(if is_cur {
-                                        FontWeight::SemiBold
-                                        } else {
-                                            FontWeight::Normal
-                                    })
-                                    .color(if is_cur {
-                                        p.get_foreground()
-                                        } else {
-                                            p.get_muted_foreground()
-                                    })
-                                }
-                                { seg }
-                            }
-                        }
-                    } else {
-                        text {
-                            font_size: 13.0
-                            color: if idx == last_idx {
-                                p.get_foreground()
-                            } else {
-                                p.get_muted_foreground()
-                            }
-                            { seg }
-                        }
-                    }
-                    if idx < last_idx {
-                        text {
-                            font_size: 12.0
-                            color: p.get_muted_foreground()
-                            { BREADCRUMB_SEP }
-                        }
-                    }
-                }
             }
+        };
+        if !row_items.is_empty() {
+            ctx.append_many(root, row_items.as_slice());
         }
+        if let Some(active_sig) = active {
+            let handle: SceneHandle = ctx.get_scene().clone();
+            let prev_idx: Cell<usize> = Cell::new(init_active);
+            let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+                Effect::new(move || {
+                    let next_idx: usize = active_sig.get();
+                    let old_idx: usize = prev_idx.replace(next_idx);
+                    if old_idx == next_idx {
+                        return;
+                    }
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            let dirty_t: u16 = DIRTY_TEXT | DIRTY_PAINT;
+                            if let Some(&old_txt) = seg_texts.get(old_idx)
+                                && let Some(n) = tree.get_node_mut(old_txt)
+                            {
+                                n.get_mut_style()
+                                    .get_mut_text()
+                                    .set_weight(FontWeight::Normal)
+                                    .set_color(fg_muted);
+                                tree.mark_dirty(old_txt, dirty_l | dirty_t);
+                            }
+                            if let Some(&new_txt) = seg_texts.get(next_idx)
+                                && let Some(n) = tree.get_node_mut(new_txt)
+                            {
+                                n.get_mut_style()
+                                    .get_mut_text()
+                                    .set_weight(FontWeight::SemiBold)
+                                    .set_color(fg_active);
+                                tree.mark_dirty(new_txt, dirty_l | dirty_t);
+                            }
+                        },
+                        (),
+                    );
+                })
+            });
+            ctx.get_scene().with_write(
+                |tree: &mut SceneTree| {
+                    tree.attach_scope(root, scope);
+                },
+                (),
+            );
+        }
+        root
     }
 }
 
@@ -163,64 +216,121 @@ impl EuvSteps {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
+        let mut ctx: Context = current_context();
         let p: ThemePalette = self.get_tokens().get_palette();
         let active: Signal<usize> = self.get_active();
-        let Self { labels, .. } = self.clone();
-        view! {
+        let Self { labels, .. } = self;
+        let init_active: usize = active.get_untracked();
+        let done_bg: Color = p.get_primary();
+        let todo_bg: Color = p.get_secondary();
+        let done_fg: Color = p.get_primary_foreground();
+        let todo_fg: Color = p.get_muted_foreground();
+        let border_col: Color = p.get_border();
+        let mut step_nodes: Vec<(NodeId, NodeId)> = Vec::with_capacity(labels.len());
+        let mut row_items: Vec<NodeId> = Vec::with_capacity(labels.len());
+        for (idx, lbl) in labels.iter().enumerate() {
+            let done: bool = init_active >= idx;
+            let mut circle_id: NodeId = NodeId::default();
+            let mut num_id: NodeId = NodeId::default();
+            let on_pick = move |_: &UiEvent| {
+                let _: bool = active.set_if_changed(idx);
+            };
+            let item: NodeId = view! {
+                row {
+                    align: AlignItems::Center
+                    gap: SPACE_SM
+                    cursor: CursorIcon::Pointer
+                    on_click: on_pick
+                    row {
+                        node_ref: circle_id
+                        width: Length::Px(24.0)
+                        height: Length::Px(24.0)
+                        justify: JustifyContent::Center
+                        align: AlignItems::Center
+                        radius: 12.0
+                        border: (if done { 0.0 } else { 1.0 }, border_col)
+                        background: if done { done_bg } else { todo_bg }
+                        text {
+                            node_ref: num_id
+                            font_size: 12.0
+                            font_weight: FontWeight::Bold
+                            color: if done { done_fg } else { todo_fg }
+                            { (idx + 1).to_string() }
+                        }
+                    }
+                    text {
+                        font_size: 13.0
+                        font_weight: FontWeight::Medium
+                        color: p.get_foreground()
+                        { lbl.as_str() }
+                    }
+                }
+            };
+            step_nodes.push((circle_id, num_id));
+            row_items.push(item);
+        }
+        let root: NodeId = view! {
             row {
                 flex_wrap: FlexWrap::Wrap
                 width: Length::Percent(100.0)
                 gap: SPACE_MD
-                for (idx, lbl) in labels.into_iter().enumerate() {
-                    row {
-                        align: AlignItems::Center
-                        gap: SPACE_SM
-                        cursor: CursorIcon::Pointer
-                        on_click: move |_: &UiEvent| {
-                            let _: bool = active.set_if_changed(idx);
-                        }
-                        row {
-                            bind_style: move || {
-                                let done: bool = active.get() >= idx;
-                                Style::default()
-                                .row()
-                                .width(Length::Px(24.0))
-                                .height(Length::Px(24.0))
-                                .justify(JustifyContent::Center)
-                                .align(AlignItems::Center)
-                                .radius(12.0)
-                                .border(if done { 0.0 } else { 1.0 }, p.get_border())
-                                .background(if done {
-                                    p.get_primary()
-                                    } else {
-                                        p.get_secondary()
-                                })
-                            }
-                            text {
-                                bind_style: move || {
-                                    let done: bool = active.get() >= idx;
-                                    Style::default()
-                                    .font_size(12.0)
-                                    .font_weight(FontWeight::Bold)
-                                    .color(if done {
-                                        p.get_primary_foreground()
-                                        } else {
-                                            p.get_muted_foreground()
-                                    })
-                                }
-                                { (idx + 1).to_string() }
-                            }
-                        }
-                        text {
-                            font_size: 13.0
-                            font_weight: FontWeight::Medium
-                            color: p.get_foreground()
-                            { lbl }
-                        }
-                    }
-                }
             }
+        };
+        if !row_items.is_empty() {
+            ctx.append_many(root, row_items.as_slice());
         }
+        let handle: SceneHandle = ctx.get_scene().clone();
+        let prev_active: Cell<usize> = Cell::new(init_active);
+        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            Effect::new(move || {
+                let next_active: usize = active.get();
+                let old_active: usize = prev_active.replace(next_active);
+                if old_active == next_active {
+                    return;
+                }
+                let lo: usize = old_active.min(next_active);
+                let hi: usize = old_active.max(next_active).min(step_nodes.len());
+                handle.with_write(
+                    |tree: &mut SceneTree| {
+                        let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                        for (idx, &(circle_id, num_id)) in step_nodes
+                            .iter()
+                            .enumerate()
+                            .skip(lo)
+                            .take(hi.saturating_sub(lo).saturating_add(1))
+                        {
+                            let done: bool = next_active >= idx;
+                            if let Some(n) = tree.get_node_mut(circle_id) {
+                                n.get_mut_style()
+                                    .get_mut_paint()
+                                    .set_border(Border::new(
+                                        if done { 0.0 } else { 1.0 },
+                                        border_col,
+                                    ))
+                                    .set_background(Some(if done { done_bg } else { todo_bg }));
+                                tree.mark_dirty(circle_id, dirty_l | DIRTY_PAINT);
+                            }
+                            if let Some(n) = tree.get_node_mut(num_id) {
+                                n.get_mut_style().get_mut_text().set_color(if done {
+                                    done_fg
+                                } else {
+                                    todo_fg
+                                });
+                                tree.mark_dirty(num_id, DIRTY_PAINT);
+                            }
+                        }
+                    },
+                    (),
+                );
+            })
+        });
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(root, scope);
+            },
+            (),
+        );
+        root
     }
 }
 
@@ -238,60 +348,108 @@ impl EuvAccordion {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
+        let mut ctx: Context = current_context();
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let open_index: Signal<Option<usize>> = self.get_open_index();
-        let Self { items, .. } = self.clone();
-        view! {
-            column {
-                width: Length::Percent(100.0)
-                gap: SPACE_XS
-                for (idx, item) in items.into_iter().enumerate() {
-                    column {
+        let Self { items, .. } = self;
+        let init_open: Option<usize> = open_index.get_untracked();
+        let mut bodies: Vec<NodeId> = Vec::with_capacity(items.len());
+        let mut cards: Vec<NodeId> = Vec::with_capacity(items.len());
+        for (idx, item) in items.iter().enumerate() {
+            let is_open: bool = init_open == Some(idx);
+            let mut body_id: NodeId = NodeId::default();
+            let on_toggle = move |_: &UiEvent| {
+                let _: bool = open_index.update(|cur: &mut Option<usize>| {
+                    *cur = if *cur == Some(idx) { None } else { Some(idx) };
+                });
+            };
+            let card: NodeId = view! {
+                column {
+                    width: Length::Percent(100.0)
+                    background: p.get_card()
+                    border: (g.get_border_width(), p.get_border())
+                    radius: g.get_radius_md()
+                    overflow: Overflow::Hidden
+                    row {
                         width: Length::Percent(100.0)
-                        background: p.get_card()
-                        border: (g.get_border_width(), p.get_border())
-                        radius: g.get_radius_md()
-                        overflow: Overflow::Hidden
-                        row {
-                            width: Length::Percent(100.0)
-                            padding: Edges::symmetric(SPACE_SM, SPACE_MD)
-                            cursor: CursorIcon::Pointer
-                            on_click: move |_: &UiEvent| {
-                                let _: bool = open_index.update(|cur: &mut Option<usize>| {
-                                    *cur = if *cur == Some(idx) { None } else { Some(idx) };
-                                });
-                            }
-                            text {
-                                font_size: 14.0
-                                font_weight: FontWeight::SemiBold
-                                color: p.get_foreground()
-                                { item.get_title().clone() }
-                            }
+                        padding: Edges::symmetric(SPACE_SM, SPACE_MD)
+                        cursor: CursorIcon::Pointer
+                        on_click: on_toggle
+                        text {
+                            font_size: 14.0
+                            font_weight: FontWeight::SemiBold
+                            color: p.get_foreground()
+                            { item.get_title().as_str() }
                         }
-                        column {
-                            bind_style: move || {
-                                let disp: Display = if open_index.get() == Some(idx) {
-                                    Display::Flex
-                                } else {
-                                    Display::None
-                                };
-                                Style::default()
-                                .column()
-                                .display(disp)
-                                .width(Length::Percent(100.0))
-                                .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
-                            }
-                            text {
-                                font_size: 13.0
-                                color: p.get_muted_foreground()
-                                { item.get_content().clone() }
-                            }
+                    }
+                    column {
+                        node_ref: body_id
+                        display: if is_open { Display::Flex } else { Display::None }
+                        width: Length::Percent(100.0)
+                        padding: Edges::symmetric(SPACE_SM, SPACE_MD)
+                        text {
+                            font_size: 13.0
+                            color: p.get_muted_foreground()
+                            { item.get_content().as_str() }
                         }
                     }
                 }
-            }
+            };
+            bodies.push(body_id);
+            cards.push(card);
         }
+        let root: NodeId = view! {
+            column {
+                width: Length::Percent(100.0)
+                gap: SPACE_XS
+            }
+        };
+        if !cards.is_empty() {
+            ctx.append_many(root, cards.as_slice());
+        }
+        let handle: SceneHandle = ctx.get_scene().clone();
+        let prev_open: Cell<Option<usize>> = Cell::new(init_open);
+        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            Effect::new(move || {
+                let next_open: Option<usize> = open_index.get();
+                let old_open: Option<usize> = prev_open.replace(next_open);
+                if old_open == next_open {
+                    return;
+                }
+                handle.with_write(
+                    |tree: &mut SceneTree| {
+                        let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                        if let Some(old_idx) = old_open
+                            && let Some(&old_body) = bodies.get(old_idx)
+                            && let Some(n) = tree.get_node_mut(old_body)
+                        {
+                            n.get_mut_style()
+                                .get_mut_layout()
+                                .set_display(Display::None);
+                            tree.mark_dirty(old_body, dirty_l | DIRTY_PAINT);
+                        }
+                        if let Some(new_idx) = next_open
+                            && let Some(&new_body) = bodies.get(new_idx)
+                            && let Some(n) = tree.get_node_mut(new_body)
+                        {
+                            n.get_mut_style()
+                                .get_mut_layout()
+                                .set_display(Display::Flex);
+                            tree.mark_dirty(new_body, dirty_l | DIRTY_PAINT);
+                        }
+                    },
+                    (),
+                );
+            })
+        });
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(root, scope);
+            },
+            (),
+        );
+        root
     }
 }
 
@@ -309,11 +467,36 @@ impl EuvToc {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
+        let mut ctx: Context = current_context();
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let active: Signal<usize> = self.get_active();
-        let Self { headings, .. } = self.clone();
-        view! {
+        let Self { headings, .. } = self;
+        let init_active: usize = active.get_untracked();
+        let accent_bg: Color = p.get_accent();
+        let mut row_nodes: Vec<NodeId> = Vec::with_capacity(headings.len());
+        for (idx, h) in headings.iter().enumerate() {
+            let is_cur: bool = init_active == idx;
+            let on_pick = move |_: &UiEvent| {
+                let _: bool = active.set_if_changed(idx);
+            };
+            row_nodes.push(view! {
+                row {
+                    width: Length::Percent(100.0)
+                    padding: Edges::symmetric(SPACE_XS, SPACE_SM)
+                    radius: g.get_radius_sm()
+                    background: if is_cur { accent_bg } else { COLOR_TRANSPARENT }
+                    cursor: CursorIcon::Pointer
+                    on_click: on_pick
+                    text {
+                        font_size: 13.0
+                        color: p.get_foreground()
+                        { h.as_str() }
+                    }
+                }
+            });
+        }
+        let root: NodeId = view! {
             column {
                 width: Length::Percent(100.0)
                 padding: Edges::all(SPACE_MD)
@@ -328,33 +511,49 @@ impl EuvToc {
                     color: p.get_muted_foreground()
                     { TOC_HEADING_DEFAULT }
                 }
-                for (idx, h) in headings.into_iter().enumerate() {
-                    row {
-                        bind_style: move || {
-                            let is_cur: bool = active.get() == idx;
-                            Style::default()
-                            .row()
-                            .width(Length::Percent(100.0))
-                            .padding(Edges::symmetric(SPACE_XS, SPACE_SM))
-                            .radius(g.get_radius_sm())
-                            .background(if is_cur {
-                                p.get_accent()
-                                } else {
-                                    COLOR_TRANSPARENT
-                            })
-                            .cursor(CursorIcon::Pointer)
-                        }
-                        on_click: move |_: &UiEvent| {
-                            let _: bool = active.set_if_changed(idx);
-                        }
-                        text {
-                            font_size: 13.0
-                            color: p.get_foreground()
-                            { h }
-                        }
-                    }
-                }
             }
+        };
+        if !row_nodes.is_empty() {
+            ctx.append_many(root, row_nodes.as_slice());
         }
+        let handle: SceneHandle = ctx.get_scene().clone();
+        let prev_active: Cell<usize> = Cell::new(init_active);
+        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            Effect::new(move || {
+                let next_active: usize = active.get();
+                let old_active: usize = prev_active.replace(next_active);
+                if old_active == next_active {
+                    return;
+                }
+                handle.with_write(
+                    |tree: &mut SceneTree| {
+                        if let Some(&old_row) = row_nodes.get(old_active)
+                            && let Some(n) = tree.get_node_mut(old_row)
+                        {
+                            n.get_mut_style()
+                                .get_mut_paint()
+                                .set_background(Some(COLOR_TRANSPARENT));
+                            tree.mark_dirty(old_row, DIRTY_PAINT);
+                        }
+                        if let Some(&new_row) = row_nodes.get(next_active)
+                            && let Some(n) = tree.get_node_mut(new_row)
+                        {
+                            n.get_mut_style()
+                                .get_mut_paint()
+                                .set_background(Some(accent_bg));
+                            tree.mark_dirty(new_row, DIRTY_PAINT);
+                        }
+                    },
+                    (),
+                );
+            })
+        });
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(root, scope);
+            },
+            (),
+        );
+        root
     }
 }

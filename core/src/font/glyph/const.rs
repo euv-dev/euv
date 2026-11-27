@@ -1,3 +1,5 @@
+use super::*;
+
 /// Native bitmap glyph width in source texels.
 pub const BITMAP_GLYPH_WIDTH: usize = 5;
 
@@ -9,6 +11,15 @@ pub const PROPORTIONAL_ADVANCE_RATIO: f32 = 0.57;
 
 /// Horizontal advance ratio relative to font size for monospace text.
 pub const MONOSPACE_ADVANCE_RATIO: f32 = 0.60;
+
+/// Compile-time proportional advance ratio lookup table for ASCII bytes `0..128`.
+pub(crate) const ASCII_ADVANCE_LUT: [f32; 128] = build_ascii_advance_lut();
+
+/// Exact alpha coverage values for `0..=4` hits in a 2x2 supersampled glyph pixel (`(hits * 255) / 4`).
+pub(crate) const SUBPIXEL_ALPHA_LUT: [u8; 5] = [0, 63, 127, 191, 255];
+
+/// Maximum glyph output width whose non-italic horizontal column shifts are cached on the stack.
+pub(crate) const GLYPH_STACK_COL_CACHE: usize = 64;
 
 /// First printable ASCII code point present in the built-in font table.
 pub(crate) const ASCII_FIRST_PRINTABLE: u32 = 0x20;

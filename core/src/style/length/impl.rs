@@ -14,6 +14,7 @@ impl Length {
     ///
     /// - `Option<f32>` - Resolved pixel size, or `None` for `Auto` and `Fraction`.
     #[must_use]
+    #[inline(always)]
     pub fn resolve(&self, parent_extent: f32, viewport: Size) -> Option<f32> {
         match *self {
             Self::Auto | Self::Fraction(_) => None,
@@ -37,6 +38,7 @@ impl Edges {
     ///
     /// - `Self` - Uniform `Edges`.
     #[must_use]
+    #[inline(always)]
     pub const fn all(value: f32) -> Self {
         Self {
             top: value,
@@ -57,6 +59,7 @@ impl Edges {
     ///
     /// - `Self` - Symmetric `Edges`.
     #[must_use]
+    #[inline(always)]
     pub const fn symmetric(vertical: f32, horizontal: f32) -> Self {
         Self {
             top: vertical,
@@ -76,6 +79,7 @@ impl Edges {
     ///
     /// - `f32` - Combined horizontal inset.
     #[must_use]
+    #[inline(always)]
     pub fn horizontal(&self) -> f32 {
         self.get_left() + self.get_right()
     }
@@ -90,6 +94,7 @@ impl Edges {
     ///
     /// - `f32` - Combined vertical inset.
     #[must_use]
+    #[inline(always)]
     pub fn vertical(&self) -> f32 {
         self.get_top() + self.get_bottom()
     }
@@ -107,6 +112,7 @@ impl CornerRadius {
     ///
     /// - `Self` - Uniform `CornerRadius`.
     #[must_use]
+    #[inline(always)]
     pub const fn all(radius: f32) -> Self {
         Self {
             top_left: radius,
@@ -126,6 +132,7 @@ impl CornerRadius {
     ///
     /// - `f32` - Largest radius in logical pixels.
     #[must_use]
+    #[inline(always)]
     pub fn max_radius(&self) -> f32 {
         self.get_top_left()
             .max(self.get_top_right())
@@ -146,6 +153,7 @@ impl Rect {
     ///
     /// - `f32` - Right edge X coordinate.
     #[must_use]
+    #[inline(always)]
     pub fn right(&self) -> f32 {
         self.get_x() + self.get_width()
     }
@@ -160,6 +168,7 @@ impl Rect {
     ///
     /// - `f32` - Bottom edge Y coordinate.
     #[must_use]
+    #[inline(always)]
     pub fn bottom(&self) -> f32 {
         self.get_y() + self.get_height()
     }
@@ -175,6 +184,7 @@ impl Rect {
     ///
     /// - `bool` - True when the point is within `[x, right)` and `[y, bottom)`.
     #[must_use]
+    #[inline(always)]
     pub fn contains(&self, point: Point) -> bool {
         point.get_x() >= self.get_x()
             && point.get_x() < self.right()
@@ -193,6 +203,7 @@ impl Rect {
     ///
     /// - `Option<Self>` - Non-empty overlapping rectangle, or `None` when disjoint.
     #[must_use]
+    #[inline(always)]
     pub fn intersect(&self, other: Self) -> Option<Self> {
         let x0: f32 = self.get_x().max(other.get_x());
         let y0: f32 = self.get_y().max(other.get_y());
@@ -216,6 +227,7 @@ impl Rect {
     ///
     /// - `Self` - Enclosing rectangle containing both inputs.
     #[must_use]
+    #[inline(always)]
     pub fn union(&self, other: Self) -> Self {
         if self.get_width() <= 0.0 || self.get_height() <= 0.0 {
             return other;
@@ -241,6 +253,7 @@ impl Rect {
     ///
     /// - `Self` - Inset inner rectangle.
     #[must_use]
+    #[inline(always)]
     pub fn inset(&self, edges: Edges) -> Self {
         let w: f32 = (self.get_width() - edges.horizontal()).max(0.0);
         let h: f32 = (self.get_height() - edges.vertical()).max(0.0);

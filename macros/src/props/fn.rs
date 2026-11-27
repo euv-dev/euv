@@ -48,17 +48,19 @@ pub(crate) fn expand_props_derive(input: DeriveInput) -> proc_macro2::TokenStrea
             let setter: proc_macro2::TokenStream = if is_string_type(fty) {
                 quote_spanned! {fname.span()=>
                     #[must_use]
-                    pub fn #fname(
-                        mut self,
-                        value: impl ::core::convert::Into<::std::string::String>,
-                    ) -> Self {
-                        self.#fname = value.into();
+                    #[cfg_attr(not(target_arch = "wasm32"), inline)]
+                    pub fn #fname<__EuvStr>(mut self, value: __EuvStr) -> Self
+                    where
+                        __EuvStr: ::core::convert::Into<::std::string::String>,
+                    {
+                        self.#fname = ::core::convert::Into::into(value);
                         self
                     }
                 }
             } else {
                 quote_spanned! {fname.span()=>
                     #[must_use]
+                    #[cfg_attr(not(target_arch = "wasm32"), inline)]
                     pub fn #fname(mut self, value: #fty) -> Self {
                         self.#fname = value;
                         self
@@ -82,6 +84,7 @@ pub(crate) fn expand_props_derive(input: DeriveInput) -> proc_macro2::TokenStrea
     /// Implements `impl #impl_generics ::euv::ComponentProps for #ident #ty_generics #where_clause`.
             impl #impl_generics ::euv::ComponentProps for #ident #ty_generics #where_clause {
     /// Implements the `init_props` operation on [`Self`].
+                #[cfg_attr(not(target_arch = "wasm32"), inline)]
                 fn init_props() -> Self {
                     Self {
                         #(#init_fields),*

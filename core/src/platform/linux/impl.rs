@@ -14,7 +14,22 @@ impl Default for LinuxPlatform {
             windows: HashMap::new(),
             pending_events: Vec::new(),
             clipboard_cache: None,
+            pump_paused: false,
         }
+    }
+}
+
+/// X11/Wayland system event injection helpers for `LinuxPlatform`.
+impl LinuxPlatform {
+    /// Enqueues a normalized Linux `SystemEvent` to be drained on the next `poll_events()` tick.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable Linux platform backend.
+    /// - `SystemEvent` - System event to enqueue.
+    pub fn push_system_event(&mut self, event: SystemEvent) {
+        self.get_mut_pending_events()
+            .push(WindowEvent::System(event));
     }
 }
 
@@ -237,6 +252,51 @@ impl PlatformBackend for LinuxPlatform {
         take(pending_events)
     }
 
+    /// Blocks on X11 `XNextEvent` with zero CPU usage until an OS event wakes the connection, then drains queued events.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable Linux platform.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<WindowEvent>` - Events received upon wake.
+    fn wait_for_events(&mut self) -> Vec<WindowEvent> {
+        let lib: usize = self.get_x11_lib();
+        let Self {
+            windows,
+            pending_events,
+            ..
+        } = self;
+        if pending_events.is_empty() && !windows.is_empty() {
+            linux_x11_wait_events(lib, windows, pending_events);
+        }
+        take(pending_events)
+    }
+
+    /// Updates Linux background frame-pump pause state.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable Linux platform.
+    /// - `bool` - `true` when paused in background; `false` when active.
+    fn set_frame_pump_paused(&mut self, paused: bool) {
+        self.set_pump_paused(paused);
+    }
+
+    /// Returns whether the Linux frame pump is currently paused for background freeze.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Platform reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when paused in background.
+    fn is_frame_pump_paused(&self) -> bool {
+        self.get_pump_paused()
+    }
+
     /// Presents `framebuffer` to the active Linux window surface via X11 `XCreateImage` + `XPutImage`.
     ///
     /// # Arguments
@@ -289,6 +349,7 @@ impl PlatformBackend for LinuxPlatform {
     /// - `Result<(), PlatformError>` - Write status.
     fn write_clipboard(&mut self, text: &str) -> Result<(), PlatformError> {
         self.set_clipboard_cache(Some(text.to_string()));
+        let _: bool = write_system_clipboard(text);
         Ok(())
     }
 
