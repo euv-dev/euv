@@ -3456,6 +3456,7 @@ rm -f "${UNALIGNED_APK}" "${ALIGNED_APK}" "${APK_OUT}"
 "${AAPT2}" link \
   -I "${ANDROID_JAR}" \
   --manifest "${BUILD_DIR}/AndroidManifest.xml" \
+  --auto-add-overlay \
   -R "${RES_ZIP}" \
   -o "${UNALIGNED_APK}"
 

@@ -2333,8 +2333,15 @@ fn lazy_native_font_fallback_skips_cjk_on_cold_ascii_and_renders_cjk_on_demand()
         assert_ne!(cjk_bitmaps[0], cjk_bitmaps[1]);
         if font.font_info().get_backend() != FontRenderBackend::DeterministicBitmap {
             let after_cjk: usize = NativeSystemFont::thread_fallback_font_loads();
+            #[cfg(any(target_os = "macos", target_os = "ios", target_os = "windows"))]
             assert!(after_cjk > before);
             assert!(after_cjk <= before + 2);
+            for ch in ['框', '架'].into_iter() {
+                let key: GlyphKey = GlyphKey::new(ch, 160, false);
+                let glyph: &RasterizedGlyph = atlas.get_or_rasterize_with(key, &font);
+                assert!(glyph.get_coverage().iter().any(|&a: &u8| a > 0));
+            }
+            assert_eq!(NativeSystemFont::thread_fallback_font_loads(), after_cjk);
         }
     });
     assert!(handle.join().is_ok());
