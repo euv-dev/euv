@@ -1496,24 +1496,16 @@ impl Renderer3D {
             self.set_height(h);
             let Self {
                 color_buffer,
-                aa_buffer,
                 depth_buffer,
                 g_tri_idx,
                 luma_buffer,
-                bloom_a,
-                bloom_b,
-                bloom_tile_active,
                 has_taa_history,
                 ..
             } = self;
             color_buffer.resize(pixel_count * 4, 0);
-            aa_buffer.resize(pixel_count * 4, 0);
             depth_buffer.resize(pixel_count, 0.0);
             g_tri_idx.resize(pixel_count, u32::MAX);
             luma_buffer.resize(pixel_count, 0);
-            bloom_a.resize(bw * bh, [0.0; 3]);
-            bloom_b.resize(bw * bh, [0.0; 3]);
-            bloom_tile_active.resize(bw * bh, 0);
             *has_taa_history = false;
         }
         let rt_mode: RayTracingMode = quality.get_ray_tracing();
@@ -1860,6 +1852,14 @@ impl Renderer3D {
             quality.get_preset(),
             QualityPreset::High | QualityPreset::Ultra | QualityPreset::Cinematic
         );
+        if bloom_on {
+            let bloom_cells: usize = bw * bh;
+            if bloom_a.len() != bloom_cells {
+                bloom_a.resize(bloom_cells, [0.0; 3]);
+                bloom_b.resize(bloom_cells, [0.0; 3]);
+                bloom_tile_active.resize(bloom_cells, 0);
+            }
+        }
         let sun_inv_dir: Vec3 = Ray3D::safe_inv_vec(sun_dir);
         let soft_shadow_rays: GiRayQuad = if rt_mode == RayTracingMode::FullPathTracedGi {
             let sun_t1: Vec3 = sun_dir.cross(Vec3::new(0.0, 1.0, 0.0)).normalize();
@@ -2088,6 +2088,9 @@ impl Renderer3D {
             out_pixels.set_len(byte_len);
         }
         if aa_mode == AntiAliasingMode::Taa {
+            if aa_buffer.len() != byte_len {
+                aa_buffer.resize(byte_len, 0);
+            }
             swap(aa_buffer, color_buffer);
             *has_taa_history = true;
             *prev_vp_m0 = vp_m0;

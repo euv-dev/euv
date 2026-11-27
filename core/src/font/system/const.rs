@@ -41,6 +41,10 @@ pub(crate) const CT_FONT_TRAIT_BOLD: u32 = 1 << 1;
 pub(crate) const CT_FONT_ORIENTATION_DEFAULT: u32 = 0;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub(crate) const CORETEXT_FONT_CACHE_MAX: usize = 64;
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+pub(crate) const CORETEXT_FALLBACK_SLOTS: usize = 4;
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+pub(crate) const CORETEXT_SCRATCH_INIT_DIM: usize = 128;
 
 #[cfg(target_os = "windows")]
 pub(crate) const WIN32_FONT_CACHE_MAX: usize = 64;
@@ -164,13 +168,16 @@ pub(crate) const LINUX_CJK_FONT_CANDIDATES: [&str; 4] = [
     "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
 ];
 #[cfg(target_os = "android")]
-pub(crate) const ANDROID_FONT_CANDIDATES: [&str; 2] = [
+pub(crate) const ANDROID_FONT_CANDIDATES: [&str; 4] = [
     "/system/fonts/Roboto-Regular.ttf",
-    "/system/fonts/NotoSansCJK-Regular.ttc",
+    "/system/fonts/RobotoStatic-Regular.ttf",
+    "/system/fonts/NotoSans-Regular.ttf",
+    "/system/fonts/DroidSans.ttf",
 ];
 #[cfg(target_os = "android")]
-pub(crate) const ANDROID_BOLD_FONT_CANDIDATES: [&str; 2] = [
+pub(crate) const ANDROID_BOLD_FONT_CANDIDATES: [&str; 3] = [
     "/system/fonts/Roboto-Bold.ttf",
+    "/system/fonts/RobotoStatic-Bold.ttf",
     "/system/fonts/Roboto-Medium.ttf",
 ];
 #[cfg(target_os = "android")]
@@ -184,8 +191,9 @@ pub(crate) const ANDROID_MONO_BOLD_FONT_CANDIDATES: [&str; 2] = [
     "/system/fonts/Roboto-Bold.ttf",
 ];
 #[cfg(target_os = "android")]
-pub(crate) const ANDROID_CJK_FONT_CANDIDATES: [&str; 2] = [
+pub(crate) const ANDROID_CJK_FONT_CANDIDATES: [&str; 3] = [
     "/system/fonts/NotoSansCJK-Regular.ttc",
+    "/system/fonts/NotoSansSC-Regular.otf",
     "/system/fonts/DroidSansFallback.ttf",
 ];
 
@@ -195,3 +203,5 @@ pub(crate) const WEB_FONT_CANVAS_TAG: &str = "canvas";
 pub(crate) const WEB_FONT_CTX_2D: &str = "2d";
 #[cfg(target_arch = "wasm32")]
 pub(crate) const WEB_FONT_WHITE: &str = "#ffffff";
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_FONT_SCRATCH_INIT_DIM: u32 = 128;

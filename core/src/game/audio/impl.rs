@@ -11,7 +11,7 @@ impl Default for AudioBus {
         Self {
             master_volume: 0.85,
             muted: false,
-            queue: Vec::with_capacity(32),
+            queue: Vec::new(),
             total_played: 0,
         }
     }

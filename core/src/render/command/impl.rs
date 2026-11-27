@@ -1001,6 +1001,237 @@ impl PaintPass {
         cache.last_scene_sig = sig;
     }
 
+    /// Populates `out_ancestors` with deduplicated ancestor handles leading to every live `Portal` / `Position::Fixed` node.
+    ///
+    /// # Arguments
+    ///
+    /// - `&SceneTree` - Retained scene tree.
+    /// - `&mut Vec<NodeId>` - Reusable output scratch buffer (cleared first).
+    fn collect_portal_ancestors(tree: &SceneTree, out_ancestors: &mut Vec<NodeId>) {
+        out_ancestors.clear();
+        let portal_nodes: &[NodeId] = tree.portal_nodes();
+        if portal_nodes.is_empty() {
+            return;
+        }
+        for &pid in portal_nodes.iter() {
+            let mut cur: Option<NodeId> = tree.get_node(pid).and_then(SceneNode::parent_id);
+            while let Some(anc) = cur {
+                if out_ancestors.contains(&anc) {
+                    break;
+                }
+                out_ancestors.push(anc);
+                cur = tree.get_node(anc).and_then(SceneNode::parent_id);
+            }
+        }
+        if out_ancestors.len() > 16 {
+            out_ancestors.sort_unstable_by_key(|id: &NodeId| {
+                ((id.get_index() as u64) << 32) | (id.get_generation() as u64)
+            });
+        }
+    }
+
+    /// Returns `true` when `node_id` lies on an ancestor chain above at least one live `Portal` or `Position::Fixed` node.
+    ///
+    /// # Arguments
+    ///
+    /// - `&[NodeId]` - Precomputed portal ancestor slice from `collect_portal_ancestors`.
+    /// - `NodeId` - Candidate container node handle.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - True when a culled subtree rooted at `node_id` must still forward portal descendants.
+    #[inline]
+    #[must_use]
+    fn is_portal_ancestor(ancestors: &[NodeId], node_id: NodeId) -> bool {
+        if ancestors.is_empty() {
+            return false;
+        }
+        if ancestors.len() <= 16 {
+            return ancestors.contains(&node_id);
+        }
+        let target: u64 = ((node_id.get_index() as u64) << 32) | (node_id.get_generation() as u64);
+        ancestors
+            .binary_search_by_key(&target, |id: &NodeId| {
+                ((id.get_index() as u64) << 32) | (id.get_generation() as u64)
+            })
+            .is_ok()
+    }
+
+    /// Computes exact conservative logical paint bounds for `node`, accounting for directional `BoxShadow` spread/blur, focus rings, and text overhang.
+    ///
+    /// # Arguments
+    ///
+    /// - `&SceneNode` - Target scene node.
+    /// - `Rect` - Transformed logical border-box bounds.
+    /// - `&PaintStyle` - Active resolved paint style.
+    /// - `bool` - Whether the node currently holds keyboard focus.
+    /// - `(f32, f32)` - Accumulated physical pixel displacement `(total_off_x, total_off_y)`.
+    /// - `f32` - Clamped DPI scale factor.
+    /// - `f32` - Reciprocal of `scale`.
+    ///
+    /// # Returns
+    ///
+    /// - `Rect` - Conservative logical visual bounding rectangle matching software rasterization extents.
+    #[inline]
+    #[must_use]
+    fn conservative_self_vis_rect(
+        node: &SceneNode,
+        bounds: Rect,
+        paint: &PaintStyle,
+        focused: bool,
+        total_off_phys: (f32, f32),
+        scale: f32,
+        inv_scale: f32,
+    ) -> Rect {
+        let mut min_x: f32 = bounds.get_x() - 1.0;
+        let mut min_y: f32 = bounds.get_y() - 1.0;
+        let mut max_x: f32 = bounds.right() + 1.0;
+        let mut max_y: f32 = bounds.bottom() + 1.0;
+        if let Some(shadow) = paint.box_shadow()
+            && shadow.get_color().get_a() > 0
+        {
+            let spread: f32 = shadow.get_spread_radius().max(0.0);
+            let blur_phys: f32 = (shadow.get_blur_radius().max(0.5) * scale).min(96.0);
+            let sigma_phys: f32 = (blur_phys * 0.5).max(0.75);
+            let blur_pad: f32 = (sigma_phys * 3.0).ceil() * inv_scale + 2.0 * inv_scale;
+            let pad: f32 = spread + blur_pad;
+            let sx0: f32 = bounds.get_x() + shadow.get_offset_x() - pad;
+            let sy0: f32 = bounds.get_y() + shadow.get_offset_y() - pad;
+            let sx1: f32 = bounds.right() + shadow.get_offset_x() + pad;
+            let sy1: f32 = bounds.bottom() + shadow.get_offset_y() + pad;
+            min_x = min_x.min(sx0);
+            min_y = min_y.min(sy0);
+            max_x = max_x.max(sx1);
+            max_y = max_y.max(sy1);
+        }
+        if focused && let Some(ring) = paint.focus_ring_border() {
+            let rw: f32 = ring.get_width().max(0.0) + 1.0;
+            min_x = min_x.min(bounds.get_x() - rw);
+            min_y = min_y.min(bounds.get_y() - rw);
+            max_x = max_x.max(bounds.right() + rw);
+            max_y = max_y.max(bounds.bottom() + rw);
+        }
+        if matches!(node.get_kind(), NodeKind::Text(_)) {
+            let content_b: Rect = node.layout_box.get_content_bounds();
+            let cx0: f32 = ((content_b.get_x() * scale).round() + total_off_phys.0) * inv_scale;
+            let cy0: f32 = ((content_b.get_y() * scale).round() + total_off_phys.1) * inv_scale;
+            let pad: f32 = node.style_ref().text.get_font_size() * 0.5 + 2.0;
+            min_x = min_x.min(cx0 - pad);
+            min_y = min_y.min(cy0 - pad);
+            max_x = max_x.max(cx0 + content_b.get_width() + pad);
+            max_y = max_y.max(cy0 + content_b.get_height() + pad);
+        }
+        Rect::new(
+            min_x,
+            min_y,
+            (max_x - min_x).max(0.0),
+            (max_y - min_y).max(0.0),
+        )
+    }
+
+    /// Visits one child inside a clipped off-screen subtree solely to collect escaping `Portal` / `Position::Fixed` descendants in exact tree order.
+    ///
+    /// # Arguments
+    ///
+    /// - `&SceneTree` - Retained scene tree.
+    /// - `NodeId` - Child node handle to inspect.
+    /// - `f32` - Effective ancestor opacity.
+    /// - `&mut PaintScratch<'_>` - Mutable portal queue and z-sort scratch buffers.
+    fn visit_culled_portal_child(
+        tree: &SceneTree,
+        child_id: NodeId,
+        parent_opacity: f32,
+        scratch: &mut PaintScratch<'_>,
+    ) {
+        let Some(child) = tree.get_node(child_id) else {
+            return;
+        };
+        let style: &Style = child.style_ref();
+        let layout: &LayoutStyle = &style.layout;
+        if layout.get_display() == Display::None {
+            return;
+        }
+        let is_portal: bool = matches!(child.get_kind(), NodeKind::Portal)
+            || layout.get_position() == Position::Fixed;
+        if is_portal {
+            if let Some(portal_queue) = scratch.portals.as_deref_mut() {
+                portal_queue.push((layout.get_z_index(), portal_queue.len(), child_id));
+            }
+            return;
+        }
+        if !Self::is_portal_ancestor(scratch.portal_ancestors, child_id) {
+            return;
+        }
+        let hovered: bool = child.get_interaction().get_hovered();
+        let paint_opacity: f32 = if hovered {
+            child
+                .hover_paint()
+                .map(|hp: PaintStyle| hp.get_opacity())
+                .unwrap_or_else(|| style.paint.get_opacity())
+        } else {
+            style.paint.get_opacity()
+        };
+        let next_opacity: f32 = (parent_opacity * paint_opacity).clamp(0.0, 1.0);
+        if next_opacity <= 0.0 {
+            return;
+        }
+        Self::collect_portals_in_culled_subtree(tree, child_id, next_opacity, scratch);
+    }
+
+    /// Walks only portal-ancestor branches below a culled clipped container so escaping `Portal` / `Position::Fixed` nodes preserve exact paint order with zero non-portal work.
+    ///
+    /// # Arguments
+    ///
+    /// - `&SceneTree` - Retained scene tree.
+    /// - `NodeId` - Culled clipped ancestor node handle.
+    /// - `f32` - Effective ancestor opacity.
+    /// - `&mut PaintScratch<'_>` - Mutable portal queue and z-sort scratch buffers.
+    fn collect_portals_in_culled_subtree(
+        tree: &SceneTree,
+        node_id: NodeId,
+        parent_opacity: f32,
+        scratch: &mut PaintScratch<'_>,
+    ) {
+        let Some(node) = tree.get_node(node_id) else {
+            return;
+        };
+        let raw_children: &[NodeId] = node.get_children().as_slice();
+        if raw_children.is_empty() {
+            return;
+        }
+        let needs_z_sort: bool = raw_children.len() > 1
+            && raw_children.iter().copied().any(|cid: NodeId| {
+                tree.get_node(cid)
+                    .map(|c: &SceneNode| c.style_ref().layout.get_z_index() != 0)
+                    .unwrap_or(false)
+            });
+        if !needs_z_sort {
+            for child_id in raw_children.iter().copied() {
+                Self::visit_culled_portal_child(tree, child_id, parent_opacity, scratch);
+            }
+        } else {
+            let sort_start: usize = scratch.z_sort.len();
+            for (idx, cid) in raw_children.iter().copied().enumerate() {
+                if let Some(c) = tree.get_node(cid) {
+                    scratch
+                        .z_sort
+                        .push((c.style_ref().layout.get_z_index(), idx, cid));
+                }
+            }
+            let sort_end: usize = scratch.z_sort.len();
+            scratch.z_sort[sort_start..sort_end].sort_by(
+                |a: &(i32, usize, NodeId), b: &(i32, usize, NodeId)| {
+                    a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1))
+                },
+            );
+            for slot_idx in sort_start..sort_end {
+                let child_id: NodeId = scratch.z_sort[slot_idx].2;
+                Self::visit_culled_portal_child(tree, child_id, parent_opacity, scratch);
+            }
+            scratch.z_sort.truncate(sort_start);
+        }
+    }
+
     /// Shared internal scene-to-display-list builder supporting optional retained fragment caching.
     ///
     /// # Arguments
@@ -1027,12 +1258,15 @@ impl PaintPass {
         let active_hover_target: Option<NodeId> = Self::resolve_active_hover_target(tree);
         let mut portals: Vec<(i32, usize, NodeId)> = take(&mut display_list.portals_scratch);
         let mut z_sort: Vec<(i32, usize, NodeId)> = take(&mut display_list.z_sort_scratch);
+        let mut portal_ancestors: Vec<NodeId> = take(&mut display_list.portal_ancestors_scratch);
         portals.clear();
         z_sort.clear();
+        Self::collect_portal_ancestors(tree, &mut portal_ancestors);
         {
             let mut scratch: PaintScratch<'_> = PaintScratch {
                 portals: Some(&mut portals),
                 z_sort: &mut z_sort,
+                portal_ancestors: portal_ancestors.as_slice(),
                 fragments: fragments.as_deref_mut(),
                 saw_canvas,
             };
@@ -1056,6 +1290,7 @@ impl PaintPass {
             let mut portal_scratch: PaintScratch<'_> = PaintScratch {
                 portals: None,
                 z_sort: &mut z_sort,
+                portal_ancestors: &[],
                 fragments,
                 saw_canvas,
             };
@@ -1073,8 +1308,10 @@ impl PaintPass {
         }
         portals.clear();
         z_sort.clear();
+        portal_ancestors.clear();
         display_list.portals_scratch = portals;
         display_list.z_sort_scratch = z_sort;
+        display_list.portal_ancestors_scratch = portal_ancestors;
     }
 
     /// Resolves the single innermost interactive non-scrim node along the active hover chain so nested controls never stack duplicate hover fills.
@@ -1194,9 +1431,100 @@ impl PaintPass {
         let interaction: InteractionState = node.get_interaction();
         let hovered: bool = interaction.get_hovered();
         let pressed: bool = interaction.get_pressed();
-        let hover_visual: bool = hovered && active_hover_target == Some(node_id);
+        if !hovered && (parent_opacity * style.paint.get_opacity()) <= 0.0 {
+            return;
+        }
         let mut paint_owned: Option<PaintStyle> = if hovered { node.hover_paint() } else { None };
-        if (hover_visual || pressed)
+        let prelim_paint: &PaintStyle = paint_owned.as_ref().unwrap_or(&style.paint);
+        let opacity: f32 = (parent_opacity * prelim_paint.get_opacity()).clamp(0.0, 1.0);
+        if opacity <= 0.0 {
+            return;
+        }
+        let scale: f32 = display_list.get_scale_factor().max(0.5);
+        let inv_scale: f32 = 1.0 / scale;
+        let raw_bounds: Rect = node.layout_box.get_bounds();
+        let transform: Transform2D = prelim_paint.get_transform();
+        let tx_phys: f32 = (transform.get_translate_x() * scale).round();
+        let ty_phys: f32 = (transform.get_translate_y() * scale).round();
+        let total_off_x: f32 = offset_phys.get_x() + tx_phys;
+        let total_off_y: f32 = offset_phys.get_y() + ty_phys;
+        let raw_x0: f32 = (raw_bounds.get_x() * scale).round();
+        let raw_y0: f32 = (raw_bounds.get_y() * scale).round();
+        let raw_x1: f32 = (raw_bounds.right() * scale).round();
+        let raw_y1: f32 = (raw_bounds.bottom() * scale).round();
+        let static_w_phys: f32 = (raw_x1 - raw_x0).max(0.0);
+        let static_h_phys: f32 = (raw_y1 - raw_y0).max(0.0);
+        let scaled_w_phys: f32 = (static_w_phys * transform.get_scale_x()).round().max(0.0);
+        let scaled_h_phys: f32 = (static_h_phys * transform.get_scale_y()).round().max(0.0);
+        let scale_dx_phys: f32 = ((static_w_phys - scaled_w_phys) * 0.5).round();
+        let scale_dy_phys: f32 = ((static_h_phys - scaled_h_phys) * 0.5).round();
+        let bounds: Rect = Rect::new(
+            (raw_x0 + total_off_x + scale_dx_phys) * inv_scale,
+            (raw_y0 + total_off_y + scale_dy_phys) * inv_scale,
+            scaled_w_phys * inv_scale,
+            scaled_h_phys * inv_scale,
+        );
+        let clipped: bool = matches!(layout.get_overflow(), Overflow::Hidden | Overflow::Scroll);
+        let clipped_cull: Option<Rect> = if clipped {
+            cull_rect.intersect(bounds)
+        } else {
+            Some(cull_rect)
+        };
+        let focused: bool = interaction.get_focused();
+        let self_vis_rect: Rect = Self::conservative_self_vis_rect(
+            node,
+            bounds,
+            prelim_paint,
+            focused,
+            (total_off_x, total_off_y),
+            scale,
+            inv_scale,
+        );
+        let self_visible: bool = bounds.get_width() > 0.0
+            && bounds.get_height() > 0.0
+            && self_vis_rect.intersect(cull_rect).is_some();
+        if clipped && clipped_cull.is_none() {
+            if self_visible {
+                if let Some(mut shadow) = prelim_paint.box_shadow() {
+                    shadow.set_color(shadow.get_color().multiply_alpha(opacity));
+                    display_list.push(DrawCommand::BoxShadow {
+                        rect: bounds,
+                        radius: prelim_paint.get_radius(),
+                        shadow,
+                    });
+                }
+                if focused && let Some(mut ring) = prelim_paint.focus_ring_border() {
+                    ring.set_color(ring.get_color().multiply_alpha(opacity));
+                    let ring_w: f32 = ring.get_width();
+                    let ring_rect: Rect = Rect::new(
+                        bounds.get_x() - ring_w,
+                        bounds.get_y() - ring_w,
+                        bounds.get_width() + ring_w * 2.0,
+                        bounds.get_height() + ring_w * 2.0,
+                    );
+                    display_list.push(DrawCommand::FillRoundedRect {
+                        rect: ring_rect,
+                        color: COLOR_TRANSPARENT,
+                        radius: CornerRadius::all(prelim_paint.get_radius().max_radius() + ring_w),
+                        border: ring,
+                    });
+                }
+            }
+            if scratch.portals.is_some()
+                && Self::is_portal_ancestor(scratch.portal_ancestors, node_id)
+            {
+                Self::collect_portals_in_culled_subtree(tree, node_id, opacity, scratch);
+            }
+            return;
+        }
+        let raw_children: &[NodeId] = node.get_children().as_slice();
+        if !self_visible && raw_children.is_empty() {
+            return;
+        }
+        let next_cull: Rect = clipped_cull.unwrap_or(cull_rect);
+        let hover_visual: bool = hovered && active_hover_target == Some(node_id);
+        if self_visible
+            && (hover_visual || pressed)
             && paint_owned.is_none()
             && (hovered || node.hover_paint().is_none())
         {
@@ -1223,59 +1551,6 @@ impl PaintPass {
             }
         }
         let paint: &PaintStyle = paint_owned.as_ref().unwrap_or(&style.paint);
-        let opacity: f32 = (parent_opacity * paint.get_opacity()).clamp(0.0, 1.0);
-        if opacity <= 0.0 {
-            return;
-        }
-        let scale: f32 = display_list.get_scale_factor().max(0.5);
-        let inv_scale: f32 = 1.0 / scale;
-        let raw_bounds: Rect = node.layout_box.get_bounds();
-        let transform: Transform2D = paint.get_transform();
-        let tx_phys: f32 = (transform.get_translate_x() * scale).round();
-        let ty_phys: f32 = (transform.get_translate_y() * scale).round();
-        let total_off_x: f32 = offset_phys.get_x() + tx_phys;
-        let total_off_y: f32 = offset_phys.get_y() + ty_phys;
-        let raw_x0: f32 = (raw_bounds.get_x() * scale).round();
-        let raw_y0: f32 = (raw_bounds.get_y() * scale).round();
-        let raw_x1: f32 = (raw_bounds.right() * scale).round();
-        let raw_y1: f32 = (raw_bounds.bottom() * scale).round();
-        let static_w_phys: f32 = (raw_x1 - raw_x0).max(0.0);
-        let static_h_phys: f32 = (raw_y1 - raw_y0).max(0.0);
-        let scaled_w_phys: f32 = (static_w_phys * transform.get_scale_x()).round().max(0.0);
-        let scaled_h_phys: f32 = (static_h_phys * transform.get_scale_y()).round().max(0.0);
-        let scale_dx_phys: f32 = ((static_w_phys - scaled_w_phys) * 0.5).round();
-        let scale_dy_phys: f32 = ((static_h_phys - scaled_h_phys) * 0.5).round();
-        let bounds: Rect = Rect::new(
-            (raw_x0 + total_off_x + scale_dx_phys) * inv_scale,
-            (raw_y0 + total_off_y + scale_dy_phys) * inv_scale,
-            scaled_w_phys * inv_scale,
-            scaled_h_phys * inv_scale,
-        );
-        let clipped: bool = matches!(layout.get_overflow(), Overflow::Hidden | Overflow::Scroll);
-        let next_cull: Rect = if clipped {
-            match cull_rect.intersect(bounds) {
-                Some(r) => r,
-                None => return,
-            }
-        } else {
-            cull_rect
-        };
-        let halo: f32 = if paint.box_shadow().is_some() {
-            36.0
-        } else if paint.focus_ring_border().is_some() {
-            8.0
-        } else {
-            2.0
-        };
-        let self_vis_rect: Rect = Rect::new(
-            bounds.get_x() - halo,
-            bounds.get_y() - halo,
-            bounds.get_width() + halo * 2.0,
-            bounds.get_height() + halo * 2.0,
-        );
-        let self_visible: bool = bounds.get_width() > 0.0
-            && bounds.get_height() > 0.0
-            && self_vis_rect.intersect(cull_rect).is_some();
         let mut frag_capture: Option<(usize, usize, u64, u64)> = None;
         if self_visible
             && scratch.fragments.is_some()
@@ -1567,7 +1842,14 @@ impl PaintPass {
                 NodeKind::View | NodeKind::ScrollView | NodeKind::Portal | NodeKind::Fragment => {}
             }
         }
-        if clipped {
+        let vp: Size = display_list.get_viewport();
+        let show_scrollbar: bool = vp.get_width().min(vp.get_height()) >= 540.0;
+        let wants_scrollbar: bool = show_scrollbar
+            && layout.get_overflow() == Overflow::Scroll
+            && bounds.get_height() > 24.0;
+        let emit_clip: bool = clipped && (!raw_children.is_empty() || wants_scrollbar);
+        let clip_push_idx: usize = display_list.len();
+        if emit_clip {
             let bw: f32 = paint.get_border().get_width();
             let clip_rect: Rect = if bw > 0.0 {
                 Rect::new(
@@ -1598,63 +1880,61 @@ impl PaintPass {
                 display_list.push(DrawCommand::PushClip(clip_rect));
             }
         }
-        let raw_node_scroll: Point = node.layout_box.get_scroll_offset();
-        let scroll_x_phys: f32 = (raw_node_scroll.get_x() * scale).round();
-        let scroll_y_phys: f32 = (raw_node_scroll.get_y() * scale).round();
-        let child_offset_phys: Point =
-            Point::new(total_off_x - scroll_x_phys, total_off_y - scroll_y_phys);
-        let raw_children: &[NodeId] = node.get_children().as_slice();
-        let needs_z_sort: bool = raw_children.len() > 1
-            && raw_children.iter().copied().any(|cid: NodeId| {
-                tree.get_node(cid)
-                    .map(|c: &SceneNode| c.style_ref().layout.get_z_index() != 0)
-                    .unwrap_or(false)
-            });
-        if !needs_z_sort {
-            for child_id in raw_children.iter().copied() {
-                Self::emit_node(
-                    tree,
-                    child_id,
-                    (child_offset_phys, opacity),
-                    next_cull,
-                    active_hover_target,
-                    scratch,
-                    display_list,
-                );
-            }
-        } else {
-            let sort_start: usize = scratch.z_sort.len();
-            for (idx, cid) in raw_children.iter().copied().enumerate() {
-                if let Some(c) = tree.get_node(cid) {
-                    scratch
-                        .z_sort
-                        .push((c.style_ref().layout.get_z_index(), idx, cid));
+        if !raw_children.is_empty() {
+            let raw_node_scroll: Point = node.layout_box.get_scroll_offset();
+            let scroll_x_phys: f32 = (raw_node_scroll.get_x() * scale).round();
+            let scroll_y_phys: f32 = (raw_node_scroll.get_y() * scale).round();
+            let child_offset_phys: Point =
+                Point::new(total_off_x - scroll_x_phys, total_off_y - scroll_y_phys);
+            let needs_z_sort: bool = raw_children.len() > 1
+                && raw_children.iter().copied().any(|cid: NodeId| {
+                    tree.get_node(cid)
+                        .map(|c: &SceneNode| c.style_ref().layout.get_z_index() != 0)
+                        .unwrap_or(false)
+                });
+            if !needs_z_sort {
+                for child_id in raw_children.iter().copied() {
+                    Self::emit_node(
+                        tree,
+                        child_id,
+                        (child_offset_phys, opacity),
+                        next_cull,
+                        active_hover_target,
+                        scratch,
+                        display_list,
+                    );
                 }
-            }
-            let sort_end: usize = scratch.z_sort.len();
-            scratch.z_sort[sort_start..sort_end].sort_by(
-                |a: &(i32, usize, NodeId), b: &(i32, usize, NodeId)| {
-                    a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1))
-                },
-            );
-            for slot_idx in sort_start..sort_end {
-                let child_id: NodeId = scratch.z_sort[slot_idx].2;
-                Self::emit_node(
-                    tree,
-                    child_id,
-                    (child_offset_phys, opacity),
-                    next_cull,
-                    active_hover_target,
-                    scratch,
-                    display_list,
+            } else {
+                let sort_start: usize = scratch.z_sort.len();
+                for (idx, cid) in raw_children.iter().copied().enumerate() {
+                    if let Some(c) = tree.get_node(cid) {
+                        scratch
+                            .z_sort
+                            .push((c.style_ref().layout.get_z_index(), idx, cid));
+                    }
+                }
+                let sort_end: usize = scratch.z_sort.len();
+                scratch.z_sort[sort_start..sort_end].sort_by(
+                    |a: &(i32, usize, NodeId), b: &(i32, usize, NodeId)| {
+                        a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1))
+                    },
                 );
+                for slot_idx in sort_start..sort_end {
+                    let child_id: NodeId = scratch.z_sort[slot_idx].2;
+                    Self::emit_node(
+                        tree,
+                        child_id,
+                        (child_offset_phys, opacity),
+                        next_cull,
+                        active_hover_target,
+                        scratch,
+                        display_list,
+                    );
+                }
+                scratch.z_sort.truncate(sort_start);
             }
-            scratch.z_sort.truncate(sort_start);
         }
-        let vp: Size = display_list.get_viewport();
-        let show_scrollbar: bool = vp.get_width().min(vp.get_height()) >= 540.0;
-        if show_scrollbar && layout.get_overflow() == Overflow::Scroll && bounds.get_height() > 24.0
-        {
+        if wants_scrollbar {
             let lbox: &LayoutBox = &node.layout_box;
             let border_w: f32 = paint.get_border().get_width();
             let inner_x: f32 = bounds.get_x() + border_w;
@@ -1764,8 +2044,12 @@ impl PaintPass {
                 });
             }
         }
-        if clipped {
-            display_list.push(DrawCommand::PopClip);
+        if emit_clip {
+            if display_list.len() == clip_push_idx + 1 {
+                let _: Option<DrawCommand> = display_list.get_mut_commands().pop();
+            } else {
+                display_list.push(DrawCommand::PopClip);
+            }
         }
         if let Some((cmd_start, slot_idx, geom_hash, style_text_hash)) = frag_capture
             && let Some(cache) = scratch.fragments.as_deref_mut()

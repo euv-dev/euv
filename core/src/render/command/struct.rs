@@ -24,6 +24,11 @@ pub struct DisplayList {
     #[get_mut(skip)]
     #[set(skip)]
     pub(crate) z_sort_scratch: Vec<(i32, usize, NodeId)>,
+    /// Persistent scratch buffer of ancestor handles leading to live `Portal` / `Position::Fixed` nodes across frames.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) portal_ancestors_scratch: Vec<NodeId>,
 }
 
 /// Cross-frame retained `DrawCommand` fragment captured for one clean clipped container/list-row subtree.
@@ -112,6 +117,8 @@ pub(crate) struct PaintScratch<'a> {
     pub(crate) portals: Option<&'a mut Vec<(i32, usize, NodeId)>>,
     /// Stack-sliced scratch vector reused for nested z-index child sorting.
     pub(crate) z_sort: &'a mut Vec<(i32, usize, NodeId)>,
+    /// Ancestor handles on paths to live `Portal` / `Position::Fixed` descendants for lossless clipped-subtree culling.
+    pub(crate) portal_ancestors: &'a [NodeId],
     /// Optional cross-frame retained fragment cache (`Some` during retained builds).
     pub(crate) fragments: Option<&'a mut PaintFragmentCache>,
     /// Flag set whenever any visited node is `NodeKind::Canvas`.

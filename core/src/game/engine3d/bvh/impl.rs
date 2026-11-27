@@ -565,6 +565,9 @@ impl Bvh3D {
     #[must_use]
     pub fn build(triangles: Vec<BvhTriangle>) -> Self {
         let tri_len: usize = triangles.len();
+        if tri_len == 0 {
+            return Self::default();
+        }
         let mut bvh: Self = Self {
             nodes: Vec::with_capacity(tri_len * 2 + 1),
             triangles,
