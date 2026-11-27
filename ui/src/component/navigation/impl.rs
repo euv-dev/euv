@@ -33,8 +33,7 @@ impl EuvSidebarNav {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
-        let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let base_tokens: ThemeTokens = self.get_tokens();
         let active_route: Signal<String> = self.get_active_route();
         let Self { items, .. } = self.clone();
         let mut last_section: String = String::new();
@@ -54,67 +53,90 @@ impl EuvSidebarNav {
             let label: String = item.get_label().clone();
             entries.push((sec_header, label, target_path, click_path, indicator_path));
         }
+        let mut children: Vec<NodeId> = Vec::with_capacity(entries.len() * 2);
+        for (sec_header, label, target_path, click_path, indicator_path) in entries.into_iter() {
+            if let Some((sec_title, top_pad)) = sec_header {
+                let sec_text_style = move || -> Style {
+                    let live_p: ThemePalette = use_live_tokens(base_tokens).get_palette();
+                    Style::default()
+                        .font_size(11.0)
+                        .font_weight(FontWeight::SemiBold)
+                        .color(live_p.get_muted_foreground())
+                };
+                children.push(view! {
+                    row {
+                        width: Length::Percent(100.0)
+                        padding: Edges::new(top_pad, SPACE_SM, 4.0, SPACE_SM)
+                        text {
+                            bind_style: sec_text_style
+                            { sec_title }
+                        }
+                    }
+                });
+            }
+            let row_style = move || -> Style {
+                let live_tok: ThemeTokens = use_live_tokens(base_tokens);
+                let live_p: ThemePalette = live_tok.get_palette();
+                let live_g: ThemeGeometry = live_tok.get_geometry();
+                let is_active: bool = active_route.get() == target_path;
+                Style::default()
+                    .row()
+                    .width(Length::Percent(100.0))
+                    .height(Length::Px(live_g.get_control_sm().max(34.0)))
+                    .align(AlignItems::Center)
+                    .gap(SPACE_SM)
+                    .padding(Edges::symmetric(0.0, SPACE_SM))
+                    .radius(live_g.get_radius_md())
+                    .background(if is_active {
+                        live_p.get_primary().with_alpha(24)
+                    } else {
+                        COLOR_TRANSPARENT
+                    })
+                    .cursor(CursorIcon::Pointer)
+            };
+            let on_item_click = move |_: &UiEvent| {
+                let _: bool = active_route.set_if_changed(click_path.clone());
+            };
+            let ind_style = move || -> Style {
+                let live_p: ThemePalette = use_live_tokens(base_tokens).get_palette();
+                let is_active: bool = active_route.get() == indicator_path;
+                Style::default()
+                    .width(Length::Px(3.5))
+                    .height(Length::Px(18.0))
+                    .radius(99.0)
+                    .background(if is_active {
+                        live_p.get_primary()
+                    } else {
+                        COLOR_TRANSPARENT
+                    })
+            };
+            let lbl_style = move || -> Style {
+                let live_p: ThemePalette = use_live_tokens(base_tokens).get_palette();
+                Style::default()
+                    .font_size(13.5)
+                    .font_weight(FontWeight::SemiBold)
+                    .color(live_p.get_foreground())
+                    .text_overflow(TextOverflow::Clip)
+            };
+            children.push(view! {
+                row {
+                    bind_style: row_style
+                    on_click: on_item_click
+                    view {
+                        bind_style: ind_style
+                    }
+                    text {
+                        bind_style: lbl_style
+                        { label }
+                    }
+                }
+            });
+        }
         view! {
             column {
                 width: Length::Percent(100.0)
                 gap: 2.0
-                for (sec_header, label, target_path, click_path, indicator_path) in entries.into_iter() {
-                    if let Some((sec_title, top_pad)) = sec_header {
-                        row {
-                            width: Length::Percent(100.0)
-                            padding: Edges::new(top_pad, SPACE_SM, 4.0, SPACE_SM)
-                            text {
-                                font_size: 11.0
-                                font_weight: FontWeight::SemiBold
-                                color: p.get_muted_foreground()
-                                { sec_title }
-                            }
-                        }
-                    }
-                    row {
-                        bind_style: move || {
-                            let is_active: bool = active_route.get() == target_path;
-                            Style::default()
-                            .row()
-                            .width(Length::Percent(100.0))
-                            .height(Length::Px(g.get_control_sm().max(34.0)))
-                            .align(AlignItems::Center)
-                            .gap(SPACE_SM)
-                            .padding(Edges::symmetric(0.0, SPACE_SM))
-                            .radius(g.get_radius_md())
-                            .background(if is_active {
-                                p.get_primary().with_alpha(24)
-                                } else {
-                                    COLOR_TRANSPARENT
-                            })
-                            .cursor(CursorIcon::Pointer)
-                        }
-                        on_click: move |_: &UiEvent| {
-                            let _: bool = active_route.set_if_changed(click_path.clone());
-                        }
-                        view {
-                            bind_style: move || {
-                                let is_active: bool = active_route.get() == indicator_path;
-                                Style::default()
-                                .width(Length::Px(3.5))
-                                .height(Length::Px(18.0))
-                                .radius(99.0)
-                                .background(if is_active {
-                                    p.get_primary()
-                                    } else {
-                                        COLOR_TRANSPARENT
-                                })
-                            }
-                        }
-                        text {
-                            font_size: 13.5
-                            font_weight: FontWeight::SemiBold
-                            color: p.get_foreground()
-                            text_overflow: TextOverflow::Clip
-                            { label }
-                        }
-                    }
-                }
+                ..children
             }
         }
     }
@@ -134,58 +156,86 @@ impl EuvTabs {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
-        let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let base_tokens: ThemeTokens = self.get_tokens();
         let active: Signal<usize> = self.get_active();
         let Self { labels, .. } = self.clone();
-        view! {
-            row {
-                flex_wrap: FlexWrap::Wrap
-                width: Length::Percent(100.0)
-                gap: SPACE_XS
-                background: p.get_muted()
-                padding: Edges::all(SPACE_XS)
-                radius: g.get_radius_md()
-                for (idx, label) in labels.into_iter().enumerate() {
-                    row {
-                        bind_style: move || {
-                            let selected: bool = active.get() == idx;
-                            let mut st: Style = Style::default()
-                            .row()
-                            .height(Length::Px(g.get_control_sm()))
-                            .justify(JustifyContent::Center)
-                            .align(AlignItems::Center)
-                            .padding(Edges::symmetric(0.0, SPACE_MD))
-                            .overflow(Overflow::Hidden)
-                            .radius(g.get_radius_sm())
-                            .background(if selected {
-                                p.get_card()
-                                } else {
-                                    COLOR_TRANSPARENT
-                            })
-                            .border(
-                                if selected { g.get_border_width() } else { 0.0 },
-                                p.get_border(),
-                            )
-                            .cursor(CursorIcon::Pointer);
+        let bar_style = move || -> Style {
+            let live_tok: ThemeTokens = use_live_tokens(base_tokens);
+            let live_p: ThemePalette = live_tok.get_palette();
+            let live_g: ThemeGeometry = live_tok.get_geometry();
+            Style::default()
+                .row()
+                .wrap(FlexWrap::Wrap)
+                .width(Length::Percent(100.0))
+                .gap(SPACE_XS)
+                .background(live_p.get_muted())
+                .padding(Edges::all(SPACE_XS))
+                .radius(live_g.get_radius_md())
+        };
+        let tab_nodes: Vec<NodeId> = labels
+            .into_iter()
+            .enumerate()
+            .map(|(idx, label): (usize, String)| {
+                let tab_style = move || -> Style {
+                    let live_tok: ThemeTokens = use_live_tokens(base_tokens);
+                    let live_p: ThemePalette = live_tok.get_palette();
+                    let live_g: ThemeGeometry = live_tok.get_geometry();
+                    let selected: bool = active.get() == idx;
+                    let mut st: Style = Style::default()
+                        .row()
+                        .height(Length::Px(live_g.get_control_sm()))
+                        .justify(JustifyContent::Center)
+                        .align(AlignItems::Center)
+                        .padding(Edges::symmetric(0.0, SPACE_MD))
+                        .overflow(Overflow::Hidden)
+                        .radius(live_g.get_radius_sm())
+                        .background(if selected {
+                            live_p.get_card()
+                        } else {
+                            COLOR_TRANSPARENT
+                        })
+                        .border(
                             if selected {
-                                st = st.shadow(g.get_shadow_xs());
-                            }
-                            st
-                        }
-                        on_click: move |_: &UiEvent| {
-                            let _: bool = active.set_if_changed(idx);
-                        }
+                                live_g.get_border_width()
+                            } else {
+                                0.0
+                            },
+                            live_p.get_border(),
+                        )
+                        .cursor(CursorIcon::Pointer);
+                    if selected {
+                        st = st.shadow(live_g.get_shadow_xs());
+                    }
+                    st
+                };
+                let on_tab_click = move |_: &UiEvent| {
+                    let _: bool = active.set_if_changed(idx);
+                };
+                let lbl_style = move || -> Style {
+                    let live_p: ThemePalette = use_live_tokens(base_tokens).get_palette();
+                    Style::default()
+                        .font_size(13.0)
+                        .font_weight(FontWeight::Medium)
+                        .color(live_p.get_foreground())
+                        .text_align(TextAlign::Center)
+                        .text_overflow(TextOverflow::Ellipsis)
+                };
+                view! {
+                    row {
+                        bind_style: tab_style
+                        on_click: on_tab_click
                         text {
-                            font_size: 13.0
-                            font_weight: FontWeight::Medium
-                            color: p.get_foreground()
-                            text_align: TextAlign::Center
-                            text_overflow: TextOverflow::Ellipsis
+                            bind_style: lbl_style
                             { label }
                         }
                     }
                 }
+            })
+            .collect();
+        view! {
+            row {
+                bind_style: bar_style
+                ..tab_nodes
             }
         }
     }
@@ -195,7 +245,7 @@ impl EuvTabs {
 #[component]
 /// Inherent implementation of [`EuvBottomNav`].
 impl EuvBottomNav {
-    /// Renders `EuvBottomNav` as a modern floating pill dock with crisp vector icons and high-contrast active capsule states.
+    /// Renders `EuvBottomNav` as a floating dock with disciplined design-token corner radii and a smooth monotonic sliding active-tab indicator tracking clicks, route switches, and live swipe drag progress.
     ///
     /// # Arguments
     ///
@@ -205,15 +255,60 @@ impl EuvBottomNav {
     ///
     /// - `NodeId` - Mounted bottom navigation bar container handle.
     fn render(&self) -> NodeId {
-        let p: ThemePalette = self.get_tokens().get_palette();
+        let ctx: Context = current_context();
+        let base_tokens: ThemeTokens = self.get_tokens();
         let active_route: Signal<String> = self.get_active_route();
         let Self { items, .. } = self.clone();
+        let item_count: usize = items.len().max(1);
+        let slot_pct: f32 = 100.0 / (item_count as f32);
+        let route_paths: Vec<String> = items
+            .iter()
+            .map(|item: &EuvNavItem| item.get_path().clone())
+            .collect();
+        let initial_idx: Option<usize> = {
+            let cur: String = active_route.get_untracked();
+            route_paths
+                .iter()
+                .position(|path: &String| path.as_str() == cur.as_str())
+        };
+        let pill_style = move || -> Style {
+            let live_tok: ThemeTokens = use_live_tokens(base_tokens);
+            let live_p: ThemePalette = live_tok.get_palette();
+            let live_g: ThemeGeometry = live_tok.get_geometry();
+            let pill_radius: f32 = live_g
+                .get_radius_md()
+                .clamp(NAV_INDICATOR_MIN_RADIUS, NAV_INDICATOR_MAX_RADIUS);
+            Style::default()
+                .width(Length::Percent(100.0))
+                .height(Length::Percent(100.0))
+                .radius(pill_radius)
+                .background(live_p.get_primary())
+        };
+        let initial_display: Display = if initial_idx.is_some() {
+            Display::Flex
+        } else {
+            Display::None
+        };
+        let indicator_node: NodeId = view! {
+            row {
+                display: initial_display
+                position: Position::Absolute
+                inset: (Some(1.0), None, Some(1.0), Some(0.0))
+                width: Length::Percent(slot_pct)
+                height: Length::Px(46.0)
+                padding: Edges::symmetric(0.0, 2.0)
+                z_index: 0
+                pointer_events: PointerEvents::None
+                view {
+                    bind_style: pill_style
+                }
+            }
+        };
         let tab_nodes: Vec<NodeId> = items
             .into_iter()
             .map(|item: EuvNavItem| {
                 let target_path: String = item.get_path().clone();
                 let click_path: String = target_path.clone();
-                let pill_path: String = target_path.clone();
                 let icon_path: String = target_path.clone();
                 let label_path: String = target_path;
                 let label: String = item.get_label().clone();
@@ -221,37 +316,18 @@ impl EuvBottomNav {
                 let on_tab_click = move |_: &UiEvent| {
                     let _: bool = active_route.set_if_changed(click_path.clone());
                 };
-                let tab_pill_style = move || -> Style {
-                    let active: bool = active_route.get() == pill_path;
-                    Style::default()
-                        .column()
-                        .flex_grow(1.0)
-                        .flex_shrink(1.0)
-                        .min_width(Length::Px(0.0))
-                        .height(Length::Px(46.0))
-                        .justify(JustifyContent::Center)
-                        .align(AlignItems::Center)
-                        .gap(2.0)
-                        .padding(Edges::symmetric(3.0, 6.0))
-                        .radius(23.0)
-                        .overflow(Overflow::Hidden)
-                        .background(if active {
-                            p.get_primary()
-                        } else {
-                            COLOR_TRANSPARENT
-                        })
-                        .cursor(CursorIcon::Pointer)
-                };
                 let paint_icon = move |bounds: Rect, dl: &mut DisplayList| {
+                    let live_p: ThemePalette = live_tokens_untracked(base_tokens).get_palette();
                     let active: bool = active_route.get_untracked() == icon_path;
                     let col: Color = if active {
-                        p.get_primary_foreground()
+                        live_p.get_primary_foreground()
                     } else {
-                        p.get_muted_foreground()
+                        live_p.get_muted_foreground()
                     };
                     draw_bottom_nav_icon(bounds, dl, &icon_path, &icon_label, col);
                 };
                 let label_style = move || -> Style {
+                    let live_p: ThemePalette = use_live_tokens(base_tokens).get_palette();
                     let active: bool = active_route.get() == label_path;
                     Style::default()
                         .font_size(10.5)
@@ -261,22 +337,55 @@ impl EuvBottomNav {
                             FontWeight::Medium
                         })
                         .color(if active {
-                            p.get_primary_foreground()
+                            live_p.get_primary_foreground()
                         } else {
-                            p.get_muted_foreground()
+                            live_p.get_muted_foreground()
                         })
                         .text_align(TextAlign::Center)
                         .text_overflow(TextOverflow::Clip)
                 };
+                let icon_canvas: NodeId = view! {
+                    canvas {
+                        width: Length::Px(20.0)
+                        height: Length::Px(18.0)
+                        painter: paint_icon
+                    }
+                };
+                let ctx_icon: Context = ctx.clone();
+                let (icon_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+                    Effect::new(move || {
+                        let _: String = active_route.get();
+                        let _: ThemeTokens = use_live_tokens(base_tokens);
+                        ctx_icon.get_scene().with_write(
+                            |tree: &mut SceneTree| {
+                                tree.mark_dirty(icon_canvas, DIRTY_PAINT);
+                            },
+                            (),
+                        );
+                    })
+                });
+                ctx.get_scene().with_write(
+                    |tree: &mut SceneTree| {
+                        tree.attach_scope(icon_canvas, icon_scope);
+                    },
+                    (),
+                );
                 view! {
                     column {
-                        bind_style: tab_pill_style
+                        flex_grow: 1.0
+                        flex_shrink: 1.0
+                        min_width: Length::Px(0.0)
+                        height: Length::Px(46.0)
+                        justify: JustifyContent::Center
+                        align: AlignItems::Center
+                        gap: 2.0
+                        padding: Edges::symmetric(3.0, 6.0)
+                        overflow: Overflow::Hidden
+                        background: COLOR_TRANSPARENT
+                        z_index: 1
+                        cursor: CursorIcon::Pointer
                         on_click: on_tab_click
-                        canvas {
-                            width: Length::Px(20.0)
-                            height: Length::Px(18.0)
-                            painter: paint_icon
-                        }
+                        { icon_canvas }
                         text {
                             bind_style: label_style
                             { label }
@@ -285,15 +394,173 @@ impl EuvBottomNav {
                 }
             })
             .collect();
-        view! {
+        let bar_node: NodeId = view! {
             row {
                 width: Length::Percent(100.0)
                 height: Length::Percent(100.0)
                 justify: JustifyContent::SpaceBetween
                 align: AlignItems::Center
-                gap: 4.0
+                gap: 0.0
+                overflow: Overflow::Hidden
+                { indicator_node }
                 ..tab_nodes
             }
-        }
+        };
+        let last_idx: Rc<Cell<Option<usize>>> = Rc::new(Cell::new(initial_idx));
+        let last_drag_tx: Rc<Cell<f32>> = Rc::new(Cell::new(0.0));
+        let route_paths_anim: Vec<String> = route_paths.clone();
+        let ctx_anim: Context = ctx.clone();
+        let last_idx_route: Rc<Cell<Option<usize>>> = Rc::clone(&last_idx);
+        let last_drag_route: Rc<Cell<f32>> = Rc::clone(&last_drag_tx);
+        let (route_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            Effect::new(move || {
+                let current_path: String = active_route.get();
+                let vp_w: f32 = ctx_anim.get_viewport_size().get().get_width();
+                let next_idx: Option<usize> = route_paths_anim
+                    .iter()
+                    .position(|path: &String| path.as_str() == current_path.as_str());
+                let prev_idx: Option<usize> = last_idx_route.replace(next_idx);
+                let prev_drag: f32 = last_drag_route.replace(0.0);
+                let dirty_layout: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                ctx_anim.get_scene().with_write(
+                    |tree: &mut SceneTree| {
+                        let bar_w: f32 = tree
+                            .get_node(bar_node)
+                            .map(|n: &SceneNode| n.get_layout_box().get_bounds().get_width())
+                            .filter(|w: &f32| *w > 1.0)
+                            .unwrap_or_else(|| (vp_w - 48.0).clamp(240.0, 460.0));
+                        let slot_w: f32 = bar_w / (item_count as f32);
+                        if let Some(target_i) = next_idx {
+                            let target_left_px: f32 = (target_i as f32) * slot_w;
+                            if let Some(node) = tree.get_node_mut(indicator_node) {
+                                let mut st: Style = node.get_style();
+                                st.get_mut_layout()
+                                    .set_display(Display::Flex)
+                                    .set_left(Some(target_left_px))
+                                    .set_right(None)
+                                    .set_width(Length::Percent(slot_pct));
+                                node.set_style(st);
+                            }
+                            tree.mark_dirty(indicator_node, dirty_layout | DIRTY_PAINT);
+                            if let Some(old_i) = prev_idx
+                                && old_i != target_i
+                            {
+                                let delta_slots: f32 = (old_i as f32) - (target_i as f32);
+                                let from_x: f32 = delta_slots * slot_w + prev_drag;
+                                tree.start_transition(
+                                    NodeTransition::slide_fade(
+                                        indicator_node,
+                                        Point::new(from_x, 0.0),
+                                        Point::new(0.0, 0.0),
+                                        1.0,
+                                        1.0,
+                                        NAV_INDICATOR_SLIDE_SECS,
+                                        false,
+                                    )
+                                    .with_easing(Easing::EaseOutCubic),
+                                );
+                            } else if prev_drag.abs() > 0.5 {
+                                tree.start_transition(
+                                    NodeTransition::slide_fade(
+                                        indicator_node,
+                                        Point::new(prev_drag, 0.0),
+                                        Point::new(0.0, 0.0),
+                                        1.0,
+                                        1.0,
+                                        NAV_INDICATOR_CANCEL_SECS,
+                                        false,
+                                    )
+                                    .with_easing(Easing::EaseOutCubic),
+                                );
+                            }
+                        } else {
+                            if let Some(node) = tree.get_node_mut(indicator_node) {
+                                let mut st: Style = node.get_style();
+                                st.get_mut_layout().set_display(Display::None);
+                                st.get_mut_paint().set_transform(Transform2D::default());
+                                node.set_style(st);
+                            }
+                            tree.mark_dirty(indicator_node, dirty_layout | DIRTY_PAINT);
+                        }
+                    },
+                    (),
+                );
+            })
+        });
+        let drag_sig: Signal<f32> = ctx.get_swipe_drag_offset();
+        let ctx_drag: Context = ctx.clone();
+        let last_idx_drag: Rc<Cell<Option<usize>>> = Rc::clone(&last_idx);
+        let last_drag_live: Rc<Cell<f32>> = Rc::clone(&last_drag_tx);
+        let (drag_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            Effect::new(move || {
+                let dx: f32 = drag_sig.get();
+                let Some(cur_i) = last_idx_drag.get() else {
+                    return;
+                };
+                let vp_w: f32 = ctx_drag
+                    .get_viewport_size()
+                    .get_untracked()
+                    .get_width()
+                    .max(1.0);
+                if dx.abs() > 0.5 {
+                    let mut frac: f32 = (-dx / vp_w).clamp(-1.0, 1.0);
+                    if cur_i == 0 && frac < 0.0 {
+                        frac = 0.0;
+                    }
+                    if cur_i + 1 >= item_count && frac > 0.0 {
+                        frac = 0.0;
+                    }
+                    ctx_drag.get_scene().with_write(
+                        |tree: &mut SceneTree| {
+                            let bar_w: f32 = tree
+                                .get_node(bar_node)
+                                .map(|n: &SceneNode| n.get_layout_box().get_bounds().get_width())
+                                .filter(|w: &f32| *w > 1.0)
+                                .unwrap_or_else(|| (vp_w - 48.0).clamp(240.0, 460.0));
+                            let slot_w: f32 = bar_w / (item_count as f32);
+                            let tx: f32 = frac * slot_w;
+                            last_drag_live.set(tx);
+                            if let Some(node) = tree.get_node_mut(indicator_node) {
+                                let mut st: Style = node.get_style();
+                                st.get_mut_paint()
+                                    .set_transform(Transform2D::new(tx, 0.0, 1.0, 1.0, 0.0));
+                                node.set_style(st);
+                            }
+                            tree.mark_dirty(indicator_node, DIRTY_PAINT);
+                        },
+                        (),
+                    );
+                } else {
+                    let prev_tx: f32 = last_drag_live.replace(0.0);
+                    if prev_tx.abs() > 0.5 {
+                        ctx_drag.get_scene().with_write(
+                            |tree: &mut SceneTree| {
+                                tree.start_transition(
+                                    NodeTransition::slide_fade(
+                                        indicator_node,
+                                        Point::new(prev_tx, 0.0),
+                                        Point::new(0.0, 0.0),
+                                        1.0,
+                                        1.0,
+                                        NAV_INDICATOR_CANCEL_SECS,
+                                        false,
+                                    )
+                                    .with_easing(Easing::EaseOutCubic),
+                                );
+                            },
+                            (),
+                        );
+                    }
+                }
+            })
+        });
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(bar_node, route_scope);
+                tree.attach_scope(bar_node, drag_scope);
+            },
+            (),
+        );
+        bar_node
     }
 }

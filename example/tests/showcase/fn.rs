@@ -315,10 +315,16 @@ fn real_interactive_e2e_clicking_navigates_all_nine_routes_and_exercises_every_f
     );
     assert_eq!(state.get_dynamic_hub().page_version(ROUTE_DYNAMIC_PANEL), 2);
     let f_promo: FrameStats = scroll_and_click_label(&mut app, "Inject & Visit /promo-live");
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
     assert_eq!(state.get_route().get_untracked(), ROUTE_PROMO_LIVE);
     assert!(state.get_dynamic_hub().has_dynamic_page(ROUTE_PROMO_LIVE));
     assert_ne!(f_promo.get_frame_hash(), f_dyn_page_v1.get_frame_hash());
     let _: FrameStats = click_label(&mut app, "Return to Dynamic OTA");
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
     assert_eq!(state.get_route().get_untracked(), ROUTE_DYNAMIC);
     let _: FrameStats = click_label(&mut app, "Home");
     assert_eq!(state.get_route().get_untracked(), ROUTE_OVERVIEW);
@@ -1214,6 +1220,9 @@ fn showcase_freeze_lifecycle_markdown_studio_3d_max_defaults_and_double_back_exi
     assert!(state.get_game3d_host().get_paused().get());
     assert!(state.get_game_host().get_paused().get());
     let _: FrameStats = click_label(&mut app, "Markdown & Code");
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
     assert_eq!(state.get_route().get_untracked(), ROUTE_MARKDOWN);
     assert!(state.get_lifecycle_freezes().get_untracked() >= 1);
     assert!(state.get_router().get_frozen_count().get_untracked() >= 1);
@@ -1391,4 +1400,162 @@ fn twitter_bottom_nav_swipe_routing_live_fps_drawer_drag_and_dropdown_width_work
     ));
     let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
     assert!(!state.get_sheet_open().get_untracked());
+}
+
+#[test]
+fn theme_toggle_and_scheme_cycle_preserve_scroll_and_do_not_remount_pages() {
+    reset_reactive_runtime();
+    let (mut app, state): (App, ShowcaseState) =
+        create_showcase_app(true, RenderMode::Software).unwrap();
+    let _: FrameStats = app.step_frame().unwrap();
+    let _: bool = state.get_route().set_if_changed(ROUTE_MARKDOWN.to_string());
+    for _ in 0..24 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let mounts_before: u32 = state.get_lifecycle_mounts().get_untracked();
+    let md_scroll_id: NodeId = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let mut best: Option<(f32, NodeId)> = None;
+            for (idx, n) in tree.get_nodes().iter().enumerate() {
+                if !n.get_alive()
+                    || !matches!(n.get_kind(), NodeKind::ScrollView)
+                    || n.get_style().get_layout().get_display() == Display::None
+                {
+                    continue;
+                }
+                let lb: LayoutBox = n.get_layout_box();
+                let max_y: f32 = (lb.get_content_size().get_height()
+                    - lb.get_content_bounds().get_height())
+                .max(0.0);
+                if max_y > 300.0 && best.map(|b: (f32, NodeId)| max_y > b.0).unwrap_or(true) {
+                    best = Some((max_y, NodeId::new(idx as u32, n.get_generation())));
+                }
+            }
+            best.map(|b: (f32, NodeId)| b.1).unwrap()
+        },
+        NodeId::default(),
+    );
+    app.get_scene().with_write(
+        |tree: &mut SceneTree| {
+            if let Some(node) = tree.get_node_mut(md_scroll_id) {
+                node.get_mut_layout_box()
+                    .set_scroll_offset(Point::new(0.0, 260.0));
+            }
+        },
+        (),
+    );
+    let f_light: FrameStats = app.step_frame().unwrap();
+    state.toggle_theme_mode();
+    let f_dark: FrameStats = app.step_frame().unwrap();
+    assert_eq!(state.get_lifecycle_mounts().get_untracked(), mounts_before);
+    assert_ne!(f_dark.get_frame_hash(), f_light.get_frame_hash());
+    let scroll_after_dark: f32 = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_node(md_scroll_id)
+                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset().get_y())
+                .unwrap_or(-1.0)
+        },
+        -1.0,
+    );
+    assert!((scroll_after_dark - 260.0).abs() <= 1.0);
+    state.next_scheme();
+    let _: FrameStats = app.step_frame().unwrap();
+    assert_eq!(state.get_lifecycle_mounts().get_untracked(), mounts_before);
+    let scroll_after_scheme: f32 = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_node(md_scroll_id)
+                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset().get_y())
+                .unwrap_or(-1.0)
+        },
+        -1.0,
+    );
+    assert!((scroll_after_scheme - 260.0).abs() <= 1.0);
+    let _: bool = state.get_route().set_if_changed(ROUTE_OVERVIEW.to_string());
+    for _ in 0..24 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let _: bool = state.get_route().set_if_changed(ROUTE_MARKDOWN.to_string());
+    for _ in 0..24 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let scroll_after_freeze: f32 = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_node(md_scroll_id)
+                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset().get_y())
+                .unwrap_or(-1.0)
+        },
+        -1.0,
+    );
+    assert!((scroll_after_freeze - 260.0).abs() <= 1.0);
+}
+
+#[test]
+fn markdown_studio_renders_full_syntax_and_mermaid_with_zero_overflow() {
+    reset_reactive_runtime();
+    let (mut app, state): (App, ShowcaseState) =
+        create_showcase_app(true, RenderMode::Software).unwrap();
+    let wid: WindowId = app.get_window_state().get_id();
+    let _: bool = state.get_route().set_if_changed(ROUTE_MARKDOWN.to_string());
+    for (vp_w, vp_h) in [(360_u32, 800_u32), (1280_u32, 800_u32)].into_iter() {
+        app.dispatch_window_event(WindowEvent::Resized(wid, vp_w, vp_h, 1.0));
+        for _ in 0..20 {
+            let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+        }
+        let mermaid_canvases: usize = app.get_scene().with_read(
+            |tree: &SceneTree| {
+                tree.get_nodes()
+                    .iter()
+                    .filter(|n: &&SceneNode| {
+                        n.get_alive()
+                            && matches!(n.get_kind(), NodeKind::Canvas)
+                            && n.get_layout_box().get_bounds().get_height() >= 120.0
+                    })
+                    .count()
+            },
+            0,
+        );
+        assert!(mermaid_canvases >= 4);
+        let overflows: Vec<(f32, f32, String)> = app.get_scene().with_read(
+            |tree: &SceneTree| {
+                let mut out: Vec<(f32, f32, String)> = Vec::new();
+                for node in tree.get_nodes().iter() {
+                    if !node.get_alive()
+                        || node.get_style().get_layout().get_display() == Display::None
+                    {
+                        continue;
+                    }
+                    let mut clipped_by_scroll: bool = false;
+                    let mut anc: Option<NodeId> = node.parent_id();
+                    while let Some(pid) = anc {
+                        if let Some(pnode) = tree.get_node(pid) {
+                            let pb: Rect = pnode.get_layout_box().get_bounds();
+                            if pnode.get_style().get_layout().get_overflow() == Overflow::Scroll
+                                && pb.get_width() > 0.0
+                                && pb.right() <= (vp_w as f32) + 1.5
+                            {
+                                clipped_by_scroll = true;
+                                break;
+                            }
+                            anc = pnode.parent_id();
+                        } else {
+                            break;
+                        }
+                    }
+                    if clipped_by_scroll {
+                        continue;
+                    }
+                    let b: Rect = node.get_layout_box().get_bounds();
+                    if b.get_width() > 0.0 && b.right() > (vp_w as f32) + 1.5 {
+                        out.push((b.get_x(), b.right(), format!("{:?}", node.get_kind())));
+                    }
+                }
+                out
+            },
+            Vec::new(),
+        );
+        assert!(
+            overflows.is_empty(),
+            "overflow at {vp_w}x{vp_h}: {overflows:?}"
+        );
+    }
 }

@@ -107,6 +107,7 @@ pub fn mount_doc_page(page: &DocPage, tokens: ThemeTokens) -> NodeId {
                 EuvMarkdown {
                     source: page.get_markdown_body().clone()
                     tokens: tokens
+                    selectable: true
                 }
             } else {
                 column {
@@ -159,6 +160,7 @@ pub fn mount_doc_page(page: &DocPage, tokens: ThemeTokens) -> NodeId {
                                     tokens: tokens
                                     language: language.clone()
                                     line_numbers: true
+                                    selectable: true
                                 }
                             }
                         }

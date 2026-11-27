@@ -1015,7 +1015,7 @@ impl EuvTagInput {
                                     gap: 6.0
                                     background: p.get_secondary()
                                     border: (g.get_border_width(), p.get_border())
-                                    radius: 999.0
+                                    radius: g.get_radius_sm()
                                     cursor: CursorIcon::Pointer
                                     on_click: move |_: &UiEvent| {
                                         let _: bool = tags_sig.update(|list: &mut Vec<String>| {

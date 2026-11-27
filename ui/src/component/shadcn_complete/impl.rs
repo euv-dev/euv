@@ -1728,7 +1728,7 @@ impl EuvMarker {
                 gap: SPACE_XS
                 background: p.get_card()
                 border: (g.get_border_width(), p.get_border())
-                radius: 999.0
+                radius: g.get_radius_md()
                 row {
                     width: Length::Px(20.0)
                     height: Length::Px(20.0)

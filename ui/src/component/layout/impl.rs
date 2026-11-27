@@ -129,6 +129,38 @@ impl EuvAppShell {
         self.set_show_fps(show);
         self
     }
+
+    /// Connects a reactive `UiThemeState` so toggling Light/Dark or switching schemes updates shell chrome in-place without tearing down mounted pages.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source app shell.
+    /// - `UiThemeState` - Reactive theme controller.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated app shell.
+    #[must_use]
+    pub fn theme(mut self, theme: UiThemeState) -> Self {
+        self.set_theme(Some(theme));
+        self
+    }
+
+    /// Connects a shared reactive `Signal<Edges>` updated with the shell's responsive page padding (including safe area and bottom-nav clearance).
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source app shell.
+    /// - `Signal<Edges>` - Shared page padding signal consumed by `EuvRouterOutlet::with_page_padding`.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated app shell.
+    #[must_use]
+    pub fn page_padding(mut self, padding: Signal<Edges>) -> Self {
+        self.set_page_padding(Some(padding));
+        self
+    }
 }
 
 /// Declarative `#[component]` implementation for `EuvAppShell`.
@@ -167,9 +199,28 @@ impl EuvAppShell {
             breadcrumb,
             bottom_nav,
             swipe_routes,
+            theme,
+            page_padding,
             ..
         } = self.clone();
+        if let Some(theme_ref) = theme.as_ref() {
+            provide_theme(theme_ref.clone());
+        }
+        let has_managed_outlet: bool = ctx.get_scene().with_read(
+            |tree: &SceneTree| {
+                tree.get_node(main_content)
+                    .map(|n: &SceneNode| {
+                        let lay: LayoutStyle = n.get_style().get_layout();
+                        matches!(n.get_kind(), NodeKind::View)
+                            && lay.get_overflow() == Overflow::Hidden
+                            && lay.get_height() == Length::Percent(100.0)
+                    })
+                    .unwrap_or(false)
+            },
+            false,
+        );
         let has_bottom_nav: bool = bottom_nav.is_some();
+        let dock_radius: f32 = g.get_radius_lg().clamp(6.0, 14.0);
         let brand_initial: String = brand
             .chars()
             .next()
@@ -199,33 +250,39 @@ impl EuvAppShell {
         let mut drawer_scroll: NodeId = NodeId::default();
         let mut drawer_grabber: NodeId = NodeId::default();
         let mobile_fps_pill: Option<NodeId> = if show_fps {
+            let dot_style_mob = move || -> Style {
+                let live_p: ThemePalette = use_live_tokens(tokens).get_palette();
+                let fps: f32 = fps_sig.get();
+                let dot_col: Color = if fps >= 48.0 {
+                    live_p.get_success()
+                } else if fps >= 28.0 {
+                    live_p.get_warning()
+                } else {
+                    live_p.get_destructive()
+                };
+                Style::default()
+                    .width(Length::Px(6.0))
+                    .height(Length::Px(6.0))
+                    .radius(99.0)
+                    .background(dot_col)
+            };
+            let fps_text_mob = move || -> String {
+                let v: f32 = fps_sig.get().clamp(1.0, 999.0);
+                format!("{v:.0} FPS")
+            };
             Some(view! {
                 row {
                     min_width: Length::Px(72.0)
                     height: Length::Px(26.0)
                     padding: Edges::symmetric(0.0, 8.0)
-                    radius: 99.0
+                    radius: g.get_radius_sm()
                     justify: JustifyContent::Center
                     align: AlignItems::Center
                     gap: 5.0
                     background: p.get_muted()
                     border: (1.0, p.get_border())
                     view {
-                        bind_style: move || {
-                            let fps: f32 = fps_sig.get();
-                            let dot_col: Color = if fps >= 48.0 {
-                                p.get_success()
-                            } else if fps >= 28.0 {
-                                p.get_warning()
-                            } else {
-                                p.get_destructive()
-                            };
-                            Style::default()
-                            .width(Length::Px(6.0))
-                            .height(Length::Px(6.0))
-                            .radius(99.0)
-                            .background(dot_col)
-                        }
+                        bind_style: dot_style_mob
                     }
                     text {
                         width: Length::Px(50.0)
@@ -236,7 +293,7 @@ impl EuvAppShell {
                         color: p.get_foreground()
                         text_align: TextAlign::Center
                         text_overflow: TextOverflow::Clip
-                        { move || format!("{:.0} FPS", fps_sig.get().clamp(1.0, 999.0)) }
+                        { fps_text_mob }
                     }
                 }
             })
@@ -244,33 +301,39 @@ impl EuvAppShell {
             None
         };
         let desktop_fps_pill: Option<NodeId> = if show_fps && !has_bottom_nav {
+            let dot_style_desk = move || -> Style {
+                let live_p: ThemePalette = use_live_tokens(tokens).get_palette();
+                let fps: f32 = fps_sig.get();
+                let dot_col: Color = if fps >= 48.0 {
+                    live_p.get_success()
+                } else if fps >= 28.0 {
+                    live_p.get_warning()
+                } else {
+                    live_p.get_destructive()
+                };
+                Style::default()
+                    .width(Length::Px(6.0))
+                    .height(Length::Px(6.0))
+                    .radius(99.0)
+                    .background(dot_col)
+            };
+            let fps_text_desk = move || -> String {
+                let v: f32 = fps_sig.get().clamp(1.0, 999.0);
+                format!("{v:.0} FPS")
+            };
             Some(view! {
                 row {
                     min_width: Length::Px(68.0)
                     height: Length::Px(26.0)
                     padding: Edges::symmetric(0.0, 8.0)
-                    radius: 99.0
+                    radius: g.get_radius_sm()
                     justify: JustifyContent::Center
                     align: AlignItems::Center
                     gap: 5.0
                     background: p.get_muted()
                     border: (1.0, p.get_border())
                     view {
-                        bind_style: move || {
-                            let fps: f32 = fps_sig.get();
-                            let dot_col: Color = if fps >= 48.0 {
-                                p.get_success()
-                            } else if fps >= 28.0 {
-                                p.get_warning()
-                            } else {
-                                p.get_destructive()
-                            };
-                            Style::default()
-                            .width(Length::Px(6.0))
-                            .height(Length::Px(6.0))
-                            .radius(99.0)
-                            .background(dot_col)
-                        }
+                        bind_style: dot_style_desk
                     }
                     text {
                         width: Length::Px(50.0)
@@ -281,7 +344,7 @@ impl EuvAppShell {
                         color: p.get_foreground()
                         text_align: TextAlign::Center
                         text_overflow: TextOverflow::Clip
-                        { move || format!("{:.0} FPS", fps_sig.get().clamp(1.0, 999.0)) }
+                        { fps_text_desk }
                     }
                 }
             })
@@ -470,7 +533,8 @@ impl EuvAppShell {
                             width: Length::Percent(100.0)
                             height: Length::Percent(100.0)
                             align: AlignItems::Center
-                            gap: SPACE_LG
+                            overflow: if has_managed_outlet { Overflow::Hidden } else { Overflow::Scroll }
+                            gap: if has_managed_outlet { 0.0 } else { SPACE_LG }
                             { main_content }
                         }
                     }
@@ -487,7 +551,7 @@ impl EuvAppShell {
                     align: AlignItems::Center
                     background: p.get_card().with_alpha(244)
                     border: (g.get_border_width(), p.get_border())
-                    radius: SHELL_BOTTOM_NAV_HEIGHT * 0.5
+                    radius: dock_radius
                     shadow: g.get_shadow_lg()
                     overflow: Overflow::Hidden
                     stop_scroll_propagation: true
@@ -882,17 +946,44 @@ impl EuvAppShell {
                         } else {
                             main_pad + bottom_inset
                         };
+                        let page_edges: Edges = Edges::new(
+                            main_pad,
+                            main_pad + right_inset,
+                            main_bottom_pad,
+                            main_pad + left_inset,
+                        );
+                        if let Some(pad_sig) = page_padding {
+                            let _: bool = pad_sig.set_if_changed(page_edges);
+                        }
                         if let Some(n) = tree.get_node_mut(main_area) {
                             let mut st: Style = n.get_style();
                             st.get_mut_layout().set_height(Length::Px(main_h));
-                            st.get_mut_layout().set_padding(Edges::new(
-                                main_pad,
-                                main_pad + right_inset,
-                                main_bottom_pad,
-                                main_pad + left_inset,
-                            ));
-                            st = st.gap(if bp.is_compact() { SPACE_MD } else { SPACE_LG });
+                            if has_managed_outlet {
+                                st.get_mut_layout()
+                                    .set_padding(Edges::all(0.0))
+                                    .set_overflow(Overflow::Hidden);
+                                st = st.gap(0.0);
+                            } else {
+                                st.get_mut_layout().set_padding(page_edges);
+                                st = st.gap(if bp.is_compact() { SPACE_MD } else { SPACE_LG });
+                            }
                             n.set_style(st);
+                        }
+                        if has_managed_outlet && page_padding.is_none() {
+                            let outlet_kids: Vec<NodeId> = tree
+                                .get_node(main_content)
+                                .map(|n: &SceneNode| n.get_children().clone())
+                                .unwrap_or_default();
+                            for kid in outlet_kids.into_iter() {
+                                if let Some(kn) = tree.get_node_mut(kid)
+                                    && matches!(kn.get_kind(), NodeKind::ScrollView)
+                                {
+                                    let mut kst: Style = kn.get_style();
+                                    kst.get_mut_layout().set_padding(page_edges);
+                                    kn.set_style(kst);
+                                    tree.mark_dirty(kid, mask_all);
+                                }
+                            }
                         }
                         if has_bottom_nav && let Some(n) = tree.get_node_mut(bottom_bar_host) {
                             let mut st: Style = n.get_style();
@@ -944,7 +1035,8 @@ impl EuvAppShell {
             let swipe_routes_drag: Vec<String> = swipe_routes.clone();
             let _: Effect = Effect::new(move || {
                 let raw_dx: f32 = swipe_drag_sig.get();
-                if menu_open.get_untracked()
+                if has_managed_outlet
+                    || menu_open.get_untracked()
                     || EuvOverlayStack::active_count() > 0
                     || swipe_routes_drag.is_empty()
                 {
@@ -1097,23 +1189,83 @@ impl EuvAppShell {
                     }
                 }
             });
+            if let Some(theme_state) = theme {
+                let applied_shell_tokens: Rc<Cell<ThemeTokens>> = Rc::new(Cell::new(tokens));
+                let handle_theme: SceneHandle = handle.clone();
+                let exclude_node: Option<NodeId> = if has_managed_outlet {
+                    Some(main_content)
+                } else {
+                    None
+                };
+                let _: Effect = Effect::new(move || {
+                    let next_tok: ThemeTokens = theme_state.get_tokens().get();
+                    let prev_tok: ThemeTokens = applied_shell_tokens.replace(next_tok);
+                    if prev_tok == next_tok {
+                        return;
+                    }
+                    let next_dock_r: f32 = next_tok.get_geometry().get_radius_lg().clamp(6.0, 14.0);
+                    handle_theme.with_write(
+                        |tree: &mut SceneTree| {
+                            remap_subtree_theme_excluding(
+                                tree,
+                                root,
+                                exclude_node,
+                                prev_tok,
+                                next_tok,
+                            );
+                            if has_bottom_nav && let Some(bn) = tree.get_node_mut(bottom_bar_host) {
+                                let mut bst: Style = bn.get_style();
+                                bst.get_mut_paint()
+                                    .set_radius(CornerRadius::all(next_dock_r));
+                                bn.set_style(bst);
+                                tree.mark_dirty(bottom_bar_host, DIRTY_PAINT);
+                            }
+                        },
+                        (),
+                    );
+                });
+            }
             if let Some(route_sig) = route_signal {
                 let prev_route: Rc<RefCell<String>> =
                     Rc::new(RefCell::new(route_sig.get_untracked()));
+                let saved_scrolls: Rc<RefCell<HashMap<String, Point>>> =
+                    Rc::new(RefCell::new(HashMap::new()));
                 let handle_route_scroll: SceneHandle = handle.clone();
                 let _: Effect = Effect::new(move || {
                     let next_r: String = route_sig.get();
-                    if let Ok(mut guard) = prev_route.try_borrow_mut()
-                        && *guard != next_r
-                    {
-                        *guard = next_r;
+                    let prev_changed: Option<String> = prev_route.try_borrow_mut().ok().and_then(
+                        |mut guard: RefMut<'_, String>| {
+                            if *guard != next_r {
+                                let old: String = guard.clone();
+                                *guard = next_r.clone();
+                                Some(old)
+                            } else {
+                                None
+                            }
+                        },
+                    );
+                    if let Some(old_r) = prev_changed {
                         let _: bool = menu_open.set_if_changed(false);
-                        handle_route_scroll.with_write(
-                            |tree: &mut SceneTree| {
-                                tree.set_scroll_offset(main_area, Point::new(0.0, 0.0));
-                            },
-                            (),
-                        );
+                        if !has_managed_outlet {
+                            handle_route_scroll.with_write(
+                                |tree: &mut SceneTree| {
+                                    let cur_off: Point = tree
+                                        .get_node(main_area)
+                                        .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset())
+                                        .unwrap_or_default();
+                                    let restore_off: Point = saved_scrolls
+                                        .try_borrow_mut()
+                                        .ok()
+                                        .map(|mut map: RefMut<'_, HashMap<String, Point>>| {
+                                            let _: Option<Point> = map.insert(old_r, cur_off);
+                                            map.get(&next_r).copied().unwrap_or_default()
+                                        })
+                                        .unwrap_or_default();
+                                    tree.set_scroll_offset(main_area, restore_off);
+                                },
+                                (),
+                            );
+                        }
                     }
                 });
             }

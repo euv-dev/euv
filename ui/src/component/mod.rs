@@ -7,6 +7,7 @@ mod form_extra;
 mod layout;
 mod markdown;
 mod media;
+mod mermaid;
 mod nav_extra;
 mod navigation;
 mod overlay;
@@ -17,7 +18,7 @@ mod surface;
 
 pub use {
     button::*, card::*, data_display::*, display::*, form::*, form_extra::*, layout::*,
-    markdown::*, media::*, nav_extra::*, navigation::*, overlay::*, overlay_extra::*,
+    markdown::*, media::*, mermaid::*, nav_extra::*, navigation::*, overlay::*, overlay_extra::*,
     shadcn_complete::*, shadcn_extra::*, surface::*,
 };
 

@@ -27,3 +27,15 @@ pub(crate) const NAV_ICON_PERF: &str = "perf";
 
 /// Route keyword matching the 3D/game icon in `EuvBottomNav`.
 pub(crate) const NAV_ICON_GAME: &str = "game";
+
+/// Monotonic slide duration in seconds for the `EuvBottomNav` active tab indicator.
+pub(crate) const NAV_INDICATOR_SLIDE_SECS: f32 = 0.24;
+
+/// Monotonic snap-back duration in seconds when an uncommitted swipe drag cancels on `EuvBottomNav`.
+pub(crate) const NAV_INDICATOR_CANCEL_SECS: f32 = 0.20;
+
+/// Minimum allowed corner radius for the `EuvBottomNav` active indicator pill.
+pub(crate) const NAV_INDICATOR_MIN_RADIUS: f32 = 4.0;
+
+/// Maximum allowed corner radius for the `EuvBottomNav` active indicator pill.
+pub(crate) const NAV_INDICATOR_MAX_RADIUS: f32 = 10.0;

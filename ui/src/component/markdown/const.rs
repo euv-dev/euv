@@ -113,6 +113,9 @@ pub(crate) const CODE_LANG_JSON: &str = "json";
 pub(crate) const CODE_LANG_TOML: &str = "toml";
 pub(crate) const CODE_LANG_YAML: &str = "yaml";
 pub(crate) const CODE_LANG_HTTP: &str = "http";
+pub(crate) const CODE_LANG_MERMAID: &str = "mermaid";
+pub(crate) const CODE_LANG_MATH: &str = "math";
+pub(crate) const CODE_LANG_LATEX: &str = "latex";
 pub(crate) const CODE_HINT_FN: &str = "fn ";
 pub(crate) const CODE_HINT_LET: &str = "let ";
 pub(crate) const CODE_HINT_IMPL: &str = "impl ";
@@ -121,8 +124,18 @@ pub(crate) const CODE_HINT_GET: &str = "GET ";
 pub(crate) const CODE_HINT_POST: &str = "POST ";
 pub(crate) const CODE_BTN_COPY: &str = "Copy";
 pub(crate) const CODE_BTN_COPIED: &str = "Copied";
+pub(crate) const CODE_BTN_FULLSCREEN: &str = "Fullscreen";
+pub(crate) const CODE_BTN_CLOSE: &str = "Close";
+pub(crate) const CODE_FULLSCREEN_OVERLAY_NAME: &str = "EuvCodeBlockFullscreen";
 pub(crate) const CODE_THEME_LABEL_LIGHT: &str = "Eva Light Bold";
 pub(crate) const CODE_THEME_LABEL_DARK: &str = "Eva Dark Bold";
+pub(crate) const CODE_DEFAULT_MAX_HEIGHT: f32 = 360.0;
+pub(crate) const CODE_MODAL_PADDING: f32 = 16.0;
+pub(crate) const CODE_MODAL_MAX_WIDTH: f32 = 1120.0;
+pub(crate) const CODE_MODAL_MAX_HEIGHT: f32 = 760.0;
+pub(crate) const CODE_FONT_SIZE: f32 = 12.5;
+pub(crate) const CODE_MODAL_FONT_SIZE: f32 = 13.5;
+pub(crate) const CODE_GUTTER_WIDTH: f32 = 38.0;
 pub(crate) const MD_ALERT_LABEL_NOTE: &str = "NOTE";
 pub(crate) const MD_ALERT_LABEL_TIP: &str = "TIP";
 pub(crate) const MD_ALERT_LABEL_IMPORTANT: &str = "IMPORTANT";
@@ -133,6 +146,13 @@ pub(crate) const MD_ALERT_TAG_TIP: &str = "[!TIP]";
 pub(crate) const MD_ALERT_TAG_IMPORTANT: &str = "[!IMPORTANT]";
 pub(crate) const MD_ALERT_TAG_WARNING: &str = "[!WARNING]";
 pub(crate) const MD_ALERT_TAG_CAUTION: &str = "[!CAUTION]";
+pub(crate) const MD_CALLOUT_FENCE: &str = ":::";
+pub(crate) const MD_CALLOUT_NOTE: &str = "note";
+pub(crate) const MD_CALLOUT_TIP: &str = "tip";
+pub(crate) const MD_CALLOUT_IMPORTANT: &str = "important";
+pub(crate) const MD_CALLOUT_WARNING: &str = "warning";
+pub(crate) const MD_CALLOUT_DANGER: &str = "danger";
+pub(crate) const MD_CALLOUT_CAUTION: &str = "caution";
 pub(crate) const MD_CHECKBOX_ON: &str = "[x]";
 pub(crate) const MD_CHECKBOX_OFF: &str = "[ ]";
 pub(crate) const MD_DETAILS_OPEN_TAG: &str = "<details";
@@ -141,8 +161,164 @@ pub(crate) const MD_SUMMARY_OPEN_TAG: &str = "<summary>";
 pub(crate) const MD_SUMMARY_CLOSE_TAG: &str = "</summary>";
 pub(crate) const MD_DETAILS_DEFAULT_SUMMARY: &str = "Details";
 pub(crate) const MD_IMAGE_BADGE: &str = "IMAGE";
+pub(crate) const MD_MATH_BADGE: &str = "MATH";
+pub(crate) const MD_FOOTNOTES_TITLE: &str = "Footnotes";
 pub(crate) const MD_KBD_OPEN: &str = "<kbd>";
 pub(crate) const MD_KBD_CLOSE: &str = "</kbd>";
+pub(crate) const MD_MARK_OPEN: &str = "<mark>";
+pub(crate) const MD_MARK_CLOSE: &str = "</mark>";
+pub(crate) const MD_SUP_OPEN: &str = "<sup>";
+pub(crate) const MD_SUP_CLOSE: &str = "</sup>";
+pub(crate) const MD_SUB_OPEN: &str = "<sub>";
+pub(crate) const MD_SUB_CLOSE: &str = "</sub>";
+pub(crate) const MD_SCHEME_HTTP: &str = "http://";
+pub(crate) const MD_SCHEME_HTTPS: &str = "https://";
+pub(crate) const MD_SCHEME_MAILTO: &str = "mailto:";
+pub(crate) const MD_LATEX_FRAC: &str = "frac";
+pub(crate) const MD_LATEX_SQRT: &str = "sqrt";
+pub(crate) const MD_LATEX_TEXT: &str = "text";
+pub(crate) const MD_LATEX_MATHRM: &str = "mathrm";
+pub(crate) const MD_LATEX_MATHBF: &str = "mathbf";
+pub(crate) const MD_LATEX_MATHIT: &str = "mathit";
+pub(crate) const MD_LATEX_LEFT: &str = "left";
+pub(crate) const MD_LATEX_RIGHT: &str = "right";
+pub(crate) const MD_TABLE_COL_MIN_WIDTH: f32 = 120.0;
+pub(crate) const MD_HIGHLIGHT_LIGHT_BG: u32 = 0xFEF08A;
+pub(crate) const MD_HIGHLIGHT_DARK_BG: u32 = 0x854D0E;
+pub(crate) const MD_HIGHLIGHT_LIGHT_FG: u32 = 0x1E293B;
+pub(crate) const MD_HIGHLIGHT_DARK_FG: u32 = 0xFEF9C3;
+
+pub(crate) const MD_EMOJI_TABLE: &[(&str, &str)] = &[
+    ("rocket", "🚀"),
+    ("sparkles", "✨"),
+    ("check", "✅"),
+    ("white_check_mark", "✅"),
+    ("warning", "⚠️"),
+    ("bulb", "💡"),
+    ("fire", "🔥"),
+    ("info", "ℹ️"),
+    ("information_source", "ℹ️"),
+    ("zap", "⚡"),
+    ("star", "⭐"),
+    ("heart", "❤️"),
+    ("bug", "🐛"),
+    ("wrench", "🔧"),
+    ("memo", "📝"),
+    ("lock", "🔒"),
+    ("package", "📦"),
+    ("tada", "🎉"),
+    ("x", "❌"),
+    ("thumbsup", "👍"),
+    ("+1", "👍"),
+    ("gear", "⚙️"),
+    ("art", "🎨"),
+    ("shield", "🛡️"),
+    ("globe", "🌐"),
+    ("100", "💯"),
+    ("chart", "📊"),
+    ("book", "📖"),
+    ("link", "🔗"),
+    ("clock", "⏱️"),
+];
+
+pub(crate) const MD_LATEX_SYMBOLS: &[(&str, &str)] = &[
+    ("alpha", "α"),
+    ("beta", "β"),
+    ("gamma", "γ"),
+    ("delta", "δ"),
+    ("epsilon", "ε"),
+    ("varepsilon", "ε"),
+    ("zeta", "ζ"),
+    ("eta", "η"),
+    ("theta", "θ"),
+    ("iota", "ι"),
+    ("kappa", "κ"),
+    ("lambda", "λ"),
+    ("mu", "μ"),
+    ("nu", "ν"),
+    ("xi", "ξ"),
+    ("pi", "π"),
+    ("rho", "ρ"),
+    ("sigma", "σ"),
+    ("tau", "τ"),
+    ("upsilon", "υ"),
+    ("phi", "φ"),
+    ("varphi", "ϕ"),
+    ("chi", "χ"),
+    ("psi", "ψ"),
+    ("omega", "ω"),
+    ("Gamma", "Γ"),
+    ("Delta", "Δ"),
+    ("Theta", "Θ"),
+    ("Lambda", "Λ"),
+    ("Xi", "Ξ"),
+    ("Pi", "Π"),
+    ("Sigma", "Σ"),
+    ("Phi", "Φ"),
+    ("Psi", "Ψ"),
+    ("Omega", "Ω"),
+    ("sum", "∑"),
+    ("prod", "∏"),
+    ("int", "∫"),
+    ("iint", "∬"),
+    ("iiint", "∭"),
+    ("oint", "∮"),
+    ("partial", "∂"),
+    ("nabla", "∇"),
+    ("infty", "∞"),
+    ("le", "≤"),
+    ("leq", "≤"),
+    ("ge", "≥"),
+    ("geq", "≥"),
+    ("ne", "≠"),
+    ("neq", "≠"),
+    ("approx", "≈"),
+    ("equiv", "≡"),
+    ("sim", "∼"),
+    ("simeq", "≃"),
+    ("propto", "∝"),
+    ("times", "×"),
+    ("cdot", "·"),
+    ("div", "÷"),
+    ("pm", "±"),
+    ("mp", "∓"),
+    ("to", "→"),
+    ("rightarrow", "→"),
+    ("leftarrow", "←"),
+    ("leftrightarrow", "↔"),
+    ("Rightarrow", "⇒"),
+    ("Leftarrow", "⇐"),
+    ("Leftrightarrow", "⇔"),
+    ("iff", "⇔"),
+    ("mapsto", "↦"),
+    ("forall", "∀"),
+    ("exists", "∃"),
+    ("in", "∈"),
+    ("notin", "∉"),
+    ("subset", "⊂"),
+    ("subseteq", "⊆"),
+    ("supset", "⊃"),
+    ("supseteq", "⊇"),
+    ("cup", "∪"),
+    ("cap", "∩"),
+    ("emptyset", "∅"),
+    ("varnothing", "∅"),
+    ("land", "∧"),
+    ("lor", "∨"),
+    ("neg", "¬"),
+    ("oplus", "⊕"),
+    ("otimes", "⊗"),
+    ("cdots", "⋯"),
+    ("ldots", "…"),
+    ("dots", "…"),
+    ("degree", "°"),
+    ("angle", "∠"),
+    ("perp", "⊥"),
+    ("parallel", "∥"),
+    ("quad", "  "),
+    ("qquad", "    "),
+];
+
 pub(crate) const KW_FN: &str = "fn";
 pub(crate) const KW_LET: &str = "let";
 pub(crate) const KW_MUT: &str = "mut";
@@ -263,3 +439,4 @@ pub(crate) const CODE_BYTE_UNDERSCORE: u8 = b'_';
 pub(crate) const CODE_BYTE_BANG: u8 = b'!';
 pub(crate) const CODE_BYTE_LPAREN: u8 = b'(';
 pub(crate) const CODE_BYTE_HASH: u8 = b'#';
+pub(crate) const CODE_BYTE_TILDE: u8 = b'~';

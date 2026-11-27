@@ -61,6 +61,7 @@ impl EuvBadge {
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
+        let g: ThemeGeometry = self.get_tokens().get_geometry();
         let (bg, fg): (Color, Color) = self.get_tone().colors(p);
         let Self { label, .. } = self.clone();
         view! {
@@ -72,7 +73,7 @@ impl EuvBadge {
                 overflow: Overflow::Hidden
                 background: bg
                 border: (1.0, p.get_border().with_alpha(72))
-                radius: 999.0
+                radius: g.get_radius_sm()
                 text {
                     font_size: 11.0
                     font_weight: FontWeight::SemiBold
@@ -83,6 +84,25 @@ impl EuvBadge {
                 }
             }
         }
+    }
+}
+
+/// Fluent selection builder for `EuvAlert`.
+impl EuvAlert {
+    /// Controls whether the alert heading and description text are selectable.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source alert.
+    /// - `bool` - `true` to enable text selection.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated alert.
+    #[must_use]
+    pub fn selectable(mut self, enabled: bool) -> Self {
+        self.set_selectable(enabled);
+        self
     }
 }
 
@@ -102,6 +122,7 @@ impl EuvAlert {
     fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let is_selectable: bool = self.get_selectable();
         let (accent, _): (Color, Color) = self.get_tone().colors(p);
         let border_col: Color = match self.get_tone() {
             EuvTone::Primary | EuvTone::Neutral => p.get_border(),
@@ -119,6 +140,7 @@ impl EuvAlert {
                 border: (g.get_border_width(), border_col)
                 radius: g.get_radius_md()
                 overflow: Overflow::Hidden
+                selectable: is_selectable
                 text {
                     width: Length::Percent(100.0)
                     font_size: 14.0
@@ -349,7 +371,7 @@ impl EuvVirtualList {
                 on_scroll: move |ev: &UiEvent| {
                     if let UiEventKind::Scroll(delta) = ev.get_kind() {
                         let next: f32 =
-                            (scroll_sig.get_untracked() + delta.get_y()).clamp(0.0, max_scroll);
+                        (scroll_sig.get_untracked() + delta.get_y()).clamp(0.0, max_scroll);
                         let _: bool = scroll_sig.set_if_changed(next);
                     }
                 }

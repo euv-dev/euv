@@ -33,6 +33,22 @@ impl EuvCard {
         self.get_mut_children().push(child);
         self
     }
+
+    /// Controls whether text inside the card is selectable.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source card.
+    /// - `bool` - `true` to enable text selection across the card subtree.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated card.
+    #[must_use]
+    pub fn selectable(mut self, enabled: bool) -> Self {
+        self.set_selectable(enabled);
+        self
+    }
 }
 
 /// Declarative `#[component]` implementation for `EuvCard`.
@@ -52,6 +68,7 @@ impl EuvCard {
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
+        let is_selectable: bool = self.get_selectable();
         let Self {
             title,
             subtitle,
@@ -62,6 +79,7 @@ impl EuvCard {
             view {
                 style: tokens.card_style()
                 width: Length::Percent(100.0)
+                selectable: is_selectable
                 if !title.is_empty() {
                     text {
                         width: Length::Percent(100.0)
@@ -159,6 +177,7 @@ impl EuvStatCard {
     fn render(&self) -> NodeId {
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
         let Self {
             label,
             value,
@@ -201,7 +220,7 @@ impl EuvStatCard {
                     row {
                         max_width: Length::Percent(100.0)
                         padding: Edges::symmetric(4.0, 10.0)
-                        radius: 12.0
+                        radius: g.get_radius_sm()
                         background: p.get_primary().with_alpha(24)
                         align: AlignItems::Center
                         overflow: Overflow::Hidden

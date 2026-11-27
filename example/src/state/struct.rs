@@ -334,6 +334,9 @@ pub struct ShowcaseState {
     /// Selected code example language tab index on `/markdown` (`0=Rust, 1=TS, 2=JSON, 3=Diff`).
     #[get(type(copy))]
     pub(crate) markdown_lang_tab: Signal<usize>,
+    /// Toggle controlling whether text inside the Markdown & Code Studio is selectable.
+    #[get(type(copy))]
+    pub(crate) markdown_selectable: Signal<bool>,
 }
 
 /// Full-featured 2D arcade arena scene powered by `GameWorld`, `PhysicsWorld2D`, `Camera2D`, `ParticleSystem`, `TileMap`, `ActionMap`, and `AudioBus`.

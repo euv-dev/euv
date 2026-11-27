@@ -27,6 +27,11 @@ pub struct EuvAlert {
     /// Active theme tokens.
     #[get(type(copy))]
     pub(crate) tokens: ThemeTokens,
+    /// Whether alert text is selectable (`false` by default).
+    #[new(skip)]
+    #[get(type(copy))]
+    #[prop(custom)]
+    pub(crate) selectable: bool,
 }
 
 /// Linear progress bar displaying normalized completion in `[0.0, 1.0]`.

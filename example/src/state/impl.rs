@@ -168,6 +168,7 @@ impl ShowcaseState {
             markdown_link_log: Signal::new("Tap any Markdown hyperlink below".to_string()),
             markdown_tasks_toggled: Signal::new(0),
             markdown_lang_tab: Signal::new(0),
+            markdown_selectable: Signal::new(true),
         }
     }
 

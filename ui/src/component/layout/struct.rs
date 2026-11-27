@@ -52,6 +52,16 @@ pub struct EuvAppShell {
     #[get(type(copy))]
     #[prop(custom)]
     pub(crate) show_fps: bool,
+    /// Optional reactive theme controller enabling zero-teardown in-place shell restyling.
+    #[new(skip)]
+    #[get(skip)]
+    #[prop(custom)]
+    pub(crate) theme: Option<UiThemeState>,
+    /// Optional reactive per-page padding signal synchronized with an embedded `EuvRouterOutlet`.
+    #[new(skip)]
+    #[get(skip)]
+    #[prop(custom)]
+    pub(crate) page_padding: Option<Signal<Edges>>,
 }
 
 /// Hairline horizontal or vertical structural divider.

@@ -50,7 +50,7 @@ pub struct EuvRouteLifecycleEntry {
 /// Internal cached page record managed lazily by `EuvRouterOutlet`.
 #[derive(Clone, CustomDebug)]
 pub(crate) struct EuvCachedPage {
-    /// Full-width wrapper node toggled between `Display::Flex` and `Display::None`.
+    /// Per-page `ScrollView` wrapper toggled between `Display::Flex` and `Display::None`, preserving exact scroll offsets across freezes.
     pub(crate) wrapper: NodeId,
     /// Mounted page root node returned by the route builder or `Component::mount`.
     pub(crate) page_node: NodeId,
@@ -60,12 +60,48 @@ pub(crate) struct EuvCachedPage {
     pub(crate) retention: PageRetention,
     /// Current lifecycle phase of this cached page.
     pub(crate) phase: LifecyclePhase,
-    /// Optional theme `(scheme, mode)` active when this page was rendered.
-    pub(crate) theme_key: Option<(DesignScheme, ThemeMode)>,
+    /// Theme tokens currently applied to this page subtree for zero-teardown in-place theme remapping.
+    pub(crate) applied_tokens: ThemeTokens,
+    /// Whether `applied_tokens` holds an initialized theme snapshot.
+    pub(crate) has_applied_tokens: bool,
     /// Dynamic OTA page revision active when this page was rendered.
     pub(crate) dynamic_rev: u64,
     /// Cumulative activation counter.
     pub(crate) activations: u32,
+}
+
+/// Internal snapshot of an active or just-released interactive horizontal page drag preview.
+#[derive(Clone, Debug)]
+pub(crate) struct EuvDragPreviewState {
+    /// Adjacent destination route path currently positioned beside the active page.
+    pub(crate) target_path: String,
+    /// Wrapper `NodeId` of the adjacent preview page.
+    pub(crate) target_wrapper: NodeId,
+    /// Direction (`+1.0` forward/next on left drag, `-1.0` backward/prev on right drag).
+    pub(crate) direction: f32,
+    /// Current horizontal translation offset `dx` of the active page in logical pixels.
+    pub(crate) offset_x: f32,
+    /// Outlet width captured during the drag.
+    pub(crate) width: f32,
+}
+
+/// Shared immutable context bundle used by `EuvRouterOutlet` when lazily mounting a route wrapper.
+#[derive(Clone)]
+pub(crate) struct EuvOutletMountEnv {
+    /// Bound router handle.
+    pub(crate) router: EuvRouter,
+    /// Fallback route builder.
+    pub(crate) fallback: EuvRouteBuilder,
+    /// Optional dynamic OTA update hub.
+    pub(crate) hub_opt: Option<DynamicUpdateHub>,
+    /// Default retention policy when unspecified by route or component.
+    pub(crate) default_ret: PageRetention,
+    /// Build context used to mount new pages.
+    pub(crate) ctx: Context,
+    /// Retained scene handle.
+    pub(crate) scene: SceneHandle,
+    /// Outlet host node handle.
+    pub(crate) host: NodeId,
 }
 
 /// Internal mutable history stack shared across cloned `EuvRouter` handles.
@@ -124,7 +160,7 @@ pub struct EuvRouterOutlet {
     #[debug(skip)]
     #[get(skip)]
     pub(crate) fallback: EuvRouteBuilder,
-    /// Optional reactive theme state enabling zero-cost frozen pages to refresh cleanly upon resume when theme changes.
+    /// Optional reactive theme state enabling in-place theme updates without page teardown or scroll loss.
     #[debug(skip)]
     #[get(skip)]
     pub(crate) theme: Option<UiThemeState>,
@@ -133,8 +169,11 @@ pub struct EuvRouterOutlet {
     pub(crate) double_back_exit: bool,
     /// Bottom prompt message displayed on the first root Back press before a consecutive second Back exits.
     pub(crate) exit_prompt: String,
-    /// Optional ordered route sequence used to compute left/right directional slide transitions across tabs and swipes.
+    /// Optional ordered route sequence used to compute coupled 1:1 left/right directional slide transitions across tabs and swipes.
     pub(crate) route_order: Vec<String>,
+    /// Optional reactive per-page scroll container padding synchronized with the hosting shell.
+    #[get(skip)]
+    pub(crate) page_padding: Option<Signal<Edges>>,
 }
 
 /// Declarative navigation link pushing a target path onto an `EuvRouter` when clicked.
