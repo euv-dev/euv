@@ -726,11 +726,14 @@ impl ReactiveRuntime {
     /// # Returns
     ///
     /// - `Option<T>` - Cloned signal value if the slot is alive and matches type `T`.
+    #[inline]
     pub(crate) fn read_signal_cloned<T>(&mut self, id: SignalId) -> Option<T>
     where
         T: Clone + 'static,
     {
-        self.track_dependency(DependencyId::Signal(id));
+        if !self.get_observer_stack().is_empty() {
+            self.track_dependency(DependencyId::Signal(id));
+        }
         let slot: SlotId = id.slot();
         let entry: &SignalEntry = self.get_signals().get(slot.as_usize())?;
         if entry.get_generation() != slot.get_generation() {
@@ -750,6 +753,7 @@ impl ReactiveRuntime {
     /// # Returns
     ///
     /// - `Option<T>` - Cloned signal value if alive and matching type `T`.
+    #[inline]
     pub(crate) fn read_signal_untracked<T>(&self, id: SignalId) -> Option<T>
     where
         T: Clone + 'static,
@@ -773,6 +777,7 @@ impl ReactiveRuntime {
     /// # Returns
     ///
     /// - `bool` - True when the signal is alive and observed by at least one subscriber.
+    #[inline]
     pub(crate) fn signal_has_subscribers(&self, id: SignalId) -> bool {
         let slot: SlotId = id.slot();
         self.get_signals()
@@ -796,6 +801,7 @@ impl ReactiveRuntime {
     /// # Returns
     ///
     /// - `(bool, bool)` - Tuple `(updated, should_flush)` indicating whether the signal was alive and whether effects are pending.
+    #[inline]
     pub(crate) fn write_signal<T>(&mut self, id: SignalId, value: T) -> (bool, bool)
     where
         T: 'static,
@@ -805,7 +811,8 @@ impl ReactiveRuntime {
         let Some(entry) = self.get_mut_signals().get_mut(idx) else {
             return (false, false);
         };
-        if entry.get_generation() != slot.get_generation() || entry.value.is_none() {
+        let stale: bool = entry.get_generation() != slot.get_generation();
+        if stale || entry.value.is_none() {
             return (false, false);
         }
         if let Some(existing) = entry
@@ -822,11 +829,80 @@ impl ReactiveRuntime {
         let has_subs: bool = !entry.get_subscribers().is_empty();
         let next_clock: u64 = self.get_clock().wrapping_add(1);
         self.set_clock(next_clock);
-        if has_subs {
-            self.mark_signal_subscribers_dirty(idx);
+        if !has_subs {
+            return (true, false);
         }
-        let should_flush: bool =
-            self.get_batch_depth() == 0 && !self.get_pending_effects().is_empty();
+        self.mark_signal_subscribers_dirty(idx);
+        let should_flush: bool = self.get_batch_depth() == 0
+            && !self.get_flushing()
+            && !self.get_pending_effects().is_empty();
+        (true, should_flush)
+    }
+
+    /// Takes a live signal's boxed payload for zero-clone in-place mutation outside the runtime borrow.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable reference to the reactive runtime.
+    /// - `SignalId` - Signal identifier whose payload should be temporarily taken.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<Box<dyn Any>>` - Existing boxed value when the slot is alive and matches type `T`.
+    #[inline]
+    pub(crate) fn take_signal_box<T>(&mut self, id: SignalId) -> Option<Box<dyn Any>>
+    where
+        T: 'static,
+    {
+        let slot: SlotId = id.slot();
+        let entry: &mut SignalEntry = self.get_mut_signals().get_mut(slot.as_usize())?;
+        if entry.get_generation() != slot.get_generation() {
+            return None;
+        }
+        if !entry
+            .value
+            .as_ref()
+            .is_some_and(|boxed: &Box<dyn Any>| boxed.is::<T>())
+        {
+            return None;
+        }
+        entry.value.take()
+    }
+
+    /// Restores a mutated signal payload box, bumps version and clock, and returns immediately when unobserved.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable reference to the reactive runtime.
+    /// - `SignalId` - Signal identifier receiving its mutated payload.
+    /// - `Box<dyn Any>` - Mutated payload box previously taken via `take_signal_box`.
+    ///
+    /// # Returns
+    ///
+    /// - `(bool, bool)` - Tuple `(updated, should_flush)` indicating whether the signal was alive and whether effects must flush.
+    #[inline]
+    pub(crate) fn commit_signal_box(&mut self, id: SignalId, boxed: Box<dyn Any>) -> (bool, bool) {
+        let slot: SlotId = id.slot();
+        let idx: usize = slot.as_usize();
+        let Some(entry) = self.get_mut_signals().get_mut(idx) else {
+            return (false, false);
+        };
+        if entry.get_generation() != slot.get_generation() {
+            return (false, false);
+        }
+        entry.set_value(Some(boxed));
+        let next_ver: u64 = entry.get_version().wrapping_add(1);
+        entry.set_version(next_ver);
+        let has_subs: bool = !entry.get_subscribers().is_empty();
+        let next_clock: u64 = self.get_clock().wrapping_add(1);
+        self.set_clock(next_clock);
+        if !has_subs {
+            return (true, false);
+        }
+        self.mark_signal_subscribers_dirty(idx);
+        let should_flush: bool = self.get_batch_depth() == 0
+            && !self.get_flushing()
+            && !self.get_pending_effects().is_empty();
         (true, should_flush)
     }
 
@@ -841,6 +917,7 @@ impl ReactiveRuntime {
     /// # Returns
     ///
     /// - `bool` - `true` when the signal was alive and had at least one downstream subscriber.
+    #[inline]
     fn write_signal_no_flush<T>(&mut self, id: SignalId, value: T) -> bool
     where
         T: 'static,
@@ -918,6 +995,7 @@ impl ReactiveRuntime {
     /// # Returns
     ///
     /// - `(bool, bool)` - Tuple `(changed, should_flush)` indicating whether the value changed and whether effects are pending.
+    #[inline]
     pub(crate) fn write_signal_if_changed<T>(&mut self, id: SignalId, value: T) -> (bool, bool)
     where
         T: PartialEq + 'static,
@@ -946,11 +1024,13 @@ impl ReactiveRuntime {
         let has_subs: bool = !entry.get_subscribers().is_empty();
         let next_clock: u64 = self.get_clock().wrapping_add(1);
         self.set_clock(next_clock);
-        if has_subs {
-            self.mark_signal_subscribers_dirty(idx);
+        if !has_subs {
+            return (true, false);
         }
-        let should_flush: bool =
-            self.get_batch_depth() == 0 && !self.get_pending_effects().is_empty();
+        self.mark_signal_subscribers_dirty(idx);
+        let should_flush: bool = self.get_batch_depth() == 0
+            && !self.get_flushing()
+            && !self.get_pending_effects().is_empty();
         (true, should_flush)
     }
 
