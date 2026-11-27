@@ -241,6 +241,11 @@ pub struct Renderer3D {
     #[get_mut(skip)]
     #[set(skip)]
     pub(crate) cluster_ranges_scratch: Vec<(usize, usize)>,
+    /// Reusable per-object transformed vertex cache `(clip_pos, world_pos)` avoiding redundant vertex transforms.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) projected_verts_scratch: Vec<([f32; 4], Vec3)>,
     /// Reusable unique mesh-id set for instancing telemetry.
     #[get(skip)]
     #[get_mut(skip)]

@@ -1250,6 +1250,7 @@ impl Renderer3D {
             bloom_b,
             visible_scratch,
             cluster_ranges_scratch,
+            projected_verts_scratch,
             unique_meshes_scratch,
             has_taa_history,
             prev_vp_m0,
@@ -1327,49 +1328,81 @@ impl Renderer3D {
                 meshlets_drawn += meshlets.len().max(1);
                 cluster_ranges_scratch.push((0, indices.len()));
             }
+            if cluster_ranges_scratch.is_empty() {
+                continue;
+            }
+            projected_verts_scratch.clear();
+            projected_verts_scratch.reserve(verts.len());
+            for v in verts.iter() {
+                let wp: Vec3 = tr.transform_point(v.get_position());
+                let cp: [f32; 4] = vp.mul_point4(wp);
+                projected_verts_scratch.push((cp, wp));
+            }
+            let near_plane: f32 = cam.get_near().max(0.15);
+            let w_f: f32 = w as f32;
+            let h_f: f32 = h as f32;
+            let w_max_i: i32 = (w as i32) - 1;
+            let h_max_i: i32 = (h as i32) - 1;
+            let vert_count: usize = projected_verts_scratch.len();
             for &(tri_start, tri_end) in cluster_ranges_scratch.iter() {
                 for tri in indices[tri_start..tri_end].iter() {
                     let (i0, i1, i2): (usize, usize, usize) =
                         (tri[0] as usize, tri[1] as usize, tri[2] as usize);
-                    if i0 >= verts.len() || i1 >= verts.len() || i2 >= verts.len() {
+                    let oob_01: bool = i0 >= vert_count || i1 >= vert_count;
+                    if oob_01 || i2 >= vert_count {
                         continue;
                     }
-                    let wp0: Vec3 = tr.transform_point(verts[i0].get_position());
-                    let wp1: Vec3 = tr.transform_point(verts[i1].get_position());
-                    let wp2: Vec3 = tr.transform_point(verts[i2].get_position());
-                    let wn: Vec3 = tr.transform_normal(verts[i0].get_normal());
-                    let c0: [f32; 4] = vp.mul_point4(wp0);
-                    let c1: [f32; 4] = vp.mul_point4(wp1);
-                    let c2: [f32; 4] = vp.mul_point4(wp2);
+                    let (c0, wp0): ([f32; 4], Vec3) = projected_verts_scratch[i0];
+                    let (c1, wp1): ([f32; 4], Vec3) = projected_verts_scratch[i1];
+                    let (c2, wp2): ([f32; 4], Vec3) = projected_verts_scratch[i2];
+                    if c0[3] < near_plane && c1[3] < near_plane && c2[3] < near_plane {
+                        continue;
+                    }
+                    let out_l: bool = c0[0] < -c0[3] && c1[0] < -c1[3] && c2[0] < -c2[3];
+                    let out_r: bool = c0[0] > c0[3] && c1[0] > c1[3] && c2[0] > c2[3];
+                    let out_b: bool = c0[1] < -c0[3] && c1[1] < -c1[3] && c2[1] < -c2[3];
+                    let out_t: bool = c0[1] > c0[3] && c1[1] > c1[3] && c2[1] > c2[3];
+                    let out_lr: bool = out_l || out_r;
+                    let out_bt: bool = out_b || out_t;
+                    if out_lr || out_bt {
+                        continue;
+                    }
                     let (clipped_tris, clipped_count): ([ClippedTriangle3D; 2], usize) =
-                        Self::clip_triangle_near(
-                            (c0, wp0),
-                            (c1, wp1),
-                            (c2, wp2),
-                            cam.get_near().max(0.15),
-                        );
+                        Self::clip_triangle_near((c0, wp0), (c1, wp1), (c2, wp2), near_plane);
+                    if clipped_count == 0 {
+                        continue;
+                    }
+                    let mut cached_wn: Option<Vec3> = None;
                     for clipped in clipped_tris.iter().take(clipped_count) {
                         let [(tc0, tw0), (tc1, tw1), (tc2, tw2)]: ClippedTriangle3D = *clipped;
                         let inv_w0: f32 = 1.0 / tc0[3];
                         let inv_w1: f32 = 1.0 / tc1[3];
                         let inv_w2: f32 = 1.0 / tc2[3];
-                        let sx0: f32 = (tc0[0] * inv_w0 * 0.5 + 0.5) * (w as f32) + jitter_x;
-                        let sy0: f32 = (0.5 - tc0[1] * inv_w0 * 0.5) * (h as f32) + jitter_y;
-                        let sx1: f32 = (tc1[0] * inv_w1 * 0.5 + 0.5) * (w as f32) + jitter_x;
-                        let sy1: f32 = (0.5 - tc1[1] * inv_w1 * 0.5) * (h as f32) + jitter_y;
-                        let sx2: f32 = (tc2[0] * inv_w2 * 0.5 + 0.5) * (w as f32) + jitter_x;
-                        let sy2: f32 = (0.5 - tc2[1] * inv_w2 * 0.5) * (h as f32) + jitter_y;
+                        let sx0: f32 = (tc0[0] * inv_w0 * 0.5 + 0.5) * w_f + jitter_x;
+                        let sy0: f32 = (0.5 - tc0[1] * inv_w0 * 0.5) * h_f + jitter_y;
+                        let sx1: f32 = (tc1[0] * inv_w1 * 0.5 + 0.5) * w_f + jitter_x;
+                        let sy1: f32 = (0.5 - tc1[1] * inv_w1 * 0.5) * h_f + jitter_y;
+                        let sx2: f32 = (tc2[0] * inv_w2 * 0.5 + 0.5) * w_f + jitter_x;
+                        let sy2: f32 = (0.5 - tc2[1] * inv_w2 * 0.5) * h_f + jitter_y;
                         let area: f32 = (sx1 - sx0) * (sy2 - sy0) - (sy1 - sy0) * (sx2 - sx0);
                         if area.abs() < 0.25 {
                             continue;
                         }
                         let min_x: i32 = (sx0.min(sx1).min(sx2).floor() as i32).max(0);
-                        let max_x: i32 = (sx0.max(sx1).max(sx2).ceil() as i32).min((w as i32) - 1);
+                        let max_x: i32 = (sx0.max(sx1).max(sx2).ceil() as i32).min(w_max_i);
                         let min_y: i32 = (sy0.min(sy1).min(sy2).floor() as i32).max(0);
-                        let max_y: i32 = (sy0.max(sy1).max(sy2).ceil() as i32).min((h as i32) - 1);
+                        let max_y: i32 = (sy0.max(sy1).max(sy2).ceil() as i32).min(h_max_i);
                         if min_x > max_x || min_y > max_y {
                             continue;
                         }
+                        let wn: Vec3 = match cached_wn {
+                            Some(n) => n,
+                            None => {
+                                let computed: Vec3 = tr.transform_normal(verts[i0].get_normal());
+                                cached_wn = Some(computed);
+                                computed
+                            }
+                        };
                         triangles_drawn += 1;
                         let tri_id: u32 = shaded_tris.len() as u32;
                         let tri_center: Vec3 = tw0.add(tw1).add(tw2).scale(1.0 / 3.0);
@@ -1400,58 +1433,85 @@ impl Renderer3D {
                         let dw0_dx: f32 = (sy1 - sy2) * inv_area;
                         let dw1_dx: f32 = (sy2 - sy0) * inv_area;
                         let dw2_dx: f32 = -(dw0_dx + dw1_dx);
+                        let dw0_dy: f32 = (sx2 - sx1) * inv_area;
+                        let dw1_dy: f32 = (sx0 - sx2) * inv_area;
+                        let dw2_dy: f32 = -(dw0_dy + dw1_dy);
                         let d_inv_w_dx: f32 = dw0_dx * inv_w0 + dw1_dx * inv_w1 + dw2_dx * inv_w2;
+                        let d_inv_w_dy: f32 = dw0_dy * inv_w0 + dw1_dy * inv_w1 + dw2_dy * inv_w2;
+                        let neg_inv_slopes: [f32; 3] = [
+                            if dw0_dx.abs() > 1e-9 {
+                                -1.0 / dw0_dx
+                            } else {
+                                0.0
+                            },
+                            if dw1_dx.abs() > 1e-9 {
+                                -1.0 / dw1_dx
+                            } else {
+                                0.0
+                            },
+                            if dw2_dx.abs() > 1e-9 {
+                                -1.0 / dw2_dx
+                            } else {
+                                0.0
+                            },
+                        ];
+                        let slopes: [f32; 3] = [dw0_dx, dw1_dx, dw2_dx];
                         let span_max: i32 = max_x - min_x;
+                        let span_max_f: f32 = span_max as f32;
                         let fx_start: f32 = (min_x as f32) + 0.5;
-                        for py in min_y..=max_y {
-                            let fy: f32 = (py as f32) + 0.5;
-                            let w0_base: f32 = ((sx1 - fx_start) * (sy2 - fy)
-                                - (sy1 - fy) * (sx2 - fx_start))
-                                * inv_area;
-                            let w1_base: f32 = ((sx2 - fx_start) * (sy0 - fy)
-                                - (sy2 - fy) * (sx0 - fx_start))
-                                * inv_area;
-                            let w2_base: f32 = 1.0 - w0_base - w1_base;
+                        let fy_start: f32 = (min_y as f32) + 0.5;
+                        let mut w0_row: f32 = ((sx1 - fx_start) * (sy2 - fy_start)
+                            - (sy1 - fy_start) * (sx2 - fx_start))
+                            * inv_area;
+                        let mut w1_row: f32 = ((sx2 - fx_start) * (sy0 - fy_start)
+                            - (sy2 - fy_start) * (sx0 - fx_start))
+                            * inv_area;
+                        let mut w2_row: f32 = 1.0 - w0_row - w1_row;
+                        let mut inv_w_row: f32 =
+                            w0_row * inv_w0 + w1_row * inv_w1 + w2_row * inv_w2;
+                        let mut row_off: usize = (min_y as usize) * w_usize;
+                        for _py in min_y..=max_y {
+                            let vals: [f32; 3] = [w0_row + 1e-5, w1_row + 1e-5, w2_row + 1e-5];
                             let mut k_lo: f32 = 0.0;
-                            let mut k_hi: f32 = span_max as f32;
-                            let edges: [(f32, f32); 3] = [
-                                (w0_base + 1e-5, dw0_dx),
-                                (w1_base + 1e-5, dw1_dx),
-                                (w2_base + 1e-5, dw2_dx),
-                            ];
+                            let mut k_hi: f32 = span_max_f;
                             let mut valid_span: bool = true;
-                            for (val, slope) in edges.into_iter() {
+                            for e in 0..3 {
+                                let slope: f32 = slopes[e];
+                                let val: f32 = vals[e];
                                 if slope > 1e-9 {
-                                    k_lo = k_lo.max((-val / slope).ceil());
+                                    k_lo = k_lo.max((val * neg_inv_slopes[e]).ceil());
                                 } else if slope < -1e-9 {
-                                    k_hi = k_hi.min((-val / slope).floor());
+                                    k_hi = k_hi.min((val * neg_inv_slopes[e]).floor());
                                 } else if val < 0.0 {
                                     valid_span = false;
                                     break;
                                 }
                             }
-                            if !valid_span || k_lo > k_hi {
-                                continue;
-                            }
-                            let start_k: i32 = (k_lo as i32).max(0);
-                            let end_k: i32 = (k_hi as i32).min(span_max);
-                            if start_k > end_k {
-                                continue;
-                            }
-                            let inv_w_base: f32 =
-                                w0_base * inv_w0 + w1_base * inv_w1 + w2_base * inv_w2;
-                            let mut inv_w: f32 = inv_w_base + d_inv_w_dx * (start_k as f32);
-                            let row_off: usize = (py as usize) * w_usize;
-                            let px0: usize = (min_x + start_k) as usize;
-                            let px1: usize = (min_x + end_k) as usize;
-                            for px in px0..=px1 {
-                                let buf_idx: usize = row_off + px;
-                                if inv_w > depth_buffer[buf_idx] {
-                                    depth_buffer[buf_idx] = inv_w;
-                                    g_tri_idx[buf_idx] = tri_id;
+                            if valid_span && k_lo <= k_hi {
+                                let start_k: i32 = (k_lo as i32).max(0);
+                                let end_k: i32 = (k_hi as i32).min(span_max);
+                                if start_k <= end_k {
+                                    let mut inv_w: f32 =
+                                        d_inv_w_dx.mul_add(start_k as f32, inv_w_row);
+                                    let px0: usize = row_off + ((min_x + start_k) as usize);
+                                    let px1: usize = row_off + ((min_x + end_k) as usize);
+                                    for (d_slot, g_slot) in depth_buffer[px0..=px1]
+                                        .iter_mut()
+                                        .zip(g_tri_idx[px0..=px1].iter_mut())
+                                    {
+                                        if inv_w > *d_slot {
+                                            *d_slot = inv_w;
+                                            *g_slot = tri_id;
+                                        }
+                                        inv_w += d_inv_w_dx;
+                                    }
                                 }
-                                inv_w += d_inv_w_dx;
                             }
+                            w0_row += dw0_dy;
+                            w1_row += dw1_dy;
+                            w2_row += dw2_dy;
+                            inv_w_row += d_inv_w_dy;
+                            row_off += w_usize;
                         }
                     }
                 }
