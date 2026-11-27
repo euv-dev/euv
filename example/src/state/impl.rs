@@ -169,6 +169,10 @@ impl ShowcaseState {
             markdown_tasks_toggled: Signal::new(0),
             markdown_lang_tab: Signal::new(0),
             markdown_selectable: Signal::new(true),
+            system_event_log: Signal::new(vec![
+                "Listening for normalized SystemEvent hooks (Appear / Disappear / Foreground / Background)".to_string(),
+            ]),
+            system_event_count: Signal::new(0),
         }
     }
 

@@ -66,6 +66,9 @@ pub(crate) const WINDOW_CARD_TITLE: &str = "Runtime Platform Telemetry";
 pub(crate) const WINDOW_CARD_SUB: &str =
     "Identical API surface across desktop, tablet, mobile, and browser.";
 pub(crate) const SWITCH_FULLSCREEN: &str = "Request Fullscreen Mode";
+pub(crate) const SYS_EVENTS_CARD_TITLE: &str = "System Events & Lifecycle Monitor";
+pub(crate) const SYS_EVENTS_CARD_SUB: &str = "Live normalized AppState, OS theme, network, keyboard, safe area, and Appear/Disappear hooks across all 7 targets.";
+pub(crate) const SYS_EVENTS_LOG_LIMIT: usize = 8;
 pub(crate) const CODE_WINDOW_SNIPPET: &str = "let mut w: WindowConfig = WindowConfig::default();\nw.set_title(\"euv\".into()).set_size(1280, 800);\nw.set_render(RenderConfig::default());";
 
 pub(crate) const FORMS_TITLE: &str = "Interactive Form Controls";

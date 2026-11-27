@@ -337,6 +337,12 @@ pub struct ShowcaseState {
     /// Toggle controlling whether text inside the Markdown & Code Studio is selectable.
     #[get(type(copy))]
     pub(crate) markdown_selectable: Signal<bool>,
+    /// Rolling log of recent normalized cross-platform `SystemEvent` entries.
+    #[get(type(copy))]
+    pub(crate) system_event_log: Signal<Vec<String>>,
+    /// Total count of normalized `SystemEvent` notifications observed in this session.
+    #[get(type(copy))]
+    pub(crate) system_event_count: Signal<u32>,
 }
 
 /// Full-featured 2D arcade arena scene powered by `GameWorld`, `PhysicsWorld2D`, `Camera2D`, `ParticleSystem`, `TileMap`, `ActionMap`, and `AudioBus`.

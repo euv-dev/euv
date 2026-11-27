@@ -669,6 +669,7 @@ impl EuvRouterOutlet {
                         .set_pointer_events(PointerEvents::None);
                 }
                 let w: NodeId = tree.create_scroll_view(w_style);
+                tree.attach_scope(w, page_scope);
                 tree.append_child(w, page_node);
                 tree.append_child(host_id, w);
                 w
@@ -1345,6 +1346,7 @@ impl EuvRouterOutlet {
                         },
                     );
                     if let Some(prev_entry) = leave_entry {
+                        mount_env.ctx.emit_subtree_disappear(prev_entry.wrapper);
                         let coupled_exit: NodeTransition = NodeTransition::slide_fade(
                             prev_entry.wrapper,
                             Point::new(start_exit_tx, 0.0),
@@ -1457,6 +1459,7 @@ impl EuvRouterOutlet {
                     }
                     if route_changed {
                         scene.activate_subtree(hit.page_node);
+                        mount_env.ctx.emit_subtree_appear(hit.wrapper);
                         let tr: NodeTransition = if slide_dir.abs() > 0.01 {
                             NodeTransition::slide_fade(
                                 hit.wrapper,
@@ -1498,6 +1501,7 @@ impl EuvRouterOutlet {
                         let _: Option<EuvCachedPage> = map.insert(active_path.clone(), mounted);
                     }
                     scene.activate_subtree(page_node);
+                    mount_env.ctx.emit_subtree_appear(wrapper);
                     let is_initial: bool = active_key_cell
                         .try_borrow()
                         .ok()

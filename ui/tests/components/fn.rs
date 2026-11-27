@@ -2227,3 +2227,167 @@ fn bottom_nav_uses_disciplined_radii_and_slides_active_indicator() {
     );
     assert!(end_tx.abs() <= 0.5);
 }
+
+#[derive(Clone, Debug, New)]
+struct AppearTrackedPage {
+    label: String,
+    appear_hits: Rc<Cell<u32>>,
+    disappear_hits: Rc<Cell<u32>>,
+}
+
+#[component(retention = Freeze)]
+impl AppearTrackedPage {
+    fn on_appear(&self) {
+        self.appear_hits.set(self.appear_hits.get() + 1);
+    }
+
+    fn on_disappear(&self) {
+        self.disappear_hits.set(self.disappear_hits.get() + 1);
+    }
+
+    fn render(&self) -> NodeId {
+        let title: String = self.label.clone();
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                text {
+                    { title }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn router_outlet_emits_subtree_appear_and_disappear_hooks_on_route_transitions() {
+    reset_reactive_runtime();
+    let theme: UiThemeState = UiThemeState::new(DesignScheme::Shadcn, ThemeMode::Light);
+    let a_appear: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let a_disappear: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let b_comp_appear: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let b_comp_disappear: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let b_hook_appear: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let b_hook_disappear: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let c_appear: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let c_disappear: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let aa: Rc<Cell<u32>> = Rc::clone(&a_appear);
+    let ad: Rc<Cell<u32>> = Rc::clone(&a_disappear);
+    let bca: Rc<Cell<u32>> = Rc::clone(&b_comp_appear);
+    let bcd: Rc<Cell<u32>> = Rc::clone(&b_comp_disappear);
+    let bha: Rc<Cell<u32>> = Rc::clone(&b_hook_appear);
+    let bhd: Rc<Cell<u32>> = Rc::clone(&b_hook_disappear);
+    let ca: Rc<Cell<u32>> = Rc::clone(&c_appear);
+    let cd: Rc<Cell<u32>> = Rc::clone(&c_disappear);
+    let router: EuvRouter = EuvRouter::new("/a")
+        .with_default_retention(PageRetention::Freeze)
+        .route_with_retention(
+            "/a",
+            "Page A",
+            PageRetention::Freeze,
+            move |_: &EuvRouteMatch| {
+                let aa_in: Rc<Cell<u32>> = Rc::clone(&aa);
+                let ad_in: Rc<Cell<u32>> = Rc::clone(&ad);
+                let _: SystemEventSubscription = on_appear(move || {
+                    aa_in.set(aa_in.get() + 1);
+                });
+                let _: SystemEventSubscription = on_disappear(move || {
+                    ad_in.set(ad_in.get() + 1);
+                });
+                view! {
+                    column {
+                        text { "Page A" }
+                    }
+                }
+            },
+        )
+        .route_with_retention(
+            "/b",
+            "Page B",
+            PageRetention::Freeze,
+            move |_: &EuvRouteMatch| {
+                let bha_in: Rc<Cell<u32>> = Rc::clone(&bha);
+                let bhd_in: Rc<Cell<u32>> = Rc::clone(&bhd);
+                let _: SystemEventSubscription = on_appear(move || {
+                    bha_in.set(bha_in.get() + 1);
+                });
+                let _: SystemEventSubscription = on_disappear(move || {
+                    bhd_in.set(bhd_in.get() + 1);
+                });
+                AppearTrackedPage::new("Page B".to_string(), Rc::clone(&bca), Rc::clone(&bcd))
+                    .mount()
+            },
+        )
+        .route_with_retention(
+            "/c",
+            "Page C",
+            PageRetention::Destroy,
+            move |_: &EuvRouteMatch| {
+                let ca_in: Rc<Cell<u32>> = Rc::clone(&ca);
+                let cd_in: Rc<Cell<u32>> = Rc::clone(&cd);
+                let _: SystemEventSubscription = on_appear(move || {
+                    ca_in.set(ca_in.get() + 1);
+                });
+                let _: SystemEventSubscription = on_disappear(move || {
+                    cd_in.set(cd_in.get() + 1);
+                });
+                view! {
+                    column {
+                        text { "Page C" }
+                    }
+                }
+            },
+        );
+    let router_c: EuvRouter = router.clone();
+    let theme_outlet: UiThemeState = theme.clone();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(640, 480).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(move || {
+        router_c
+            .outlet(move |_: &EuvRouteMatch| view! { column {} })
+            .with_theme(theme_outlet)
+            .mount()
+    });
+    let _: FrameStats = app.step_frame().unwrap();
+    assert_eq!(a_appear.get(), 1);
+    assert_eq!(a_disappear.get(), 0);
+    assert_eq!(b_comp_appear.get(), 0);
+    assert_eq!(b_hook_appear.get(), 0);
+    router.push("/b");
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert_eq!(a_appear.get(), 1);
+    assert_eq!(a_disappear.get(), 1);
+    assert_eq!(b_comp_appear.get(), 1);
+    assert_eq!(b_hook_appear.get(), 1);
+    assert_eq!(b_comp_disappear.get(), 0);
+    assert_eq!(b_hook_disappear.get(), 0);
+    let _: bool = theme.get_mode().set_if_changed(ThemeMode::Dark);
+    let _: FrameStats = app.step_frame().unwrap();
+    assert_eq!(b_comp_appear.get(), 1);
+    assert_eq!(b_comp_disappear.get(), 0);
+    router.push("/a");
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert_eq!(b_comp_disappear.get(), 1);
+    assert_eq!(b_hook_disappear.get(), 1);
+    assert_eq!(a_appear.get(), 2);
+    assert_eq!(a_disappear.get(), 1);
+    router.push("/c");
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert_eq!(a_disappear.get(), 2);
+    assert_eq!(c_appear.get(), 1);
+    assert_eq!(c_disappear.get(), 0);
+    router.push("/a");
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert_eq!(c_disappear.get(), 1);
+    assert_eq!(a_appear.get(), 3);
+}

@@ -463,9 +463,11 @@ pub fn euv_web_boot() {
     on_win_cancel.forget();
     let on_blur: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
         web_queue_pointer_cancel(0);
+        web_dispatch_system_event(SystemEvent::FocusChanged(false));
     }) as Box<dyn FnMut(Event)>);
     drop(win.add_event_listener_with_callback(WEB_EVENT_BLUR, on_blur.as_ref().unchecked_ref()));
     on_blur.forget();
+    web_attach_system_event_listeners(&win, &doc);
     let canvas_wheel: HtmlCanvasElement = canvas.clone();
     let on_wheel: Closure<dyn FnMut(WheelEvent)> = Closure::wrap(Box::new(move |ev: WheelEvent| {
         ev.prevent_default();
@@ -599,6 +601,153 @@ pub fn euv_web_boot() {
     {
         let func: &Function = cb.as_ref().unchecked_ref();
         drop(win.request_animation_frame(func));
+    }
+}
+
+/// Dispatches a browser-originated `SystemEvent` into the active WebAssembly `App` and marks the next frame dirty.
+///
+/// # Arguments
+///
+/// - `SystemEvent` - Cross-platform system or lifecycle event to normalize and dispatch.
+#[cfg(target_arch = "wasm32")]
+fn web_dispatch_system_event(event: SystemEvent) {
+    WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
+        if let Ok(mut borrow) = slot.try_borrow_mut()
+            && let Some((app, _)) = borrow.as_mut()
+        {
+            app.dispatch_system_event(event);
+            web_mark_needs_frame();
+        }
+    });
+}
+
+/// Attaches browser DOM lifecycle, focus, connectivity, color-scheme, deep-link, and soft-keyboard listeners onto `win` and `doc`.
+///
+/// # Arguments
+///
+/// - `&Window` - Active browser `Window`.
+/// - `&Document` - Active browser `Document`.
+#[cfg(target_arch = "wasm32")]
+fn web_attach_system_event_listeners(win: &Window, doc: &Document) {
+    let doc_vis: Document = doc.clone();
+    let on_vis: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+        if doc_vis.hidden() {
+            web_dispatch_system_event(SystemEvent::Background);
+        } else {
+            web_dispatch_system_event(SystemEvent::Foreground);
+        }
+    }) as Box<dyn FnMut(Event)>);
+    drop(doc.add_event_listener_with_callback(
+        WEB_EVENT_VISIBILITY_CHANGE,
+        on_vis.as_ref().unchecked_ref(),
+    ));
+    on_vis.forget();
+    let on_focus: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+        web_dispatch_system_event(SystemEvent::FocusChanged(true));
+    }) as Box<dyn FnMut(Event)>);
+    drop(win.add_event_listener_with_callback(WEB_EVENT_FOCUS, on_focus.as_ref().unchecked_ref()));
+    on_focus.forget();
+    let on_pageshow: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+        web_dispatch_system_event(SystemEvent::Appear);
+    }) as Box<dyn FnMut(Event)>);
+    drop(win.add_event_listener_with_callback(
+        WEB_EVENT_PAGE_SHOW,
+        on_pageshow.as_ref().unchecked_ref(),
+    ));
+    on_pageshow.forget();
+    let on_pagehide: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+        web_dispatch_system_event(SystemEvent::Disappear);
+    }) as Box<dyn FnMut(Event)>);
+    drop(win.add_event_listener_with_callback(
+        WEB_EVENT_PAGE_HIDE,
+        on_pagehide.as_ref().unchecked_ref(),
+    ));
+    on_pagehide.forget();
+    let on_unload: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+        web_dispatch_system_event(SystemEvent::Terminate);
+    }) as Box<dyn FnMut(Event)>);
+    drop(win.add_event_listener_with_callback(
+        WEB_EVENT_BEFORE_UNLOAD,
+        on_unload.as_ref().unchecked_ref(),
+    ));
+    on_unload.forget();
+    let on_online: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+        web_dispatch_system_event(SystemEvent::NetworkStatusChanged(NetworkStatus::Online));
+    }) as Box<dyn FnMut(Event)>);
+    drop(
+        win.add_event_listener_with_callback(WEB_EVENT_ONLINE, on_online.as_ref().unchecked_ref()),
+    );
+    on_online.forget();
+    let on_offline: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+        web_dispatch_system_event(SystemEvent::NetworkStatusChanged(NetworkStatus::Offline));
+    }) as Box<dyn FnMut(Event)>);
+    drop(
+        win.add_event_listener_with_callback(
+            WEB_EVENT_OFFLINE,
+            on_offline.as_ref().unchecked_ref(),
+        ),
+    );
+    on_offline.forget();
+    if let Ok(Some(mql)) = win.match_media(WEB_MEDIA_PREFERS_DARK) {
+        let mql_cb: MediaQueryList = mql.clone();
+        let on_theme: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+            let next_theme: SystemTheme = if mql_cb.matches() {
+                ThemeMode::Dark
+            } else {
+                ThemeMode::Light
+            };
+            web_dispatch_system_event(SystemEvent::ThemeChanged(next_theme));
+        })
+            as Box<dyn FnMut(Event)>);
+        drop(
+            mql.add_event_listener_with_callback(
+                WEB_EVENT_CHANGE,
+                on_theme.as_ref().unchecked_ref(),
+            ),
+        );
+        on_theme.forget();
+    }
+    let win_hash: Window = win.clone();
+    let on_hash: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+        if let Ok(href) = win_hash.location().href() {
+            web_dispatch_system_event(SystemEvent::DeepLink(href));
+        }
+    }) as Box<dyn FnMut(Event)>);
+    drop(
+        win.add_event_listener_with_callback(
+            WEB_EVENT_HASH_CHANGE,
+            on_hash.as_ref().unchecked_ref(),
+        ),
+    );
+    on_hash.forget();
+    let vv_key: JsValue = JsValue::from_str(WEB_PROP_VISUAL_VIEWPORT);
+    if let Ok(vv_val) = Reflect::get(win.as_ref(), &vv_key)
+        && let Ok(vv_target) = vv_val.clone().dyn_into::<EventTarget>()
+    {
+        let win_vv: Window = win.clone();
+        let vv_obj: JsValue = vv_val;
+        let on_vv_resize: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+            let inner_h: f32 = win_vv
+                .inner_height()
+                .ok()
+                .and_then(|v: JsValue| v.as_f64())
+                .unwrap_or(0.0) as f32;
+            let h_key: JsValue = JsValue::from_str(WEB_PROP_HEIGHT);
+            let vv_h: f32 = Reflect::get(&vv_obj, &h_key)
+                .ok()
+                .and_then(|v: JsValue| v.as_f64())
+                .unwrap_or(inner_h as f64) as f32;
+            let kb_delta: f32 = (inner_h - vv_h).max(0.0);
+            let visible: bool = kb_delta >= WEB_KEYBOARD_MIN_DELTA_PX;
+            let height: f32 = if visible { kb_delta } else { 0.0 };
+            web_dispatch_system_event(SystemEvent::KeyboardVisibilityChanged { visible, height });
+        })
+            as Box<dyn FnMut(Event)>);
+        drop(vv_target.add_event_listener_with_callback(
+            WEB_EVENT_RESIZE,
+            on_vv_resize.as_ref().unchecked_ref(),
+        ));
+        on_vv_resize.forget();
     }
 }
 

@@ -1559,3 +1559,48 @@ fn markdown_studio_renders_full_syntax_and_mermaid_with_zero_overflow() {
         );
     }
 }
+
+#[test]
+fn system_event_monitor_tracks_normalized_events_and_signals_live() {
+    reset_reactive_runtime();
+    let (mut app, state): (App, ShowcaseState) =
+        create_showcase_app(true, RenderMode::Software).unwrap();
+    let _: FrameStats = app.step_frame().unwrap();
+    let _: bool = state.get_route().set_if_changed(ROUTE_WINDOW.to_string());
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    app.dispatch_system_event(SystemEvent::Background);
+    assert_eq!(app.app_state(), AppState::Background);
+    app.dispatch_system_event(SystemEvent::Foreground);
+    assert_eq!(app.app_state(), AppState::Active);
+    app.dispatch_system_event(SystemEvent::NetworkStatusChanged(NetworkStatus::Offline));
+    app.dispatch_system_event(SystemEvent::ThemeChanged(ThemeMode::Dark));
+    app.dispatch_system_event(SystemEvent::MemoryWarning(MemoryPressure::Warning));
+    let stats: FrameStats = app.step_frame().unwrap();
+    assert_ne!(stats.get_frame_hash(), 0);
+    assert!(state.get_system_event_count().get_untracked() >= 6);
+    let logs: Vec<String> = state.get_system_event_log().get_untracked();
+    assert!(
+        logs.iter()
+            .any(|entry: &String| entry.contains("Background"))
+    );
+    assert!(
+        logs.iter()
+            .any(|entry: &String| entry.contains("Foreground"))
+    );
+    assert!(logs.iter().any(|entry: &String| entry.contains("Offline")));
+    let has_monitor_heading: bool = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes().iter().any(|n: &SceneNode| {
+                n.get_alive()
+                    && matches!(
+                        n.get_kind(),
+                        NodeKind::Text(t) if t == "System Events & Lifecycle Monitor"
+                    )
+            })
+        },
+        false,
+    );
+    assert!(has_monitor_heading);
+}

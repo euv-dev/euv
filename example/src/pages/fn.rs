@@ -71,7 +71,20 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
     let global_banner: Signal<ShowcaseGlobalBanner> =
         global_state!(ShowcaseGlobalBanner = ShowcaseGlobalBanner::default());
     let state_c: ShowcaseState = state.clone();
+    let sys_log_sig: Signal<Vec<String>> = state.get_system_event_log();
+    let sys_count_sig: Signal<u32> = state.get_system_event_count();
     let (ev_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+        let _: SystemEventSubscription = on_system_event(move |ev: &SystemEvent| {
+            let next_seq: u32 = sys_count_sig.get_untracked().saturating_add(1);
+            let _: bool = sys_count_sig.set(next_seq);
+            let entry: String = format!("#{next_seq}: {ev:?}");
+            let _: bool = sys_log_sig.update(|items: &mut Vec<String>| {
+                items.insert(0, entry);
+                if items.len() > SYS_EVENTS_LOG_LIMIT {
+                    items.truncate(SYS_EVENTS_LOG_LIMIT);
+                }
+            });
+        });
         on_event!(ShowcasePulseEvent => move |ev: &ShowcasePulseEvent| {
             let src: String = ev.get_source().clone();
             let _: bool = global_banner.update(|b: &mut ShowcaseGlobalBanner| {
@@ -1455,11 +1468,96 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     });
     let mut body_id: NodeId = NodeId::default();
     let mut fps_card_id: NodeId = NodeId::default();
+    let app_state_sig: Signal<AppState> = use_app_state();
+    let sys_theme_sig: Signal<SystemTheme> = use_system_theme();
+    let net_status_sig: Signal<NetworkStatus> = use_network_status();
+    let kb_height_sig: Signal<f32> = use_keyboard_height();
+    let safe_area_sig: Signal<SafeAreaInsets> = use_safe_area();
+    let sys_log_sig: Signal<Vec<String>> = state.get_system_event_log();
+    let sys_count_sig: Signal<u32> = state.get_system_event_count();
+    let page_appear_count: Signal<u32> = Signal::new(0);
+    let page_disappear_count: Signal<u32> = Signal::new(0);
+    let _: SystemEventSubscription = on_appear(move || {
+        let _: bool = page_appear_count.update(|n: &mut u32| *n = n.saturating_add(1));
+    });
+    let _: SystemEventSubscription = on_disappear(move || {
+        let _: bool = page_disappear_count.update(|n: &mut u32| *n = n.saturating_add(1));
+    });
+    let sys_primary_line = move || -> String {
+        format!(
+            "AppState: {:?} | OS Theme: {:?} | Network: {:?}",
+            app_state_sig.get(),
+            sys_theme_sig.get(),
+            net_status_sig.get()
+        )
+    };
+    let sys_secondary_line = move || -> String {
+        let sa: SafeAreaInsets = safe_area_sig.get();
+        format!(
+            "Keyboard: {:.0}px | SafeArea: T{:.0} R{:.0} B{:.0} L{:.0} | Page Appear: {} / Disappear: {} | Total Events: {}",
+            kb_height_sig.get(),
+            sa.get_top(),
+            sa.get_right(),
+            sa.get_bottom(),
+            sa.get_left(),
+            page_appear_count.get(),
+            page_disappear_count.get(),
+            sys_count_sig.get()
+        )
+    };
+    let build_sys_log_rows = move || -> Vec<NodeId> {
+        let live_tok: ThemeTokens = live_tokens_untracked(tokens);
+        let live_p: ThemePalette = live_tok.get_palette();
+        sys_log_sig
+            .get()
+            .into_iter()
+            .map(|entry: String| {
+                view! {
+                    text {
+                        width: Length::Percent(100.0)
+                        font_size: 12.0
+                        font_family: FontFamily::Monospace
+                        color: live_p.get_muted_foreground()
+                        { entry }
+                    }
+                }
+            })
+            .collect()
+    };
     let page: NodeId = view! {
         EuvPage {
             title: WINDOW_TITLE.to_string()
             subtitle: WINDOW_SUBTITLE.to_string()
             tokens: tokens
+            EuvCard {
+                title: SYS_EVENTS_CARD_TITLE.to_string()
+                tokens: tokens
+                subtitle: SYS_EVENTS_CARD_SUB
+                selectable: true
+                text {
+                    width: Length::Percent(100.0)
+                    font_size: 13.5
+                    font_weight: FontWeight::SemiBold
+                    color: p.get_primary()
+                    { sys_primary_line }
+                }
+                text {
+                    width: Length::Percent(100.0)
+                    font_size: 12.5
+                    font_family: FontFamily::Monospace
+                    color: p.get_foreground()
+                    { sys_secondary_line }
+                }
+                column {
+                    width: Length::Percent(100.0)
+                    padding: Edges::all(SPACE_SM)
+                    gap: 4.0
+                    background: p.get_muted()
+                    radius: tokens.get_geometry().get_radius_md()
+                    overflow: Overflow::Hidden
+                    bind_children: build_sys_log_rows
+                }
+            }
             EuvCard {
                 title: WINDOW_CARD_TITLE.to_string()
                 tokens: tokens

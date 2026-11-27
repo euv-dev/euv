@@ -154,3 +154,42 @@ pub(crate) const WEB_IME_ACTION_SHOW: &str = "show";
 /// Native action subcommand hiding the browser soft keyboard / IME proxy.
 #[cfg(target_arch = "wasm32")]
 pub(crate) const WEB_IME_ACTION_HIDE: &str = "hide";
+/// DOM event name for page visibility changes.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_VISIBILITY_CHANGE: &str = "visibilitychange";
+/// DOM event name for window focus gain.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_FOCUS: &str = "focus";
+/// DOM event name for page show lifecycle notifications.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_PAGE_SHOW: &str = "pageshow";
+/// DOM event name for page hide lifecycle notifications.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_PAGE_HIDE: &str = "pagehide";
+/// DOM event name for page unload termination warnings.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_BEFORE_UNLOAD: &str = "beforeunload";
+/// DOM event name for network online transitions.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_ONLINE: &str = "online";
+/// DOM event name for network offline transitions.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_OFFLINE: &str = "offline";
+/// DOM event name for media-query preference changes.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_CHANGE: &str = "change";
+/// DOM event name for URL fragment hash navigation changes.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_HASH_CHANGE: &str = "hashchange";
+/// CSS media query detecting browser dark color scheme preference.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_MEDIA_PREFERS_DARK: &str = "(prefers-color-scheme: dark)";
+/// DOM window property exposing the mobile soft-keyboard `VisualViewport`.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_PROP_VISUAL_VIEWPORT: &str = "visualViewport";
+/// DOM `VisualViewport.height` property key.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_PROP_HEIGHT: &str = "height";
+/// Minimum logical pixel viewport contraction treated as an active browser soft keyboard.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_KEYBOARD_MIN_DELTA_PX: f32 = 80.0;
