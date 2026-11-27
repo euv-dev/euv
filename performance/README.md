@@ -23,14 +23,18 @@ Reproducible CPU, layout, reactivity, virtual list, batch mutation, WASM OTA hot
 
 ## Responsibilities & Module Layout
 
-- `bench` — Deterministic micro-benchmarks covering signal diamond propagation, O(1) `Selector` switching, clean-subtree layout caching, 100k-row virtual scrolling, and 3D ray-tracing
-- `scripts/bench/stress-bench.sh` — Automated workspace benchmark runner
+- `suite` — Deterministic 27-benchmark release suite covering signal diamond propagation, O(1) `Selector` switching, clean-subtree layout caching, software/hardware/GPU rendering, 100k-row virtual scrolling, WASM OTA hot-swap, and 3D ray-tracing
+- `stress` — Opt-in `--stress-matrix` verification harness measuring tail percentiles (`p50`/`p95`/`p99`/`max`), 144Hz/60Hz over-budget frame counts, interleaved A/B partial-layout damage bit-exact parity, window resize reflow, and Terminal TUI cell-diff/idle flush invariants
+- `scripts/bench/run-stress-report.py` — Canonical zero-dependency runner aggregating N warmed release runs, verifying `--stress-matrix` and `euv-automation` release tests, enforcing performance budgets, and atomically updating the single latest report at `performance/BENCHMARK_REPORT.md` (`--write-report`)
+- `scripts/bench/stress-bench.sh` — Backward-compatible shell wrapper invoking `scripts/bench/run-stress-report.py`
 
 ## Installation & Usage
 
 ```sh
 cargo run --manifest-path performance/Cargo.toml --release
+cargo run --manifest-path performance/Cargo.toml --release -- --stress-matrix
 ./scripts/bench/stress-bench.sh
+./scripts/bench/stress-bench.sh --runs 3 --write-report
 ```
 
 ## Verification
