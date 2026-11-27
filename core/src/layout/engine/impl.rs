@@ -23,6 +23,35 @@ impl LayoutEngine {
         stats
     }
 
+    /// Measures text bounding dimensions through the bounded `TextSizeCache`, delegating misses to `TextMeasurer::measure_size`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable layout engine reference.
+    /// - `&str` - UTF-8 text content to measure.
+    /// - `TextStyle` - Active typography style.
+    /// - `Option<f32>` - Optional maximum wrap width in logical pixels.
+    ///
+    /// # Returns
+    ///
+    /// - `Size` - Exact measured bounding dimensions.
+    fn measure_text_cached(
+        &mut self,
+        text: &str,
+        style: TextStyle,
+        max_width: Option<f32>,
+    ) -> Size {
+        let measurer: DeterministicTextMeasurer = self.get_measurer();
+        self.get_mut_text_size_cache().get_or_measure(
+            text,
+            style,
+            max_width,
+            |raw: &str, text_style: TextStyle, limit: Option<f32>| {
+                measurer.measure_size(raw, text_style, limit)
+            },
+        )
+    }
+
     /// Performs recursive layout on `node_id` with O(1) clean-subtree caching.
     ///
     /// # Arguments
@@ -151,14 +180,11 @@ impl LayoutEngine {
         let content_origin_y: f32 = origin_y + padding.get_top() + border_w;
         let mut child_range: Option<(usize, usize)> = None;
         let leaf_content_size: Option<Size> = match node.get_kind() {
-            NodeKind::Text(text) => {
-                let measured: TextLayoutResult = self.get_measurer().measure(
-                    text.as_str(),
-                    *text_ref,
-                    Some(inner_avail_w.max(1.0)),
-                );
-                Some(measured.get_size())
-            }
+            NodeKind::Text(text) => Some(self.measure_text_cached(
+                text.as_str(),
+                *text_ref,
+                Some(inner_avail_w.max(1.0)),
+            )),
             NodeKind::Image(img) => {
                 Some(Size::new(img.get_width() as f32, img.get_height() as f32))
             }
@@ -168,12 +194,11 @@ impl LayoutEngine {
                 } else {
                     input_state.get_value().as_str()
                 };
-                let measured: TextLayoutResult =
-                    self.get_measurer()
-                        .measure(sample, *text_ref, Some(inner_avail_w.max(1.0)));
+                let measured_size: Size =
+                    self.measure_text_cached(sample, *text_ref, Some(inner_avail_w.max(1.0)));
                 Some(Size::new(
-                    measured.get_size().get_width().max(120.0),
-                    measured.get_size().get_height().max(20.0),
+                    measured_size.get_width().max(120.0),
+                    measured_size.get_height().max(20.0),
                 ))
             }
             NodeKind::View

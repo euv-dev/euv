@@ -14,4 +14,9 @@ pub struct LayoutEngine {
     #[get_mut(pub(crate))]
     #[set(skip)]
     pub(crate) children_scratch: Vec<NodeId>,
+    /// Bounded 2-way set-associative cache of measured text sizes for layout passes.
+    #[get(skip)]
+    #[get_mut(pub(crate))]
+    #[set(skip)]
+    pub(crate) text_size_cache: TextSizeCache,
 }
