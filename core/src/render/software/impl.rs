@@ -361,6 +361,203 @@ impl Drop for BandWorkerPool {
     }
 }
 
+/// Zero-clone SipHash-free open-addressed lookup operations for `TextLayoutCache`.
+impl TextLayoutCache {
+    /// Creates a pre-allocated cache with power-of-two slot capacity.
+    ///
+    /// # Arguments
+    ///
+    /// - `usize` - Requested slot table capacity (rounded up to a power of two).
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Pre-allocated empty text layout cache.
+    #[must_use]
+    pub(crate) fn with_capacity(slot_cap: usize) -> Self {
+        let cap: usize = slot_cap.max(16).next_power_of_two();
+        Self {
+            slots: vec![EMPTY_TEXT_LAYOUT_SLOT; cap],
+            entries: Vec::with_capacity(cap / 2),
+        }
+    }
+
+    /// Returns the number of cached `TextLayoutResult` entries currently stored in the arena.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Cache reference.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Number of cached layouts.
+    #[must_use]
+    pub(crate) fn len(&self) -> usize {
+        let Self { entries, .. } = self;
+        entries.len()
+    }
+
+    /// Returns the contiguous read-only arena slice of cached `TextLayoutResult` entries.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Cache reference.
+    ///
+    /// # Returns
+    ///
+    /// - `&[TextLayoutResult]` - Contiguous arena slice indexed by `PreppedCommand::text_layout_idx`.
+    #[must_use]
+    pub(crate) fn entries(&self) -> &[TextLayoutResult] {
+        let Self { entries, .. } = self;
+        entries.as_slice()
+    }
+
+    /// Returns the cached `TextLayoutResult` stored at arena index `idx`, if valid.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Cache reference.
+    /// - `u32` - Arena index returned by `get_or_insert_with`.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<&TextLayoutResult>` - Borrowed cached layout entry.
+    #[must_use]
+    pub(crate) fn get(&self, idx: u32) -> Option<&TextLayoutResult> {
+        let Self { entries, .. } = self;
+        entries.get(idx as usize)
+    }
+
+    /// Clears all cached entries and resets the slot table while retaining bounded capacity.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable cache reference.
+    pub(crate) fn clear(&mut self) {
+        let Self { slots, entries } = self;
+        entries.clear();
+        if slots.len() > TEXT_LAYOUT_CACHE_SLOTS {
+            slots.resize(TEXT_LAYOUT_CACHE_SLOTS, EMPTY_TEXT_LAYOUT_SLOT);
+        }
+        slots.fill(EMPTY_TEXT_LAYOUT_SLOT);
+    }
+
+    /// Computes the initial power-of-two probe index for `(key_hash, width_key)`.
+    ///
+    /// # Arguments
+    ///
+    /// - `u64` - Deterministic text+style hash.
+    /// - `u32` - Quantized wrap width key.
+    /// - `usize` - Power-of-two bitmask (`slots.len() - 1`).
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Starting probe index in `0..=mask`.
+    #[inline(always)]
+    #[must_use]
+    fn slot_start(key_hash: u64, width_key: u32, mask: usize) -> usize {
+        let mixed: u64 = (key_hash ^ (width_key as u64)).wrapping_mul(FX_HASH_K64);
+        ((mixed ^ (mixed >> 32)) as usize) & mask
+    }
+
+    /// Rehashes all live slots into a new power-of-two table of size `new_cap`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable cache reference.
+    /// - `usize` - Target power-of-two slot capacity.
+    fn rehash(&mut self, new_cap: usize) {
+        let cap: usize = new_cap.max(TEXT_LAYOUT_CACHE_SLOTS).next_power_of_two();
+        let mask: usize = cap - 1;
+        let mut next_slots: Vec<TextLayoutSlot> = vec![EMPTY_TEXT_LAYOUT_SLOT; cap];
+        let Self { slots, .. } = self;
+        for old in slots.iter().copied() {
+            if old.entry_idx == u32::MAX {
+                continue;
+            }
+            let mut idx: usize = Self::slot_start(old.key_hash, old.width_key, mask);
+            while next_slots[idx].entry_idx != u32::MAX {
+                idx = (idx + 1) & mask;
+            }
+            next_slots[idx] = old;
+        }
+        *slots = next_slots;
+    }
+
+    /// Looks up `(key_hash, width_key)` without cloning, inserting the result of `compute` on a miss.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable cache reference.
+    /// - `u64` - Deterministic text+style hash.
+    /// - `u32` - Quantized wrap width key (`u32::MAX` for unbounded lines).
+    /// - `F` - Lazy layout computation invoked only on a cache miss.
+    ///
+    /// # Returns
+    ///
+    /// - `u32` - Stable arena index into `entries()` for the remainder of the current frame.
+    pub(crate) fn get_or_insert_with<F>(&mut self, key_hash: u64, width_key: u32, compute: F) -> u32
+    where
+        F: FnOnce() -> TextLayoutResult,
+    {
+        let mut empty_slot: Option<usize> = None;
+        {
+            let Self { slots, .. } = self;
+            if !slots.is_empty() {
+                let mask: usize = slots.len() - 1;
+                let mut idx: usize = Self::slot_start(key_hash, width_key, mask);
+                loop {
+                    let slot: TextLayoutSlot = slots[idx];
+                    if slot.entry_idx == u32::MAX {
+                        empty_slot = Some(idx);
+                        break;
+                    }
+                    if slot.key_hash == key_hash && slot.width_key == width_key {
+                        return slot.entry_idx;
+                    }
+                    idx = (idx + 1) & mask;
+                }
+            }
+        }
+        let measured: TextLayoutResult = compute();
+        let needs_rehash: bool = {
+            let Self { slots, entries } = self;
+            slots.is_empty() || (entries.len() + 1).saturating_mul(2) > slots.len()
+        };
+        if needs_rehash {
+            let next_cap: usize = {
+                let Self { slots, .. } = self;
+                if slots.is_empty() {
+                    TEXT_LAYOUT_CACHE_SLOTS
+                } else {
+                    slots.len().saturating_mul(2)
+                }
+            };
+            self.rehash(next_cap);
+            empty_slot = None;
+        }
+        let Self { slots, entries } = self;
+        let entry_idx: u32 = entries.len() as u32;
+        entries.push(measured);
+        let target_idx: usize = match empty_slot {
+            Some(idx) => idx,
+            None => {
+                let mask: usize = slots.len() - 1;
+                let mut idx: usize = Self::slot_start(key_hash, width_key, mask);
+                while slots[idx].entry_idx != u32::MAX {
+                    idx = (idx + 1) & mask;
+                }
+                idx
+            }
+        };
+        slots[target_idx] = TextLayoutSlot {
+            key_hash,
+            width_key,
+            entry_idx,
+        };
+        entry_idx
+    }
+}
+
 /// Multi-core lossless analytical-SDF and tile-band software rasterizer methods for `SoftwareRenderer`.
 impl SoftwareRenderer {
     /// Creates a software renderer configured for `width x height` physical pixels.
@@ -403,7 +600,7 @@ impl SoftwareRenderer {
             glyph_atlas: GlyphAtlas::default(),
             font_provider,
             measurer: DeterministicTextMeasurer,
-            text_layout_cache: HashMap::with_capacity(128),
+            text_layout_cache: TextLayoutCache::with_capacity(TEXT_LAYOUT_CACHE_SLOTS),
             clip_stack: Vec::with_capacity(8),
             rounded_clip_stack: Vec::with_capacity(8),
             antialiasing: config.get_antialiasing(),
@@ -414,7 +611,6 @@ impl SoftwareRenderer {
             prev_base_hash: 0,
             base_cache_pixels: Vec::new(),
             prepped_scratch: Vec::with_capacity(64),
-            text_layouts_scratch: Vec::with_capacity(32),
             rounded_clips_scratch: Vec::with_capacity(16),
         }
     }
@@ -557,14 +753,14 @@ impl SoftwareRenderer {
             glyph_atlas,
             base_cache_pixels,
             prepped_scratch,
-            text_layouts_scratch,
+            text_layout_cache,
             rounded_clips_scratch,
             antialiasing,
             ..
         } = self;
         let aa: AntialiasingMode = *antialiasing;
         let prepped_slice: &[PreppedCommand] = prepped_scratch.as_slice();
-        let layouts_slice: &[TextLayoutResult] = text_layouts_scratch.as_slice();
+        let layouts_slice: &[TextLayoutResult] = text_layout_cache.entries();
         let rounded_clips_slice: &[RoundedClipMask] = rounded_clips_scratch.as_slice();
         let atlas_ref: &GlyphAtlas = glyph_atlas;
         let base_restore: Option<&[u8]> = if restore_base_cache {
@@ -668,13 +864,11 @@ impl SoftwareRenderer {
             clip_stack,
             rounded_clip_stack,
             prepped_scratch: prepped,
-            text_layouts_scratch: text_layouts,
             rounded_clips_scratch: rounded_clips,
             ..
         } = self;
         prepped.clear();
         prepped.reserve(clamped_end - clamped_start);
-        text_layouts.clear();
         rounded_clips.clear();
         clip_stack.clear();
         clip_stack.push(root_clip);
@@ -835,32 +1029,25 @@ impl SoftwareRenderer {
                         continue;
                     }
                     let max_w: f32 = rect.get_width().max(1.0);
-                    let cache_key: (u64, u32) = (
-                        hash_text_layout_key(text, *style),
-                        (max_w * 10.0).round() as u32,
-                    );
-                    let layout: TextLayoutResult =
-                        if let Some(cached) = text_layout_cache.get(&cache_key) {
-                            cached.clone()
-                        } else {
-                            let measured: TextLayoutResult =
-                                measurer.measure(text, *style, Some(max_w));
-                            text_layout_cache.insert(cache_key, measured.clone());
-                            measured
-                        };
+                    let width_key: u32 = ((max_w * 10.0).round() as u32).min(u32::MAX - 1);
+                    let key_hash: u64 = hash_text_layout_key(text, *style);
+                    let layout_idx: u32 =
+                        text_layout_cache.get_or_insert_with(key_hash, width_key, || {
+                            measurer.measure(text, *style, Some(max_w))
+                        });
                     let phys_font_size: f32 = style.get_font_size() * scale;
-                    for line in layout.get_lines().iter() {
-                        for ch in line.get_text().chars() {
-                            if ch != ' ' {
-                                let key: GlyphKey =
-                                    GlyphKey::from_text_style(ch, phys_font_size, *style);
-                                let _: &RasterizedGlyph =
-                                    glyph_atlas.get_or_rasterize_with(key, font_provider);
+                    if let Some(layout) = text_layout_cache.get(layout_idx) {
+                        for line in layout.get_lines().iter() {
+                            for ch in line.get_text().chars() {
+                                if ch != ' ' {
+                                    let key: GlyphKey =
+                                        GlyphKey::from_text_style(ch, phys_font_size, *style);
+                                    let _: &RasterizedGlyph =
+                                        glyph_atlas.get_or_rasterize_with(key, font_provider);
+                                }
                             }
                         }
                     }
-                    let layout_idx: u32 = text_layouts.len() as u32;
-                    text_layouts.push(layout);
                     let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
                         rounded_clip_stack.as_slice(),
                         rounded_clips,
@@ -898,25 +1085,30 @@ impl SoftwareRenderer {
                     if y0 >= y1 {
                         continue;
                     }
-                    let max_w: Option<f32> = if *multiline {
-                        Some(content_rect.get_width().max(1.0))
+                    let (max_w, width_key): (Option<f32>, u32) = if *multiline {
+                        let w: f32 = content_rect.get_width().max(1.0);
+                        (Some(w), ((w * 10.0).round() as u32).min(u32::MAX - 1))
                     } else {
-                        None
+                        (None, u32::MAX)
                     };
-                    let layout: TextLayoutResult = measurer.measure(text, *style, max_w);
+                    let key_hash: u64 = hash_text_layout_key(text, *style);
+                    let layout_idx: u32 =
+                        text_layout_cache.get_or_insert_with(key_hash, width_key, || {
+                            measurer.measure(text, *style, max_w)
+                        });
                     let phys_font_size: f32 = style.get_font_size() * scale;
-                    for line in layout.get_lines().iter() {
-                        for ch in line.get_text().chars() {
-                            if ch != ' ' {
-                                let key: GlyphKey =
-                                    GlyphKey::from_text_style(ch, phys_font_size, *style);
-                                let _: &RasterizedGlyph =
-                                    glyph_atlas.get_or_rasterize_with(key, font_provider);
+                    if let Some(layout) = text_layout_cache.get(layout_idx) {
+                        for line in layout.get_lines().iter() {
+                            for ch in line.get_text().chars() {
+                                if ch != ' ' {
+                                    let key: GlyphKey =
+                                        GlyphKey::from_text_style(ch, phys_font_size, *style);
+                                    let _: &RasterizedGlyph =
+                                        glyph_atlas.get_or_rasterize_with(key, font_provider);
+                                }
                             }
                         }
                     }
-                    let layout_idx: u32 = text_layouts.len() as u32;
-                    text_layouts.push(layout);
                     let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
                         rounded_clip_stack.as_slice(),
                         rounded_clips,

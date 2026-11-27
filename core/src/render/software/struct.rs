@@ -154,6 +154,26 @@ pub(crate) struct PreppedCommand {
     pub(crate) rounded_clip_len: u16,
 }
 
+/// Single open-addressed slot in `TextLayoutCache` mapping `(key_hash, width_key)` to an arena index.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct TextLayoutSlot {
+    /// Deterministic 64-bit FxHash of source text bytes and typography style.
+    pub(crate) key_hash: u64,
+    /// Quantized wrap width (`(max_w * 10.0).round() as u32`, or `u32::MAX` for unbounded lines).
+    pub(crate) width_key: u32,
+    /// Arena index into `TextLayoutCache::entries` (`u32::MAX` marks an empty slot).
+    pub(crate) entry_idx: u32,
+}
+
+/// Zero-clone, SipHash-free open-addressed cache of wrapped `TextLayoutResult` entries referenced by arena index.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct TextLayoutCache {
+    /// Power-of-two linear-probing slot table (`entry_idx == u32::MAX` denotes an empty slot).
+    pub(crate) slots: Vec<TextLayoutSlot>,
+    /// Contiguous arena owning cached `TextLayoutResult` entries read lock-free across band workers.
+    pub(crate) entries: Vec<TextLayoutResult>,
+}
+
 /// High-performance CPU tile and analytical-SDF software rasterizer with zero GPU dependencies.
 #[derive(Clone, Data, Debug, Default)]
 pub struct SoftwareRenderer {
@@ -166,10 +186,11 @@ pub struct SoftwareRenderer {
     /// Deterministic text measurer matching `LayoutEngine` metrics.
     #[get(type(copy))]
     pub(crate) measurer: DeterministicTextMeasurer,
-    /// Cached word-wrapped `TextLayoutResult` map eliminating per-frame text layout allocations during scrolling.
+    /// Zero-clone open-addressed cache of wrapped `TextLayoutResult` entries eliminating per-frame cloning and SipHash.
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
-    pub(crate) text_layout_cache: HashMap<(u64, u32), TextLayoutResult>,
+    #[set(pub(crate))]
+    pub(crate) text_layout_cache: TextLayoutCache,
     /// Active physical clip-rectangle stack.
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
@@ -212,11 +233,6 @@ pub struct SoftwareRenderer {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) prepped_scratch: Vec<PreppedCommand>,
-    /// Reusable pre-measured text layout buffer cleared at frame start to avoid per-frame allocations.
-    #[get(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub(crate) text_layouts_scratch: Vec<TextLayoutResult>,
     /// Reusable active rounded-clip mask buffer cleared at frame start to avoid per-frame allocations.
     #[get(pub(crate))]
     #[get_mut(pub(crate))]

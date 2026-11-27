@@ -92,7 +92,7 @@ pub fn fast_gaussian_shadow_falloff(dist: f32, inv_sigma: f32) -> f32 {
     a + (b - a) * frac
 }
 
-/// Computes a deterministic 64-bit hash key for caching `TextLayoutResult` entries across frames.
+/// Computes a deterministic 64-bit FxHash key for caching `TextLayoutResult` entries across frames.
 ///
 /// # Arguments
 ///
@@ -104,26 +104,30 @@ pub fn fast_gaussian_shadow_falloff(dist: f32, inv_sigma: f32) -> f32 {
 /// - `u64` - Deterministic layout cache key hash.
 #[must_use]
 pub(crate) fn hash_text_layout_key(text: &str, style: TextStyle) -> u64 {
-    let mut hash: u64 = FNV1A_OFFSET_BASIS;
-    for byte in text.as_bytes().iter().copied() {
-        hash ^= byte as u64;
-        hash = hash.wrapping_mul(FNV1A_PRIME);
+    let bytes: &[u8] = text.as_bytes();
+    let mut hash: u64 = (FNV1A_OFFSET_BASIS ^ (bytes.len() as u64)).wrapping_mul(FX_HASH_K64);
+    let (chunks, tail): (&[[u8; 8]], &[u8]) = bytes.as_chunks::<8>();
+    for chunk in chunks.iter() {
+        let word: u64 = u64::from_le_bytes(*chunk);
+        hash = (hash.rotate_left(5) ^ word).wrapping_mul(FX_HASH_K64);
     }
-    let fields: [u32; 4] = [
-        style.get_font_size().to_bits(),
-        style.get_line_height().to_bits(),
-        style.get_letter_spacing().to_bits(),
-        (style.get_weight() as u32)
-            | ((style.get_align() as u32) << 8)
-            | ((style.get_family() as u32) << 16)
-            | ((style.get_overflow() as u32) << 20)
-            | (u32::from(style.get_italic()) << 24),
-    ];
-    for word in fields.into_iter() {
-        hash ^= word as u64;
-        hash = hash.wrapping_mul(FNV1A_PRIME);
+    let mut tail_word: u64 = 0;
+    for (idx, byte) in tail.iter().copied().enumerate() {
+        tail_word |= (byte as u64) << (idx * 8);
     }
-    hash
+    if !tail.is_empty() {
+        hash = (hash.rotate_left(5) ^ tail_word).wrapping_mul(FX_HASH_K64);
+    }
+    let style_flags: u32 = (style.get_weight() as u32)
+        | ((style.get_align() as u32) << 8)
+        | ((style.get_family() as u32) << 16)
+        | ((style.get_overflow() as u32) << 20)
+        | (u32::from(style.get_italic()) << 24);
+    let w0: u64 = (style.get_font_size().to_bits() as u64)
+        | ((style.get_line_height().to_bits() as u64) << 32);
+    let w1: u64 = (style.get_letter_spacing().to_bits() as u64) | ((style_flags as u64) << 32);
+    hash = (hash.rotate_left(5) ^ w0).wrapping_mul(FX_HASH_K64);
+    (hash.rotate_left(5) ^ w1).wrapping_mul(FX_HASH_K64)
 }
 
 /// Evaluates Interleaved Gradient Noise (IGN) in `[-0.5, 0.5]` to dither 8-bit shadows and gradients without visible banding.
