@@ -116,3 +116,26 @@ pub(crate) fn build_linear_blend_luts(
     }
     (lut_r, lut_g, lut_b, lut_a)
 }
+
+/// Precomputes a 256-entry Q12.4 sRGB linear-light source-over table for one constant shadow channel and opacity.
+///
+/// # Arguments
+///
+/// - `u8` - Source shadow sRGB channel byte.
+/// - `f32` - Clamped continuous shadow opacity in `[0.0, 1.0]`.
+///
+/// # Returns
+///
+/// - `[u16; 256]` - Q12.4 (`sRGB * 16`, in `0..=4080`) output table indexed by destination sRGB byte.
+#[must_use]
+pub(crate) fn build_shadow_q4_lut_channel(src_ch: u8, alpha: f32) -> [u16; 256] {
+    let inv_a: f32 = 1.0 - alpha;
+    let src_lin_a: f32 = SRGB_TO_LIN_LUT[src_ch as usize] * alpha;
+    let mut table: [u16; 256] = [0; 256];
+    for (d, slot) in table.iter_mut().enumerate() {
+        let lin_idx: usize =
+            ((src_lin_a + SRGB_TO_LIN_LUT[d] * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+        *slot = LIN_TO_SRGB_Q4_LUT[lin_idx];
+    }
+    table
+}

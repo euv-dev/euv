@@ -870,17 +870,29 @@ impl<'a> PixelBand<'a> {
             return;
         };
         let a: f32 = alpha_f.clamp(0.0, 1.0);
-        let inv_a: f32 = 1.0 - a;
-        let sr_a: f32 = SRGB_TO_LIN_LUT[color.get_r() as usize] * a;
-        let sg_a: f32 = SRGB_TO_LIN_LUT[color.get_g() as usize] * a;
-        let sb_a: f32 = SRGB_TO_LIN_LUT[color.get_b() as usize] * a;
-        let sa_u32: u32 = (a * 255.0) as u32;
-        let inv_a_u32: u32 = 255 - sa_u32;
-        let y_term: f32 = (y as f32) * 0.005_837_15;
+        let cr: u8 = color.get_r();
+        let cg: u8 = color.get_g();
+        let cb: u8 = color.get_b();
         let (chunks, _): (&mut [[u8; 4]], &mut [u8]) = span.as_chunks_mut::<4>();
+        if a >= 0.9995 {
+            let opaque: [u8; 4] = [cr, cg, cb, 255];
+            for px in chunks.iter_mut() {
+                *px = opaque;
+            }
+            return;
+        }
         let Some(first_px) = chunks.first().copied() else {
             return;
         };
+        let inv_a: f32 = 1.0 - a;
+        let sr_a: f32 = SRGB_TO_LIN_LUT[cr as usize] * a;
+        let sg_a: f32 = SRGB_TO_LIN_LUT[cg as usize] * a;
+        let sb_a: f32 = SRGB_TO_LIN_LUT[cb as usize] * a;
+        let sa_u32: u32 = (a * 255.0) as u32;
+        let inv_a_u32: u32 = 255 - sa_u32;
+        let mut phase_u32: u32 = x0
+            .wrapping_mul(IGN_X_STEP_U32)
+            .wrapping_add(y.wrapping_mul(IGN_Y_STEP_U32));
         let mut prev_px: [u8; 4] = first_px;
         let dr0: f32 = SRGB_TO_LIN_LUT[first_px[0] as usize];
         let dg0: f32 = SRGB_TO_LIN_LUT[first_px[1] as usize];
@@ -888,13 +900,21 @@ impl<'a> PixelBand<'a> {
         let ir0: usize = ((sr_a + dr0 * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
         let ig0: usize = ((sg_a + dg0 * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
         let ib0: usize = ((sb_a + db0 * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
-        let mut q4_r: i32 = LIN_TO_SRGB_Q4_LUT[ir0] as i32;
-        let mut q4_g: i32 = LIN_TO_SRGB_Q4_LUT[ig0] as i32;
-        let mut q4_b: i32 = LIN_TO_SRGB_Q4_LUT[ib0] as i32;
+        let mut q4_r: u16 = LIN_TO_SRGB_Q4_LUT[ir0];
+        let mut q4_g: u16 = LIN_TO_SRGB_Q4_LUT[ig0];
+        let mut q4_b: u16 = LIN_TO_SRGB_Q4_LUT[ib0];
         let va0: u32 = (first_px[3] as u32) * inv_a_u32 + 128;
         let mut out_a: u8 = (sa_u32 + ((va0 + (va0 >> 8)) >> 8)).min(255) as u8;
-        for (cur_x, px) in (x0..).zip(chunks.iter_mut()) {
+        let total_len: usize = chunks.len();
+        let mut miss_count: u32 = 0;
+        let mut split_idx: usize = total_len;
+        for (idx, px) in chunks.iter_mut().enumerate() {
             if *px != prev_px {
+                miss_count += 1;
+                if miss_count >= 10 && total_len.saturating_sub(idx) >= 64 {
+                    split_idx = idx;
+                    break;
+                }
                 prev_px = *px;
                 let dr: f32 = SRGB_TO_LIN_LUT[px[0] as usize];
                 let dg: f32 = SRGB_TO_LIN_LUT[px[1] as usize];
@@ -902,18 +922,65 @@ impl<'a> PixelBand<'a> {
                 let ir: usize = ((sr_a + dr * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
                 let ig: usize = ((sg_a + dg * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
                 let ib: usize = ((sb_a + db * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
-                q4_r = LIN_TO_SRGB_Q4_LUT[ir] as i32;
-                q4_g = LIN_TO_SRGB_Q4_LUT[ig] as i32;
-                q4_b = LIN_TO_SRGB_Q4_LUT[ib] as i32;
-                let va: u32 = (px[3] as u32) * inv_a_u32 + 128;
-                out_a = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+                q4_r = LIN_TO_SRGB_Q4_LUT[ir];
+                q4_g = LIN_TO_SRGB_Q4_LUT[ig];
+                q4_b = LIN_TO_SRGB_Q4_LUT[ib];
+                if px[3] == 255 {
+                    out_a = 255;
+                } else {
+                    let va: u32 = (px[3] as u32) * inv_a_u32 + 128;
+                    out_a = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+                }
             }
-            let n: f32 = (52.982_918 * ((cur_x as f32) * 0.067_110_56 + y_term).fract()).fract();
-            let dq: i32 = ((n - 0.5) * 16.0) as i32 + 8;
-            px[0] = ((q4_r + dq) >> 4).clamp(0, 255) as u8;
-            px[1] = ((q4_g + dq) >> 4).clamp(0, 255) as u8;
-            px[2] = ((q4_b + dq) >> 4).clamp(0, 255) as u8;
+            let dq: u16 = (((phase_u32 as u64).wrapping_mul(IGN_MUL_Q26) >> 54) & 15) as u16;
+            phase_u32 = phase_u32.wrapping_add(IGN_X_STEP_U32);
+            px[0] = ((q4_r + dq) >> 4) as u8;
+            px[1] = ((q4_g + dq) >> 4) as u8;
+            px[2] = ((q4_b + dq) >> 4) as u8;
             px[3] = out_a;
+        }
+        if split_idx < total_len {
+            let tail: &mut [[u8; 4]] = &mut chunks[split_idx..];
+            let same_rg: bool = cr == cg;
+            let same_rb: bool = cr == cb;
+            let lut_r: [u16; 256] = build_shadow_q4_lut_channel(cr, a);
+            if same_rg && same_rb {
+                for px in tail.iter_mut() {
+                    let dq: u16 =
+                        (((phase_u32 as u64).wrapping_mul(IGN_MUL_Q26) >> 54) & 15) as u16;
+                    phase_u32 = phase_u32.wrapping_add(IGN_X_STEP_U32);
+                    px[0] = ((lut_r[px[0] as usize] + dq) >> 4) as u8;
+                    px[1] = ((lut_r[px[1] as usize] + dq) >> 4) as u8;
+                    px[2] = ((lut_r[px[2] as usize] + dq) >> 4) as u8;
+                    if px[3] != 255 {
+                        let va: u32 = (px[3] as u32) * inv_a_u32 + 128;
+                        px[3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+                    }
+                }
+            } else {
+                let lut_g: [u16; 256] = if same_rg {
+                    lut_r
+                } else {
+                    build_shadow_q4_lut_channel(cg, a)
+                };
+                let lut_b: [u16; 256] = if same_rb {
+                    lut_r
+                } else {
+                    build_shadow_q4_lut_channel(cb, a)
+                };
+                for px in tail.iter_mut() {
+                    let dq: u16 =
+                        (((phase_u32 as u64).wrapping_mul(IGN_MUL_Q26) >> 54) & 15) as u16;
+                    phase_u32 = phase_u32.wrapping_add(IGN_X_STEP_U32);
+                    px[0] = ((lut_r[px[0] as usize] + dq) >> 4) as u8;
+                    px[1] = ((lut_g[px[1] as usize] + dq) >> 4) as u8;
+                    px[2] = ((lut_b[px[2] as usize] + dq) >> 4) as u8;
+                    if px[3] != 255 {
+                        let va: u32 = (px[3] as u32) * inv_a_u32 + 128;
+                        px[3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+                    }
+                }
+            }
         }
     }
 
