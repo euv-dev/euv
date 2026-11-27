@@ -24,6 +24,12 @@ pub(crate) const EUV_FMT_SKIP_DIRS: &[&str] = &[
 pub(crate) const EUV_FMT_RS_EXT: &str = "rs";
 /// Indentation width in spaces per nesting level inside formatted euv macro blocks.
 pub(crate) const EUV_FMT_INDENT_SPACES: usize = 4;
+/// Minimum identifier length among supported `euv` procedural macro names.
+pub(crate) const EUV_FMT_MACRO_MIN_LEN: usize = 4;
+/// Maximum identifier length among supported `euv` procedural macro names.
+pub(crate) const EUV_FMT_MACRO_MAX_LEN: usize = 12;
+/// Precomputed 128-space indentation buffer for zero-loop bulk indentation slicing.
+pub(crate) const INDENT_SPACES_128: &str = "                                                                                                                                ";
 /// Error message returned when `euv fmt --check` detects unformatted macro blocks.
 pub(crate) const ERR_FMT_CHECK_FAILED: &str = "unformatted euv macro blocks found in";
 /// ASCII byte for `!`.
