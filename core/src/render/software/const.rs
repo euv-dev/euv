@@ -19,3 +19,15 @@ pub(crate) const TEXT_LAYOUT_CACHE_LIMIT: usize = 512;
 /// Thread name prefix assigned to persistent horizontal-band rasterization workers.
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) const BAND_WORKER_THREAD_PREFIX: &str = "euv-band";
+
+/// Maximum total rasterizer threads (caller plus background workers) in `BandWorkerPool`.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) const BAND_WORKER_MAX_THREADS: usize = 16;
+
+/// Short spin-loop iterations performed by idle band workers before parking on the condition variable.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) const BAND_WORKER_SPIN_LIMIT: u32 = 32;
+
+/// Short spin-loop iterations performed by the calling thread before parking on `wake_caller`.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) const BAND_CALLER_SPIN_LIMIT: u32 = 32;

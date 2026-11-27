@@ -73,16 +73,39 @@ pub(crate) struct BandJob {
     pub(crate) total_shaded: AtomicUsize,
 }
 
-/// Synchronized dispatch generation and active job pointer shared between the caller and persistent band workers.
+/// Per-worker cache-line-isolated wake slot eliminating N-way mutex convoys and false sharing.
 #[cfg(not(target_arch = "wasm32"))]
-#[derive(Clone, Copy, Data, Debug, Default)]
-pub(crate) struct BandPoolState {
-    /// Monotonically increasing dispatch epoch counter.
-    #[get(type(copy))]
-    pub(crate) epoch: u64,
+#[repr(align(128))]
+#[derive(Debug, Default)]
+pub(crate) struct BandWorkerSlot {
+    /// Per-worker monotonically increasing dispatch epoch counter.
+    pub(crate) epoch: AtomicUsize,
+    /// Non-zero while this worker thread is parked inside `wake.wait`.
+    pub(crate) parked: AtomicUsize,
+    /// Private mutex guarding this worker's condvar sleep transition.
+    pub(crate) lock: Mutex<()>,
+    /// Condition variable waking only this worker on a new epoch or shutdown.
+    pub(crate) wake: Condvar,
+}
+
+/// Lock-free atomic dispatch header and per-worker wake slots shared between the caller and persistent band workers.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug, Default)]
+pub(crate) struct BandPoolShared {
     /// Raw pointer address of the active `BandJob` (`0` while idle).
-    #[get(type(copy))]
-    pub(crate) active_job: usize,
+    pub(crate) active_job: AtomicUsize,
+    /// Number of background workers dispatched for the current epoch.
+    pub(crate) active_workers: AtomicUsize,
+    /// Non-zero when the calling thread is parked waiting for workers to finish.
+    pub(crate) caller_parked: AtomicUsize,
+    /// Non-zero when the worker pool is shutting down during `Drop`.
+    pub(crate) shutdown: AtomicUsize,
+    /// Mutex guarding caller parking transitions (bypassed on the spin fast-path).
+    pub(crate) caller_lock: Mutex<()>,
+    /// Condition variable waking a parked caller once all dispatched workers finish an epoch.
+    pub(crate) wake_caller: Condvar,
+    /// Contention-free per-worker wake slots indexed by worker ID `0..worker_count`.
+    pub(crate) slots: Vec<BandWorkerSlot>,
 }
 
 /// Persistent native worker pool eliminating per-frame `pthread_create` overhead on high-refresh mobile and desktop targets.
@@ -91,10 +114,12 @@ pub(crate) struct BandPoolState {
 pub(crate) struct BandWorkerPool {
     /// Number of background worker threads (excluding the calling main thread).
     pub(crate) worker_count: usize,
-    /// Non-blocking guard ensuring only one frame dispatches through the pool at a time.
-    pub(crate) dispatch_lock: Mutex<()>,
-    /// Shared dispatch state mutex and worker/caller condition variables.
-    pub(crate) shared: Arc<(Mutex<BandPoolState>, Condvar, Condvar)>,
+    /// Non-blocking guard owning reusable horizontal band task slices across frames.
+    pub(crate) dispatch_tasks: Mutex<Vec<BandTaskSlice>>,
+    /// Shared atomic dispatch state and condition variables.
+    pub(crate) shared: Arc<BandPoolShared>,
+    /// Background worker join handles drained cleanly on `Drop`.
+    pub(crate) handles: Vec<JoinHandle<()>>,
 }
 
 /// Preprocessed draw-command metadata computed once on the main thread before parallel band rasterization.

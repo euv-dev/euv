@@ -2,9 +2,8 @@ use super::*;
 
 /// Persistent work-stealing multi-core band pool methods for `BandWorkerPool`.
 #[cfg(not(target_arch = "wasm32"))]
-/// Inherent implementation of [`BandWorkerPool`].
 impl BandWorkerPool {
-    /// Creates a persistent worker pool sized to the host CPU count (clamped to `1..=8` total threads including the caller).
+    /// Creates a persistent worker pool sized to the host CPU count (clamped to `1..=16` total threads including the caller).
     ///
     /// # Returns
     ///
@@ -14,67 +13,108 @@ impl BandWorkerPool {
         let total: usize = available_parallelism()
             .map(usize::from)
             .unwrap_or(4)
-            .clamp(1, 8);
-        let worker_count: usize = total.saturating_sub(1);
-        let shared: Arc<(Mutex<BandPoolState>, Condvar, Condvar)> = Arc::new((
-            Mutex::new(BandPoolState::default()),
-            Condvar::new(),
-            Condvar::new(),
-        ));
-        for idx in 0..worker_count {
-            let shared_clone: Arc<(Mutex<BandPoolState>, Condvar, Condvar)> = Arc::clone(&shared);
+            .clamp(1, BAND_WORKER_MAX_THREADS);
+        let requested_workers: usize = total.saturating_sub(1);
+        let mut slots: Vec<BandWorkerSlot> = Vec::with_capacity(requested_workers);
+        for _ in 0..requested_workers {
+            slots.push(BandWorkerSlot::default());
+        }
+        let shared: Arc<BandPoolShared> = Arc::new(BandPoolShared {
+            active_job: AtomicUsize::new(0),
+            active_workers: AtomicUsize::new(0),
+            caller_parked: AtomicUsize::new(0),
+            shutdown: AtomicUsize::new(0),
+            caller_lock: Mutex::new(()),
+            wake_caller: Condvar::new(),
+            slots,
+        });
+        let mut handles: Vec<JoinHandle<()>> = Vec::with_capacity(requested_workers);
+        for idx in 0..requested_workers {
+            let shared_clone: Arc<BandPoolShared> = Arc::clone(&shared);
             let name: String = format!("{BAND_WORKER_THREAD_PREFIX}-{idx}");
-            let _: io::Result<JoinHandle<()>> = Builder::new().name(name).spawn(move || {
-                let mut seen_epoch: u64 = 0;
+            if let Ok(handle) = Builder::new().name(name).spawn(move || {
+                let slot: &BandWorkerSlot = &shared_clone.slots[idx];
+                let mut seen_epoch: usize = 0;
                 loop {
-                    let job_ptr: usize = {
-                        let (lock, wake_workers, _wake_caller): &(
-                            Mutex<BandPoolState>,
-                            Condvar,
-                            Condvar,
-                        ) = &shared_clone;
-                        let Ok(mut state) = lock.lock() else {
-                            break;
-                        };
-                        while state.get_epoch() == seen_epoch || state.get_active_job() == 0 {
-                            let Ok(next_guard) = wake_workers.wait(state) else {
-                                return;
-                            };
-                            state = next_guard;
+                    let mut spins: u32 = 0;
+                    let job_ptr: usize = loop {
+                        let cur_epoch: usize = slot.epoch.load(Ordering::Acquire);
+                        if cur_epoch != seen_epoch {
+                            let ptr: usize = shared_clone.active_job.load(Ordering::Acquire);
+                            if ptr != 0 {
+                                seen_epoch = cur_epoch;
+                                break ptr;
+                            }
                         }
-                        seen_epoch = state.get_epoch();
-                        state.get_active_job()
+                        if shared_clone.shutdown.load(Ordering::Acquire) != 0 {
+                            return;
+                        }
+                        if spins < BAND_WORKER_SPIN_LIMIT {
+                            spins += 1;
+                            spin_loop();
+                            continue;
+                        }
+                        let Ok(mut guard) = slot.lock.lock() else {
+                            return;
+                        };
+                        slot.parked.store(1, Ordering::SeqCst);
+                        let parked_ptr: Option<usize> = loop {
+                            let locked_epoch: usize = slot.epoch.load(Ordering::SeqCst);
+                            if locked_epoch != seen_epoch {
+                                let ptr: usize = shared_clone.active_job.load(Ordering::Acquire);
+                                if ptr != 0 {
+                                    seen_epoch = locked_epoch;
+                                    break Some(ptr);
+                                }
+                            }
+                            if shared_clone.shutdown.load(Ordering::SeqCst) != 0 {
+                                break None;
+                            }
+                            let Ok(next_guard) = slot.wake.wait(guard) else {
+                                break None;
+                            };
+                            guard = next_guard;
+                        };
+                        slot.parked.store(0, Ordering::SeqCst);
+                        let Some(ptr) = parked_ptr else {
+                            return;
+                        };
+                        break ptr;
                     };
+                    // SAFETY: Caller keeps `BandJob` pinned on its stack until `workers_done >= active_workers`.
                     let job: &BandJob = unsafe { &*(job_ptr as *const BandJob) };
                     run_band_job_loop(job);
-                    let finished: usize = job.workers_done.fetch_add(1, Ordering::AcqRel) + 1;
-                    if finished >= worker_count {
-                        let (lock, _wake_workers, wake_caller): &(
-                            Mutex<BandPoolState>,
-                            Condvar,
-                            Condvar,
-                        ) = &shared_clone;
-                        let _guard: Result<
-                            MutexGuard<'_, BandPoolState>,
-                            PoisonError<MutexGuard<'_, BandPoolState>>,
-                        > = lock.lock();
-                        wake_caller.notify_one();
+                    let expected: usize = shared_clone.active_workers.load(Ordering::Acquire);
+                    let finished: usize = job.workers_done.fetch_add(1, Ordering::SeqCst) + 1;
+                    if finished >= expected
+                        && shared_clone.caller_parked.load(Ordering::SeqCst) != 0
+                        && let Ok(_guard) = shared_clone.caller_lock.lock()
+                    {
+                        shared_clone.wake_caller.notify_one();
                     }
                 }
-            });
+            }) {
+                handles.push(handle);
+            } else {
+                break;
+            }
         }
+        let worker_count: usize = handles.len();
         Self {
             worker_count,
-            dispatch_lock: Mutex::new(()),
+            dispatch_tasks: Mutex::new(Vec::with_capacity(
+                worker_count.saturating_add(1).saturating_mul(2),
+            )),
             shared,
+            handles,
         }
     }
 
-    /// Executes bands serially on the calling thread with optional cached backdrop restore.
+    /// Executes a contiguous horizontal framebuffer slice serially on the calling thread with optional cached backdrop restore.
     ///
     /// # Arguments
     ///
-    /// - `&mut [PixelBand<'_>]` - Disjoint horizontal framebuffer strips.
+    /// - `(&mut [u8], u32, u32, u32, usize)` - Tuple `(pixels, width, y_offset, height, start_byte_offset)`.
     /// - `&[DrawCommand]` - Display list commands.
     /// - `&[PreppedCommand]` - Pre-clipped command table.
     /// - `(&[TextLayoutResult], &[RoundedClipMask])` - Pre-measured text layouts and active rounded clip masks.
@@ -83,58 +123,61 @@ impl BandWorkerPool {
     ///
     /// # Returns
     ///
-    /// - `usize` - Total shaded pixel count across all strips.
+    /// - `usize` - Total shaded pixel count across the slice.
     fn execute_serial(
-        bands: &mut [PixelBand<'_>],
+        slice_spec: (&mut [u8], u32, u32, u32, usize),
         commands: &[DrawCommand],
         prepped: &[PreppedCommand],
         aux: (&[TextLayoutResult], &[RoundedClipMask]),
         atlas: &GlyphAtlas,
         render_opts: (f32, AntialiasingMode, Option<&[u8]>),
     ) -> usize {
+        let (pixels, width, y_offset, height, start_byte): (&mut [u8], u32, u32, u32, usize) =
+            slice_spec;
         let (layouts, rounded_clips): (&[TextLayoutResult], &[RoundedClipMask]) = aux;
         let (scale, aa, base_restore): (f32, AntialiasingMode, Option<&[u8]>) = render_opts;
-        let mut total: usize = 0;
-        for band in bands.iter_mut() {
-            if let Some(src_buf) = base_restore {
-                let byte_off: usize = (band.y_offset as usize) * (band.width as usize) * 4;
-                let byte_end: usize = byte_off + band.pixels.len();
-                if let Some(src_slice) = src_buf.get(byte_off..byte_end) {
-                    band.pixels.copy_from_slice(src_slice);
-                }
+        if let Some(src_buf) = base_restore {
+            let end_byte: usize = start_byte + pixels.len();
+            if let Some(src_slice) = src_buf.get(start_byte..end_byte) {
+                pixels.copy_from_slice(src_slice);
             }
-            total += SoftwareRenderer::render_band(
-                band,
-                commands,
-                prepped,
-                layouts,
-                rounded_clips,
-                atlas,
-                (scale, aa),
-            );
         }
-        total
+        let mut band: PixelBand<'_> = PixelBand {
+            width,
+            y_offset,
+            height,
+            pixels,
+        };
+        SoftwareRenderer::render_band(
+            &mut band,
+            commands,
+            prepped,
+            layouts,
+            rounded_clips,
+            atlas,
+            (scale, aa),
+        )
     }
 
     /// Returns total participating rasterizer threads (background workers plus the calling main thread).
     ///
     /// # Returns
     ///
-    /// - `usize` - Total active thread count in `1..=6`.
+    /// - `usize` - Total active thread count in `1..=16`.
     #[must_use]
     pub(crate) fn total_threads(&self) -> usize {
         let Self { worker_count, .. } = self;
         worker_count.saturating_add(1)
     }
 
-    /// Dispatches horizontal pixel bands across the persistent worker pool with optional parallel backdrop restore and synchronous completion.
+    /// Dispatches horizontal pixel strips across the persistent worker pool without per-frame task or band allocations.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Worker pool reference.
-    /// - `&mut [PixelBand<'_>]` - Disjoint horizontal framebuffer strips.
-    /// - `&[DrawCommand]` - Display list commands.
-    /// - `&[PreppedCommand]` - Pre-clipped command table.
+    /// - `&mut Framebuffer` - Target mutable framebuffer.
+    /// - `(u32, u32, usize, usize)` - Tuple `(clip_y0, clip_y1, strip_count, max_workers)`.
+    /// - `(&[DrawCommand], &[PreppedCommand])` - Display list commands and pre-clipped command table.
     /// - `(&[TextLayoutResult], &[RoundedClipMask])` - Pre-measured text layouts and active rounded clip masks.
     /// - `&GlyphAtlas` - Shared read-only glyph atlas.
     /// - `(f32, AntialiasingMode, Option<&[u8]>)` - Tuple of `(scale, antialiasing, optional_base_restore)`.
@@ -144,23 +187,42 @@ impl BandWorkerPool {
     /// - `usize` - Total shaded pixel count across all strips.
     pub(crate) fn execute(
         &self,
-        bands: &mut [PixelBand<'_>],
-        commands: &[DrawCommand],
-        prepped: &[PreppedCommand],
+        framebuffer: &mut Framebuffer,
+        band_range: (u32, u32, usize, usize),
+        cmd_slices: (&[DrawCommand], &[PreppedCommand]),
         aux: (&[TextLayoutResult], &[RoundedClipMask]),
         atlas: &GlyphAtlas,
         render_opts: (f32, AntialiasingMode, Option<&[u8]>),
     ) -> usize {
         let Self {
             worker_count,
-            dispatch_lock,
+            dispatch_tasks,
             shared,
+            ..
         } = self;
+        let (y0, y1, band_count, max_workers): (u32, u32, usize, usize) = band_range;
+        let (commands, prepped): (&[DrawCommand], &[PreppedCommand]) = cmd_slices;
         let (layouts, rounded_clips): (&[TextLayoutResult], &[RoundedClipMask]) = aux;
         let (scale, aa, base_restore): (f32, AntialiasingMode, Option<&[u8]>) = render_opts;
-        if *worker_count == 0 || bands.len() <= 1 {
+        let fb_w: u32 = framebuffer.get_width();
+        let fb_h: u32 = framebuffer.get_height();
+        let start_y: u32 = y0.min(fb_h);
+        let end_y: u32 = y1.clamp(start_y, fb_h);
+        let total_rows: u32 = end_y - start_y;
+        if total_rows == 0 || fb_w == 0 {
+            return 0;
+        }
+        let row_stride: usize = (fb_w as usize) * 4;
+        let start_byte: usize = (start_y as usize) * row_stride;
+        let end_byte: usize = (end_y as usize) * row_stride;
+        let Some(slice) = framebuffer.get_mut_pixels().get_mut(start_byte..end_byte) else {
+            return 0;
+        };
+        let strip_count: usize = band_count.max(1).min(total_rows as usize);
+        let worker_budget: usize = (*worker_count).min(max_workers);
+        if worker_budget == 0 || strip_count <= 1 {
             return Self::execute_serial(
-                bands,
+                (slice, fb_w, start_y, total_rows, start_byte),
                 commands,
                 prepped,
                 (layouts, rounded_clips),
@@ -168,9 +230,9 @@ impl BandWorkerPool {
                 (scale, aa, base_restore),
             );
         }
-        let Ok(_dispatch_guard) = dispatch_lock.try_lock() else {
+        let Ok(mut tasks) = dispatch_tasks.try_lock() else {
             return Self::execute_serial(
-                bands,
+                (slice, fb_w, start_y, total_rows, start_byte),
                 commands,
                 prepped,
                 (layouts, rounded_clips),
@@ -178,13 +240,19 @@ impl BandWorkerPool {
                 (scale, aa, base_restore),
             );
         };
-        let mut tasks: Vec<BandTaskSlice> = Vec::with_capacity(bands.len());
-        for band in bands.iter_mut() {
+        tasks.clear();
+        let rows_per: usize = (total_rows as usize).div_ceil(strip_count);
+        let chunk_bytes: usize = rows_per * row_stride;
+        let mut cur_y: u32 = start_y;
+        let mut cur_byte_off: usize = start_byte;
+        for chunk in slice.chunks_mut(chunk_bytes) {
+            let chunk_len: usize = chunk.len();
+            let chunk_rows: u32 = (chunk_len / row_stride) as u32;
             let base_ptr: usize = if let Some(src_buf) = base_restore {
-                let byte_off: usize = (band.y_offset as usize) * (band.width as usize) * 4;
-                let byte_end: usize = byte_off + band.pixels.len();
+                let byte_end: usize = cur_byte_off + chunk_len;
                 if byte_end <= src_buf.len() {
-                    unsafe { src_buf.as_ptr().add(byte_off) as usize }
+                    // SAFETY: `cur_byte_off <= byte_end <= src_buf.len()` stays within `src_buf`.
+                    unsafe { src_buf.as_ptr().add(cur_byte_off) as usize }
                 } else {
                     0
                 }
@@ -192,13 +260,15 @@ impl BandWorkerPool {
                 0
             };
             tasks.push(BandTaskSlice {
-                pixels_ptr: band.pixels.as_mut_ptr() as usize,
-                pixels_len: band.pixels.len(),
-                width: band.width,
-                y_start: band.y_offset,
-                height: band.height,
+                pixels_ptr: chunk.as_mut_ptr() as usize,
+                pixels_len: chunk_len,
+                width: fb_w,
+                y_start: cur_y,
+                height: chunk_rows,
                 base_src_ptr: base_ptr,
             });
+            cur_y += chunk_rows;
+            cur_byte_off += chunk_len;
         }
         let job: BandJob = BandJob {
             tasks_ptr: tasks.as_ptr() as usize,
@@ -218,29 +288,76 @@ impl BandWorkerPool {
             workers_done: AtomicUsize::new(0),
             total_shaded: AtomicUsize::new(0),
         };
-        let (lock, wake_workers, wake_caller): &(Mutex<BandPoolState>, Condvar, Condvar) = shared;
-        {
-            if let Ok(mut state) = lock.lock() {
-                let next_epoch: u64 = state.get_epoch().wrapping_add(1);
-                state.set_active_job((&job as *const BandJob) as usize);
-                state.set_epoch(next_epoch);
-                wake_workers.notify_all();
-            } else {
-                run_band_job_loop(&job);
-                return job.total_shaded.load(Ordering::Acquire);
+        let dispatch_workers: usize = worker_budget.min(tasks.len().saturating_sub(1));
+        if dispatch_workers == 0 {
+            run_band_job_loop(&job);
+            return job.total_shaded.load(Ordering::Acquire);
+        }
+        shared
+            .active_workers
+            .store(dispatch_workers, Ordering::Relaxed);
+        shared
+            .active_job
+            .store((&job as *const BandJob) as usize, Ordering::Release);
+        let active_slots: &[BandWorkerSlot] = &shared.slots[..dispatch_workers];
+        for slot in active_slots.iter() {
+            let next_epoch: usize = slot.epoch.load(Ordering::Relaxed).wrapping_add(1);
+            slot.epoch.store(next_epoch, Ordering::SeqCst);
+        }
+        for slot in active_slots.iter() {
+            if slot.parked.load(Ordering::SeqCst) != 0
+                && let Ok(_guard) = slot.lock.lock()
+            {
+                slot.wake.notify_one();
             }
         }
         run_band_job_loop(&job);
-        let mut wait_guard: Option<MutexGuard<'_, BandPoolState>> = lock.lock().ok();
-        while let Some(state) = wait_guard.take() {
-            if job.workers_done.load(Ordering::Acquire) >= *worker_count {
-                let mut done_state: MutexGuard<'_, BandPoolState> = state;
-                done_state.set_active_job(0);
-                break;
+        let mut caller_spins: u32 = 0;
+        while job.workers_done.load(Ordering::Acquire) < dispatch_workers {
+            if caller_spins < BAND_CALLER_SPIN_LIMIT {
+                caller_spins += 1;
+                spin_loop();
+                continue;
             }
-            wait_guard = wake_caller.wait(state).ok();
+            if let Ok(mut guard) = shared.caller_lock.lock() {
+                shared.caller_parked.store(1, Ordering::SeqCst);
+                while job.workers_done.load(Ordering::SeqCst) < dispatch_workers {
+                    let Ok(next_guard) = shared.wake_caller.wait(guard) else {
+                        break;
+                    };
+                    guard = next_guard;
+                }
+                shared.caller_parked.store(0, Ordering::SeqCst);
+            } else {
+                spin_loop();
+            }
         }
+        shared.active_job.store(0, Ordering::Release);
         job.total_shaded.load(Ordering::Acquire)
+    }
+}
+
+/// Clean shutdown and thread join when a `BandWorkerPool` instance is dropped.
+#[cfg(not(target_arch = "wasm32"))]
+impl Drop for BandWorkerPool {
+    /// Signals all background worker threads to exit and joins every handle.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Dropping band worker pool.
+    fn drop(&mut self) {
+        let Self {
+            shared, handles, ..
+        } = self;
+        shared.shutdown.store(1, Ordering::SeqCst);
+        for slot in shared.slots.iter() {
+            if let Ok(_guard) = slot.lock.lock() {
+                slot.wake.notify_one();
+            }
+        }
+        for handle in handles.drain(..) {
+            let _: Result<(), Box<dyn Any + Send>> = handle.join();
+        }
     }
 }
 
@@ -506,18 +623,26 @@ impl SoftwareRenderer {
         };
         #[cfg(not(target_arch = "wasm32"))]
         {
-            if (clip_w as usize).saturating_mul(clip_h as usize) >= 65_536 && clip_h >= 64 {
+            let pixel_area: usize = (clip_w as usize).saturating_mul(clip_h as usize);
+            if pixel_area >= 65_536 && clip_h >= 64 {
                 let pool: &BandWorkerPool = global_band_worker_pool();
-                let strip_count: usize = (pool.total_threads().saturating_mul(2))
+                let effective_area: usize =
+                    pixel_area.saturating_add(rounded_clips_slice.len().saturating_mul(16_384));
+                let desired_threads: usize =
+                    (effective_area / 65_536).clamp(1, pool.total_threads());
+                let strip_count: usize = (desired_threads.saturating_mul(2))
                     .min((clip_h / 24) as usize)
                     .max(1);
-                if strip_count > 1 && pool.total_threads() > 1 {
-                    let mut bands: Vec<PixelBand<'_>> =
-                        framebuffer.split_bands_mut(clip_y0, clip_y1, strip_count);
+                if strip_count > 1 && desired_threads > 1 {
                     return pool.execute(
-                        bands.as_mut_slice(),
-                        commands,
-                        prepped_slice,
+                        framebuffer,
+                        (
+                            clip_y0,
+                            clip_y1,
+                            strip_count,
+                            desired_threads.saturating_sub(1),
+                        ),
+                        (commands, prepped_slice),
                         (layouts_slice, rounded_clips_slice),
                         atlas_ref,
                         (scale, aa, base_restore),
