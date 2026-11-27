@@ -2,7 +2,7 @@
 title: Cross-Platform System Events & Lifecycle Hooks
 order: 5
 section: guide
-tagline: Unified AppState machine, 20 auto-cleaned scoped hooks, reactive system signals, #[component] lifecycle callbacks, and EuvRouterOutlet page Appear/Disappear dispatch across all 7 platforms.
+tagline: 'Unified AppState machine, 20 auto-cleaned scoped hooks, reactive system signals, #[component] lifecycle callbacks, and EuvRouterOutlet page Appear/Disappear dispatch across all 7 platforms.'
 ---
 
 # Cross-Platform System Events & Lifecycle Hooks

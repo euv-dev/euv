@@ -1842,12 +1842,14 @@ fn code_block_supports_hv_scroll_fullscreen_modal_clipboard_and_selectable() {
     });
     let wid: WindowId = app.get_window_state().get_id();
     let _: FrameStats = app.step_frame().unwrap();
-    let (max_x, max_y, has_selectable_code, fs_btn_pt, copy_btn_pt): (
+    let (max_x, max_y, has_selectable_code, fs_btn_pt, copy_btn_pt, card_h, closed_portal_ok): (
         f32,
         f32,
         bool,
         Option<Point>,
         Option<Point>,
+        f32,
+        bool,
     ) = app.get_scene().with_read(
         |tree: &SceneTree| {
             let mut mx: f32 = 0.0;
@@ -1855,11 +1857,19 @@ fn code_block_supports_hv_scroll_fullscreen_modal_clipboard_and_selectable() {
             let mut sel_ok: bool = false;
             let mut fs_pt: Option<Point> = None;
             let mut cp_pt: Option<Point> = None;
+            let mut root_card_h: f32 = 0.0;
+            let mut portal_hidden: bool = false;
             for (idx, n) in tree.get_nodes().iter().enumerate() {
                 if !n.get_alive() {
                     continue;
                 }
                 let nid: NodeId = NodeId::new(idx as u32, n.get_generation());
+                let lay: LayoutStyle = n.get_style().get_layout();
+                if matches!(n.get_kind(), NodeKind::Portal) {
+                    portal_hidden = lay.get_display() == Display::None
+                        && lay.get_position() == Position::Fixed
+                        && lay.get_z_index() == Z_INDEX_MODAL;
+                }
                 if matches!(n.get_kind(), NodeKind::ScrollView) {
                     let lb: LayoutBox = n.get_layout_box();
                     let cur_mx: f32 = (lb.get_content_size().get_width()
@@ -1870,6 +1880,12 @@ fn code_block_supports_hv_scroll_fullscreen_modal_clipboard_and_selectable() {
                     .max(0.0);
                     mx = mx.max(cur_mx);
                     my = my.max(cur_my);
+                    if let Some(pid) = n.parent_id()
+                        && let Some(pnode) = tree.get_node(pid)
+                    {
+                        root_card_h =
+                            root_card_h.max(pnode.get_layout_box().get_bounds().get_height());
+                    }
                 }
                 if let NodeKind::Text(t) = n.get_kind() {
                     if t.contains("very_long_function_signature") && tree.is_node_selectable(nid) {
@@ -1893,13 +1909,15 @@ fn code_block_supports_hv_scroll_fullscreen_modal_clipboard_and_selectable() {
                     }
                 }
             }
-            (mx, my, sel_ok, fs_pt, cp_pt)
+            (mx, my, sel_ok, fs_pt, cp_pt, root_card_h, portal_hidden)
         },
-        (0.0, 0.0, false, None, None),
+        (0.0, 0.0, false, None, None, 0.0, false),
     );
     assert!(max_x > 20.0);
     assert!(max_y > 20.0);
     assert!(has_selectable_code);
+    assert!(card_h > 40.0 && card_h < 280.0);
+    assert!(closed_portal_ok);
     let cp_pt: Point = copy_btn_pt.expect("copy button must exist");
     app.dispatch_window_event(WindowEvent::PointerDown(
         wid,
@@ -1922,18 +1940,40 @@ fn code_block_supports_hv_scroll_fullscreen_modal_clipboard_and_selectable() {
     ));
     let _: FrameStats = app.step_frame().unwrap();
     assert!(EuvOverlayStack::active_count() >= 1);
-    let has_close_btn: bool = app.get_scene().with_read(
+    let (has_close_btn, open_portal_ok): (bool, bool) = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let close_ok: bool = tree.get_nodes().iter().any(|n: &SceneNode| {
+                n.get_alive() && matches!(n.get_kind(), NodeKind::Text(t) if t == "Close")
+            });
+            let portal_vis: bool = tree.get_nodes().iter().any(|n: &SceneNode| {
+                n.get_alive()
+                    && matches!(n.get_kind(), NodeKind::Portal)
+                    && n.get_style().get_layout().get_display() == Display::Flex
+                    && n.get_style().get_layout().get_position() == Position::Fixed
+                    && n.get_style().get_layout().get_z_index() == Z_INDEX_MODAL
+            });
+            (close_ok, portal_vis)
+        },
+        (false, false),
+    );
+    assert!(has_close_btn);
+    assert!(open_portal_ok);
+    assert!(EuvOverlayStack::dismiss_top());
+    for _ in 0..16 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert_eq!(EuvOverlayStack::active_count(), 0);
+    let portal_rehidden: bool = app.get_scene().with_read(
         |tree: &SceneTree| {
             tree.get_nodes().iter().any(|n: &SceneNode| {
-                n.get_alive() && matches!(n.get_kind(), NodeKind::Text(t) if t == "Close")
+                n.get_alive()
+                    && matches!(n.get_kind(), NodeKind::Portal)
+                    && n.get_style().get_layout().get_display() == Display::None
             })
         },
         false,
     );
-    assert!(has_close_btn);
-    assert!(EuvOverlayStack::dismiss_top());
-    let _: FrameStats = app.step_frame().unwrap();
-    assert_eq!(EuvOverlayStack::active_count(), 0);
+    assert!(portal_rehidden);
 }
 
 #[test]
@@ -2166,41 +2206,94 @@ fn bottom_nav_uses_disciplined_radii_and_slides_active_indicator() {
         }
     });
     let _: FrameStats = app.step_frame().unwrap();
-    let (dock_radius, ind_node, ind_radius): (f32, NodeId, f32) = app.get_scene().with_read(
-        |tree: &SceneTree| {
-            let mut d_rad: f32 = 999.0;
-            let mut i_id: NodeId = NodeId::default();
-            let mut i_rad: f32 = 999.0;
-            for (idx, n) in tree.get_nodes().iter().enumerate() {
-                if !n.get_alive() {
-                    continue;
-                }
-                let lay: LayoutStyle = n.get_style().get_layout();
-                let b: Rect = n.get_layout_box().get_bounds();
-                if lay.get_position() == Position::Fixed
-                    && lay.get_z_index() == Z_INDEX_CHROME
-                    && (b.get_height() - 60.0).abs() < 1.0
-                {
-                    d_rad = n.get_style().get_paint().get_radius().get_top_left();
-                }
-                if lay.get_position() == Position::Absolute
-                    && lay.get_z_index() == 0
-                    && (b.get_height() - 46.0).abs() < 1.0
-                {
-                    i_id = NodeId::new(idx as u32, n.get_generation());
-                    if let Some(&child_id) = n.get_children().first()
-                        && let Some(child_n) = tree.get_node(child_id)
+    let (dock_radius, ind_node, ind_radius, ind_cy, tab_cy): (f32, NodeId, f32, f32, f32) =
+        app.get_scene().with_read(
+            |tree: &SceneTree| {
+                let mut d_rad: f32 = 999.0;
+                let mut i_id: NodeId = NodeId::default();
+                let mut i_rad: f32 = 999.0;
+                let mut i_cy: f32 = 0.0;
+                let mut t_cy: f32 = 0.0;
+                for (idx, n) in tree.get_nodes().iter().enumerate() {
+                    if !n.get_alive() {
+                        continue;
+                    }
+                    let lay: LayoutStyle = n.get_style().get_layout();
+                    let b: Rect = n.get_layout_box().get_bounds();
+                    if lay.get_position() == Position::Fixed
+                        && lay.get_z_index() == Z_INDEX_CHROME
+                        && (b.get_height() - 60.0).abs() < 1.0
                     {
-                        i_rad = child_n.get_style().get_paint().get_radius().get_top_left();
+                        d_rad = n.get_style().get_paint().get_radius().get_top_left();
+                    }
+                    if lay.get_position() == Position::Absolute
+                        && lay.get_z_index() == 0
+                        && (b.get_height() - 46.0).abs() < 1.0
+                    {
+                        i_id = NodeId::new(idx as u32, n.get_generation());
+                        i_cy = b.get_y() + b.get_height() * 0.5;
+                        if let Some(&child_id) = n.get_children().first()
+                            && let Some(child_n) = tree.get_node(child_id)
+                        {
+                            i_rad = child_n.get_style().get_paint().get_radius().get_top_left();
+                        }
+                    }
+                    if lay.get_z_index() == 1 && (b.get_height() - 46.0).abs() < 1.0 && t_cy == 0.0
+                    {
+                        t_cy = b.get_y() + b.get_height() * 0.5;
                     }
                 }
-            }
-            (d_rad, i_id, i_rad)
-        },
-        (999.0, NodeId::default(), 999.0),
-    );
+                (d_rad, i_id, i_rad, i_cy, t_cy)
+            },
+            (999.0, NodeId::default(), 999.0, 0.0, 0.0),
+        );
     assert!(dock_radius <= 14.0);
     assert!(ind_radius <= 10.0);
+    assert!((ind_cy - tab_cy).abs() <= 1.0);
+    let expected_muted: Color = tokens.get_palette().get_muted_foreground();
+    let expected_primary_fg: Color = tokens.get_palette().get_primary_foreground();
+    let _: bool = app
+        .get_context()
+        .get_swipe_drag_offset()
+        .set_if_changed(-480.0);
+    let _: FrameStats = app.step_frame().unwrap();
+    let home_color_mid_drag: Option<Color> = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes().iter().find_map(|n: &SceneNode| {
+                if n.get_alive()
+                    && matches!(n.get_kind(), NodeKind::Text(t) if t == "Home")
+                    && (n.get_style().get_text().get_font_size() - 10.5).abs() < 0.2
+                {
+                    Some(n.get_style().get_text().get_color())
+                } else {
+                    None
+                }
+            })
+        },
+        None,
+    );
+    assert_eq!(home_color_mid_drag, Some(expected_muted));
+    let _: bool = app
+        .get_context()
+        .get_swipe_drag_offset()
+        .set_if_changed(0.0);
+    let _: FrameStats = app.step_frame().unwrap();
+    let home_color_settled: Option<Color> = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes().iter().find_map(|n: &SceneNode| {
+                if n.get_alive()
+                    && matches!(n.get_kind(), NodeKind::Text(t) if t == "Home")
+                    && (n.get_style().get_text().get_font_size() - 10.5).abs() < 0.2
+                {
+                    Some(n.get_style().get_text().get_color())
+                } else {
+                    None
+                }
+            })
+        },
+        None,
+    );
+    assert_eq!(home_color_settled, Some(expected_primary_fg));
     let _: bool = route.set_if_changed("/lab".to_string());
     for _ in 0..4 {
         let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();

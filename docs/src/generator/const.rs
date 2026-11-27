@@ -141,6 +141,10 @@ a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}
 .code-line{display:flex;padding:0 16px 0 0;min-height:1.58em}
 .code-ln{flex:0 0 42px;padding-right:12px;text-align:right;color:var(--code-ln);user-select:none;opacity:.85}
 .code-txt{flex:1 1 auto;white-space:pre}
+.mermaid-card{margin:16px 0;border:1px solid var(--code-border);border-radius:var(--radius);overflow:hidden;background:var(--card);max-width:100%}
+.mermaid-head{display:flex;justify-content:space-between;align-items:center;padding:7px 14px;background:var(--code-head);border-bottom:1px solid var(--code-border);font-size:11.5px;font-weight:600;color:var(--code-fg)}
+.mermaid-body{padding:14px;overflow-x:auto;display:flex;justify-content:center}
+.mermaid-body svg{display:block;max-width:100%;height:auto;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 .tok-kw{color:var(--tok-kw);font-weight:700}.tok-ctrl{color:var(--tok-ctrl);font-weight:700}.tok-op{color:var(--tok-op);font-weight:400}.tok-fn{color:var(--tok-fn);font-weight:700}.tok-ty{color:var(--tok-ty);font-weight:400}.tok-prim{color:var(--tok-prim);font-weight:400}.tok-str{color:var(--tok-str);font-weight:400}.tok-num{color:var(--tok-num);font-weight:400}.tok-cmt{color:var(--tok-cmt);font-style:italic;font-weight:400}.tok-mac{color:var(--tok-mac);font-weight:700}.tok-prop{color:var(--tok-prop);font-weight:400}.tok-const{color:var(--tok-const);font-weight:700}.tok-punc{color:var(--tok-punc);font-weight:400}.tok-add{color:var(--tok-add);font-weight:400}.tok-del{color:var(--tok-del);font-weight:400}
 .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:16px 0;border:1px solid var(--border);border-radius:var(--radius);max-width:100%}
 table{width:100%;border-collapse:collapse;font-size:13.5px}th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--border)}th{background:var(--muted);font-weight:600}tbody tr:last-child td{border-bottom:0}
@@ -298,5 +302,39 @@ pub(crate) const TOK_CLASS_CONST: &str = "tok-const";
 pub(crate) const TOK_CLASS_PUNC: &str = "tok-punc";
 pub(crate) const TOK_CLASS_ADD: &str = "tok-add";
 pub(crate) const TOK_CLASS_DEL: &str = "tok-del";
+pub(crate) const HTML_MARK_OPEN: &str = "<mark>";
+pub(crate) const HTML_MARK_CLOSE: &str = "</mark>";
+pub(crate) const HTML_SUP_OPEN: &str = "<sup>";
+pub(crate) const HTML_SUP_CLOSE: &str = "</sup>";
+pub(crate) const HTML_SUB_OPEN: &str = "<sub>";
+pub(crate) const HTML_SUB_CLOSE: &str = "</sub>";
+pub(crate) const CODE_LANG_MERMAID: &str = "mermaid";
+pub(crate) const MERMAID_CARD_OPEN: &str =
+    "<figure class=\"mermaid-card\"><div class=\"mermaid-head\"><span>Mermaid</span><span>";
+pub(crate) const MERMAID_CARD_MID: &str = "</span></div><div class=\"mermaid-body\">";
+pub(crate) const MERMAID_CARD_CLOSE: &str = "</div></figure>";
+pub(crate) const MERMAID_BADGE_FLOWCHART: &str = "Flowchart";
+pub(crate) const MERMAID_BADGE_SEQUENCE: &str = "Sequence";
+pub(crate) const MERMAID_BADGE_STATE: &str = "State";
+pub(crate) const MERMAID_BADGE_CLASS: &str = "Class";
+pub(crate) const MERMAID_BADGE_ER: &str = "ER";
+pub(crate) const MERMAID_BADGE_PIE: &str = "Pie";
+pub(crate) const MERMAID_BADGE_GANTT: &str = "Gantt";
+pub(crate) const MERMAID_SVG_PALETTE: [&str; 6] = [
+    "var(--link)",
+    "var(--tip)",
+    "var(--important)",
+    "var(--warn)",
+    "var(--danger)",
+    "var(--tok-op)",
+];
+pub(crate) const MERMAID_SVG_DASH_ATTR: &str = " stroke-dasharray=\"5 4\"";
+pub(crate) const MERMAID_SVG_MARKER_ATTR: &str = " marker-end=\"url(#euv-m-arrow)\"";
+pub(crate) const MERMAID_SVG_VAR_TIP: &str = "var(--tip)";
+pub(crate) const MERMAID_SVG_VAR_LINK: &str = "var(--link)";
+pub(crate) const MERMAID_SVG_VAR_DANGER: &str = "var(--danger)";
+pub(crate) const MERMAID_SVG_VAR_IMPORTANT: &str = "var(--important)";
+pub(crate) const MERMAID_SVG_ARROW_MARKER: &str = "<defs><marker id=\"euv-m-arrow\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" markerWidth=\"6\" markerHeight=\"6\" orient=\"auto-start-reverse\"><path d=\"M0,1 L10,5 L0,9 z\" fill=\"var(--muted-fg)\"/></marker></defs>";
+pub(crate) const MERMAID_SVG_CLOSE: &str = "</svg>";
 pub(crate) const BYTE_LOWER_O: u8 = b'o';
 pub(crate) const BYTE_LOWER_N: u8 = b'n';

@@ -1487,6 +1487,25 @@ fn theme_toggle_and_scheme_cycle_preserve_scroll_and_do_not_remount_pages() {
         -1.0,
     );
     assert!((scroll_after_freeze - 260.0).abs() <= 1.0);
+    let _: bool = state.get_cmd_palette_open().set_if_changed(true);
+    let _: FrameStats = app.step_frame().unwrap();
+    let expected_card_bg: Color = untracked(|| state.get_theme().get_tokens().get())
+        .get_palette()
+        .get_card();
+    let cmd_modal_matches_theme: bool = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes().iter().any(|n: &SceneNode| {
+                n.get_alive()
+                    && matches!(n.get_kind(), NodeKind::Text(t) if t == CMD_MODAL_TITLE)
+                    && n.parent_id()
+                        .and_then(|pid: NodeId| tree.get_node(pid))
+                        .and_then(|p: &SceneNode| p.get_style().get_paint().background_color())
+                        == Some(expected_card_bg)
+            })
+        },
+        false,
+    );
+    assert!(cmd_modal_matches_theme);
 }
 
 #[test]
@@ -1501,20 +1520,25 @@ fn markdown_studio_renders_full_syntax_and_mermaid_with_zero_overflow() {
         for _ in 0..20 {
             let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
         }
-        let mermaid_canvases: usize = app.get_scene().with_read(
+        let (mermaid_canvases, max_mermaid_y): (usize, f32) = app.get_scene().with_read(
             |tree: &SceneTree| {
-                tree.get_nodes()
-                    .iter()
-                    .filter(|n: &&SceneNode| {
-                        n.get_alive()
-                            && matches!(n.get_kind(), NodeKind::Canvas)
-                            && n.get_layout_box().get_bounds().get_height() >= 120.0
-                    })
-                    .count()
+                let mut cnt: usize = 0;
+                let mut max_y: f32 = 0.0;
+                for n in tree.get_nodes().iter() {
+                    if n.get_alive()
+                        && matches!(n.get_kind(), NodeKind::Canvas)
+                        && n.get_layout_box().get_bounds().get_height() >= 120.0
+                    {
+                        cnt += 1;
+                        max_y = max_y.max(n.get_layout_box().get_bounds().get_y());
+                    }
+                }
+                (cnt, max_y)
             },
-            0,
+            (0, 0.0),
         );
         assert!(mermaid_canvases >= 4);
+        assert!(max_mermaid_y < 8000.0);
         let overflows: Vec<(f32, f32, String)> = app.get_scene().with_read(
             |tree: &SceneTree| {
                 let mut out: Vec<(f32, f32, String)> = Vec::new();

@@ -261,16 +261,24 @@ impl EuvBottomNav {
         let Self { items, .. } = self.clone();
         let item_count: usize = items.len().max(1);
         let slot_pct: f32 = 100.0 / (item_count as f32);
-        let route_paths: Vec<String> = items
-            .iter()
-            .map(|item: &EuvNavItem| item.get_path().clone())
-            .collect();
+        let route_paths: Rc<Vec<String>> = Rc::new(
+            items
+                .iter()
+                .map(|item: &EuvNavItem| item.get_path().clone())
+                .collect(),
+        );
         let initial_idx: Option<usize> = {
             let cur: String = active_route.get_untracked();
             route_paths
                 .iter()
                 .position(|path: &String| path.as_str() == cur.as_str())
         };
+        let drag_sig: Signal<f32> = ctx.get_swipe_drag_offset();
+        let vp_sig: Signal<Size> = ctx.get_viewport_size();
+        let pill_radius_init: f32 = base_tokens
+            .get_geometry()
+            .get_radius_md()
+            .clamp(NAV_INDICATOR_MIN_RADIUS, NAV_INDICATOR_MAX_RADIUS);
         let pill_style = move || -> Style {
             let live_tok: ThemeTokens = use_live_tokens(base_tokens);
             let live_p: ThemePalette = live_tok.get_palette();
@@ -293,7 +301,7 @@ impl EuvBottomNav {
             row {
                 display: initial_display
                 position: Position::Absolute
-                inset: (Some(1.0), None, Some(1.0), Some(0.0))
+                inset: (Some(6.0), None, None, Some(0.0))
                 width: Length::Percent(slot_pct)
                 height: Length::Px(46.0)
                 padding: Edges::symmetric(0.0, 2.0)
@@ -306,20 +314,29 @@ impl EuvBottomNav {
         };
         let tab_nodes: Vec<NodeId> = items
             .into_iter()
-            .map(|item: EuvNavItem| {
+            .enumerate()
+            .map(|(tab_idx, item): (usize, EuvNavItem)| {
                 let target_path: String = item.get_path().clone();
                 let click_path: String = target_path.clone();
-                let icon_path: String = target_path.clone();
-                let label_path: String = target_path;
+                let icon_path: String = target_path;
                 let label: String = item.get_label().clone();
                 let icon_label: String = label.clone();
+                let icon_paths: Rc<Vec<String>> = Rc::clone(&route_paths);
+                let label_paths: Rc<Vec<String>> = Rc::clone(&route_paths);
                 let on_tab_click = move |_: &UiEvent| {
                     let _: bool = active_route.set_if_changed(click_path.clone());
                 };
                 let paint_icon = move |bounds: Rect, dl: &mut DisplayList| {
                     let live_p: ThemePalette = live_tokens_untracked(base_tokens).get_palette();
-                    let active: bool = active_route.get_untracked() == icon_path;
-                    let col: Color = if active {
+                    let cur: String = active_route.get_untracked();
+                    let cur_idx: Option<usize> = icon_paths
+                        .iter()
+                        .position(|path: &String| path.as_str() == cur.as_str());
+                    let dx: f32 = drag_sig.get_untracked();
+                    let vp_w: f32 = vp_sig.get_untracked().get_width();
+                    let under_pill: bool =
+                        bottom_nav_tab_under_pill(tab_idx, cur_idx, item_count, dx, vp_w);
+                    let col: Color = if under_pill {
                         live_p.get_primary_foreground()
                     } else {
                         live_p.get_muted_foreground()
@@ -328,15 +345,22 @@ impl EuvBottomNav {
                 };
                 let label_style = move || -> Style {
                     let live_p: ThemePalette = use_live_tokens(base_tokens).get_palette();
-                    let active: bool = active_route.get() == label_path;
+                    let cur: String = active_route.get();
+                    let cur_idx: Option<usize> = label_paths
+                        .iter()
+                        .position(|path: &String| path.as_str() == cur.as_str());
+                    let dx: f32 = drag_sig.get();
+                    let vp_w: f32 = vp_sig.get().get_width();
+                    let under_pill: bool =
+                        bottom_nav_tab_under_pill(tab_idx, cur_idx, item_count, dx, vp_w);
                     Style::default()
                         .font_size(10.5)
-                        .font_weight(if active {
+                        .font_weight(if under_pill {
                             FontWeight::Bold
                         } else {
                             FontWeight::Medium
                         })
-                        .color(if active {
+                        .color(if under_pill {
                             live_p.get_primary_foreground()
                         } else {
                             live_p.get_muted_foreground()
@@ -355,6 +379,7 @@ impl EuvBottomNav {
                 let (icon_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
                     Effect::new(move || {
                         let _: String = active_route.get();
+                        let _: f32 = drag_sig.get();
                         let _: ThemeTokens = use_live_tokens(base_tokens);
                         ctx_icon.get_scene().with_write(
                             |tree: &mut SceneTree| {
@@ -380,6 +405,7 @@ impl EuvBottomNav {
                         align: AlignItems::Center
                         gap: 2.0
                         padding: Edges::symmetric(3.0, 6.0)
+                        radius: pill_radius_init
                         overflow: Overflow::Hidden
                         background: COLOR_TRANSPARENT
                         z_index: 1
@@ -408,7 +434,7 @@ impl EuvBottomNav {
         };
         let last_idx: Rc<Cell<Option<usize>>> = Rc::new(Cell::new(initial_idx));
         let last_drag_tx: Rc<Cell<f32>> = Rc::new(Cell::new(0.0));
-        let route_paths_anim: Vec<String> = route_paths.clone();
+        let route_paths_anim: Rc<Vec<String>> = Rc::clone(&route_paths);
         let ctx_anim: Context = ctx.clone();
         let last_idx_route: Rc<Cell<Option<usize>>> = Rc::clone(&last_idx);
         let last_drag_route: Rc<Cell<f32>> = Rc::clone(&last_drag_tx);
@@ -429,24 +455,51 @@ impl EuvBottomNav {
                             .map(|n: &SceneNode| n.get_layout_box().get_bounds().get_width())
                             .filter(|w: &f32| *w > 1.0)
                             .unwrap_or_else(|| (vp_w - 48.0).clamp(240.0, 460.0));
+                        let bar_h: f32 = tree
+                            .get_node(bar_node)
+                            .map(|n: &SceneNode| {
+                                n.get_layout_box().get_content_bounds().get_height()
+                            })
+                            .filter(|h: &f32| *h > 1.0)
+                            .unwrap_or(58.0);
+                        let top_px: f32 = ((bar_h - 46.0) * 0.5).max(0.0);
                         let slot_w: f32 = bar_w / (item_count as f32);
                         if let Some(target_i) = next_idx {
                             let target_left_px: f32 = (target_i as f32) * slot_w;
+                            let cur_visual_tx: f32 = tree
+                                .get_node(indicator_node)
+                                .map(|n: &SceneNode| {
+                                    n.get_style().get_paint().get_transform().get_translate_x()
+                                })
+                                .unwrap_or(prev_drag);
+                            let from_x: f32 = if let Some(old_i) = prev_idx
+                                && old_i != target_i
+                            {
+                                let delta_slots: f32 = (old_i as f32) - (target_i as f32);
+                                delta_slots * slot_w + cur_visual_tx
+                            } else {
+                                cur_visual_tx
+                            };
                             if let Some(node) = tree.get_node_mut(indicator_node) {
                                 let mut st: Style = node.get_style();
                                 st.get_mut_layout()
                                     .set_display(Display::Flex)
+                                    .set_top(Some(top_px))
+                                    .set_bottom(None)
                                     .set_left(Some(target_left_px))
                                     .set_right(None)
                                     .set_width(Length::Percent(slot_pct));
+                                if from_x.abs() > 0.5 {
+                                    st.get_mut_paint().set_transform(Transform2D::new(
+                                        from_x, 0.0, 1.0, 1.0, 0.0,
+                                    ));
+                                }
                                 node.set_style(st);
                             }
                             tree.mark_dirty(indicator_node, dirty_layout | DIRTY_PAINT);
                             if let Some(old_i) = prev_idx
                                 && old_i != target_i
                             {
-                                let delta_slots: f32 = (old_i as f32) - (target_i as f32);
-                                let from_x: f32 = delta_slots * slot_w + prev_drag;
                                 tree.start_transition(
                                     NodeTransition::slide_fade(
                                         indicator_node,
@@ -459,11 +512,11 @@ impl EuvBottomNav {
                                     )
                                     .with_easing(Easing::EaseOutCubic),
                                 );
-                            } else if prev_drag.abs() > 0.5 {
+                            } else if from_x.abs() > 0.5 {
                                 tree.start_transition(
                                     NodeTransition::slide_fade(
                                         indicator_node,
-                                        Point::new(prev_drag, 0.0),
+                                        Point::new(from_x, 0.0),
                                         Point::new(0.0, 0.0),
                                         1.0,
                                         1.0,
@@ -487,7 +540,6 @@ impl EuvBottomNav {
                 );
             })
         });
-        let drag_sig: Signal<f32> = ctx.get_swipe_drag_offset();
         let ctx_drag: Context = ctx.clone();
         let last_idx_drag: Rc<Cell<Option<usize>>> = Rc::clone(&last_idx);
         let last_drag_live: Rc<Cell<f32>> = Rc::clone(&last_drag_tx);

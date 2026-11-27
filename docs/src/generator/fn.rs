@@ -514,6 +514,7 @@ fn render_markdown_chunk(chunk: &str, state: &mut MarkdownRenderState<'_>) {
     let mut blockquote_alerts: Vec<bool> = Vec::new();
     let mut in_table_head: bool = false;
     let mut cell_index: usize = 0;
+    let mut pending_text: String = String::new();
     for event in parser {
         if let Some((_, _, ref mut heading_html, ref mut heading_plain)) = active_heading {
             match event {
@@ -571,7 +572,11 @@ fn render_markdown_chunk(chunk: &str, state: &mut MarkdownRenderState<'_>) {
                 Event::End(TagEnd::CodeBlock) => {
                     if let Some((lang, code)) = active_code.take() {
                         let trimmed: &str = code.trim_end_matches('\n');
-                        render_highlighted_code_html(&lang, trimmed, state.out);
+                        if lang.eq_ignore_ascii_case(CODE_LANG_MERMAID) {
+                            render_mermaid_svg_html(trimmed, state.out);
+                        } else {
+                            render_highlighted_code_html(&lang, trimmed, state.out);
+                        }
                     }
                 }
                 Event::Text(text) | Event::Code(text) => code_buf.push_str(&text),
@@ -608,6 +613,14 @@ fn render_markdown_chunk(chunk: &str, state: &mut MarkdownRenderState<'_>) {
                 _ => {}
             }
             continue;
+        }
+        if let Event::Text(text) = event {
+            pending_text.push_str(&text);
+            continue;
+        }
+        if !pending_text.is_empty() {
+            render_extended_inline_text_html(&pending_text, state.out);
+            pending_text.clear();
         }
         match event {
             Event::Start(Tag::Heading { level, id, .. }) => {
@@ -670,6 +683,10 @@ fn render_markdown_chunk(chunk: &str, state: &mut MarkdownRenderState<'_>) {
             Event::End(TagEnd::Emphasis) => state.out.push_str(HTML_EM_CLOSE),
             Event::Start(Tag::Strikethrough) => state.out.push_str(HTML_DEL_OPEN),
             Event::End(TagEnd::Strikethrough) => state.out.push_str(HTML_DEL_CLOSE),
+            Event::Start(Tag::Superscript) => state.out.push_str(HTML_SUP_OPEN),
+            Event::End(TagEnd::Superscript) => state.out.push_str(HTML_SUP_CLOSE),
+            Event::Start(Tag::Subscript) => state.out.push_str(HTML_SUB_OPEN),
+            Event::End(TagEnd::Subscript) => state.out.push_str(HTML_SUB_CLOSE),
             Event::Start(Tag::DefinitionList) => state.out.push_str(HTML_DL_OPEN),
             Event::End(TagEnd::DefinitionList) => state.out.push_str(HTML_DL_CLOSE),
             Event::Start(Tag::DefinitionListTitle) => state.out.push_str(HTML_DT_OPEN),
@@ -783,7 +800,6 @@ fn render_markdown_chunk(chunk: &str, state: &mut MarkdownRenderState<'_>) {
                 }
             }
             Event::Rule => state.out.push_str(HTML_HR),
-            Event::Text(text) => state.out.push_str(&escape_html(&text)),
             Event::Code(text) => {
                 state.out.push_str(HTML_INLINE_CODE_OPEN);
                 state.out.push_str(&escape_html(&text));
@@ -793,12 +809,12 @@ fn render_markdown_chunk(chunk: &str, state: &mut MarkdownRenderState<'_>) {
             Event::HardBreak => state.out.push_str(HTML_BR),
             Event::InlineMath(math) => {
                 state.out.push_str(HTML_MATH_INLINE_OPEN);
-                state.out.push_str(&escape_html(&math));
+                state.out.push_str(&escape_html(&format_latex_math(&math)));
                 state.out.push_str(HTML_MATH_INLINE_CLOSE);
             }
             Event::DisplayMath(math) => {
                 state.out.push_str(HTML_MATH_DISPLAY_OPEN);
-                state.out.push_str(&escape_html(&math));
+                state.out.push_str(&escape_html(&format_latex_math(&math)));
                 state.out.push_str(HTML_MATH_DISPLAY_CLOSE);
             }
             Event::Html(raw_html) | Event::InlineHtml(raw_html) => {
@@ -810,6 +826,9 @@ fn render_markdown_chunk(chunk: &str, state: &mut MarkdownRenderState<'_>) {
             }
             _ => {}
         }
+    }
+    if !pending_text.is_empty() {
+        render_extended_inline_text_html(&pending_text, state.out);
     }
 }
 
@@ -1360,13 +1379,744 @@ fn render_highlighted_code_html(language: &str, code: &str, out: &mut String) {
 fn escape_html(input: &str) -> String {
     let mut out: String = String::with_capacity(input.len());
     for ch in input.chars() {
-        match ch {
-            '&' => out.push_str(HTML_ESC_AMP),
-            '<' => out.push_str(HTML_ESC_LT),
-            '>' => out.push_str(HTML_ESC_GT),
-            '"' => out.push_str(HTML_ESC_QUOT),
-            _ => out.push(ch),
-        }
+        push_escaped_html_char(ch, &mut out);
     }
     out
+}
+
+/// Pushes a single HTML-escaped character into `out`.
+///
+/// # Arguments
+///
+/// - `char` - Source UTF-8 character.
+/// - `&mut String` - Destination HTML buffer.
+fn push_escaped_html_char(ch: char, out: &mut String) {
+    match ch {
+        '&' => out.push_str(HTML_ESC_AMP),
+        '<' => out.push_str(HTML_ESC_LT),
+        '>' => out.push_str(HTML_ESC_GT),
+        '"' => out.push_str(HTML_ESC_QUOT),
+        _ => out.push(ch),
+    }
+}
+
+/// Renders extended inline Markdown syntax (`==mark==`, `^sup^`, `~sub~`, `:emoji:`) into XSS-safe HTML.
+///
+/// # Arguments
+///
+/// - `&str` - Raw inline Markdown text slice.
+/// - `&mut String` - Destination HTML buffer.
+fn render_extended_inline_text_html(raw: &str, out: &mut String) {
+    let bytes: &[u8] = raw.as_bytes();
+    let len: usize = bytes.len();
+    let mut i: usize = 0;
+    while i < len {
+        if i + 1 < len && bytes[i] == b'=' && bytes[i + 1] == b'=' {
+            let rest: &str = &raw[i + 2..];
+            if let Some(close_rel) = rest.find("==")
+                && !rest[..close_rel].trim().is_empty()
+            {
+                out.push_str(HTML_MARK_OPEN);
+                render_extended_inline_text_html(&rest[..close_rel], out);
+                out.push_str(HTML_MARK_CLOSE);
+                i += 2 + close_rel + 2;
+                continue;
+            }
+        }
+        if bytes[i] == b'^' {
+            let rest: &str = &raw[i + 1..];
+            if let Some(close_rel) = rest.find('^') {
+                let inner: &str = &rest[..close_rel];
+                if !inner.is_empty() && !inner.chars().any(char::is_whitespace) {
+                    out.push_str(HTML_SUP_OPEN);
+                    out.push_str(&escape_html(inner));
+                    out.push_str(HTML_SUP_CLOSE);
+                    i += 1 + close_rel + 1;
+                    continue;
+                }
+            }
+        }
+        if bytes[i] == b'~' && !(i + 1 < len && bytes[i + 1] == b'~') {
+            let rest: &str = &raw[i + 1..];
+            if let Some(close_rel) = rest.find('~') {
+                let inner: &str = &rest[..close_rel];
+                if !inner.is_empty() && !inner.chars().any(char::is_whitespace) {
+                    out.push_str(HTML_SUB_OPEN);
+                    out.push_str(&escape_html(inner));
+                    out.push_str(HTML_SUB_CLOSE);
+                    i += 1 + close_rel + 1;
+                    continue;
+                }
+            }
+        }
+        if bytes[i] == b':' {
+            let rest: &str = &raw[i + 1..];
+            if let Some(close_rel) = rest.find(':') {
+                let code: &str = &rest[..close_rel];
+                if !code.is_empty()
+                    && code.len() <= 32
+                    && code
+                        .bytes()
+                        .all(|b: u8| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+                    && let Some(emoji) = resolve_emoji_shortcode(code)
+                {
+                    out.push_str(emoji);
+                    i += 1 + close_rel + 1;
+                    continue;
+                }
+            }
+        }
+        if let Some(ch) = raw[i..].chars().next() {
+            push_escaped_html_char(ch, out);
+            i += ch.len_utf8();
+        } else {
+            break;
+        }
+    }
+}
+
+/// Renders a fenced Mermaid diagram block into a zero-JS themed inline SVG card.
+///
+/// # Arguments
+///
+/// - `&str` - Raw Mermaid diagram source text.
+/// - `&mut String` - Destination HTML output buffer.
+fn render_mermaid_svg_html(source: &str, out: &mut String) {
+    let diagram: MermaidDiagram = parse_mermaid_diagram(source);
+    let badge: &str = match &diagram {
+        MermaidDiagram::Flowchart(_) => MERMAID_BADGE_FLOWCHART,
+        MermaidDiagram::Sequence(_) => MERMAID_BADGE_SEQUENCE,
+        MermaidDiagram::State(_) => MERMAID_BADGE_STATE,
+        MermaidDiagram::Class(_) => MERMAID_BADGE_CLASS,
+        MermaidDiagram::Er(_) => MERMAID_BADGE_ER,
+        MermaidDiagram::Pie(_) => MERMAID_BADGE_PIE,
+        MermaidDiagram::Gantt(_) => MERMAID_BADGE_GANTT,
+    };
+    out.push_str(MERMAID_CARD_OPEN);
+    out.push_str(badge);
+    out.push_str(MERMAID_CARD_MID);
+    match &diagram {
+        MermaidDiagram::Flowchart(fc) | MermaidDiagram::State(fc) => {
+            render_mermaid_flow_svg(fc, out);
+        }
+        MermaidDiagram::Sequence(seq) => {
+            render_mermaid_sequence_svg(seq, out);
+        }
+        MermaidDiagram::Class(cls) => {
+            render_mermaid_class_svg(cls, out);
+        }
+        MermaidDiagram::Er(er) => {
+            render_mermaid_er_svg(er, out);
+        }
+        MermaidDiagram::Pie(pie) => {
+            render_mermaid_pie_svg(pie, out);
+        }
+        MermaidDiagram::Gantt(gantt) => {
+            render_mermaid_gantt_svg(gantt, out);
+        }
+    }
+    out.push_str(MERMAID_CARD_CLOSE);
+}
+
+/// Renders a Mermaid flowchart or state machine AST as a themed inline SVG.
+///
+/// # Arguments
+///
+/// - `&MermaidFlowchart` - Parsed flowchart or state graph.
+/// - `&mut String` - Destination HTML/SVG buffer.
+fn render_mermaid_flow_svg(fc: &MermaidFlowchart, out: &mut String) {
+    let n: usize = fc.get_nodes().len();
+    if n == 0 {
+        return;
+    }
+    let mut id_map: HashMap<&str, usize> = HashMap::with_capacity(n);
+    for (idx, node) in fc.get_nodes().iter().enumerate() {
+        let _: Option<usize> = id_map.insert(node.get_id().as_str(), idx);
+    }
+    let mut layers: Vec<usize> = vec![0; n];
+    for _ in 0..n {
+        let mut changed: bool = false;
+        for edge in fc.get_edges().iter() {
+            if let (Some(&u), Some(&v)) = (
+                id_map.get(edge.get_from().as_str()),
+                id_map.get(edge.get_to().as_str()),
+            ) && u != v
+                && layers[v] <= layers[u]
+                && layers[u] + 1 < n
+            {
+                layers[v] = layers[u] + 1;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    let max_layer: usize = layers.iter().copied().max().unwrap_or(0);
+    let mut buckets: Vec<Vec<usize>> = vec![Vec::new(); max_layer + 1];
+    for (idx, &lay) in layers.iter().enumerate() {
+        buckets[lay].push(idx);
+    }
+    let horiz: bool = matches!(
+        fc.get_direction(),
+        MermaidFlowDirection::LeftRight | MermaidFlowDirection::RightLeft
+    );
+    let reversed: bool = matches!(
+        fc.get_direction(),
+        MermaidFlowDirection::RightLeft | MermaidFlowDirection::BottomTop
+    );
+    let node_sizes: Vec<(f32, f32)> = fc
+        .get_nodes()
+        .iter()
+        .map(|node: &MermaidFlowNode| match node.get_shape() {
+            MermaidNodeShape::StateStart | MermaidNodeShape::StateEnd => (24.0, 24.0),
+            MermaidNodeShape::Circle => {
+                let d: f32 =
+                    ((node.get_label().chars().count() as f32) * 7.6 + 26.0).clamp(52.0, 96.0);
+                (d, d)
+            }
+            MermaidNodeShape::Diamond => {
+                let w: f32 =
+                    ((node.get_label().chars().count() as f32) * 8.0 + 46.0).clamp(108.0, 196.0);
+                (w, 58.0)
+            }
+            _ => {
+                let w: f32 =
+                    ((node.get_label().chars().count() as f32) * 7.6 + 34.0).clamp(96.0, 210.0);
+                (w, 40.0)
+            }
+        })
+        .collect();
+    let pad: f32 = 28.0;
+    let main_gap: f32 = if horiz { 54.0 } else { 44.0 };
+    let cross_gap: f32 = 24.0;
+    let layer_count: usize = buckets.len();
+    let mut layer_main: Vec<f32> = vec![0.0; layer_count];
+    let mut layer_cross: Vec<f32> = vec![0.0; layer_count];
+    for (li, items) in buckets.iter().enumerate() {
+        let mut max_m: f32 = 0.0;
+        let mut sum_c: f32 = 0.0;
+        for (pos, &ni) in items.iter().enumerate() {
+            let (nw, nh): (f32, f32) = node_sizes[ni];
+            if horiz {
+                max_m = max_m.max(nw);
+                sum_c += nh;
+            } else {
+                max_m = max_m.max(nh);
+                sum_c += nw;
+            }
+            if pos + 1 < items.len() {
+                sum_c += cross_gap;
+            }
+        }
+        layer_main[li] = max_m;
+        layer_cross[li] = sum_c;
+    }
+    let total_main: f32 =
+        layer_main.iter().sum::<f32>() + (layer_count.saturating_sub(1) as f32) * main_gap;
+    let total_cross: f32 = layer_cross.iter().copied().fold(0.0_f32, f32::max);
+    let mut rects: Vec<(f32, f32, f32, f32)> = vec![(0.0, 0.0, 0.0, 0.0); n];
+    let mut main_cur: f32 = pad;
+    let order: Vec<usize> = if reversed {
+        (0..layer_count).rev().collect()
+    } else {
+        (0..layer_count).collect()
+    };
+    for li in order.into_iter() {
+        let items: &[usize] = &buckets[li];
+        let band_m: f32 = layer_main[li];
+        let band_c: f32 = layer_cross[li];
+        let mut cross_cur: f32 = pad + (total_cross - band_c) * 0.5;
+        for &ni in items.iter() {
+            let (nw, nh): (f32, f32) = node_sizes[ni];
+            if horiz {
+                rects[ni] = (main_cur + (band_m - nw) * 0.5, cross_cur, nw, nh);
+                cross_cur += nh + cross_gap;
+            } else {
+                rects[ni] = (cross_cur, main_cur + (band_m - nh) * 0.5, nw, nh);
+                cross_cur += nw + cross_gap;
+            }
+        }
+        main_cur += band_m + main_gap;
+    }
+    let (svg_w, svg_h): (f32, f32) = if horiz {
+        (
+            (total_main + pad * 2.0).max(360.0),
+            (total_cross + pad * 2.0).max(140.0),
+        )
+    } else {
+        (
+            (total_cross + pad * 2.0).max(360.0),
+            (total_main + pad * 2.0).max(140.0),
+        )
+    };
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {svg_w:.1} {svg_h:.1}\" width=\"{svg_w:.0}\" height=\"{svg_h:.0}\" role=\"img\" aria-label=\"Mermaid diagram\">"
+    ));
+    out.push_str(MERMAID_SVG_ARROW_MARKER);
+    for edge in fc.get_edges().iter() {
+        if let (Some(&u), Some(&v)) = (
+            id_map.get(edge.get_from().as_str()),
+            id_map.get(edge.get_to().as_str()),
+        ) {
+            let (ux, uy, uw, uh): (f32, f32, f32, f32) = rects[u];
+            let (vx, vy, vw, vh): (f32, f32, f32, f32) = rects[v];
+            let (x1, y1, x2, y2): (f32, f32, f32, f32) = if horiz {
+                let sx: f32 = if vx >= ux { ux + uw } else { ux };
+                let tx: f32 = if vx >= ux { vx } else { vx + vw };
+                (sx, uy + uh * 0.5, tx, vy + vh * 0.5)
+            } else {
+                let sy: f32 = if vy >= uy { uy + uh } else { uy };
+                let ty: f32 = if vy >= uy { vy } else { vy + vh };
+                (ux + uw * 0.5, sy, vx + vw * 0.5, ty)
+            };
+            let dash: &str = match edge.get_style() {
+                MermaidEdgeStyle::Dashed => MERMAID_SVG_DASH_ATTR,
+                _ => "",
+            };
+            let sw: f32 = if edge.get_style() == MermaidEdgeStyle::Thick {
+                2.6
+            } else {
+                1.6
+            };
+            let marker: &str = if edge.get_style() == MermaidEdgeStyle::Plain {
+                ""
+            } else {
+                MERMAID_SVG_MARKER_ATTR
+            };
+            out.push_str(&format!(
+                "<line x1=\"{x1:.1}\" y1=\"{y1:.1}\" x2=\"{x2:.1}\" y2=\"{y2:.1}\" stroke=\"var(--muted-fg)\" stroke-width=\"{sw:.1}\"{dash}{marker}/>"
+            ));
+            let lbl: &str = edge.get_label().trim();
+            if !lbl.is_empty() {
+                let mx: f32 = (x1 + x2) * 0.5;
+                let my: f32 = (y1 + y2) * 0.5;
+                let bw: f32 = ((lbl.chars().count() as f32) * 6.8 + 12.0).max(28.0);
+                let bx: f32 = mx - bw * 0.5;
+                let by: f32 = my - 10.0;
+                out.push_str(&format!(
+                    "<rect x=\"{bx:.1}\" y=\"{by:.1}\" width=\"{bw:.1}\" height=\"20\" rx=\"4\" fill=\"var(--muted)\" stroke=\"var(--border)\" stroke-width=\"1\"/>"
+                ));
+                out.push_str(&format!(
+                    "<text x=\"{mx:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"11\" font-weight=\"600\" fill=\"var(--muted-fg)\">{}</text>",
+                    my + 4.0,
+                    escape_html(lbl)
+                ));
+            }
+        }
+    }
+    for (idx, node) in fc.get_nodes().iter().enumerate() {
+        let (rx, ry, rw, rh): (f32, f32, f32, f32) = rects[idx];
+        let cx: f32 = rx + rw * 0.5;
+        let cy: f32 = ry + rh * 0.5;
+        let accent: &str = MERMAID_SVG_PALETTE[idx % MERMAID_SVG_PALETTE.len()];
+        match node.get_shape() {
+            MermaidNodeShape::StateStart => {
+                out.push_str(&format!(
+                    "<circle cx=\"{cx:.1}\" cy=\"{cy:.1}\" r=\"9\" fill=\"var(--fg)\"/>"
+                ));
+            }
+            MermaidNodeShape::StateEnd => {
+                out.push_str(&format!(
+                    "<circle cx=\"{cx:.1}\" cy=\"{cy:.1}\" r=\"10\" fill=\"none\" stroke=\"var(--fg)\" stroke-width=\"2\"/><circle cx=\"{cx:.1}\" cy=\"{cy:.1}\" r=\"5.5\" fill=\"var(--fg)\"/>"
+                ));
+            }
+            MermaidNodeShape::Diamond => {
+                let pts: String = format!(
+                    "{cx:.1},{ry:.1} {:.1},{cy:.1} {cx:.1},{:.1} {rx:.1},{cy:.1}",
+                    rx + rw,
+                    ry + rh
+                );
+                out.push_str(&format!(
+                    "<polygon points=\"{pts}\" fill=\"var(--muted)\" stroke=\"{accent}\" stroke-width=\"1.8\"/>"
+                ));
+            }
+            MermaidNodeShape::Circle => {
+                let r: f32 = rw.min(rh) * 0.5;
+                out.push_str(&format!(
+                    "<circle cx=\"{cx:.1}\" cy=\"{cy:.1}\" r=\"{r:.1}\" fill=\"var(--muted)\" stroke=\"{accent}\" stroke-width=\"1.8\"/>"
+                ));
+            }
+            MermaidNodeShape::Stadium => {
+                let rad: f32 = rh * 0.5;
+                out.push_str(&format!(
+                    "<rect x=\"{rx:.1}\" y=\"{ry:.1}\" width=\"{rw:.1}\" height=\"{rh:.1}\" rx=\"{rad:.1}\" fill=\"var(--muted)\" stroke=\"{accent}\" stroke-width=\"1.8\"/>"
+                ));
+            }
+            MermaidNodeShape::Rounded => {
+                out.push_str(&format!(
+                    "<rect x=\"{rx:.1}\" y=\"{ry:.1}\" width=\"{rw:.1}\" height=\"{rh:.1}\" rx=\"10\" fill=\"var(--muted)\" stroke=\"{accent}\" stroke-width=\"1.8\"/>"
+                ));
+            }
+            MermaidNodeShape::Box => {
+                out.push_str(&format!(
+                    "<rect x=\"{rx:.1}\" y=\"{ry:.1}\" width=\"{rw:.1}\" height=\"{rh:.1}\" rx=\"5\" fill=\"var(--muted)\" stroke=\"{accent}\" stroke-width=\"1.8\"/>"
+                ));
+            }
+        }
+        let lbl: &str = node.get_label().trim();
+        if !lbl.is_empty() {
+            out.push_str(&format!(
+                "<text x=\"{cx:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"12\" font-weight=\"600\" fill=\"var(--fg)\">{}</text>",
+                cy + 4.0,
+                escape_html(lbl)
+            ));
+        }
+    }
+    out.push_str(MERMAID_SVG_CLOSE);
+}
+
+/// Renders a Mermaid `sequenceDiagram` AST as a themed inline SVG.
+///
+/// # Arguments
+///
+/// - `&MermaidSequence` - Parsed sequence diagram.
+/// - `&mut String` - Destination HTML/SVG buffer.
+fn render_mermaid_sequence_svg(seq: &MermaidSequence, out: &mut String) {
+    let p_count: usize = seq.get_participants().len();
+    if p_count == 0 {
+        return;
+    }
+    let col_w: f32 = 176.0;
+    let pad: f32 = 24.0;
+    let box_w: f32 = 132.0;
+    let box_h: f32 = 34.0;
+    let row_h: f32 = 44.0;
+    let msg_count: usize = seq.get_messages().len();
+    let svg_w: f32 = ((p_count as f32) * col_w + pad * 2.0).max(380.0);
+    let top_y: f32 = pad;
+    let life_top: f32 = top_y + box_h;
+    let life_bot: f32 = life_top + 22.0 + (msg_count as f32) * row_h + 18.0;
+    let svg_h: f32 = life_bot + box_h + pad;
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {svg_w:.1} {svg_h:.1}\" width=\"{svg_w:.0}\" height=\"{svg_h:.0}\" role=\"img\" aria-label=\"Mermaid sequence diagram\">"
+    ));
+    out.push_str(MERMAID_SVG_ARROW_MARKER);
+    let mut centers: Vec<f32> = Vec::with_capacity(p_count);
+    for (idx, (_, label)) in seq.get_participants().iter().enumerate() {
+        let cx: f32 = pad + (idx as f32) * col_w + col_w * 0.5;
+        centers.push(cx);
+        let accent: &str = MERMAID_SVG_PALETTE[idx % MERMAID_SVG_PALETTE.len()];
+        out.push_str(&format!(
+            "<line x1=\"{cx:.1}\" y1=\"{life_top:.1}\" x2=\"{cx:.1}\" y2=\"{life_bot:.1}\" stroke=\"var(--border)\" stroke-width=\"1.4\" stroke-dasharray=\"5 4\"/>"
+        ));
+        for by in [top_y, life_bot].into_iter() {
+            let bx: f32 = cx - box_w * 0.5;
+            out.push_str(&format!(
+                "<rect x=\"{bx:.1}\" y=\"{by:.1}\" width=\"{box_w:.1}\" height=\"{box_h:.1}\" rx=\"7\" fill=\"var(--muted)\" stroke=\"{accent}\" stroke-width=\"1.6\"/>"
+            ));
+            out.push_str(&format!(
+                "<text x=\"{cx:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"12\" font-weight=\"600\" fill=\"var(--fg)\">{}</text>",
+                by + 21.0,
+                escape_html(label)
+            ));
+        }
+    }
+    for (idx, msg) in seq.get_messages().iter().enumerate() {
+        let y: f32 = life_top + 28.0 + (idx as f32) * row_h;
+        let x1: f32 = centers.get(msg.get_from_idx()).copied().unwrap_or(pad);
+        let x2: f32 = centers.get(msg.get_to_idx()).copied().unwrap_or(pad);
+        if msg.get_is_note() {
+            let nx: f32 = x1.min(x2) - 48.0;
+            let nw: f32 = (x2 - x1).abs().max(96.0) + 96.0;
+            out.push_str(&format!(
+                "<rect x=\"{nx:.1}\" y=\"{:.1}\" width=\"{nw:.1}\" height=\"26\" rx=\"5\" fill=\"var(--muted)\" stroke=\"var(--warn)\" stroke-width=\"1.4\"/>",
+                y - 13.0
+            ));
+            out.push_str(&format!(
+                "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"11.5\" fill=\"var(--fg)\">{}</text>",
+                nx + nw * 0.5,
+                y + 4.0,
+                escape_html(msg.get_text())
+            ));
+        } else {
+            let dash: &str = match msg.get_style() {
+                MermaidEdgeStyle::Dashed => MERMAID_SVG_DASH_ATTR,
+                _ => "",
+            };
+            out.push_str(&format!(
+                "<line x1=\"{x1:.1}\" y1=\"{y:.1}\" x2=\"{x2:.1}\" y2=\"{y:.1}\" stroke=\"var(--muted-fg)\" stroke-width=\"1.6\"{dash} marker-end=\"url(#euv-m-arrow)\"/>"
+            ));
+            out.push_str(&format!(
+                "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"11.5\" font-weight=\"500\" fill=\"var(--fg)\">{}</text>",
+                (x1 + x2) * 0.5,
+                y - 7.0,
+                escape_html(msg.get_text())
+            ));
+        }
+    }
+    out.push_str(MERMAID_SVG_CLOSE);
+}
+
+/// Renders a Mermaid `classDiagram` AST as a themed inline SVG.
+///
+/// # Arguments
+///
+/// - `&MermaidClassDiagram` - Parsed class diagram.
+/// - `&mut String` - Destination HTML/SVG buffer.
+fn render_mermaid_class_svg(cls: &MermaidClassDiagram, out: &mut String) {
+    let count: usize = cls.get_classes().len();
+    if count == 0 {
+        return;
+    }
+    let pad: f32 = 24.0;
+    let gap: f32 = 28.0;
+    let box_w: f32 = 180.0;
+    let mut max_h: f32 = 64.0;
+    for c in cls.get_classes().iter() {
+        let h: f32 = 34.0 + (c.get_members().len() as f32) * 18.0 + 12.0;
+        max_h = max_h.max(h);
+    }
+    let svg_w: f32 = pad * 2.0 + (count as f32) * box_w + (count.saturating_sub(1) as f32) * gap;
+    let svg_h: f32 = pad * 2.0 + max_h + 24.0;
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {svg_w:.1} {svg_h:.1}\" width=\"{svg_w:.0}\" height=\"{svg_h:.0}\" role=\"img\" aria-label=\"Mermaid class diagram\">"
+    ));
+    out.push_str(MERMAID_SVG_ARROW_MARKER);
+    let mut pos_map: HashMap<&str, (f32, f32, f32)> = HashMap::with_capacity(count);
+    for (idx, c) in cls.get_classes().iter().enumerate() {
+        let x: f32 = pad + (idx as f32) * (box_w + gap);
+        let h: f32 = 34.0 + (c.get_members().len() as f32) * 18.0 + 12.0;
+        let _: Option<(f32, f32, f32)> = pos_map.insert(c.get_name().as_str(), (x, pad, h));
+        let accent: &str = MERMAID_SVG_PALETTE[idx % MERMAID_SVG_PALETTE.len()];
+        out.push_str(&format!(
+            "<rect x=\"{x:.1}\" y=\"{pad:.1}\" width=\"{box_w:.1}\" height=\"{h:.1}\" rx=\"7\" fill=\"var(--muted)\" stroke=\"{accent}\" stroke-width=\"1.6\"/>"
+        ));
+        out.push_str(&format!(
+            "<line x1=\"{x:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"var(--border)\" stroke-width=\"1\"/>",
+            pad + 30.0,
+            x + box_w,
+            pad + 30.0
+        ));
+        out.push_str(&format!(
+            "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"12.5\" font-weight=\"700\" fill=\"var(--fg)\">{}</text>",
+            x + box_w * 0.5,
+            pad + 20.0,
+            escape_html(c.get_name())
+        ));
+        for (mi, mem) in c.get_members().iter().enumerate() {
+            out.push_str(&format!(
+                "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"11\" fill=\"var(--muted-fg)\">{}</text>",
+                x + 10.0,
+                pad + 48.0 + (mi as f32) * 18.0,
+                escape_html(mem)
+            ));
+        }
+    }
+    for rel in cls.get_relations().iter() {
+        if let (Some(&(x1, y1, h1)), Some(&(x2, y2, h2))) = (
+            pos_map.get(rel.get_from().as_str()),
+            pos_map.get(rel.get_to().as_str()),
+        ) {
+            let sx: f32 = if x2 >= x1 { x1 + box_w } else { x1 };
+            let tx: f32 = if x2 >= x1 { x2 } else { x2 + box_w };
+            out.push_str(&format!(
+                "<line x1=\"{sx:.1}\" y1=\"{:.1}\" x2=\"{tx:.1}\" y2=\"{:.1}\" stroke=\"var(--muted-fg)\" stroke-width=\"1.5\" marker-end=\"url(#euv-m-arrow)\"/>",
+                y1 + h1 * 0.5,
+                y2 + h2 * 0.5
+            ));
+        }
+    }
+    out.push_str(MERMAID_SVG_CLOSE);
+}
+
+/// Renders a Mermaid `erDiagram` AST as a themed inline SVG.
+///
+/// # Arguments
+///
+/// - `&MermaidErDiagram` - Parsed ER diagram.
+/// - `&mut String` - Destination HTML/SVG buffer.
+fn render_mermaid_er_svg(er: &MermaidErDiagram, out: &mut String) {
+    let count: usize = er.get_entities().len();
+    if count == 0 {
+        return;
+    }
+    let pad: f32 = 24.0;
+    let gap: f32 = 52.0;
+    let box_w: f32 = 160.0;
+    let mut max_h: f32 = 56.0;
+    for ent in er.get_entities().iter() {
+        let h: f32 = 34.0 + (ent.get_attributes().len() as f32) * 18.0 + 10.0;
+        max_h = max_h.max(h);
+    }
+    let svg_w: f32 = pad * 2.0 + (count as f32) * box_w + (count.saturating_sub(1) as f32) * gap;
+    let svg_h: f32 = pad * 2.0 + max_h + 16.0;
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {svg_w:.1} {svg_h:.1}\" width=\"{svg_w:.0}\" height=\"{svg_h:.0}\" role=\"img\" aria-label=\"Mermaid ER diagram\">"
+    ));
+    let mut pos_map: HashMap<&str, (f32, f32, f32)> = HashMap::with_capacity(count);
+    for (idx, ent) in er.get_entities().iter().enumerate() {
+        let x: f32 = pad + (idx as f32) * (box_w + gap);
+        let h: f32 = 34.0 + (ent.get_attributes().len() as f32) * 18.0 + 10.0;
+        let _: Option<(f32, f32, f32)> = pos_map.insert(ent.get_name().as_str(), (x, pad, h));
+        let accent: &str = MERMAID_SVG_PALETTE[idx % MERMAID_SVG_PALETTE.len()];
+        out.push_str(&format!(
+            "<rect x=\"{x:.1}\" y=\"{pad:.1}\" width=\"{box_w:.1}\" height=\"{h:.1}\" rx=\"6\" fill=\"var(--muted)\" stroke=\"{accent}\" stroke-width=\"1.6\"/>"
+        ));
+        out.push_str(&format!(
+            "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"12.5\" font-weight=\"700\" fill=\"var(--fg)\">{}</text>",
+            x + box_w * 0.5,
+            pad + 21.0,
+            escape_html(ent.get_name())
+        ));
+        for (ai, attr) in ent.get_attributes().iter().enumerate() {
+            out.push_str(&format!(
+                "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"11\" fill=\"var(--muted-fg)\">{}</text>",
+                x + 10.0,
+                pad + 44.0 + (ai as f32) * 18.0,
+                escape_html(attr)
+            ));
+        }
+    }
+    for rel in er.get_relations().iter() {
+        if let (Some(&(x1, y1, h1)), Some(&(x2, y2, h2))) = (
+            pos_map.get(rel.get_left().as_str()),
+            pos_map.get(rel.get_right().as_str()),
+        ) {
+            let sx: f32 = if x2 >= x1 { x1 + box_w } else { x1 };
+            let tx: f32 = if x2 >= x1 { x2 } else { x2 + box_w };
+            let sy: f32 = y1 + h1 * 0.5;
+            let ty: f32 = y2 + h2 * 0.5;
+            out.push_str(&format!(
+                "<line x1=\"{sx:.1}\" y1=\"{sy:.1}\" x2=\"{tx:.1}\" y2=\"{ty:.1}\" stroke=\"var(--muted-fg)\" stroke-width=\"1.5\"/>"
+            ));
+            if !rel.get_label().is_empty() {
+                out.push_str(&format!(
+                    "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"10.5\" fill=\"var(--muted-fg)\">{}</text>",
+                    (sx + tx) * 0.5,
+                    (sy + ty) * 0.5 - 6.0,
+                    escape_html(rel.get_label())
+                ));
+            }
+        }
+    }
+    out.push_str(MERMAID_SVG_CLOSE);
+}
+
+/// Renders a Mermaid `pie` chart AST as a proportional inline SVG pie + legend.
+///
+/// # Arguments
+///
+/// - `&MermaidPieChart` - Parsed pie chart.
+/// - `&mut String` - Destination HTML/SVG buffer.
+fn render_mermaid_pie_svg(pie: &MermaidPieChart, out: &mut String) {
+    let total: f32 = pie
+        .get_slices()
+        .iter()
+        .map(|s: &MermaidPieSlice| s.get_value())
+        .sum();
+    if total <= 0.0 {
+        return;
+    }
+    let has_title: bool = !pie.get_title().is_empty();
+    let title_off: f32 = if has_title { 28.0 } else { 8.0 };
+    let r: f32 = 76.0;
+    let cx: f32 = 112.0;
+    let cy: f32 = title_off + r + 14.0;
+    let legend_x: f32 = cx + r + 36.0;
+    let legend_h: f32 = (pie.get_slices().len() as f32) * 24.0;
+    let svg_h: f32 = (cy + r + 20.0).max(title_off + legend_h + 36.0);
+    let svg_w: f32 = 460.0;
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {svg_w:.1} {svg_h:.1}\" width=\"{svg_w:.0}\" height=\"{svg_h:.0}\" role=\"img\" aria-label=\"Mermaid pie chart\">"
+    ));
+    if has_title {
+        out.push_str(&format!(
+            "<text x=\"{:.1}\" y=\"22\" text-anchor=\"middle\" font-size=\"13.5\" font-weight=\"700\" fill=\"var(--fg)\">{}</text>",
+            svg_w * 0.5,
+            escape_html(pie.get_title())
+        ));
+    }
+    let mut angle: f32 = -FRAC_PI_2;
+    let legend_y0: f32 = cy - legend_h * 0.5 + 12.0;
+    for (idx, slice) in pie.get_slices().iter().enumerate() {
+        let color: &str = MERMAID_SVG_PALETTE[idx % MERMAID_SVG_PALETTE.len()];
+        let frac: f32 = slice.get_value() / total;
+        let sweep: f32 = frac * TAU;
+        if pie.get_slices().len() == 1 {
+            out.push_str(&format!(
+                "<circle cx=\"{cx:.1}\" cy=\"{cy:.1}\" r=\"{r:.1}\" fill=\"{color}\"/>"
+            ));
+        } else {
+            let x1: f32 = cx + r * angle.cos();
+            let y1: f32 = cy + r * angle.sin();
+            let end_a: f32 = angle + sweep;
+            let x2: f32 = cx + r * end_a.cos();
+            let y2: f32 = cy + r * end_a.sin();
+            let large: u8 = if sweep > PI { 1 } else { 0 };
+            out.push_str(&format!(
+                "<path d=\"M {cx:.1} {cy:.1} L {x1:.1} {y1:.1} A {r:.1} {r:.1} 0 {large} 1 {x2:.1} {y2:.1} Z\" fill=\"{color}\" stroke=\"var(--card)\" stroke-width=\"1.5\"/>"
+            ));
+            angle = end_a;
+        }
+        let ly: f32 = legend_y0 + (idx as f32) * 24.0;
+        let pct: f32 = frac * 100.0;
+        out.push_str(&format!(
+            "<rect x=\"{legend_x:.1}\" y=\"{:.1}\" width=\"12\" height=\"12\" rx=\"3\" fill=\"{color}\"/>",
+            ly - 10.0
+        ));
+        out.push_str(&format!(
+            "<text x=\"{:.1}\" y=\"{ly:.1}\" font-size=\"12\" fill=\"var(--fg)\">{} ({pct:.0}%)</text>",
+            legend_x + 18.0,
+            escape_html(slice.get_label())
+        ));
+    }
+    out.push_str(MERMAID_SVG_CLOSE);
+}
+
+/// Renders a Mermaid `gantt` chart AST as a themed inline SVG timeline.
+///
+/// # Arguments
+///
+/// - `&MermaidGanttChart` - Parsed Gantt timeline.
+/// - `&mut String` - Destination HTML/SVG buffer.
+fn render_mermaid_gantt_svg(gantt: &MermaidGanttChart, out: &mut String) {
+    let count: usize = gantt.get_tasks().len();
+    if count == 0 {
+        return;
+    }
+    let has_title: bool = !gantt.get_title().is_empty();
+    let top: f32 = if has_title { 38.0 } else { 16.0 };
+    let label_w: f32 = 148.0;
+    let track_w: f32 = 340.0;
+    let row_h: f32 = 30.0;
+    let svg_w: f32 = label_w + track_w + 28.0;
+    let svg_h: f32 = top + (count as f32) * row_h + 16.0;
+    let max_end: f32 = gantt
+        .get_tasks()
+        .iter()
+        .map(|t: &MermaidGanttTask| t.get_start_unit() + t.get_duration_unit())
+        .fold(1.0_f32, f32::max);
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {svg_w:.1} {svg_h:.1}\" width=\"{svg_w:.0}\" height=\"{svg_h:.0}\" role=\"img\" aria-label=\"Mermaid Gantt chart\">"
+    ));
+    if has_title {
+        out.push_str(&format!(
+            "<text x=\"{:.1}\" y=\"22\" text-anchor=\"middle\" font-size=\"13.5\" font-weight=\"700\" fill=\"var(--fg)\">{}</text>",
+            svg_w * 0.5,
+            escape_html(gantt.get_title())
+        ));
+    }
+    for (idx, task) in gantt.get_tasks().iter().enumerate() {
+        let y: f32 = top + (idx as f32) * row_h;
+        let bx: f32 = label_w + (task.get_start_unit() / max_end) * track_w;
+        let bw: f32 = ((task.get_duration_unit() / max_end) * track_w).max(16.0);
+        let fill: &str = match task.get_status() {
+            MermaidGanttStatus::Done => MERMAID_SVG_VAR_TIP,
+            MermaidGanttStatus::Active => MERMAID_SVG_VAR_LINK,
+            MermaidGanttStatus::Critical => MERMAID_SVG_VAR_DANGER,
+            MermaidGanttStatus::Normal => MERMAID_SVG_VAR_IMPORTANT,
+        };
+        out.push_str(&format!(
+            "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" font-size=\"11.5\" fill=\"var(--fg)\">{}</text>",
+            label_w - 10.0,
+            y + 15.0,
+            escape_html(task.get_label())
+        ));
+        out.push_str(&format!(
+            "<rect x=\"{bx:.1}\" y=\"{:.1}\" width=\"{bw:.1}\" height=\"18\" rx=\"5\" fill=\"{fill}\"/>",
+            y + 2.0
+        ));
+    }
+    out.push_str(MERMAID_SVG_CLOSE);
 }

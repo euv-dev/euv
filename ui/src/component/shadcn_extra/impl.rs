@@ -498,6 +498,57 @@ impl EuvCommand {
         } else {
             placeholder
         };
+        let build_cmd_items = move || -> Vec<NodeId> {
+            let live_tok: ThemeTokens = use_live_tokens(tokens);
+            let live_p: ThemePalette = live_tok.get_palette();
+            let live_g: ThemeGeometry = live_tok.get_geometry();
+            let needle: String = query.get().to_lowercase();
+            let mut nodes: Vec<NodeId> = Vec::new();
+            for (idx, item) in items.iter().enumerate() {
+                if !needle.is_empty() && !item.to_lowercase().contains(&needle) {
+                    continue;
+                }
+                let is_sel: bool = selected.get() == Some(idx);
+                let on_pick = move |_: &UiEvent| {
+                    let _: bool = selected.set_if_changed(Some(idx));
+                };
+                let row: NodeId = view! {
+                    row {
+                        width: Length::Percent(100.0)
+                        padding: Edges::symmetric(6.0, SPACE_MD)
+                        radius: live_g.get_radius_sm()
+                        background: if is_sel {
+                            live_p.get_accent()
+                        } else {
+                            COLOR_TRANSPARENT
+                        }
+                        cursor: CursorIcon::Pointer
+                        on_click: on_pick
+                        text {
+                            font_size: 13.0
+                            font_weight: if is_sel {
+                                FontWeight::SemiBold
+                            } else {
+                                FontWeight::Normal
+                            }
+                            color: live_p.get_foreground()
+                            { item.clone() }
+                        }
+                    }
+                };
+                nodes.push(row);
+            }
+            if nodes.is_empty() {
+                nodes.push(view! {
+                    text {
+                        font_size: 12.0
+                        color: live_p.get_muted_foreground()
+                        { COMMAND_EMPTY_LABEL }
+                    }
+                });
+            }
+            nodes
+        };
         view! {
             column {
                 width: Length::Percent(100.0)
@@ -516,53 +567,7 @@ impl EuvCommand {
                 column {
                     width: Length::Percent(100.0)
                     gap: SPACE_XS
-                    bind_children: move || {
-                        let needle: String = query.get().to_lowercase();
-                        let mut nodes: Vec<NodeId> = Vec::new();
-                        for (idx, item) in items.iter().enumerate() {
-                            if !needle.is_empty() && !item.to_lowercase().contains(&needle) {
-                                continue;
-                            }
-                            let is_sel: bool = selected.get() == Some(idx);
-                            let row: NodeId = view! {
-                                row {
-                                    width: Length::Percent(100.0)
-                                    padding: Edges::symmetric(6.0, SPACE_MD)
-                                    radius: g.get_radius_sm()
-                                    background: if is_sel {
-                                        p.get_accent()
-                                    } else {
-                                        COLOR_TRANSPARENT
-                                    }
-                                    cursor: CursorIcon::Pointer
-                                    on_click: move |_: &UiEvent| {
-                                        let _: bool = selected.set_if_changed(Some(idx));
-                                    }
-                                    text {
-                                        font_size: 13.0
-                                        font_weight: if is_sel {
-                                            FontWeight::SemiBold
-                                        } else {
-                                            FontWeight::Normal
-                                        }
-                                        color: p.get_foreground()
-                                        { item.clone() }
-                                    }
-                                }
-                            };
-                            nodes.push(row);
-                        }
-                        if nodes.is_empty() {
-                            nodes.push(view! {
-                                text {
-                                    font_size: 12.0
-                                    color: p.get_muted_foreground()
-                                    { COMMAND_EMPTY_LABEL }
-                                }
-                            });
-                        }
-                        nodes
-                    }
+                    bind_children: build_cmd_items
                 }
             }
         }

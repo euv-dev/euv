@@ -177,9 +177,28 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                     }
                 };
                 let rctx: Context = current_context();
+                let cmd_theme_sig: Memo<ThemeTokens> = state_c.get_theme().get_tokens();
+                let prev_cmd_tok: Rc<Cell<ThemeTokens>> = Rc::new(Cell::new(tokens));
+                let cmd_theme_ctx: Context = rctx.clone();
+                let (cmd_theme_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+                    Effect::new(move || {
+                        let next_tok: ThemeTokens = cmd_theme_sig.get();
+                        let old_tok: ThemeTokens = prev_cmd_tok.replace(next_tok);
+                        if old_tok == next_tok {
+                            return;
+                        }
+                        cmd_theme_ctx.get_scene().with_write(
+                            |tree: &mut SceneTree| {
+                                remap_subtree_theme_in_place(tree, cmd_modal, old_tok, next_tok);
+                            },
+                            (),
+                        );
+                    })
+                });
                 rctx.get_scene().with_write(
                     |tree: &mut SceneTree| {
                         tree.attach_scope(cmd_modal, cmd_scope);
+                        tree.attach_scope(cmd_modal, cmd_theme_scope);
                     },
                     (),
                 );

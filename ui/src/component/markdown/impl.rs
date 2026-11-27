@@ -409,193 +409,165 @@ impl EuvCodeBlock {
                     CODE_BTN_COPY.to_string()
                 }
             };
-            let on_close_backdrop = move |_: &UiEvent| {
-                let _: bool = fs_open.set_if_changed(false);
-            };
             let on_close_btn = move |_: &UiEvent| {
                 let _: bool = fs_open.set_if_changed(false);
             };
             let m_title: String = modal_title.clone();
             let m_lang: String = modal_lang.clone();
             let lines_badge: String = format!("{line_count} L");
-            let overlay: NodeId = view! {
-                view {
-                    position: Position::Absolute
-                    inset: (Some(0.0), Some(0.0), Some(0.0), Some(0.0))
+            let modal_card: NodeId = view! {
+                column {
                     width: Length::Percent(100.0)
+                    max_width: Length::Px(CODE_MODAL_MAX_WIDTH)
                     height: Length::Percent(100.0)
-                    justify: JustifyContent::Center
-                    align: AlignItems::Center
-                    padding: Edges::all(CODE_MODAL_PADDING)
-                    background: Color::rgba(15, 23, 42, 184)
-                    z_index: 260
-                    on_click: on_close_backdrop
-                    column {
+                    max_height: Length::Px(CODE_MODAL_MAX_HEIGHT)
+                    background: live_eva.get_background()
+                    border: (1.0, live_eva.get_border())
+                    radius: live_g.get_radius_lg()
+                    shadow: live_g.get_shadow_lg()
+                    overflow: Overflow::Hidden
+                    stop_event_propagation: true
+                    row {
                         width: Length::Percent(100.0)
-                        max_width: Length::Px(CODE_MODAL_MAX_WIDTH)
-                        height: Length::Percent(100.0)
-                        max_height: Length::Px(CODE_MODAL_MAX_HEIGHT)
-                        background: live_eva.get_background()
-                        border: (1.0, live_eva.get_border())
-                        radius: live_g.get_radius_lg()
-                        shadow: live_g.get_shadow_lg()
-                        overflow: Overflow::Hidden
-                        stop_event_propagation: true
+                        padding: Edges::symmetric(SPACE_SM, SPACE_MD)
+                        justify: JustifyContent::SpaceBetween
+                        align: AlignItems::Center
+                        gap: SPACE_SM
+                        background: live_eva.get_header_bg()
+                        selectable: false
                         row {
-                            width: Length::Percent(100.0)
-                            padding: Edges::symmetric(SPACE_SM, SPACE_MD)
-                            justify: JustifyContent::SpaceBetween
-                            align: AlignItems::Center
-                            gap: SPACE_SM
-                            background: live_eva.get_header_bg()
-                            selectable: false
-                            row {
-                                flex_grow: 1.0
-                                flex_shrink: 1.0
-                                min_width: Length::Px(0.0)
-                                align: AlignItems::Center
-                                gap: SPACE_SM
-                                overflow: Overflow::Hidden
-                                row {
-                                    flex_shrink: 0.0
-                                    gap: 5.0
-                                    align: AlignItems::Center
-                                    view {
-                                        width: Length::Px(9.0)
-                                        height: Length::Px(9.0)
-                                        radius: 99.0
-                                        background: Color::hex(CODE_DOT_RED)
-                                    }
-                                    view {
-                                        width: Length::Px(9.0)
-                                        height: Length::Px(9.0)
-                                        radius: 99.0
-                                        background: Color::hex(CODE_DOT_YELLOW)
-                                    }
-                                    view {
-                                        width: Length::Px(9.0)
-                                        height: Length::Px(9.0)
-                                        radius: 99.0
-                                        background: Color::hex(CODE_DOT_GREEN)
-                                    }
-                                }
-                                text {
-                                    flex_shrink: 1.0
-                                    min_width: Length::Px(0.0)
-                                    overflow: Overflow::Hidden
-                                    text_overflow: TextOverflow::Ellipsis
-                                    font_size: 13.0
-                                    font_weight: FontWeight::SemiBold
-                                    color: live_eva.get_foreground()
-                                    { m_title }
-                                }
-                            }
-                            row {
-                                flex_shrink: 0.0
-                                align: AlignItems::Center
-                                gap: SPACE_SM
-                                row {
-                                    padding: Edges::symmetric(3.0, 8.0)
-                                    radius: live_g.get_radius_sm()
-                                    background: live_eva.get_background()
-                                    border: (1.0, live_eva.get_border())
-                                    text {
-                                        font_size: 10.5
-                                        font_weight: FontWeight::Bold
-                                        color: live_eva.get_keyword()
-                                        text_overflow: TextOverflow::Clip
-                                        { m_lang }
-                                    }
-                                }
-                                row {
-                                    padding: Edges::symmetric(3.0, 8.0)
-                                    radius: live_g.get_radius_sm()
-                                    background: live_eva.get_background()
-                                    border: (1.0, live_eva.get_border())
-                                    text {
-                                        font_size: 10.5
-                                        font_family: FontFamily::Monospace
-                                        color: live_eva.get_line_number()
-                                        text_overflow: TextOverflow::Clip
-                                        { lines_badge }
-                                    }
-                                }
-                                row {
-                                    padding: Edges::symmetric(4.0, 10.0)
-                                    radius: live_g.get_radius_sm()
-                                    cursor: CursorIcon::Pointer
-                                    background: live_eva.get_background()
-                                    border: (1.0, live_eva.get_border())
-                                    on_click: on_modal_copy
-                                    text {
-                                        font_size: 11.5
-                                        font_weight: FontWeight::SemiBold
-                                        color: live_eva.get_function()
-                                        text_overflow: TextOverflow::Clip
-                                        { modal_copy_label }
-                                    }
-                                }
-                                row {
-                                    padding: Edges::symmetric(4.0, 10.0)
-                                    radius: live_g.get_radius_sm()
-                                    cursor: CursorIcon::Pointer
-                                    background: live_p.get_secondary()
-                                    border: (1.0, live_p.get_border())
-                                    on_click: on_close_btn
-                                    text {
-                                        font_size: 11.5
-                                        font_weight: FontWeight::SemiBold
-                                        color: live_p.get_secondary_foreground()
-                                        text_overflow: TextOverflow::Clip
-                                        { CODE_BTN_CLOSE }
-                                    }
-                                }
-                            }
-                        }
-                        view {
-                            width: Length::Percent(100.0)
-                            height: Length::Px(1.0)
-                            background: live_eva.get_border()
-                        }
-                        scroll {
-                            style: Style::default().column().align(AlignItems::Start)
                             flex_grow: 1.0
                             flex_shrink: 1.0
-                            min_height: Length::Px(0.0)
-                            width: Length::Percent(100.0)
-                            padding: Edges::symmetric(SPACE_MD, SPACE_SM)
-                            column {
-                                min_width: Length::Px(modal_nat_w)
-                                width: Length::Percent(100.0)
+                            min_width: Length::Px(0.0)
+                            align: AlignItems::Center
+                            gap: SPACE_SM
+                            overflow: Overflow::Hidden
+                            row {
                                 flex_shrink: 0.0
-                                gap: 2.0
-                                selectable: true
-                                ..modal_line_nodes
+                                gap: 5.0
+                                align: AlignItems::Center
+                                view {
+                                    width: Length::Px(9.0)
+                                    height: Length::Px(9.0)
+                                    radius: 99.0
+                                    background: Color::hex(CODE_DOT_RED)
+                                }
+                                view {
+                                    width: Length::Px(9.0)
+                                    height: Length::Px(9.0)
+                                    radius: 99.0
+                                    background: Color::hex(CODE_DOT_YELLOW)
+                                }
+                                view {
+                                    width: Length::Px(9.0)
+                                    height: Length::Px(9.0)
+                                    radius: 99.0
+                                    background: Color::hex(CODE_DOT_GREEN)
+                                }
                             }
+                            text {
+                                flex_shrink: 1.0
+                                min_width: Length::Px(0.0)
+                                overflow: Overflow::Hidden
+                                text_overflow: TextOverflow::Ellipsis
+                                font_size: 13.0
+                                font_weight: FontWeight::SemiBold
+                                color: live_eva.get_foreground()
+                                { m_title }
+                            }
+                        }
+                        row {
+                            flex_shrink: 0.0
+                            align: AlignItems::Center
+                            gap: SPACE_SM
+                            row {
+                                padding: Edges::symmetric(3.0, 8.0)
+                                radius: live_g.get_radius_sm()
+                                background: live_eva.get_background()
+                                border: (1.0, live_eva.get_border())
+                                text {
+                                    font_size: 10.5
+                                    font_weight: FontWeight::Bold
+                                    color: live_eva.get_keyword()
+                                    text_overflow: TextOverflow::Clip
+                                    { m_lang }
+                                }
+                            }
+                            row {
+                                padding: Edges::symmetric(3.0, 8.0)
+                                radius: live_g.get_radius_sm()
+                                background: live_eva.get_background()
+                                border: (1.0, live_eva.get_border())
+                                text {
+                                    font_size: 10.5
+                                    font_family: FontFamily::Monospace
+                                    color: live_eva.get_line_number()
+                                    text_overflow: TextOverflow::Clip
+                                    { lines_badge }
+                                }
+                            }
+                            row {
+                                padding: Edges::symmetric(4.0, 10.0)
+                                radius: live_g.get_radius_sm()
+                                cursor: CursorIcon::Pointer
+                                background: live_eva.get_background()
+                                border: (1.0, live_eva.get_border())
+                                on_click: on_modal_copy
+                                text {
+                                    font_size: 11.5
+                                    font_weight: FontWeight::SemiBold
+                                    color: live_eva.get_function()
+                                    text_overflow: TextOverflow::Clip
+                                    { modal_copy_label }
+                                }
+                            }
+                            row {
+                                padding: Edges::symmetric(4.0, 10.0)
+                                radius: live_g.get_radius_sm()
+                                cursor: CursorIcon::Pointer
+                                background: live_p.get_secondary()
+                                border: (1.0, live_p.get_border())
+                                on_click: on_close_btn
+                                text {
+                                    font_size: 11.5
+                                    font_weight: FontWeight::SemiBold
+                                    color: live_p.get_secondary_foreground()
+                                    text_overflow: TextOverflow::Clip
+                                    { CODE_BTN_CLOSE }
+                                }
+                            }
+                        }
+                    }
+                    view {
+                        width: Length::Percent(100.0)
+                        height: Length::Px(1.0)
+                        background: live_eva.get_border()
+                    }
+                    scroll {
+                        style: Style::default().column().align(AlignItems::Start)
+                        flex_grow: 1.0
+                        flex_shrink: 1.0
+                        min_height: Length::Px(0.0)
+                        width: Length::Percent(100.0)
+                        padding: Edges::symmetric(SPACE_MD, SPACE_SM)
+                        column {
+                            min_width: Length::Px(modal_nat_w)
+                            width: Length::Percent(100.0)
+                            flex_shrink: 0.0
+                            gap: 2.0
+                            selectable: true
+                            ..modal_line_nodes
                         }
                     }
                 }
             };
-            vec![overlay]
+            vec![modal_card]
         };
-        let fs_portal: NodeId = view! {
-            portal {
-                width: Length::Percent(100.0)
-                height: Length::Percent(100.0)
-                pointer_events: PointerEvents::None
-                bind_children: build_fs_children
-            }
+        let on_scrim_click = move |_: &UiEvent| {
+            let _: bool = fs_open.set_if_changed(false);
         };
-        let (ov_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            EuvOverlayStack::bind_signal(fs_open, CODE_FULLSCREEN_OVERLAY_NAME, Z_INDEX_MODAL)
-        });
-        ctx.get_scene().with_write(
-            |tree: &mut SceneTree| {
-                tree.attach_scope(fs_portal, ov_scope);
-            },
-            (),
-        );
-        view! {
+        let mut fs_portal: NodeId = NodeId::default();
+        let root: NodeId = view! {
             column {
                 width: Length::Percent(100.0)
                 background: eva.get_background()
@@ -735,9 +707,74 @@ impl EuvCodeBlock {
                         ..line_nodes
                     }
                 }
-                { fs_portal }
+                portal {
+                    node_ref: fs_portal
+                    display: Display::None
+                    position: Position::Fixed
+                    inset: (Some(0.0), Some(0.0), Some(0.0), Some(0.0))
+                    width: Length::Percent(100.0)
+                    height: Length::Percent(100.0)
+                    padding: Edges::all(CODE_MODAL_PADDING)
+                    justify: JustifyContent::Center
+                    align: AlignItems::Center
+                    background: tokens.get_palette().get_overlay()
+                    stop_scroll_propagation: true
+                    z_index: Z_INDEX_MODAL
+                    on_click: on_scrim_click
+                    bind_children: build_fs_children
+                }
             }
-        }
+        };
+        let handle: SceneHandle = ctx.get_scene().clone();
+        let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+        let (ov_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            let _: Effect =
+                EuvOverlayStack::bind_signal(fs_open, CODE_FULLSCREEN_OVERLAY_NAME, Z_INDEX_MODAL);
+            Effect::new(move || {
+                let is_open: bool = fs_open.get();
+                if is_open == prev_open.replace(is_open) {
+                    return;
+                }
+                if is_open {
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            if let Some(n) = tree.get_node_mut(fs_portal) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
+                                n.set_style(st);
+                            }
+                        },
+                        (),
+                    );
+                    handle.start_transition(
+                        NodeTransition::fade(fs_portal, 0.0, 1.0, 0.18, false)
+                            .with_easing(Easing::EaseOutCubic),
+                    );
+                } else {
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            if let Some(n) = tree.get_node_mut(fs_portal) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_paint().set_pointer_events(PointerEvents::None);
+                                n.set_style(st);
+                            }
+                        },
+                        (),
+                    );
+                    handle.start_transition(
+                        NodeTransition::fade(fs_portal, 1.0, 0.0, 0.16, true)
+                            .with_easing(Easing::EaseOutCubic),
+                    );
+                }
+            })
+        });
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(root, ov_scope);
+            },
+            (),
+        );
+        root
     }
 }
 

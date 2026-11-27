@@ -842,6 +842,10 @@ impl EuvTimePicker {
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
         let sig: Signal<(u8, u8)> = self.get_value();
+        let time_readout_text = move || -> String {
+            let (hh, mm): (u8, u8) = sig.get();
+            format!("{:02}:{:02}", hh % 24, mm % 60)
+        };
         view! {
             column {
                 width: Length::Percent(100.0)
@@ -879,6 +883,8 @@ impl EuvTimePicker {
                     }
                     row {
                         height: Length::Px(g.get_control_sm())
+                        min_width: Length::Px(76.0)
+                        flex_shrink: 0.0
                         padding: Edges::symmetric(0.0, SPACE_MD)
                         justify: JustifyContent::Center
                         align: AlignItems::Center
@@ -891,10 +897,8 @@ impl EuvTimePicker {
                             font_weight: FontWeight::SemiBold
                             color: p.get_foreground()
                             text_align: TextAlign::Center
-                            { move || {
-                                let (hh, mm): (u8, u8) = sig.get();
-                                format!("{:02}:{:02}", hh % 24, mm % 60)
-                            } }
+                            text_overflow: TextOverflow::Clip
+                            { time_readout_text }
                         }
                     }
                     EuvButton {

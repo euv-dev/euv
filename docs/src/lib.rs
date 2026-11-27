@@ -23,7 +23,8 @@ pub(crate) use parser::{
 #[cfg(test)]
 use std::env;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
+    f32::consts::{FRAC_PI_2, PI, TAU},
     ffi::OsStr,
     fs::{self, DirEntry},
     io::{self, Error, ErrorKind},
