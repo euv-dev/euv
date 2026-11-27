@@ -316,6 +316,19 @@ def verify_all_gates(
     return failures
 
 
+def extract_round_wall_secs(entry: dict[str, Any]) -> float:
+    """Extract scalar median wall seconds from a ledger round entry."""
+    if "median_wall_secs" in entry and isinstance(entry["median_wall_secs"], (int, float)):
+        return float(entry["median_wall_secs"])
+    raw = entry.get("wall_secs", 0.0)
+    if isinstance(raw, list):
+        nums = [float(x) for x in raw if isinstance(x, (int, float))]
+        return float(statistics.median(nums)) if nums else 0.0
+    if isinstance(raw, (int, float)):
+        return float(raw)
+    return 0.0
+
+
 def build_canonical_markdown_report(
     metrics: list[dict[str, Any]],
     runs: int,
@@ -362,7 +375,7 @@ def build_canonical_markdown_report(
     if baseline_round is not None:
         baseline_map = {m["name"]: m for m in baseline_round.get("metrics", [])}
         geomean = compute_geomean_speedup(baseline_map, current_map, order)
-        base_wall = float(baseline_round.get("wall_secs", 0.0))
+        base_wall = extract_round_wall_secs(baseline_round)
         wall_factor = (base_wall / median_wall_s) if base_wall > 0.0 and median_wall_s > 0.0 else 0.0
         base_id = str(baseline_round.get("id", "R000"))
         base_sha = str(baseline_round.get("commit", ""))[:10]
@@ -560,7 +573,7 @@ def build_canonical_markdown_report(
                         f"`{entry.get('id', '')}`",
                         f"`{entry.get('track', '')}`",
                         f"`{str(entry.get('commit', ''))[:10]}`",
-                        f"{float(entry.get('wall_secs', 0.0)):.2f}s",
+                        f"{extract_round_wall_secs(entry):.2f}s",
                         f"**{r_geo:.3f}x**",
                         str(entry.get("title", "")),
                     ]
