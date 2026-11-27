@@ -139,3 +139,131 @@ pub(crate) fn build_shadow_q4_lut_channel(src_ch: u8, alpha: f32) -> [u16; 256] 
     }
     table
 }
+
+/// Composites a clipped glyph coverage row onto a destination RGBA8 span with opaque specialization and 8-byte zero-alpha fast-skip.
+///
+/// # Arguments
+///
+/// - `&mut [u8]` - Destination RGBA8 byte slice covering `coverage.len()` pixels.
+/// - `&[u8]` - Clipped glyph alpha coverage bytes.
+/// - `Color` - Foreground text RGBA color (`color.get_a() > 0`).
+///
+/// # Returns
+///
+/// - `usize` - Number of non-zero coverage pixels shaded.
+#[inline(always)]
+pub(crate) fn blend_glyph_row_span(dst_span: &mut [u8], coverage: &[u8], color: Color) -> usize {
+    let color_a: u32 = color.get_a() as u32;
+    let sr_u8: u8 = color.get_r();
+    let sg_u8: u8 = color.get_g();
+    let sb_u8: u8 = color.get_b();
+    let sr: u32 = sr_u8 as u32;
+    let sg: u32 = sg_u8 as u32;
+    let sb: u32 = sb_u8 as u32;
+    let dst_px: &mut [[u8; 4]] = dst_span.as_chunks_mut::<4>().0;
+    let len: usize = dst_px.len().min(coverage.len());
+    let (dst_blocks, dst_tail): (&mut [[[u8; 4]; 8]], &mut [[u8; 4]]) =
+        dst_px[..len].as_chunks_mut::<8>();
+    let (cov_blocks, cov_tail): (&[[u8; 8]], &[u8]) = coverage[..len].as_chunks::<8>();
+    let mut shaded: usize = 0;
+    if color_a == 255 {
+        let opaque_px: [u8; 4] = [sr_u8, sg_u8, sb_u8, 255];
+        let opaque_block: [[u8; 4]; 8] = [opaque_px; 8];
+        for (d_blk, c_blk) in dst_blocks.iter_mut().zip(cov_blocks.iter()) {
+            let word: u64 = u64::from_ne_bytes(*c_blk);
+            if word == 0 {
+                continue;
+            }
+            if word == u64::MAX {
+                *d_blk = opaque_block;
+                shaded += 8;
+                continue;
+            }
+            for (px, alpha_byte) in d_blk.iter_mut().zip(c_blk.iter().copied()) {
+                if alpha_byte == 0 {
+                    continue;
+                }
+                if alpha_byte == 255 {
+                    *px = opaque_px;
+                } else {
+                    let sa_u32: u32 = alpha_byte as u32;
+                    let inv_a: u32 = 255 - sa_u32;
+                    let vr: u32 = sr * sa_u32 + (px[0] as u32) * inv_a + 128;
+                    let vg: u32 = sg * sa_u32 + (px[1] as u32) * inv_a + 128;
+                    let vb: u32 = sb * sa_u32 + (px[2] as u32) * inv_a + 128;
+                    let va: u32 = (px[3] as u32) * inv_a + 128;
+                    px[0] = ((vr + (vr >> 8)) >> 8) as u8;
+                    px[1] = ((vg + (vg >> 8)) >> 8) as u8;
+                    px[2] = ((vb + (vb >> 8)) >> 8) as u8;
+                    px[3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+                }
+                shaded += 1;
+            }
+        }
+        for (px, alpha_byte) in dst_tail.iter_mut().zip(cov_tail.iter().copied()) {
+            if alpha_byte == 0 {
+                continue;
+            }
+            if alpha_byte == 255 {
+                *px = opaque_px;
+            } else {
+                let sa_u32: u32 = alpha_byte as u32;
+                let inv_a: u32 = 255 - sa_u32;
+                let vr: u32 = sr * sa_u32 + (px[0] as u32) * inv_a + 128;
+                let vg: u32 = sg * sa_u32 + (px[1] as u32) * inv_a + 128;
+                let vb: u32 = sb * sa_u32 + (px[2] as u32) * inv_a + 128;
+                let va: u32 = (px[3] as u32) * inv_a + 128;
+                px[0] = ((vr + (vr >> 8)) >> 8) as u8;
+                px[1] = ((vg + (vg >> 8)) >> 8) as u8;
+                px[2] = ((vb + (vb >> 8)) >> 8) as u8;
+                px[3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+            }
+            shaded += 1;
+        }
+        return shaded;
+    }
+    for (d_blk, c_blk) in dst_blocks.iter_mut().zip(cov_blocks.iter()) {
+        if u64::from_ne_bytes(*c_blk) == 0 {
+            continue;
+        }
+        for (px, alpha_byte) in d_blk.iter_mut().zip(c_blk.iter().copied()) {
+            if alpha_byte == 0 {
+                continue;
+            }
+            let prod: u32 = color_a * (alpha_byte as u32) + 128;
+            let sa_u32: u32 = (prod + (prod >> 8)) >> 8;
+            if sa_u32 > 0 {
+                let inv_a: u32 = 255 - sa_u32;
+                let vr: u32 = sr * sa_u32 + (px[0] as u32) * inv_a + 128;
+                let vg: u32 = sg * sa_u32 + (px[1] as u32) * inv_a + 128;
+                let vb: u32 = sb * sa_u32 + (px[2] as u32) * inv_a + 128;
+                let va: u32 = (px[3] as u32) * inv_a + 128;
+                px[0] = ((vr + (vr >> 8)) >> 8) as u8;
+                px[1] = ((vg + (vg >> 8)) >> 8) as u8;
+                px[2] = ((vb + (vb >> 8)) >> 8) as u8;
+                px[3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+            }
+            shaded += 1;
+        }
+    }
+    for (px, alpha_byte) in dst_tail.iter_mut().zip(cov_tail.iter().copied()) {
+        if alpha_byte == 0 {
+            continue;
+        }
+        let prod: u32 = color_a * (alpha_byte as u32) + 128;
+        let sa_u32: u32 = (prod + (prod >> 8)) >> 8;
+        if sa_u32 > 0 {
+            let inv_a: u32 = 255 - sa_u32;
+            let vr: u32 = sr * sa_u32 + (px[0] as u32) * inv_a + 128;
+            let vg: u32 = sg * sa_u32 + (px[1] as u32) * inv_a + 128;
+            let vb: u32 = sb * sa_u32 + (px[2] as u32) * inv_a + 128;
+            let va: u32 = (px[3] as u32) * inv_a + 128;
+            px[0] = ((vr + (vr >> 8)) >> 8) as u8;
+            px[1] = ((vg + (vg >> 8)) >> 8) as u8;
+            px[2] = ((vb + (vb >> 8)) >> 8) as u8;
+            px[3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+        }
+        shaded += 1;
+    }
+    shaded
+}

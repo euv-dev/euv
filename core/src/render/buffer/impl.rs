@@ -191,8 +191,7 @@ impl Framebuffer {
     pub fn blend_glyph_row(&mut self, dx: u32, dy: u32, coverage: &[u8], color: Color) -> usize {
         let width: u32 = self.get_width();
         let height: u32 = self.get_height();
-        let color_a: u32 = color.get_a() as u32;
-        if color_a == 0 || dy >= height || dx >= width || coverage.is_empty() {
+        if color.get_a() == 0 || dy >= height || dx >= width || coverage.is_empty() {
             return 0;
         }
         let max_len: usize = ((width - dx) as usize).min(coverage.len());
@@ -201,44 +200,7 @@ impl Framebuffer {
         let Some(dst_span) = self.get_mut_pixels().get_mut(start_byte..end_byte) else {
             return 0;
         };
-        let sr: u32 = color.get_r() as u32;
-        let sg: u32 = color.get_g() as u32;
-        let sb: u32 = color.get_b() as u32;
-        let mut shaded: usize = 0;
-        for (px, alpha_byte) in dst_span
-            .as_chunks_mut::<4>()
-            .0
-            .iter_mut()
-            .zip(coverage[..max_len].iter().copied())
-        {
-            if alpha_byte == 0 {
-                continue;
-            }
-            let sa_u32: u32 = if color_a == 255 {
-                alpha_byte as u32
-            } else {
-                let prod: u32 = color_a * (alpha_byte as u32) + 128;
-                (prod + (prod >> 8)) >> 8
-            };
-            if sa_u32 == 255 {
-                px[0] = sr as u8;
-                px[1] = sg as u8;
-                px[2] = sb as u8;
-                px[3] = 255;
-            } else if sa_u32 > 0 {
-                let inv_a: u32 = 255 - sa_u32;
-                let vr: u32 = sr * sa_u32 + (px[0] as u32) * inv_a + 128;
-                let vg: u32 = sg * sa_u32 + (px[1] as u32) * inv_a + 128;
-                let vb: u32 = sb * sa_u32 + (px[2] as u32) * inv_a + 128;
-                let va: u32 = (px[3] as u32) * inv_a + 128;
-                px[0] = ((vr + (vr >> 8)) >> 8) as u8;
-                px[1] = ((vg + (vg >> 8)) >> 8) as u8;
-                px[2] = ((vb + (vb >> 8)) >> 8) as u8;
-                px[3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
-            }
-            shaded += 1;
-        }
-        shaded
+        blend_glyph_row_span(dst_span, &coverage[..max_len], color)
     }
 
     /// Reads the RGBA `Color` at pixel coordinates `(x, y)`.
@@ -998,14 +960,13 @@ impl<'a> PixelBand<'a> {
     ///
     /// - `usize` - Number of non-zero coverage pixels shaded.
     pub fn blend_glyph_row(&mut self, dx: u32, dy: u32, coverage: &[u8], color: Color) -> usize {
-        let color_a: u32 = color.get_a() as u32;
         let Self {
             width,
             y_offset,
             height,
             pixels,
         } = self;
-        if color_a == 0
+        if color.get_a() == 0
             || dy < *y_offset
             || dy >= *y_offset + *height
             || dx >= *width
@@ -1020,44 +981,7 @@ impl<'a> PixelBand<'a> {
         let Some(dst_span) = pixels.get_mut(start_byte..end_byte) else {
             return 0;
         };
-        let sr: u32 = color.get_r() as u32;
-        let sg: u32 = color.get_g() as u32;
-        let sb: u32 = color.get_b() as u32;
-        let mut shaded: usize = 0;
-        for (px, alpha_byte) in dst_span
-            .as_chunks_mut::<4>()
-            .0
-            .iter_mut()
-            .zip(coverage[..max_len].iter().copied())
-        {
-            if alpha_byte == 0 {
-                continue;
-            }
-            let sa_u32: u32 = if color_a == 255 {
-                alpha_byte as u32
-            } else {
-                let prod: u32 = color_a * (alpha_byte as u32) + 128;
-                (prod + (prod >> 8)) >> 8
-            };
-            if sa_u32 == 255 {
-                px[0] = sr as u8;
-                px[1] = sg as u8;
-                px[2] = sb as u8;
-                px[3] = 255;
-            } else if sa_u32 > 0 {
-                let inv_a: u32 = 255 - sa_u32;
-                let vr: u32 = sr * sa_u32 + (px[0] as u32) * inv_a + 128;
-                let vg: u32 = sg * sa_u32 + (px[1] as u32) * inv_a + 128;
-                let vb: u32 = sb * sa_u32 + (px[2] as u32) * inv_a + 128;
-                let va: u32 = (px[3] as u32) * inv_a + 128;
-                px[0] = ((vr + (vr >> 8)) >> 8) as u8;
-                px[1] = ((vg + (vg >> 8)) >> 8) as u8;
-                px[2] = ((vb + (vb >> 8)) >> 8) as u8;
-                px[3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
-            }
-            shaded += 1;
-        }
-        shaded
+        blend_glyph_row_span(dst_span, &coverage[..max_len], color)
     }
 
     /// Blends `color` over global pixel `(x, y)` using fast integer Porter-Duff source-over.
