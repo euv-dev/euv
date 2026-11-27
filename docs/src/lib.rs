@@ -23,14 +23,16 @@ pub(crate) use parser::{
 #[cfg(test)]
 use std::env;
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, BTreeSet, HashMap},
     f32::consts::{FRAC_PI_2, PI, TAU},
-    ffi::OsStr,
+    ffi::{OsStr, OsString},
     fmt::{self, Write},
     fs::{self, DirEntry},
     io::{self, Error, ErrorKind},
+    iter::Peekable,
     mem::take,
-    path::{Component, Path, PathBuf},
+    path::{Components, Path, PathBuf},
     str::Chars,
 };
 

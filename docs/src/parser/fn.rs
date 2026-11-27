@@ -14,10 +14,31 @@ use super::*;
 #[must_use]
 pub fn parse_markdown_page(route: &str, default_section: &str, raw: &str) -> DocPage {
     let (frontmatter, body): (DocFrontmatter, &str) = split_frontmatter(raw);
-    let mut blocks: Vec<DocBlock> = Vec::new();
-    let mut toc: Vec<DocTocItem> = Vec::new();
+    parse_markdown_page_with_frontmatter(route, default_section, frontmatter, body)
+}
+
+/// Parses a Markdown body whose YAML frontmatter has already been extracted into a `DocPage`.
+///
+/// # Arguments
+///
+/// - `&str` - Canonical route path for this page.
+/// - `&str` - Section label derived from directory hierarchy.
+/// - `DocFrontmatter` - Pre-parsed YAML frontmatter metadata.
+/// - `&str` - Markdown body slice following frontmatter.
+///
+/// # Returns
+///
+/// - `DocPage` - Parsed structured documentation page.
+fn parse_markdown_page_with_frontmatter(
+    route: &str,
+    default_section: &str,
+    frontmatter: DocFrontmatter,
+    body: &str,
+) -> DocPage {
+    let mut blocks: Vec<DocBlock> = Vec::with_capacity((body.len() / 160).clamp(8, 256));
+    let mut toc: Vec<DocTocItem> = Vec::with_capacity((body.len() / 512).clamp(4, 32));
     let mut seen_slugs: BTreeMap<String, usize> = BTreeMap::new();
-    let mut active_heading: Option<(u8, Option<String>)> = None;
+    let mut active_heading: Option<(u8, Option<CowStr<'_>>)> = None;
     let mut first_h1_title: Option<String> = None;
     let mut in_paragraph: bool = false;
     let mut list_stack: Vec<String> = Vec::new();
@@ -31,12 +52,12 @@ pub fn parse_markdown_page(route: &str, default_section: &str, raw: &str) -> Doc
     let mut active_code_lang: Option<String> = None;
     let mut active_image_src: Option<String> = None;
     let mut image_alt_buf: String = String::new();
-    let mut buffer: String = String::new();
+    let mut buffer: String = String::with_capacity(256);
     let parser: Parser<'_> = Parser::new_ext(body, Options::all());
     for event in parser {
         match event {
             Event::Start(Tag::Heading { level, id, .. }) => {
-                active_heading = Some((heading_level_num(level), id.map(CowStr::into_string)));
+                active_heading = Some((heading_level_num(level), id));
                 buffer.clear();
             }
             Event::End(TagEnd::Heading(_)) => {
@@ -47,7 +68,8 @@ pub fn parse_markdown_page(route: &str, default_section: &str, raw: &str) -> Doc
                             first_h1_title = Some(text.clone());
                         }
                         let raw_slug: String = custom_id
-                            .map(|id_str: String| slugify(&id_str))
+                            .as_deref()
+                            .map(slugify)
                             .filter(|s: &String| !s.is_empty())
                             .unwrap_or_else(|| slugify(&text));
                         let slug: String = deduplicate_slug(raw_slug, &mut seen_slugs);
@@ -177,7 +199,8 @@ pub fn parse_markdown_page(route: &str, default_section: &str, raw: &str) -> Doc
             }
             Event::End(TagEnd::Image) => {
                 if let Some(src) = active_image_src.take() {
-                    let alt: String = take(&mut image_alt_buf).trim().to_string();
+                    let alt: String = image_alt_buf.trim().to_string();
+                    image_alt_buf.clear();
                     if !src.is_empty() {
                         blocks.push(DocBlock::Image { alt, src });
                     }
@@ -334,7 +357,7 @@ pub(crate) fn load_doc_site_excluding(
     let mut files: Vec<PathBuf> = Vec::new();
     collect_markdown_files(root_dir, canonical_exclude.as_deref(), &mut files)?;
     files.sort();
-    let mut pages: Vec<DocPage> = Vec::new();
+    let mut pages: Vec<DocPage> = Vec::with_capacity(files.len());
     let mut seen_routes: BTreeSet<String> = BTreeSet::new();
     let mut detected_title: Option<String> = None;
     let mut detected_tagline: Option<String> = None;
@@ -342,15 +365,15 @@ pub(crate) fn load_doc_site_excluding(
         let raw: String = fs::read_to_string(&file_path)?;
         let rel: &Path = file_path.strip_prefix(root_dir).unwrap_or(&file_path);
         let (mut route, section): (String, String) = route_and_section_from_rel_path(rel);
-        if route == ROUTE_ROOT {
-            let (fm, _): (DocFrontmatter, &str) = split_frontmatter(&raw);
-            if let Some(site_cfg) = fm.site {
-                if detected_title.is_none() {
-                    detected_title = site_cfg.try_get_title().clone();
-                }
-                if detected_tagline.is_none() {
-                    detected_tagline = site_cfg.try_get_description().clone();
-                }
+        let (mut frontmatter, body): (DocFrontmatter, &str) = split_frontmatter(&raw);
+        if route == ROUTE_ROOT
+            && let Some(site_cfg) = frontmatter.site.take()
+        {
+            if detected_title.is_none() {
+                detected_title = site_cfg.try_get_title().clone();
+            }
+            if detected_tagline.is_none() {
+                detected_tagline = site_cfg.try_get_description().clone();
             }
         }
         if seen_routes.contains(&route) {
@@ -372,7 +395,12 @@ pub(crate) fn load_doc_site_excluding(
             }
         }
         let _: bool = seen_routes.insert(route.clone());
-        pages.push(parse_markdown_page(&route, &section, &raw));
+        pages.push(parse_markdown_page_with_frontmatter(
+            &route,
+            &section,
+            frontmatter,
+            body,
+        ));
     }
     pages.sort_by(|a: &DocPage, b: &DocPage| {
         section_sort_rank(a.get_section())
@@ -385,10 +413,9 @@ pub(crate) fn load_doc_site_excluding(
         .file_name()
         .map(|s: &OsStr| s.to_string_lossy().into_owned())
         .filter(|raw: &String| {
-            let low: String = raw.to_ascii_lowercase();
             raw.len() > 2
-                && low != GENERIC_DOCS_DIR
-                && low != GENERIC_SRC_DIR
+                && !raw.eq_ignore_ascii_case(GENERIC_DOCS_DIR)
+                && !raw.eq_ignore_ascii_case(GENERIC_SRC_DIR)
                 && raw != "."
                 && raw != ".."
         })
@@ -473,6 +500,34 @@ pub(crate) fn heading_level_num(level: HeadingLevel) -> u8 {
     }
 }
 
+/// Appends a lowercase Unicode-safe URL anchor slug for `input` directly into `out`.
+///
+/// # Arguments
+///
+/// - `&mut String` - Destination slug buffer.
+/// - `&str` - Heading text or path segment.
+fn push_slugified(out: &mut String, input: &str) {
+    let start_len: usize = out.len();
+    let mut prev_dash: bool = false;
+    for ch in input.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch.to_ascii_lowercase());
+            prev_dash = false;
+        } else if ch.is_alphanumeric() {
+            for lower in ch.to_lowercase() {
+                out.push(lower);
+            }
+            prev_dash = false;
+        } else if !prev_dash && out.len() > start_len {
+            out.push('-');
+            prev_dash = true;
+        }
+    }
+    while out.len() > start_len && out.ends_with('-') {
+        let _: Option<char> = out.pop();
+    }
+}
+
 /// Produces a lowercase Unicode-safe URL anchor slug from heading text or path segments.
 ///
 /// # Arguments
@@ -484,24 +539,7 @@ pub(crate) fn heading_level_num(level: HeadingLevel) -> u8 {
 /// - `String` - Hyphenated URL slug.
 pub(crate) fn slugify(input: &str) -> String {
     let mut out: String = String::with_capacity(input.len());
-    let mut prev_dash: bool = false;
-    for ch in input.chars() {
-        if ch.is_ascii_alphanumeric() {
-            out.push(ch.to_ascii_lowercase());
-            prev_dash = false;
-        } else if ch.is_alphanumeric() {
-            for lower in ch.to_lowercase() {
-                out.push(lower);
-            }
-            prev_dash = false;
-        } else if !prev_dash && !out.is_empty() {
-            out.push('-');
-            prev_dash = true;
-        }
-    }
-    while out.ends_with('-') {
-        let _: Option<char> = out.pop();
-    }
+    push_slugified(&mut out, input);
     out
 }
 
@@ -521,13 +559,12 @@ pub(crate) fn deduplicate_slug(raw_slug: String, seen: &mut BTreeMap<String, usi
     } else {
         raw_slug
     };
-    let count: &mut usize = seen.entry(base.clone()).or_insert(0);
-    *count += 1;
-    if *count == 1 {
-        base
-    } else {
-        format!("{base}-{}", *count)
+    if let Some(count) = seen.get_mut(&base) {
+        *count += 1;
+        return format!("{base}-{}", *count);
     }
+    let _: Option<usize> = seen.insert(base.clone(), 1);
+    base
 }
 
 /// Recursively collects `.md` file paths beneath `dir`, skipping build artifacts, hidden folders, and `exclude_dir`.
@@ -549,8 +586,14 @@ fn collect_markdown_files(
     for entry in fs::read_dir(dir)? {
         let entry_val: DirEntry = entry?;
         let path: PathBuf = entry_val.path();
-        if path.is_dir() {
-            let name: String = entry_val.file_name().to_string_lossy().into_owned();
+        let is_dir: bool = match entry_val.file_type() {
+            Ok(ft) if ft.is_dir() => true,
+            Ok(ft) if ft.is_file() => false,
+            _ => path.is_dir(),
+        };
+        if is_dir {
+            let file_name: OsString = entry_val.file_name();
+            let name: Cow<'_, str> = file_name.to_string_lossy();
             if should_skip_dir(&name) {
                 continue;
             }
@@ -588,6 +631,23 @@ pub(crate) fn should_skip_dir(name: &str) -> bool {
             .any(|ignored: &&str| name.eq_ignore_ascii_case(ignored))
 }
 
+/// Appends a single `/` plus slugified (or ASCII-lowercased fallback) route segment into `out`.
+///
+/// # Arguments
+///
+/// - `&mut String` - Destination route buffer.
+/// - `&str` - Raw directory name or file stem segment.
+fn push_route_segment(out: &mut String, seg: &str) {
+    out.push('/');
+    let start_len: usize = out.len();
+    push_slugified(out, seg);
+    if out.len() == start_len {
+        for ch in seg.chars() {
+            out.push(ch.to_ascii_lowercase());
+        }
+    }
+}
+
 /// Derives canonical route and formatted section label from a relative Markdown path.
 ///
 /// # Arguments
@@ -598,46 +658,35 @@ pub(crate) fn should_skip_dir(name: &str) -> bool {
 ///
 /// - `(String, String)` - Canonical route path and section label.
 fn route_and_section_from_rel_path(rel: &Path) -> (String, String) {
-    let parts: Vec<String> = rel
-        .components()
-        .map(|c: Component<'_>| c.as_os_str().to_string_lossy().into_owned())
-        .collect();
-    if parts.is_empty() {
+    let mut comps: Peekable<Components<'_>> = rel.components().peekable();
+    let Some(first_comp) = comps.next() else {
         return (ROUTE_ROOT.to_string(), DEFAULT_SECTION.to_string());
-    }
-    let section: String = if parts.len() > 1 {
-        format_section_label(&parts[0])
+    };
+    let mut route: String = String::with_capacity(rel.as_os_str().len() + 1);
+    let section: String = if comps.peek().is_some() {
+        let first_cow: Cow<'_, str> = first_comp.as_os_str().to_string_lossy();
+        let sec: String = format_section_label(&first_cow);
+        push_route_segment(&mut route, &first_cow);
+        while let Some(comp) = comps.next() {
+            if comps.peek().is_some() {
+                let seg_cow: Cow<'_, str> = comp.as_os_str().to_string_lossy();
+                push_route_segment(&mut route, &seg_cow);
+            }
+        }
+        sec
     } else {
         DEFAULT_SECTION.to_string()
     };
-    let stem: String = rel
+    let stem_cow: Cow<'_, str> = rel
         .file_stem()
-        .map(|s: &OsStr| s.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    let mut route_segments: Vec<String> = parts[..parts.len().saturating_sub(1)]
-        .iter()
-        .map(|seg: &String| {
-            let cleaned: String = slugify(seg);
-            if cleaned.is_empty() {
-                seg.to_ascii_lowercase()
-            } else {
-                cleaned
-            }
-        })
-        .collect();
-    if !stem.eq_ignore_ascii_case(README_STEM) && !stem.eq_ignore_ascii_case(INDEX_STEM) {
-        let cleaned_stem: String = slugify(&stem);
-        route_segments.push(if cleaned_stem.is_empty() {
-            stem.to_ascii_lowercase()
-        } else {
-            cleaned_stem
-        });
+        .map(OsStr::to_string_lossy)
+        .unwrap_or(Cow::Borrowed(""));
+    if !stem_cow.eq_ignore_ascii_case(README_STEM) && !stem_cow.eq_ignore_ascii_case(INDEX_STEM) {
+        push_route_segment(&mut route, &stem_cow);
     }
-    let route: String = if route_segments.is_empty() {
-        ROUTE_ROOT.to_string()
-    } else {
-        format!("/{}", route_segments.join("/"))
-    };
+    if route.is_empty() {
+        route.push_str(ROUTE_ROOT);
+    }
     (route, section)
 }
 
@@ -651,7 +700,7 @@ fn route_and_section_from_rel_path(rel: &Path) -> (String, String) {
 ///
 /// - `String` - Formatted display label.
 fn format_section_label(raw: &str) -> String {
-    let mut words: Vec<String> = Vec::new();
+    let mut out: String = String::with_capacity(raw.len());
     for part in raw.split(['-', '_']) {
         let trimmed: &str = part.trim();
         if trimmed.is_empty() {
@@ -659,19 +708,19 @@ fn format_section_label(raw: &str) -> String {
         }
         let mut chars: Chars<'_> = trimmed.chars();
         if let Some(first) = chars.next() {
-            let mut word: String = String::new();
-            for up in first.to_uppercase() {
-                word.push(up);
+            if !out.is_empty() {
+                out.push(' ');
             }
-            word.push_str(chars.as_str());
-            words.push(word);
+            for up in first.to_uppercase() {
+                out.push(up);
+            }
+            out.push_str(chars.as_str());
         }
     }
-    if words.is_empty() {
-        DEFAULT_SECTION.to_string()
-    } else {
-        words.join(" ")
+    if out.is_empty() {
+        out.push_str(DEFAULT_SECTION);
     }
+    out
 }
 
 /// Derives a human-readable fallback page title from a canonical route string.
