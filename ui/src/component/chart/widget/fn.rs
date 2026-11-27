@@ -1,17 +1,23 @@
 use super::*;
 
-/// Builds a compact square icon-only toolbox button for `EuvEChart`.
+/// Builds a compact square native vector icon-only toolbox button for `EuvEChart`.
 ///
 /// # Arguments
 ///
 /// - `ThemeTokens` - Active UI theme tokens.
-/// - `u8` - Icon glyph index (`0`=Restore, `1`=MagicType, `2`=DataView, `3`=Fullscreen).
+/// - `EuvIconName` - Built-in vector icon glyph rendered via `draw_euv_icon`.
+/// - `&'static str` - Accessible button label.
 /// - `F` - Click callback closure.
 ///
 /// # Returns
 ///
 /// - `NodeId` - Mounted compact icon button node.
-pub(crate) fn build_toolbox_icon_btn<F>(tokens: ThemeTokens, glyph: u8, on_click: F) -> NodeId
+pub(crate) fn build_toolbox_icon_btn<F>(
+    tokens: ThemeTokens,
+    icon: EuvIconName,
+    a11y_label: &'static str,
+    on_click: F,
+) -> NodeId
 where
     F: FnMut(&UiEvent) + 'static,
 {
@@ -19,22 +25,24 @@ where
     let g: ThemeGeometry = tokens.get_geometry();
     let paint_icon = move |bounds: Rect, dl: &mut DisplayList| {
         let live_p: ThemePalette = live_tokens_untracked(tokens).get_palette();
-        draw_toolbox_glyph(dl, bounds, glyph, live_p.get_muted_foreground());
+        draw_euv_icon(icon, bounds, dl, live_p.get_muted_foreground());
     };
     view! {
         row {
-            width: Length::Px(24.0)
-            height: Length::Px(24.0)
+            width: Length::Px(26.0)
+            height: Length::Px(26.0)
             justify: JustifyContent::Center
             align: AlignItems::Center
             radius: g.get_radius_sm()
             background: p.get_muted().multiply_alpha(0.55)
             border: (1.0, p.get_border())
             cursor: CursorIcon::Pointer
+            role: A11yRole::Button
+            a11y_label: a11y_label.to_string()
             on_click: on_click
             canvas {
-                width: Length::Px(14.0)
-                height: Length::Px(14.0)
+                width: Length::Px(13.0)
+                height: Length::Px(13.0)
                 painter: paint_icon
             }
         }
@@ -231,6 +239,13 @@ pub(crate) fn wire_chart_pointer_events(ctx: &mut Context, w: ChartPointerWiring
     let drag_up: Rc<Cell<(ChartDragTarget, f32, f32, f32)>> = Rc::clone(&w.drag_state);
     ctx.on_pointer_up(canvas_node, move |_: &UiEvent| {
         drag_up.set((ChartDragTarget::None, 0.0, 0.0, 100.0));
+    });
+    let drag_cancel: Rc<Cell<(ChartDragTarget, f32, f32, f32)>> = Rc::clone(&w.drag_state);
+    ctx.on_pointer_cancel(canvas_node, move |_: &UiEvent| {
+        drag_cancel.set((ChartDragTarget::None, 0.0, 0.0, 100.0));
+        let _: bool = state_sig.update(|st: &mut EuvChartState| {
+            st.set_hover_pos(None);
+        });
     });
     let drag_leave: Rc<Cell<(ChartDragTarget, f32, f32, f32)>> = Rc::clone(&w.drag_state);
     ctx.on_pointer_leave(canvas_node, move |_: &UiEvent| {

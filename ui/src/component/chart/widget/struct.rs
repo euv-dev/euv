@@ -17,15 +17,15 @@ pub struct EuvEChart {
     pub(crate) tokens: ThemeTokens,
     /// Component outer width (defaults to `Length::Percent(100.0)`).
     #[get(type(copy))]
-    #[prop(custom)]
+    #[prop(custom, default = Length::Percent(100.0))]
     pub(crate) width: Length,
-    /// Component canvas height (defaults to `Length::Px(320.0)`).
+    /// Component canvas height (defaults to `Length::Px(340.0)`).
     #[get(type(copy))]
-    #[prop(custom)]
+    #[prop(custom, default = Length::Px(ECHART_DEFAULT_HEIGHT))]
     pub(crate) height: Length,
     /// Whether hover tooltip, legend toggle, data-zoom, and click interaction are active (defaults to `true`).
     #[get(type(copy))]
-    #[prop(custom)]
+    #[prop(custom, default = true)]
     pub(crate) interactive: bool,
     /// Optional callback invoked when a plotted datum or slice is clicked.
     #[debug(skip)]

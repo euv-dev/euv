@@ -872,6 +872,10 @@ fn euv_echart_widget_mounts_reactively_in_headless_app() {
     let frame1: FrameStats = app.step_frame().unwrap();
     assert_ne!(frame1.get_frame_hash(), 0);
     assert!(frame1.get_draw_commands() >= 20);
+    let init_props: EuvEChart = <EuvEChart as ComponentProps>::init_props();
+    assert_eq!(init_props.get_width(), Length::Percent(100.0));
+    assert_eq!(init_props.get_height(), Length::Px(340.0));
+    assert!(init_props.get_interactive());
     let opt_b: EuvChartOption = opt_a.add_series(EuvChartSeries::new(
         "Target",
         EuvChartSeriesData::Bar(EuvChartBarSeries::from_values(vec![
@@ -881,4 +885,251 @@ fn euv_echart_widget_mounts_reactively_in_headless_app() {
     let _: bool = opt_sig.set(opt_b);
     let frame2: FrameStats = app.step_frame().unwrap();
     assert_ne!(frame2.get_frame_hash(), frame1.get_frame_hash());
+}
+
+fn find_chart_a11y_center(app: &App, label: &str) -> Option<Point> {
+    app.get_scene().with_read(
+        |tree: &SceneTree| {
+            for (idx, n) in tree.get_nodes().iter().enumerate() {
+                if !n.get_alive() || n.style_ref().get_layout().get_display() == Display::None {
+                    continue;
+                }
+                if n.a11y_props_ref()
+                    .is_some_and(|a: &A11yProps| a.get_label() == label)
+                {
+                    let nid: NodeId = NodeId::new(idx as u32, n.get_generation());
+                    if let Some(b) = tree.node_screen_bounds(nid)
+                        && b.get_width() > 0.0
+                        && b.get_height() > 0.0
+                    {
+                        return Some(Point::new(
+                            b.get_x() + b.get_width() * 0.5,
+                            b.get_y() + b.get_height() * 0.5,
+                        ));
+                    }
+                }
+            }
+            None
+        },
+        None,
+    )
+}
+
+fn click_chart_point(app: &mut App, pt: Point) {
+    let wid: WindowId = app.get_window_state().get_id();
+    let ev: PointerEvent = PointerEvent::mouse(pt.get_x(), pt.get_y());
+    app.dispatch_window_event(WindowEvent::PointerMove(wid, ev));
+    app.dispatch_window_event(WindowEvent::PointerDown(wid, ev));
+    app.dispatch_window_event(WindowEvent::PointerUp(wid, ev));
+    let _: FrameStats = app.step_frame().unwrap();
+}
+
+#[test]
+fn euv_echart_fullscreen_edge_to_edge_hides_app_shell_chrome_and_restores_on_exit_and_dispose() {
+    reset_reactive_runtime();
+    EuvOverlayStack::clear();
+    reset_fullscreen_state();
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
+    let route_sig: Signal<String> = Signal::new("/".to_string());
+    let clicks: Signal<u32> = Signal::new(0);
+    let show_chart: Signal<bool> = Signal::new(true);
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(390, 844).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let clicks_cb: Signal<u32> = clicks;
+    let _: NodeId = app.mount(move || {
+        let on_ping = move |_: &UiEvent| {
+            let _: bool = clicks_cb.update(|c: &mut u32| *c += 1);
+        };
+        let sidebar: NodeId = view! {
+            EuvSidebarNav {
+                items: vec![EuvNavItem::new("/".to_string(), "Home".to_string())]
+                active_route: route_sig
+                tokens: tokens
+            }
+        };
+        let bottom_nav: NodeId = view! {
+            EuvBottomNav {
+                items: vec![
+                    EuvNavItem::new("/".to_string(), "Home".to_string()).section("H"),
+                    EuvNavItem::new("/charts".to_string(), "Charts".to_string()).section("C"),
+                ]
+                active_route: route_sig
+                tokens: tokens
+            }
+        };
+        let build_chart_slot = move || -> Vec<NodeId> {
+            if !show_chart.get() {
+                return Vec::new();
+            }
+            let opt: EuvChartOption = EuvChartOption::new()
+                .title(EuvChartTitle::new("Immersive Line"))
+                .legend(EuvChartLegend::at(EuvChartPosition::Top))
+                .toolbox(EuvChartToolbox::full())
+                .tooltip(EuvChartTooltip::axis(EuvChartAxisPointerType::Cross))
+                .data_zoom(EuvChartDataZoom::inside())
+                .data_zoom(EuvChartDataZoom::slider())
+                .x_axis(EuvChartAxis::category(vec![
+                    "Mon".to_string(),
+                    "Tue".to_string(),
+                    "Wed".to_string(),
+                    "Thu".to_string(),
+                ]))
+                .y_axis(EuvChartAxis::value())
+                .add_series(EuvChartSeries::new(
+                    "Throughput",
+                    EuvChartSeriesData::Line(
+                        EuvChartLineSeries::from_values(vec![42.0, 68.0, 54.0, 92.0]).smooth(true),
+                    ),
+                ));
+            let node: NodeId = view! {
+                EuvEChart {
+                    option: opt
+                    tokens: tokens
+                    width: Length::Percent(100.0)
+                    height: Length::Px(260.0)
+                }
+            };
+            vec![node]
+        };
+        let main_col: NodeId = view! {
+            column {
+                width: Length::Percent(100.0)
+                gap: SPACE_MD
+                EuvButton {
+                    label: "ChartUnderlyingPing".to_string()
+                    tokens: tokens
+                    on_click: on_ping
+                }
+                column {
+                    width: Length::Percent(100.0)
+                    bind_children: build_chart_slot
+                }
+            }
+        };
+        view! {
+            EuvAppShell {
+                brand: "Euv Studio".to_string()
+                sidebar: sidebar
+                main_content: main_col
+                tokens: tokens
+                bottom_nav: bottom_nav
+                show_fps: true
+            }
+        }
+    });
+    let _: FrameStats = app.step_frame().unwrap();
+    assert!(find_chart_a11y_center(&app, "Restore").is_some());
+    assert!(find_chart_a11y_center(&app, "Magic Type").is_some());
+    assert!(find_chart_a11y_center(&app, "Data View").is_some());
+    let fs_btn: Point =
+        find_chart_a11y_center(&app, "Fullscreen").expect("chart fullscreen toolbox icon");
+    click_chart_point(&mut app, fs_btn);
+    assert!(is_fullscreen_active());
+    assert!(app.is_immersive_fullscreen());
+    assert_eq!(EuvOverlayStack::active_count(), 1);
+    let (portal_bounds, chrome_hidden): (Option<Rect>, bool) = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let mut fs_rect: Option<Rect> = None;
+            let mut any_visible_chrome: bool = false;
+            for (idx, n) in tree.get_nodes().iter().enumerate() {
+                if !n.get_alive() {
+                    continue;
+                }
+                let lay: LayoutStyle = n.style_ref().get_layout();
+                let paint: PaintStyle = n.style_ref().get_paint();
+                if lay.get_z_index() == Z_INDEX_CHROME && lay.get_display() != Display::None {
+                    any_visible_chrome = true;
+                }
+                if matches!(n.get_kind(), NodeKind::Portal)
+                    && lay.get_z_index() == Z_INDEX_FULLSCREEN
+                    && lay.get_display() == Display::Flex
+                {
+                    assert_eq!(lay.get_position(), Position::Fixed);
+                    assert_eq!(lay.get_padding(), Edges::all(0.0));
+                    assert_eq!(lay.get_margin(), Edges::all(0.0));
+                    assert_eq!(paint.get_radius(), CornerRadius::all(0.0));
+                    assert_eq!(paint.get_border().get_width(), 0.0);
+                    let nid: NodeId = NodeId::new(idx as u32, n.get_generation());
+                    fs_rect = tree.node_screen_bounds(nid);
+                }
+            }
+            (fs_rect, !any_visible_chrome)
+        },
+        (None, false),
+    );
+    let fs_rect: Rect = portal_bounds.expect("edge-to-edge chart fullscreen portal");
+    assert!((fs_rect.get_x() - 0.0).abs() < 0.5);
+    assert!((fs_rect.get_y() - 0.0).abs() < 0.5);
+    assert!((fs_rect.get_width() - 390.0).abs() < 0.5);
+    assert!((fs_rect.get_height() - 844.0).abs() < 0.5);
+    assert!(chrome_hidden);
+    let close_btn: Point =
+        find_chart_a11y_center(&app, "Close").expect("chart fullscreen close icon");
+    click_chart_point(&mut app, close_btn);
+    assert!(!is_fullscreen_active());
+    assert!(!app.is_immersive_fullscreen());
+    assert_eq!(EuvOverlayStack::active_count(), 0);
+    let (chrome_restored, any_open_fs_portal): (bool, bool) = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let mut visible_chrome: usize = 0;
+            let mut open_fs: bool = false;
+            for n in tree.get_nodes().iter() {
+                if !n.get_alive() {
+                    continue;
+                }
+                let lay: LayoutStyle = n.style_ref().get_layout();
+                if lay.get_z_index() == Z_INDEX_CHROME && lay.get_display() == Display::Flex {
+                    visible_chrome += 1;
+                }
+                if matches!(n.get_kind(), NodeKind::Portal)
+                    && lay.get_z_index() == Z_INDEX_FULLSCREEN
+                    && lay.get_display() != Display::None
+                {
+                    open_fs = true;
+                }
+            }
+            (visible_chrome >= 2, open_fs)
+        },
+        (false, true),
+    );
+    assert!(chrome_restored);
+    assert!(!any_open_fs_portal);
+    let ping_pt: Point = app
+        .get_scene()
+        .with_read(
+            |tree: &SceneTree| {
+                for (idx, n) in tree.get_nodes().iter().enumerate() {
+                    if n.get_alive()
+                        && matches!(n.get_kind(), NodeKind::Text(t) if t == "ChartUnderlyingPing")
+                    {
+                        let nid: NodeId = NodeId::new(idx as u32, n.get_generation());
+                        if let Some(b) = tree.node_screen_bounds(nid) {
+                            return Some(Point::new(
+                                b.get_x() + b.get_width() * 0.5,
+                                b.get_y() + b.get_height() * 0.5,
+                            ));
+                        }
+                    }
+                }
+                None
+            },
+            None,
+        )
+        .expect("underlying button must remain clickable after fullscreen exit");
+    click_chart_point(&mut app, ping_pt);
+    assert_eq!(clicks.get_untracked(), 1);
+    let fs_btn_again: Point =
+        find_chart_a11y_center(&app, "Fullscreen").expect("chart fullscreen icon on reopen");
+    click_chart_point(&mut app, fs_btn_again);
+    assert!(is_fullscreen_active());
+    assert!(app.is_immersive_fullscreen());
+    assert_eq!(EuvOverlayStack::active_count(), 1);
+    let _: bool = show_chart.set(false);
+    let _: FrameStats = app.step_frame().unwrap();
+    assert!(!is_fullscreen_active());
+    assert!(!app.is_immersive_fullscreen());
+    assert_eq!(EuvOverlayStack::active_count(), 0);
 }
