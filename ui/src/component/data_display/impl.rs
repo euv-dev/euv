@@ -14,10 +14,11 @@ impl EuvTag {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
-        let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
         let (accent, _): (Color, Color) = self.get_tone().colors(p);
-        let Self { label, .. } = self.clone();
+        let Self { label, .. } = self;
         view! {
             row {
                 height: Length::Px(24.0)
@@ -34,7 +35,7 @@ impl EuvTag {
                     color: p.get_foreground()
                     text_align: TextAlign::Center
                     text_overflow: TextOverflow::Ellipsis
-                    { label }
+                    { label.as_str() }
                 }
             }
         }
@@ -57,7 +58,7 @@ impl EuvAvatar {
     fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
         let sz: f32 = self.get_size();
-        let Self { initials, .. } = self.clone();
+        let Self { initials, .. } = self;
         view! {
             row {
                 width: Length::Px(sz)
@@ -71,7 +72,7 @@ impl EuvAvatar {
                     font_weight: FontWeight::Bold
                     color: p.get_primary_foreground()
                     text_align: TextAlign::Center
-                    { initials }
+                    { initials.as_str() }
                 }
             }
         }
@@ -94,7 +95,7 @@ impl EuvIcon {
     fn render(&self) -> NodeId {
         let sz: f32 = self.get_size();
         let color: Color = self.get_color();
-        let Self { symbol, .. } = self.clone();
+        let Self { symbol, .. } = self;
         view! {
             row {
                 width: Length::Px(sz)
@@ -105,7 +106,7 @@ impl EuvIcon {
                     font_size: sz * 0.78
                     font_weight: FontWeight::SemiBold
                     color: color
-                    { symbol }
+                    { symbol.as_str() }
                 }
             }
         }
@@ -126,9 +127,10 @@ impl EuvKbd {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
-        let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
-        let Self { key, .. } = self.clone();
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
+        let Self { key, .. } = self;
         view! {
             row {
                 justify: JustifyContent::Center
@@ -143,7 +145,7 @@ impl EuvKbd {
                     color: p.get_foreground()
                     text_align: TextAlign::Center
                     text_overflow: TextOverflow::Clip
-                    { key }
+                    { key.as_str() }
                 }
             }
         }
@@ -164,34 +166,41 @@ impl EuvTypography {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
-        let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
         let variant: EuvTypographyVariant = self.get_variant();
-        let Self { text, .. } = self.clone();
-        let style: Style = match variant {
-            EuvTypographyVariant::H1 => Style::default()
-                .font_size(g.get_font_title())
-                .font_weight(FontWeight::Bold)
-                .color(p.get_foreground()),
-            EuvTypographyVariant::H2 => Style::default()
-                .font_size(g.get_font_heading())
-                .font_weight(FontWeight::Bold)
-                .color(p.get_foreground()),
-            EuvTypographyVariant::H3 => Style::default()
-                .font_size(15.0)
-                .font_weight(FontWeight::SemiBold)
-                .color(p.get_foreground()),
-            EuvTypographyVariant::Body => Style::default()
-                .font_size(g.get_font_body())
-                .color(p.get_foreground()),
-            EuvTypographyVariant::Caption => Style::default()
-                .font_size(12.0)
-                .color(p.get_muted_foreground()),
-        };
+        let Self { text, .. } = self;
+        let mut style: Style = Style::default();
+        let ts: &mut TextStyle = style.get_mut_text();
+        match variant {
+            EuvTypographyVariant::H1 => {
+                ts.set_font_size(g.get_font_title())
+                    .set_weight(FontWeight::Bold)
+                    .set_color(p.get_foreground());
+            }
+            EuvTypographyVariant::H2 => {
+                ts.set_font_size(g.get_font_heading())
+                    .set_weight(FontWeight::Bold)
+                    .set_color(p.get_foreground());
+            }
+            EuvTypographyVariant::H3 => {
+                ts.set_font_size(15.0)
+                    .set_weight(FontWeight::SemiBold)
+                    .set_color(p.get_foreground());
+            }
+            EuvTypographyVariant::Body => {
+                ts.set_font_size(g.get_font_body())
+                    .set_color(p.get_foreground());
+            }
+            EuvTypographyVariant::Caption => {
+                ts.set_font_size(12.0).set_color(p.get_muted_foreground());
+            }
+        }
         view! {
             text {
                 style: style
-                { text }
+                { text.as_str() }
             }
         }
     }
@@ -211,11 +220,12 @@ impl EuvEmpty {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
-        let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
         let Self {
             title, description, ..
-        } = self.clone();
+        } = self;
         view! {
             column {
                 width: Length::Percent(100.0)
@@ -233,12 +243,12 @@ impl EuvEmpty {
                     font_size: 15.0
                     font_weight: FontWeight::SemiBold
                     color: p.get_foreground()
-                    { title }
+                    { title.as_str() }
                 }
                 text {
                     font_size: 13.0
                     color: p.get_muted_foreground()
-                    { description }
+                    { description.as_str() }
                 }
             }
         }
@@ -334,12 +344,12 @@ impl EuvTimeline {
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
-        let Self { items, .. } = self.clone();
+        let Self { items, .. } = self;
         view! {
             column {
                 width: Length::Percent(100.0)
                 gap: SPACE_MD
-                for item in items.into_iter() {
+                for item in items.iter() {
                     row {
                         width: Length::Percent(100.0)
                         gap: SPACE_MD
@@ -356,17 +366,17 @@ impl EuvTimeline {
                                 font_size: 14.0
                                 font_weight: FontWeight::SemiBold
                                 color: p.get_foreground()
-                                { item.get_title().clone() }
+                                { item.get_title().as_str() }
                             }
                             text {
                                 font_size: 11.0
                                 color: p.get_muted_foreground()
-                                { item.get_timestamp().clone() }
+                                { item.get_timestamp().as_str() }
                             }
                             text {
                                 font_size: 13.0
                                 color: p.get_muted_foreground()
-                                { item.get_detail().clone() }
+                                { item.get_detail().as_str() }
                             }
                         }
                     }
@@ -390,9 +400,10 @@ impl EuvList {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
-        let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
-        let Self { items, .. } = self.clone();
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
+        let Self { items, .. } = self;
         view! {
             column {
                 width: Length::Percent(100.0)
@@ -400,7 +411,7 @@ impl EuvList {
                 border: (g.get_border_width(), p.get_border())
                 radius: g.get_radius_md()
                 overflow: Overflow::Hidden
-                for (idx, item) in items.into_iter().enumerate() {
+                for (idx, item) in items.iter().enumerate() {
                     if idx > 0 {
                         view {
                             width: Length::Percent(100.0)
@@ -414,7 +425,7 @@ impl EuvList {
                         text {
                             font_size: 13.0
                             color: p.get_foreground()
-                            { item }
+                            { item.as_str() }
                         }
                     }
                 }
@@ -565,12 +576,13 @@ impl EuvTree {
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
         let mut ctx: Context = current_context();
-        let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
         let Self {
             roots, selected, ..
-        } = self.clone();
-        let branch_nodes: Vec<NodeId> = Self::build_branch(&mut ctx, &roots, 0, (p, g), selected);
+        } = self;
+        let branch_nodes: Vec<NodeId> = Self::build_branch(&mut ctx, roots, 0, (p, g), *selected);
         view! {
             column {
                 width: Length::Percent(100.0)

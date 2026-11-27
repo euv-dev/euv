@@ -12,6 +12,7 @@ impl EuvTone {
     /// # Returns
     ///
     /// - `(Color, Color)` - Background and foreground colors.
+    #[inline(always)]
     #[must_use]
     pub fn colors(&self, palette: ThemePalette) -> (Color, Color) {
         match *self {
@@ -60,10 +61,11 @@ impl EuvBadge {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
-        let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
         let (bg, fg): (Color, Color) = self.get_tone().colors(p);
-        let Self { label, .. } = self.clone();
+        let Self { label, .. } = self;
         view! {
             row {
                 height: Length::Px(24.0)
@@ -80,7 +82,7 @@ impl EuvBadge {
                     color: fg
                     text_align: TextAlign::Center
                     text_overflow: TextOverflow::Ellipsis
-                    { label }
+                    { label.as_str() }
                 }
             }
         }
@@ -120,8 +122,9 @@ impl EuvAlert {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
-        let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
         let is_selectable: bool = self.get_selectable();
         let (accent, _): (Color, Color) = self.get_tone().colors(p);
         let border_col: Color = match self.get_tone() {
@@ -130,7 +133,7 @@ impl EuvAlert {
         };
         let Self {
             title, description, ..
-        } = self.clone();
+        } = self;
         view! {
             column {
                 width: Length::Percent(100.0)
@@ -146,13 +149,13 @@ impl EuvAlert {
                     font_size: 14.0
                     font_weight: FontWeight::SemiBold
                     color: p.get_foreground()
-                    { title }
+                    { title.as_str() }
                 }
                 text {
                     width: Length::Percent(100.0)
                     font_size: 13.0
                     color: p.get_muted_foreground()
-                    { description }
+                    { description.as_str() }
                 }
             }
         }
@@ -542,9 +545,10 @@ impl EuvTable {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
-        let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
-        let Self { headers, rows, .. } = self.clone();
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
+        let Self { headers, rows, .. } = self;
         view! {
             column {
                 width: Length::Percent(100.0)
@@ -557,7 +561,7 @@ impl EuvTable {
                     padding: Edges::symmetric(SPACE_SM, SPACE_MD)
                     background: p.get_muted()
                     gap: SPACE_SM
-                    for h in headers.into_iter() {
+                    for h in headers.iter() {
                         view {
                             flex_grow: 1.0
                             overflow: Overflow::Hidden
@@ -565,12 +569,12 @@ impl EuvTable {
                                 font_size: 12.0
                                 font_weight: FontWeight::SemiBold
                                 color: p.get_muted_foreground()
-                                { h }
+                                { h.as_str() }
                             }
                         }
                     }
                 }
-                for row_cells in rows.into_iter() {
+                for row_cells in rows.iter() {
                     view {
                         width: Length::Percent(100.0)
                         height: Length::Px(g.get_border_width().max(1.0))
@@ -580,14 +584,14 @@ impl EuvTable {
                         width: Length::Percent(100.0)
                         padding: Edges::symmetric(SPACE_SM, SPACE_MD)
                         gap: SPACE_SM
-                        for cell_text in row_cells.into_iter() {
+                        for cell_text in row_cells.iter() {
                             view {
                                 flex_grow: 1.0
                                 overflow: Overflow::Hidden
                                 text {
                                     font_size: 13.0
                                     color: p.get_foreground()
-                                    { cell_text }
+                                    { cell_text.as_str() }
                                 }
                             }
                         }

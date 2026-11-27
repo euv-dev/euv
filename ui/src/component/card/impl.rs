@@ -74,8 +74,8 @@ impl EuvCard {
             subtitle,
             children,
             ..
-        } = self.clone();
-        view! {
+        } = self;
+        let root: NodeId = view! {
             view {
                 style: tokens.card_style()
                 width: Length::Percent(100.0)
@@ -86,7 +86,7 @@ impl EuvCard {
                         font_size: g.get_font_heading()
                         font_weight: FontWeight::SemiBold
                         color: p.get_card_foreground()
-                        { title }
+                        { title.as_str() }
                     }
                 }
                 if !subtitle.is_empty() {
@@ -94,12 +94,16 @@ impl EuvCard {
                         width: Length::Percent(100.0)
                         font_size: 13.0
                         color: p.get_muted_foreground()
-                        { subtitle }
+                        { subtitle.as_str() }
                     }
                 }
-                ..children
             }
+        };
+        if !children.is_empty() {
+            let mut ctx: Context = current_context();
+            ctx.append_many(root, children);
         }
+        root
     }
 }
 
@@ -117,11 +121,12 @@ impl EuvHeader {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
-        let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
         let Self {
             title, subtitle, ..
-        } = self.clone();
+        } = self;
         let mut a11y: A11yProps = A11yProps::new(A11yRole::Heading, title.clone());
         a11y.set_heading_level(1);
         view! {
@@ -145,7 +150,7 @@ impl EuvHeader {
                         font_weight: FontWeight::Bold
                         color: p.get_foreground()
                         a11y: a11y
-                        { title }
+                        { title.as_str() }
                     }
                 }
                 if !subtitle.is_empty() {
@@ -153,7 +158,7 @@ impl EuvHeader {
                         width: Length::Percent(100.0)
                         font_size: g.get_font_body()
                         color: p.get_muted_foreground()
-                        { subtitle }
+                        { subtitle.as_str() }
                     }
                 }
             }
@@ -183,7 +188,7 @@ impl EuvStatCard {
             value,
             caption,
             ..
-        } = self.clone();
+        } = self;
         view! {
             view {
                 style: tokens.card_style()
@@ -199,7 +204,7 @@ impl EuvStatCard {
                         font_size: 12.0
                         font_weight: FontWeight::SemiBold
                         color: p.get_muted_foreground()
-                        { label }
+                        { label.as_str() }
                     }
                     view {
                         width: Length::Px(24.0)
@@ -214,7 +219,7 @@ impl EuvStatCard {
                     font_size: 26.0
                     font_weight: FontWeight::Bold
                     color: p.get_foreground()
-                    { value }
+                    { value.as_str() }
                 }
                 if !caption.is_empty() {
                     row {
@@ -229,7 +234,7 @@ impl EuvStatCard {
                             font_size: 11.0
                             font_weight: FontWeight::SemiBold
                             color: p.get_primary()
-                            { caption }
+                            { caption.as_str() }
                         }
                     }
                 }
