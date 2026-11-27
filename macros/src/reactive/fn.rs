@@ -28,8 +28,17 @@ fn try_inline_direct_closure(
     {
         return None;
     }
-    if discard_result && !matches!(closure.output, ReturnType::Default) {
-        return None;
+    if discard_result {
+        let is_unit_ret: bool = match &closure.output {
+            ReturnType::Default => true,
+            ReturnType::Type(_, ret_ty) => matches!(
+                ret_ty.as_ref(),
+                Type::Tuple(tup) if tup.elems.is_empty()
+            ),
+        };
+        if !is_unit_ret {
+            return None;
+        }
     }
     let reads: Vec<proc_macro2::TokenStream> = signals
         .iter()

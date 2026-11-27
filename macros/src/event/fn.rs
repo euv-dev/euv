@@ -28,6 +28,7 @@ pub(crate) fn expand_event_attr(item: ItemStruct) -> proc_macro2::TokenStream {
     /// Implements `impl #impl_generics #ident #ty_generics #where_clause`.
             impl #impl_generics #ident #ty_generics #where_clause {
                 /// Emits this typed cross-component custom event to all active listeners on `EventBus`.
+                #[cfg_attr(not(target_arch = "wasm32"), inline)]
                 pub fn emit(self) {
                     ::euv::EventBus::emit(self);
                 }
@@ -42,6 +43,7 @@ pub(crate) fn expand_event_attr(item: ItemStruct) -> proc_macro2::TokenStream {
     ///
     /// - `::euv::Effect` - A `::euv::Effect` value.
                 #[must_use]
+                #[cfg_attr(not(target_arch = "wasm32"), inline)]
                 pub fn on<__EuvEvF>(handler: __EuvEvF) -> ::euv::Effect
                 where
                     __EuvEvF: FnMut(&Self) + 'static,

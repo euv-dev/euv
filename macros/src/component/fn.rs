@@ -66,6 +66,7 @@ pub(crate) fn expand_component_attr(
         /// # Returns
         ///
         /// - `::euv::NodeId` - Mounted root scene node handle.
+                    #[cfg_attr(not(target_arch = "wasm32"), inline)]
                     fn mount(self) -> ::euv::NodeId {
                         <Self as ::euv::Component>::render(&self)
                     }

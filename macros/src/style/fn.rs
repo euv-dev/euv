@@ -256,7 +256,10 @@ fn expand_style_body(stmts: &[StyleStmt], scope_label: &str) -> Result<proc_macr
                     STYLE_KEY_TEXT_ALIGN => quote! { __s.get_mut_text().set_align(#value); },
                     STYLE_KEY_TEXT_OVERFLOW => quote! { __s.get_mut_text().set_overflow(#value); },
                     STYLE_KEY_SELECTABLE => quote! { __s = __s.selectable(#value); },
-                    STYLE_KEY_SELECTION_COLOR => quote! { __s = __s.selection_color(#value); },
+                    STYLE_KEY_SELECTION_COLOR => quote! {
+                        __s.get_mut_text()
+                            .set_selection_color(::core::option::Option::Some(#value));
+                    },
                     STYLE_KEY_OPACITY => quote! {
                         let __euv_opacity: f32 = #value;
                         __s.get_mut_paint()
