@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <title>Euv Studio</title>
+  <defs>
+    <clipPath id="euvSquircleClip">
+      <path d="M 942.00 512.00 L 941.80 648.37 L 941.21 689.50 L 940.22 718.99 L 938.83 742.72 L 937.04 762.84 L 934.85 780.43 L 932.25 796.10 L 929.22 810.23 L 925.78 823.10 L 921.90 834.88 L 917.58 845.73 L 912.81 855.74 L 907.56 864.99 L 901.83 873.56 L 895.59 881.48 L 888.82 888.82 L 881.48 895.59 L 873.56 901.83 L 864.99 907.56 L 855.74 912.81 L 845.73 917.58 L 834.88 921.90 L 823.10 925.78 L 810.23 929.22 L 796.10 932.25 L 780.43 934.85 L 762.84 937.04 L 742.72 938.83 L 718.99 940.22 L 689.50 941.21 L 648.37 941.80 L 512.00 942.00 L 375.63 941.80 L 334.50 941.21 L 305.01 940.22 L 281.28 938.83 L 261.16 937.04 L 243.57 934.85 L 227.90 932.25 L 213.77 929.22 L 200.90 925.78 L 189.12 921.90 L 178.27 917.58 L 168.26 912.81 L 159.01 907.56 L 150.44 901.83 L 142.52 895.59 L 135.18 888.82 L 128.41 881.48 L 122.17 873.56 L 116.44 864.99 L 111.19 855.74 L 106.42 845.73 L 102.10 834.88 L 98.22 823.10 L 94.78 810.23 L 91.75 796.10 L 89.15 780.43 L 86.96 762.84 L 85.17 742.72 L 83.78 718.99 L 82.79 689.50 L 82.20 648.37 L 82.00 512.00 L 82.20 375.63 L 82.79 334.50 L 83.78 305.01 L 85.17 281.28 L 86.96 261.16 L 89.15 243.57 L 91.75 227.90 L 94.78 213.77 L 98.22 200.90 L 102.10 189.12 L 106.42 178.27 L 111.19 168.26 L 116.44 159.01 L 122.17 150.44 L 128.41 142.52 L 135.18 135.18 L 142.52 128.41 L 150.44 122.17 L 159.01 116.44 L 168.26 111.19 L 178.27 106.42 L 189.12 102.10 L 200.90 98.22 L 213.77 94.78 L 227.90 91.75 L 243.57 89.15 L 261.16 86.96 L 281.28 85.17 L 305.01 83.78 L 334.50 82.79 L 375.63 82.20 L 512.00 82.00 L 648.37 82.20 L 689.50 82.79 L 718.99 83.78 L 742.72 85.17 L 762.84 86.96 L 780.43 89.15 L 796.10 91.75 L 810.23 94.78 L 823.10 98.22 L 834.88 102.10 L 845.73 106.42 L 855.74 111.19 L 864.99 116.44 L 873.56 122.17 L 881.48 128.41 L 888.82 135.18 L 895.59 142.52 L 901.83 150.44 L 907.56 159.01 L 912.81 168.26 L 917.58 178.27 L 921.90 189.12 L 925.78 200.90 L 929.22 213.77 L 932.25 227.90 L 934.85 243.57 L 937.04 261.16 L 938.83 281.28 L 940.22 305.01 L 941.21 334.50 L 941.80 375.63 Z" />
+    </clipPath>
+    <linearGradient id="euvBgGrad" x1="256" y1="82" x2="768" y2="942" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#192045" />
+      <stop offset="100%" stop-color="#070A16" />
+    </linearGradient>
+    <radialGradient id="euvAuraIndigo" cx="617" cy="317" r="490" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4F46E5" stop-opacity="0.32" />
+      <stop offset="65%" stop-color="#4F46E5" stop-opacity="0.08" />
+      <stop offset="100%" stop-color="#4F46E5" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="euvAuraCyan" cx="732" cy="522" r="365" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.14" />
+      <stop offset="100%" stop-color="#38BDF8" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="euvAuraViolet" cx="277" cy="777" r="415" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6366F1" stop-opacity="0.12" />
+      <stop offset="100%" stop-color="#6366F1" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="euvTopSheen" x1="512" y1="82" x2="512" y2="560" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#DCEFFF" stop-opacity="0.08" />
+      <stop offset="100%" stop-color="#DCEFFF" stop-opacity="0" />
+    </linearGradient>
+    <linearGradient id="euvGlassRim" x1="360" y1="82" x2="680" y2="942" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#E0F2FE" stop-opacity="0.54" />
+      <stop offset="48%" stop-color="#A5B4FC" stop-opacity="0.24" />
+      <stop offset="100%" stop-color="#6366F1" stop-opacity="0.16" />
+    </linearGradient>
+    <linearGradient id="euvMarkWhite" x1="515" y1="276" x2="515" y2="748" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#DDE9FC" />
+    </linearGradient>
+    <linearGradient id="euvSparkGrad" x1="621.0" y1="470.0" x2="729.0" y2="554.0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#67E8F9" />
+      <stop offset="45%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#6366F1" />
+    </linearGradient>
+    <radialGradient id="euvSparkHalo" cx="677.0" cy="512.0" r="96" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.22" />
+      <stop offset="100%" stop-color="#38BDF8" stop-opacity="0" />
+    </radialGradient>
+    <filter id="euvMarkShadow" x="200" y="200" width="640" height="640" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#020410" flood-opacity="0.46" />
+    </filter>
+  </defs>
+
+  <g clip-path="url(#euvSquircleClip)">
+    <rect x="82" y="82" width="860" height="860" fill="url(#euvBgGrad)" />
+    <rect x="82" y="82" width="860" height="860" fill="url(#euvAuraIndigo)" />
+    <rect x="82" y="82" width="860" height="860" fill="url(#euvAuraCyan)" />
+    <rect x="82" y="82" width="860" height="860" fill="url(#euvAuraViolet)" />
+    <rect x="82" y="82" width="860" height="480" fill="url(#euvTopSheen)" />
+    <path d="M 938.50 512.00 L 938.30 647.26 L 937.72 688.06 L 936.74 717.31 L 935.36 740.84 L 933.58 760.80 L 931.41 778.24 L 928.82 793.78 L 925.83 807.80 L 922.41 820.56 L 918.57 832.25 L 914.28 843.01 L 909.54 852.94 L 904.34 862.12 L 898.65 870.61 L 892.47 878.48 L 885.75 885.75 L 878.48 892.47 L 870.61 898.65 L 862.12 904.34 L 852.94 909.54 L 843.01 914.28 L 832.25 918.57 L 820.56 922.41 L 807.80 925.83 L 793.78 928.82 L 778.24 931.41 L 760.80 933.58 L 740.84 935.36 L 717.31 936.74 L 688.06 937.72 L 647.26 938.30 L 512.00 938.50 L 376.74 938.30 L 335.94 937.72 L 306.69 936.74 L 283.16 935.36 L 263.20 933.58 L 245.76 931.41 L 230.22 928.82 L 216.20 925.83 L 203.44 922.41 L 191.75 918.57 L 180.99 914.28 L 171.06 909.54 L 161.88 904.34 L 153.39 898.65 L 145.52 892.47 L 138.25 885.75 L 131.53 878.48 L 125.35 870.61 L 119.66 862.12 L 114.46 852.94 L 109.72 843.01 L 105.43 832.25 L 101.59 820.56 L 98.17 807.80 L 95.18 793.78 L 92.59 778.24 L 90.42 760.80 L 88.64 740.84 L 87.26 717.31 L 86.28 688.06 L 85.70 647.26 L 85.50 512.00 L 85.70 376.74 L 86.28 335.94 L 87.26 306.69 L 88.64 283.16 L 90.42 263.20 L 92.59 245.76 L 95.18 230.22 L 98.17 216.20 L 101.59 203.44 L 105.43 191.75 L 109.72 180.99 L 114.46 171.06 L 119.66 161.88 L 125.35 153.39 L 131.53 145.52 L 138.25 138.25 L 145.52 131.53 L 153.39 125.35 L 161.88 119.66 L 171.06 114.46 L 180.99 109.72 L 191.75 105.43 L 203.44 101.59 L 216.20 98.17 L 230.22 95.18 L 245.76 92.59 L 263.20 90.42 L 283.16 88.64 L 306.69 87.26 L 335.94 86.28 L 376.74 85.70 L 512.00 85.50 L 647.26 85.70 L 688.06 86.28 L 717.31 87.26 L 740.84 88.64 L 760.80 90.42 L 778.24 92.59 L 793.78 95.18 L 807.80 98.17 L 820.56 101.59 L 832.25 105.43 L 843.01 109.72 L 852.94 114.46 L 862.12 119.66 L 870.61 125.35 L 878.48 131.53 L 885.75 138.25 L 892.47 145.52 L 898.65 153.39 L 904.34 161.88 L 909.54 171.06 L 914.28 180.99 L 918.57 191.75 L 922.41 203.44 L 925.83 216.20 L 928.82 230.22 L 931.41 245.76 L 933.58 263.20 L 935.36 283.16 L 936.74 306.69 L 937.72 335.94 L 938.30 376.74 Z" stroke="url(#euvGlassRim)" stroke-width="4.0" fill="none" />
+
+    <circle cx="677.0" cy="512.0" r="96" fill="url(#euvSparkHalo)" />
+
+    <g filter="url(#euvMarkShadow)">
+      <path d="M 301.00 291.00 Q 301.00 276.00 316.00 276.00 L 714.00 276.00 Q 729.00 276.00 729.00 291.00 L 729.00 345.00 Q 729.00 360.00 714.00 360.00 L 388.00 360.00 Q 385.00 360.00 385.00 363.00 L 385.00 403.00 Q 385.00 418.00 370.00 418.00 L 316.00 418.00 Q 301.00 418.00 301.00 403.00 Z" fill="url(#euvMarkWhite)" />
+      <path d="M 301.00 480.00 Q 301.00 470.00 311.00 470.00 L 546.86 470.00 Q 551.00 470.00 553.93 472.93 L 585.93 504.93 Q 593.00 512.00 585.93 519.07 L 553.93 551.07 Q 551.00 554.00 546.86 554.00 L 311.00 554.00 Q 301.00 554.00 301.00 544.00 Z" fill="url(#euvMarkWhite)" />
+      <path d="M 301.00 621.00 Q 301.00 606.00 316.00 606.00 L 370.00 606.00 Q 385.00 606.00 385.00 621.00 L 385.00 661.00 Q 385.00 664.00 388.00 664.00 L 714.00 664.00 Q 729.00 664.00 729.00 679.00 L 729.00 733.00 Q 729.00 748.00 714.00 748.00 L 316.00 748.00 Q 301.00 748.00 301.00 733.00 Z" fill="url(#euvMarkWhite)" />
+      <path d="M 631.83 480.34 Q 621.00 470.00 635.98 470.00 L 682.60 470.00 Q 685.00 470.00 686.74 471.66 L 724.45 507.66 Q 729.00 512.00 724.45 516.34 L 686.74 552.34 Q 685.00 554.00 682.60 554.00 L 635.98 554.00 Q 621.00 554.00 631.83 543.66 L 660.45 516.34 Q 665.00 512.00 660.45 507.66 Z" fill="url(#euvSparkGrad)" />
+    </g>
+  </g>
+</svg>
