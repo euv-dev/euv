@@ -40,6 +40,7 @@ impl Vec3 {
     /// # Returns
     ///
     /// - `Self` - Scaled vector.
+    #[inline(always)]
     #[must_use]
     pub fn scale(self, s: f32) -> Self {
         Self {
@@ -59,9 +60,14 @@ impl Vec3 {
     /// # Returns
     ///
     /// - `f32` - Scalar dot product.
+    #[inline(always)]
     #[must_use]
     pub fn dot(self, rhs: Self) -> f32 {
-        self.get_x() * rhs.get_x() + self.get_y() * rhs.get_y() + self.get_z() * rhs.get_z()
+        self.get_x().mul_add(
+            rhs.get_x(),
+            self.get_y()
+                .mul_add(rhs.get_y(), self.get_z() * rhs.get_z()),
+        )
     }
 
     /// Computes the 3D cross product `self × rhs`.
@@ -74,6 +80,7 @@ impl Vec3 {
     /// # Returns
     ///
     /// - `Self` - Orthogonal cross product vector.
+    #[inline(always)]
     #[must_use]
     pub fn cross(self, rhs: Self) -> Self {
         Self {
@@ -92,6 +99,7 @@ impl Vec3 {
     /// # Returns
     ///
     /// - `f32` - Squared magnitude.
+    #[inline(always)]
     #[must_use]
     pub fn length_sq(self) -> f32 {
         self.dot(self)
@@ -106,6 +114,7 @@ impl Vec3 {
     /// # Returns
     ///
     /// - `f32` - Magnitude.
+    #[inline(always)]
     #[must_use]
     pub fn length(self) -> f32 {
         self.length_sq().sqrt()
@@ -120,6 +129,7 @@ impl Vec3 {
     /// # Returns
     ///
     /// - `Self` - Normalized unit vector.
+    #[inline(always)]
     #[must_use]
     pub fn normalize(self) -> Self {
         let len: f32 = self.length();
@@ -141,12 +151,13 @@ impl Vec3 {
     /// # Returns
     ///
     /// - `Self` - Interpolated vector.
+    #[inline(always)]
     #[must_use]
     pub fn lerp(self, other: Self, t: f32) -> Self {
         Self {
-            x: self.get_x() + (other.get_x() - self.get_x()) * t,
-            y: self.get_y() + (other.get_y() - self.get_y()) * t,
-            z: self.get_z() + (other.get_z() - self.get_z()) * t,
+            x: (other.get_x() - self.get_x()).mul_add(t, self.get_x()),
+            y: (other.get_y() - self.get_y()).mul_add(t, self.get_y()),
+            z: (other.get_z() - self.get_z()).mul_add(t, self.get_z()),
         }
     }
 
@@ -160,6 +171,7 @@ impl Vec3 {
     /// # Returns
     ///
     /// - `Self` - Reflected direction vector.
+    #[inline(always)]
     #[must_use]
     pub fn reflect(self, normal: Self) -> Self {
         self.sub(normal.scale(2.0 * self.dot(normal)))
@@ -230,11 +242,14 @@ impl Vec3 {
     /// # Returns
     ///
     /// - `u8` - Gamma-encoded sRGB byte.
+    #[inline(always)]
     #[must_use]
     fn aces_channel(v: f32) -> u8 {
         let x: f32 = v.max(0.0);
-        let mapped: f32 = (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14);
-        let idx: usize = ((mapped.clamp(0.0, 1.0) * 1024.0) + 0.5) as usize;
+        let num: f32 = x * x.mul_add(2.51, 0.03);
+        let den: f32 = x.mul_add(x.mul_add(2.43, 0.59), 0.14);
+        let mapped: f32 = num / den;
+        let idx: usize = mapped.clamp(0.0, 1.0).mul_add(1024.0, 0.5) as usize;
         LINEAR_TO_SRGB_LUT[idx.min(1024)]
     }
 
@@ -247,6 +262,7 @@ impl Vec3 {
     /// # Returns
     ///
     /// - `[u8; 4]` - Tone-mapped RGBA8 pixel bytes.
+    #[inline(always)]
     #[must_use]
     pub fn to_aces_rgba8(self) -> [u8; 4] {
         [
@@ -272,6 +288,7 @@ impl Add for Vec3 {
     /// # Returns
     ///
     /// - `Self` - Component-wise sum.
+    #[inline(always)]
     fn add(self, rhs: Self) -> Self {
         Self {
             x: self.get_x() + rhs.get_x(),
@@ -295,6 +312,7 @@ impl Sub for Vec3 {
     /// # Returns
     ///
     /// - `Self` - Component-wise difference.
+    #[inline(always)]
     fn sub(self, rhs: Self) -> Self {
         Self {
             x: self.get_x() - rhs.get_x(),
@@ -318,6 +336,7 @@ impl Mul for Vec3 {
     /// # Returns
     ///
     /// - `Self` - Component-wise product.
+    #[inline(always)]
     fn mul(self, rhs: Self) -> Self {
         Self {
             x: self.get_x() * rhs.get_x(),

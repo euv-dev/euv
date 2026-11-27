@@ -18,8 +18,15 @@ pub(crate) type ProbeTraceInputs<'a> = (
     &'a Bvh3D,
 );
 
-/// Read-only color, luma, G-Buffer triangle IDs, quarter-res HDR bloom, and TAA history slices consumed by `Renderer3D::post_process_band`.
-pub(crate) type PostProcessInputs<'a> = (&'a [u8], &'a [u8], &'a [u32], &'a [[f32; 3]], &'a [u8]);
+/// Read-only color, luma, G-Buffer triangle IDs, quarter-res HDR bloom, active bloom tile mask, and TAA history slices consumed by `Renderer3D::post_process_band`.
+pub(crate) type PostProcessInputs<'a> = (
+    &'a [u8],
+    &'a [u8],
+    &'a [u32],
+    &'a [[f32; 3]],
+    &'a [u8],
+    &'a [u8],
+);
 
 /// Type-erased chunk dispatch trampoline signature used by the persistent 3D worker pool.
 #[cfg(not(target_arch = "wasm32"))]

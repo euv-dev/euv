@@ -263,6 +263,11 @@ pub struct Renderer3D {
     #[get_mut(skip)]
     #[set(skip)]
     pub(crate) bloom_b: Vec<[f32; 3]>,
+    /// Quarter-res active-bloom tile mask (`1` when any bilinear corner contributes `>= 1` RGB LSB) skipping dark tiles in post-processing.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) bloom_tile_active: Vec<u8>,
     /// Reusable front-to-back object sorting scratch buffer.
     #[get(skip)]
     #[get_mut(skip)]
