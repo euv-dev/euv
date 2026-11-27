@@ -445,6 +445,16 @@ pub struct SoftwareRenderer {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) clip_scope_scratch: Vec<(u32, u32, Option<usize>)>,
+    /// Cached full-viewport translucent scrim color matching `cached_scrim_luts`.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) cached_scrim_color: Option<Color>,
+    /// Cached 256-entry per-channel linear-light scrim LUT reused across frames with identical scrim color.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) cached_scrim_luts: Option<Box<RgbaLutQuad>>,
     /// Cumulative number of rasterization passes executed serially on the calling thread.
     #[get(type(copy))]
     #[get_mut(skip)]

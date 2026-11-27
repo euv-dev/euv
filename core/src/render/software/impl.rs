@@ -1025,6 +1025,8 @@ impl SoftwareRenderer {
             prepped_bounds: None,
             prepped_fg_bounds: None,
             clip_scope_scratch: Vec::with_capacity(8),
+            cached_scrim_color: None,
+            cached_scrim_luts: None,
             serial_dispatches: 0,
             parallel_dispatches: 0,
         }
@@ -1376,6 +1378,8 @@ impl SoftwareRenderer {
             rounded_clips_scratch,
             corner_mask_cache,
             antialiasing,
+            cached_scrim_color,
+            cached_scrim_luts,
             serial_dispatches,
             parallel_dispatches,
             ..
@@ -1386,7 +1390,15 @@ impl SoftwareRenderer {
         if prepped_slice.is_empty() && !restore_base_cache {
             return 0;
         }
-        let scrim_lut_val: Option<RgbaLutQuad> = scrim_color.map(build_linear_blend_luts);
+        let scrim_luts_ref: Option<&RgbaLutQuad> = if let Some(scrim_c) = scrim_color {
+            if *cached_scrim_color != Some(scrim_c) || cached_scrim_luts.is_none() {
+                *cached_scrim_color = Some(scrim_c);
+                *cached_scrim_luts = Some(Box::new(build_linear_blend_luts(scrim_c)));
+            }
+            cached_scrim_luts.as_deref()
+        } else {
+            None
+        };
         let glyphs_slice: &[PositionedGlyph] = positioned_glyphs_scratch.as_slice();
         let caret_rects_slice: &[Rect] = caret_rects_scratch.as_slice();
         let rounded_clips_slice: &[RoundedClipMask] = rounded_clips_scratch.as_slice();
@@ -1400,7 +1412,7 @@ impl SoftwareRenderer {
             },
             x0: clip_x0,
             x1: clip_x1,
-            scrim_luts: scrim_lut_val.as_ref(),
+            scrim_luts: scrim_luts_ref,
         };
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -1685,15 +1697,38 @@ impl SoftwareRenderer {
                         }
                     }
                 }
-                DrawCommand::Clear(_) => {
+                DrawCommand::Clear(clear_color) => {
                     let y0: u32 = (active_clip.get_y().floor().max(0.0) as u32).min(phys_h);
                     let y1: u32 = (active_clip.bottom().ceil().max(0.0) as u32).min(phys_h);
                     if y0 < y1 {
-                        let (rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
+                        let (mut rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
                             rounded_clip_stack.as_slice(),
                             rounded_clips,
                             active_clip,
                         );
+                        let covers_root: bool = active_clip.get_x() <= root_clip.get_x()
+                            && active_clip.get_y() <= root_clip.get_y()
+                            && active_clip.right() >= root_clip.right()
+                            && active_clip.bottom() >= root_clip.bottom();
+                        let no_open_sentinels: bool = clip_scopes
+                            .iter()
+                            .all(|&(_, _, slot): &(u32, u32, Option<usize>)| slot.is_none());
+                        if clamped_start == 0
+                            && !prepped.is_empty()
+                            && rc_len == 0
+                            && clear_color.get_a() == 255
+                            && covers_root
+                            && no_open_sentinels
+                        {
+                            prepped.clear();
+                            rounded_clips.clear();
+                            positioned_glyphs.clear();
+                            caret_rects.clear();
+                            *prepped_bounds = None;
+                            *prepped_fg_bounds = None;
+                            has_first_cmd = false;
+                            rc_start = 0;
+                        }
                         if has_first_cmd {
                             expand_opt_rect(prepped_fg_bounds, active_clip);
                         }
@@ -1715,8 +1750,72 @@ impl SoftwareRenderer {
                         });
                     }
                 }
-                DrawCommand::FillRoundedRect { rect, .. }
-                | DrawCommand::LinearGradientRect { rect, .. }
+                DrawCommand::FillRoundedRect {
+                    rect,
+                    color,
+                    radius,
+                    border,
+                } => {
+                    let phys: Rect = snap_physical_rect(*rect, scale);
+                    if let Some(vis) = phys.intersect(active_clip) {
+                        let y0: u32 = (vis.get_y().floor().max(0.0) as u32).min(phys_h);
+                        let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).min(phys_h);
+                        if y0 < y1 {
+                            let (mut rc_start, rc_len): (u32, u16) = Self::collect_active_rounded(
+                                rounded_clip_stack.as_slice(),
+                                rounded_clips,
+                                vis,
+                            );
+                            let no_border: bool =
+                                border.get_width() <= 0.0 || border.get_color().get_a() == 0;
+                            let covers_root: bool = vis.get_x() <= root_clip.get_x()
+                                && vis.get_y() <= root_clip.get_y()
+                                && vis.right() >= root_clip.right()
+                                && vis.bottom() >= root_clip.bottom();
+                            let no_open_sentinels: bool = clip_scopes
+                                .iter()
+                                .all(|&(_, _, slot): &(u32, u32, Option<usize>)| slot.is_none());
+                            if clamped_start == 0
+                                && !prepped.is_empty()
+                                && rc_len == 0
+                                && color.get_a() == 255
+                                && radius.max_radius() <= 0.0
+                                && no_border
+                                && covers_root
+                                && no_open_sentinels
+                            {
+                                prepped.clear();
+                                rounded_clips.clear();
+                                positioned_glyphs.clear();
+                                caret_rects.clear();
+                                *prepped_bounds = None;
+                                *prepped_fg_bounds = None;
+                                has_first_cmd = false;
+                                rc_start = 0;
+                            }
+                            if has_first_cmd {
+                                expand_opt_rect(prepped_fg_bounds, vis);
+                            }
+                            has_first_cmd = true;
+                            expand_opt_rect(prepped_bounds, vis);
+                            prepped.push(PreppedCommand {
+                                cmd_index,
+                                active_clip,
+                                y0,
+                                y1,
+                                opaque_cutout_h: Rect::default(),
+                                opaque_cutout_v: Rect::default(),
+                                glyph_run_start: 0,
+                                glyph_run_len: 0,
+                                caret_rect_idx: u32::MAX,
+                                rounded_clip_start: rc_start,
+                                rounded_clip_len: rc_len,
+                                skip_delta: 0,
+                            });
+                        }
+                    }
+                }
+                DrawCommand::LinearGradientRect { rect, .. }
                 | DrawCommand::Image { rect, .. }
                 | DrawCommand::SpriteRegion { rect, .. } => {
                     let phys: Rect = snap_physical_rect(*rect, scale);
@@ -3451,50 +3550,15 @@ impl SoftwareRenderer {
                 let py: f32 = (y as f32) + 0.5 - cy;
                 let box_geom: (f32, f32, f32, f32) = (cx, py, half_w, half_h);
                 if has_center_band {
-                    if let Some(row) = band.row_slice_mut(y) {
-                        for x in x0..cx0 {
-                            shaded += Self::shade_rounded_pixel_row(
-                                row,
-                                x,
-                                box_geom,
-                                radius,
-                                (color, border, fill_lin, border_lin),
-                                aa,
-                            );
-                        }
-                        for x in cx1..x1 {
-                            shaded += Self::shade_rounded_pixel_row(
-                                row,
-                                x,
-                                box_geom,
-                                radius,
-                                (color, border, fill_lin, border_lin),
-                                aa,
-                            );
-                        }
-                    }
-                    let dist_y: f32 = py.abs() - half_h;
-                    let outer_cov: f32 = sdf_coverage(dist_y, aa);
-                    if outer_cov > 0.0 {
-                        if has_border {
-                            let inner_hh: f32 = (half_h - border_w).max(0.0);
-                            let inner_cov: f32 = if inner_hh > 0.0 && half_w > border_w {
-                                sdf_coverage(py.abs() - inner_hh, aa)
-                            } else {
-                                0.0
-                            };
-                            let mixed: Color = composite_fill_and_border_precomputed(
-                                fill_lin, border_lin, outer_cov, inner_cov,
-                            );
-                            if mixed.get_a() > 0 {
-                                band.fill_span_linear(cx0, cx1, y, mixed);
-                            }
-                            shaded += (cx1 - cx0) as usize;
-                        } else if color.get_a() > 0 {
-                            band.fill_span_linear(cx0, cx1, y, color.multiply_alpha(outer_cov));
-                            shaded += (cx1 - cx0) as usize;
-                        }
-                    }
+                    shaded += Self::raster_rounded_corner_band_row(
+                        band,
+                        y,
+                        (x0, cx0, cx1, x1),
+                        box_geom,
+                        radius,
+                        (color, border, fill_lin, border_lin),
+                        (interior_luts.as_ref(), aa),
+                    );
                 } else if let Some(row) = band.row_slice_mut(y) {
                     for x in x0..x1 {
                         shaded += Self::shade_rounded_pixel_row(
@@ -3620,50 +3684,15 @@ impl SoftwareRenderer {
                 let py: f32 = (y as f32) + 0.5 - cy;
                 let box_geom: (f32, f32, f32, f32) = (cx, py, half_w, half_h);
                 if has_center_band {
-                    if let Some(row) = band.row_slice_mut(y) {
-                        for x in x0..cx0 {
-                            shaded += Self::shade_rounded_pixel_row(
-                                row,
-                                x,
-                                box_geom,
-                                radius,
-                                (color, border, fill_lin, border_lin),
-                                aa,
-                            );
-                        }
-                        for x in cx1..x1 {
-                            shaded += Self::shade_rounded_pixel_row(
-                                row,
-                                x,
-                                box_geom,
-                                radius,
-                                (color, border, fill_lin, border_lin),
-                                aa,
-                            );
-                        }
-                    }
-                    let dist_y: f32 = py.abs() - half_h;
-                    let outer_cov: f32 = sdf_coverage(dist_y, aa);
-                    if outer_cov > 0.0 {
-                        if has_border {
-                            let inner_hh: f32 = (half_h - border_w).max(0.0);
-                            let inner_cov: f32 = if inner_hh > 0.0 && half_w > border_w {
-                                sdf_coverage(py.abs() - inner_hh, aa)
-                            } else {
-                                0.0
-                            };
-                            let mixed: Color = composite_fill_and_border_precomputed(
-                                fill_lin, border_lin, outer_cov, inner_cov,
-                            );
-                            if mixed.get_a() > 0 {
-                                band.fill_span_linear(cx0, cx1, y, mixed);
-                            }
-                            shaded += (cx1 - cx0) as usize;
-                        } else if color.get_a() > 0 {
-                            band.fill_span_linear(cx0, cx1, y, color.multiply_alpha(outer_cov));
-                            shaded += (cx1 - cx0) as usize;
-                        }
-                    }
+                    shaded += Self::raster_rounded_corner_band_row(
+                        band,
+                        y,
+                        (x0, cx0, cx1, x1),
+                        box_geom,
+                        radius,
+                        (color, border, fill_lin, border_lin),
+                        (interior_luts.as_ref(), aa),
+                    );
                 } else if let Some(row) = band.row_slice_mut(y) {
                     for x in x0..x1 {
                         shaded += Self::shade_rounded_pixel_row(
@@ -3683,50 +3712,15 @@ impl SoftwareRenderer {
             let py: f32 = (y as f32) + 0.5 - cy;
             let box_geom: (f32, f32, f32, f32) = (cx, py, half_w, half_h);
             if has_center_band {
-                if let Some(row) = band.row_slice_mut(y) {
-                    for x in x0..cx0 {
-                        shaded += Self::shade_rounded_pixel_row(
-                            row,
-                            x,
-                            box_geom,
-                            radius,
-                            (color, border, fill_lin, border_lin),
-                            aa,
-                        );
-                    }
-                    for x in cx1..x1 {
-                        shaded += Self::shade_rounded_pixel_row(
-                            row,
-                            x,
-                            box_geom,
-                            radius,
-                            (color, border, fill_lin, border_lin),
-                            aa,
-                        );
-                    }
-                }
-                let dist_y: f32 = py.abs() - half_h;
-                let outer_cov: f32 = sdf_coverage(dist_y, aa);
-                if outer_cov > 0.0 {
-                    if has_border {
-                        let inner_hh: f32 = (half_h - border_w).max(0.0);
-                        let inner_cov: f32 = if inner_hh > 0.0 && half_w > border_w {
-                            sdf_coverage(py.abs() - inner_hh, aa)
-                        } else {
-                            0.0
-                        };
-                        let mixed: Color = composite_fill_and_border_precomputed(
-                            fill_lin, border_lin, outer_cov, inner_cov,
-                        );
-                        if mixed.get_a() > 0 {
-                            band.fill_span_linear(cx0, cx1, y, mixed);
-                        }
-                        shaded += (cx1 - cx0) as usize;
-                    } else if color.get_a() > 0 {
-                        band.fill_span_linear(cx0, cx1, y, color.multiply_alpha(outer_cov));
-                        shaded += (cx1 - cx0) as usize;
-                    }
-                }
+                shaded += Self::raster_rounded_corner_band_row(
+                    band,
+                    y,
+                    (x0, cx0, cx1, x1),
+                    box_geom,
+                    radius,
+                    (color, border, fill_lin, border_lin),
+                    (interior_luts.as_ref(), aa),
+                );
             } else if let Some(row) = band.row_slice_mut(y) {
                 for x in x0..x1 {
                     shaded += Self::shade_rounded_pixel_row(
@@ -3738,6 +3732,207 @@ impl SoftwareRenderer {
                         aa,
                     );
                 }
+            }
+        }
+        shaded
+    }
+
+    /// Rasterizes one corner-band row `[x0, cx0)`, `[cx0, cx1)`, and `[cx1, x1)` using analytical exterior rejection and bulk interior span fills.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut PixelBand<'_>` - Target pixel band.
+    /// - `u32` - Global physical Y row coordinate.
+    /// - `(u32, u32, u32, u32)` - Clamped horizontal bounds `(x0, cx0, cx1, x1)`.
+    /// - `(f32, f32, f32, f32)` - Box geometry `(cx, py, half_w, half_h)`.
+    /// - `CornerRadius` - Physical corner radii.
+    /// - `(Color, Border, [f32; 4], [f32; 4])` - Fill color, border spec, and precomputed linear fill/border tuples.
+    /// - `(Option<&RgbaLutQuad>, AntialiasingMode)` - Optional prebuilt linear-light LUT and active AA policy.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Exact shaded pixel count matching per-pixel evaluation.
+    #[inline(always)]
+    fn raster_rounded_corner_band_row(
+        band: &mut PixelBand<'_>,
+        y: u32,
+        x_bounds: (u32, u32, u32, u32),
+        geom: (f32, f32, f32, f32),
+        radius: CornerRadius,
+        style_colors: (Color, Border, [f32; 4], [f32; 4]),
+        opts: (Option<&RgbaLutQuad>, AntialiasingMode),
+    ) -> usize {
+        let (interior_luts, aa): (Option<&RgbaLutQuad>, AntialiasingMode) = opts;
+        let Some(row) = band.row_slice_mut(y) else {
+            return 0;
+        };
+        let (x0, cx0, cx1, x1): (u32, u32, u32, u32) = x_bounds;
+        let (cx, py, half_w, half_h): (f32, f32, f32, f32) = geom;
+        let (color, border, fill_lin, border_lin): (Color, Border, [f32; 4], [f32; 4]) =
+            style_colors;
+        let has_border: bool = border.get_width() > 0.0 && border.get_color().get_a() > 0;
+        let border_w: f32 = if has_border { border.get_width() } else { 0.0 };
+        let inner_thresh: f32 = if has_border {
+            -(border_w + 0.85)
+        } else {
+            -0.85
+        };
+        let py_abs: f32 = py.abs();
+        let fill_visible: bool = color.get_a() > 0;
+        let fill_opaque: bool = color.get_a() == 255;
+        let fill_rgba: [u8; 4] = [color.get_r(), color.get_g(), color.get_b(), 255];
+        let mut shaded: usize = 0;
+        if x0 < cx0 {
+            let pure_left: bool = ((cx0 - 1) as f32) + 0.5 < cx;
+            if pure_left {
+                let r_l: f32 = (if py < 0.0 {
+                    radius.get_top_left()
+                } else {
+                    radius.get_bottom_left()
+                })
+                .min(half_w)
+                .min(half_h)
+                .max(0.0);
+                let qy: f32 = py_abs - half_h + r_l;
+                let r_out: f32 = r_l + 0.85;
+                if qy <= r_out + 0.05 {
+                    let vis_l0: u32 = if qy > 0.0 {
+                        let max_vis_abs: f32 =
+                            (half_w - r_l) + (r_out * r_out - qy * qy).max(0.0).sqrt() + 1.0;
+                        ((cx - max_vis_abs - 0.5).floor().max(0.0) as u32).clamp(x0, cx0)
+                    } else {
+                        x0
+                    };
+                    let r_in: f32 = r_l + inner_thresh;
+                    let max_in_abs: f32 = if qy <= 0.0 {
+                        if qy < r_in - 0.05 {
+                            half_w + inner_thresh - 1.0
+                        } else {
+                            -1.0
+                        }
+                    } else if r_in > 0.0 && qy < r_in - 0.05 {
+                        (half_w - r_l) + (r_in * r_in - qy * qy).max(0.0).sqrt() - 1.0
+                    } else {
+                        -1.0
+                    };
+                    let in_l0: u32 = if max_in_abs > 0.0 {
+                        ((cx - max_in_abs - 0.5).ceil().max(0.0) as u32).clamp(vis_l0, cx0)
+                    } else {
+                        cx0
+                    };
+                    for x in vis_l0..in_l0 {
+                        shaded +=
+                            Self::shade_rounded_pixel_row(row, x, geom, radius, style_colors, aa);
+                    }
+                    if in_l0 < cx0 && fill_visible {
+                        let b0: usize = (in_l0 as usize) * 4;
+                        let b1: usize = (cx0 as usize) * 4;
+                        if fill_opaque {
+                            fill_rgba_span_32(&mut row[b0..b1], fill_rgba);
+                        } else if let Some(luts) = interior_luts {
+                            fill_span_linear_luts_slice(&mut row[b0..b1], luts);
+                        } else {
+                            fill_span_linear_slice(&mut row[b0..b1], color);
+                        }
+                        shaded += (cx0 - in_l0) as usize;
+                    }
+                }
+            } else {
+                for x in x0..cx0 {
+                    shaded += Self::shade_rounded_pixel_row(row, x, geom, radius, style_colors, aa);
+                }
+            }
+        }
+        if cx1 < x1 {
+            let pure_right: bool = (cx1 as f32) + 0.5 >= cx;
+            if pure_right {
+                let r_r: f32 = (if py < 0.0 {
+                    radius.get_top_right()
+                } else {
+                    radius.get_bottom_right()
+                })
+                .min(half_w)
+                .min(half_h)
+                .max(0.0);
+                let qy: f32 = py_abs - half_h + r_r;
+                let r_out: f32 = r_r + 0.85;
+                if qy <= r_out + 0.05 {
+                    let vis_r1: u32 = if qy > 0.0 {
+                        let max_vis_abs: f32 =
+                            (half_w - r_r) + (r_out * r_out - qy * qy).max(0.0).sqrt() + 1.0;
+                        ((cx + max_vis_abs + 0.5).ceil().max(0.0) as u32).clamp(cx1, x1)
+                    } else {
+                        x1
+                    };
+                    let r_in: f32 = r_r + inner_thresh;
+                    let max_in_abs: f32 = if qy <= 0.0 {
+                        if qy < r_in - 0.05 {
+                            half_w + inner_thresh - 1.0
+                        } else {
+                            -1.0
+                        }
+                    } else if r_in > 0.0 && qy < r_in - 0.05 {
+                        (half_w - r_r) + (r_in * r_in - qy * qy).max(0.0).sqrt() - 1.0
+                    } else {
+                        -1.0
+                    };
+                    let in_r1: u32 = if max_in_abs > 0.0 {
+                        ((cx + max_in_abs - 0.5).floor().max(0.0) as u32).clamp(cx1, vis_r1)
+                    } else {
+                        cx1
+                    };
+                    if cx1 < in_r1 && fill_visible {
+                        let b0: usize = (cx1 as usize) * 4;
+                        let b1: usize = (in_r1 as usize) * 4;
+                        if fill_opaque {
+                            fill_rgba_span_32(&mut row[b0..b1], fill_rgba);
+                        } else if let Some(luts) = interior_luts {
+                            fill_span_linear_luts_slice(&mut row[b0..b1], luts);
+                        } else {
+                            fill_span_linear_slice(&mut row[b0..b1], color);
+                        }
+                        shaded += (in_r1 - cx1) as usize;
+                    }
+                    for x in in_r1..vis_r1 {
+                        shaded +=
+                            Self::shade_rounded_pixel_row(row, x, geom, radius, style_colors, aa);
+                    }
+                }
+            } else {
+                for x in cx1..x1 {
+                    shaded += Self::shade_rounded_pixel_row(row, x, geom, radius, style_colors, aa);
+                }
+            }
+        }
+        let dist_y: f32 = py_abs - half_h;
+        let outer_cov: f32 = sdf_coverage(dist_y, aa);
+        if outer_cov > 0.0 {
+            let b0: usize = (cx0 as usize) * 4;
+            let b1: usize = (cx1 as usize) * 4;
+            if has_border {
+                let inner_hh: f32 = (half_h - border_w).max(0.0);
+                let inner_cov: f32 = if inner_hh > 0.0 && half_w > border_w {
+                    sdf_coverage(py_abs - inner_hh, aa)
+                } else {
+                    0.0
+                };
+                let mixed: Color = composite_fill_and_border_precomputed(
+                    fill_lin, border_lin, outer_cov, inner_cov,
+                );
+                if mixed.get_a() > 0 {
+                    fill_span_linear_slice(&mut row[b0..b1], mixed);
+                }
+                shaded += (cx1 - cx0) as usize;
+            } else if fill_visible {
+                let row_color: Color = color.multiply_alpha(outer_cov);
+                if row_color == color
+                    && let Some(luts) = interior_luts
+                {
+                    fill_span_linear_luts_slice(&mut row[b0..b1], luts);
+                } else {
+                    fill_span_linear_slice(&mut row[b0..b1], row_color);
+                }
+                shaded += (cx1 - cx0) as usize;
             }
         }
         shaded
@@ -4440,12 +4635,24 @@ impl SoftwareRenderer {
         if u0 >= u1 {
             return shaded;
         }
-        let Some(row) = band.row_slice_mut(y) else {
-            return shaded;
-        };
         let qy: f32 = py_abs - ctx.half_h + ctx.uniform_r;
         let qy_pos: f32 = qy.max(0.0);
         let qy_pos_sq: f32 = qy_pos * qy_pos;
+        if qy > 0.0 {
+            if qy_pos_sq >= ctx.cutoff_r_safe_sq {
+                return shaded;
+            }
+            let max_qx: f32 = (ctx.cutoff_r_safe_sq - qy_pos_sq).sqrt();
+            let max_px_abs: f32 = ctx.half_w - ctx.uniform_r + max_qx + 0.5;
+            let tight_u0: i32 = (ctx.cx - max_px_abs - 0.5).floor() as i32;
+            u0 = u0.max(tight_u0);
+            if u0 >= u1 {
+                return shaded;
+            }
+        }
+        let Some(row) = band.row_slice_mut(y) else {
+            return shaded;
+        };
         let sdf_geom: (f32, f32, f32, f32) =
             (ctx.half_w, ctx.uniform_r, ctx.cutoff, ctx.cutoff_r_safe_sq);
         let y_term: f32 = (y as f32) * 0.005_837_15;
@@ -4578,12 +4785,24 @@ impl SoftwareRenderer {
         if u0 >= u1 {
             return shaded;
         }
-        let Some((row_t, row_b)) = band.two_row_slices_mut(y_t, y_b) else {
-            return shaded;
-        };
         let qy: f32 = py_abs - ctx.half_h + ctx.uniform_r;
         let qy_pos: f32 = qy.max(0.0);
         let qy_pos_sq: f32 = qy_pos * qy_pos;
+        if qy > 0.0 {
+            if qy_pos_sq >= ctx.cutoff_r_safe_sq {
+                return shaded;
+            }
+            let max_qx: f32 = (ctx.cutoff_r_safe_sq - qy_pos_sq).sqrt();
+            let max_px_abs: f32 = ctx.half_w - ctx.uniform_r + max_qx + 0.5;
+            let tight_u0: i32 = (ctx.cx - max_px_abs - 0.5).floor() as i32;
+            u0 = u0.max(tight_u0);
+            if u0 >= u1 {
+                return shaded;
+            }
+        }
+        let Some((row_t, row_b)) = band.two_row_slices_mut(y_t, y_b) else {
+            return shaded;
+        };
         let sdf_geom: (f32, f32, f32, f32) =
             (ctx.half_w, ctx.uniform_r, ctx.cutoff, ctx.cutoff_r_safe_sq);
         let y_term_t: f32 = (y_t as f32) * 0.005_837_15;

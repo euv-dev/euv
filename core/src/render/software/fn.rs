@@ -1410,19 +1410,23 @@ pub(crate) fn blend_shadow_mirrored_pixel(
         let ir: usize = ((params.sr_a + dr * params.inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
         let ig: usize = ((params.sg_a + dg * params.inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
         let ib: usize = ((params.sb_a + db * params.inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
-        let va: u32 = (row[off + 3] as u32) * params.inv_a_u32 + 128;
         cache.dst_u32 = dst_u32;
         cache.q4_r = LIN_TO_SRGB_Q4_LUT[ir] as i32;
         cache.q4_g = LIN_TO_SRGB_Q4_LUT[ig] as i32;
         cache.q4_b = LIN_TO_SRGB_Q4_LUT[ib] as i32;
-        cache.out_a = (params.sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+        cache.out_a = if row[off + 3] == 255 {
+            255
+        } else {
+            let va: u32 = (row[off + 3] as u32) * params.inv_a_u32 + 128;
+            (params.sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8
+        };
         cache.valid = true;
     }
     let n: f32 = (52.982_918 * ((x as f32) * 0.067_110_56 + y_term).fract()).fract();
     let dq: i32 = ((n - 0.5) * 16.0) as i32 + 8;
-    row[off] = ((cache.q4_r + dq) >> 4).clamp(0, 255) as u8;
-    row[off + 1] = ((cache.q4_g + dq) >> 4).clamp(0, 255) as u8;
-    row[off + 2] = ((cache.q4_b + dq) >> 4).clamp(0, 255) as u8;
+    row[off] = ((cache.q4_r + dq) >> 4) as u8;
+    row[off + 1] = ((cache.q4_g + dq) >> 4) as u8;
+    row[off + 2] = ((cache.q4_b + dq) >> 4) as u8;
     row[off + 3] = cache.out_a;
 }
 
@@ -1576,23 +1580,103 @@ pub(crate) fn apply_shadow_strip_span(
             let ir: usize = ((p.sr_a + dr * p.inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
             let ig: usize = ((p.sg_a + dg * p.inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
             let ib: usize = ((p.sb_a + db * p.inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
-            let va: u32 = (px[3] as u32) * p.inv_a_u32 + 128;
             h.cached_dst = dst_u32;
             h.q4_r = LIN_TO_SRGB_Q4_LUT[ir] as i16;
             h.q4_g = LIN_TO_SRGB_Q4_LUT[ig] as i16;
             h.q4_b = LIN_TO_SRGB_Q4_LUT[ib] as i16;
-            h.out_a = (p.sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+            h.out_a = if px[3] == 255 {
+                255
+            } else {
+                let va: u32 = (px[3] as u32) * p.inv_a_u32 + 128;
+                (p.sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8
+            };
             h.state = 2;
         }
         let n: f32 = (52.982_918 * (h.ign_x + y_term).fract()).fract();
         let dq: i32 = ((n - 0.5) * 16.0) as i32 + 8;
-        px[0] = (((h.q4_r as i32) + dq) >> 4).clamp(0, 255) as u8;
-        px[1] = (((h.q4_g as i32) + dq) >> 4).clamp(0, 255) as u8;
-        px[2] = (((h.q4_b as i32) + dq) >> 4).clamp(0, 255) as u8;
+        px[0] = (((h.q4_r as i32) + dq) >> 4) as u8;
+        px[1] = (((h.q4_g as i32) + dq) >> 4) as u8;
+        px[2] = (((h.q4_b as i32) + dq) >> 4) as u8;
         px[3] = h.out_a;
         shaded += 1;
     }
     shaded
+}
+
+/// Copies RGBA8 pixels from `src` into `dst` while applying bit-exact 256-entry linear-light LUTs with 4-pixel run-skipping.
+///
+/// # Arguments
+///
+/// - `&[u8]` - Source RGBA8 pixel byte slice.
+/// - `&mut [u8]` - Destination RGBA8 pixel byte slice of matching length.
+/// - `&RgbaLutQuad` - Precomputed per-channel lookup tables `(lut_r, lut_g, lut_b, lut_a)`.
+#[inline(always)]
+pub(crate) fn apply_rgba_luts_copy(src: &[u8], dst: &mut [u8], luts: &RgbaLutQuad) {
+    let (lut_r, lut_g, lut_b, lut_a): &RgbaLutQuad = luts;
+    let src_px: &[[u8; 4]] = src.as_chunks::<4>().0;
+    let dst_px: &mut [[u8; 4]] = dst.as_chunks_mut::<4>().0;
+    let Some(&first_px) = src_px.first() else {
+        return;
+    };
+    let mut prev_src: u32 = u32::from_ne_bytes(first_px);
+    let mut prev_dst: [u8; 4] = [
+        lut_r[first_px[0] as usize],
+        lut_g[first_px[1] as usize],
+        lut_b[first_px[2] as usize],
+        lut_a[first_px[3] as usize],
+    ];
+    let mut prev_dst4: [[u8; 4]; 4] = [prev_dst; 4];
+    let (src_blocks, src_rem): (&[[[u8; 4]; 4]], &[[u8; 4]]) = src_px.as_chunks::<4>();
+    let (dst_blocks, dst_rem): (&mut [[[u8; 4]; 4]], &mut [[u8; 4]]) = dst_px.as_chunks_mut::<4>();
+    for (sb, db) in src_blocks.iter().zip(dst_blocks.iter_mut()) {
+        let p0: [u8; 4] = sb[0];
+        let p1: [u8; 4] = sb[1];
+        let p2: [u8; 4] = sb[2];
+        let p3: [u8; 4] = sb[3];
+        let w0: u32 = u32::from_ne_bytes(p0);
+        let w1: u32 = u32::from_ne_bytes(p1);
+        let w2: u32 = u32::from_ne_bytes(p2);
+        let w3: u32 = u32::from_ne_bytes(p3);
+        let diff: u32 = (w0 ^ prev_src) | (w1 ^ prev_src) | (w2 ^ prev_src) | (w3 ^ prev_src);
+        if diff == 0 {
+            *db = prev_dst4;
+            continue;
+        }
+        let d0: [u8; 4] = [
+            lut_r[p0[0] as usize],
+            lut_g[p0[1] as usize],
+            lut_b[p0[2] as usize],
+            lut_a[p0[3] as usize],
+        ];
+        let d1: [u8; 4] = [
+            lut_r[p1[0] as usize],
+            lut_g[p1[1] as usize],
+            lut_b[p1[2] as usize],
+            lut_a[p1[3] as usize],
+        ];
+        let d2: [u8; 4] = [
+            lut_r[p2[0] as usize],
+            lut_g[p2[1] as usize],
+            lut_b[p2[2] as usize],
+            lut_a[p2[3] as usize],
+        ];
+        let d3: [u8; 4] = [
+            lut_r[p3[0] as usize],
+            lut_g[p3[1] as usize],
+            lut_b[p3[2] as usize],
+            lut_a[p3[3] as usize],
+        ];
+        *db = [d0, d1, d2, d3];
+        prev_src = w3;
+        prev_dst = d3;
+        prev_dst4 = [prev_dst; 4];
+    }
+    for (sp, dp) in src_rem.iter().zip(dst_rem.iter_mut()) {
+        dp[0] = lut_r[sp[0] as usize];
+        dp[1] = lut_g[sp[1] as usize];
+        dp[2] = lut_b[sp[2] as usize];
+        dp[3] = lut_a[sp[3] as usize];
+    }
 }
 
 /// Expands optional bounding rectangle `acc` to include non-empty physical rectangle `rect`.
@@ -1637,16 +1721,9 @@ pub(crate) fn restore_band_strip(
         return;
     }
     let full_width: bool = x0_bytes == 0 && row_bytes == row_stride;
-    if let Some((lut_r, lut_g, lut_b, lut_a)) = scrim_luts {
+    if let Some(luts) = scrim_luts {
         if full_width {
-            let src_chunks: &[[u8; 4]] = src.as_chunks::<4>().0;
-            let dst_chunks: &mut [[u8; 4]] = dst.as_chunks_mut::<4>().0;
-            for (sp, dp) in src_chunks.iter().zip(dst_chunks.iter_mut()) {
-                dp[0] = lut_r[sp[0] as usize];
-                dp[1] = lut_g[sp[1] as usize];
-                dp[2] = lut_b[sp[2] as usize];
-                dp[3] = lut_a[sp[3] as usize];
-            }
+            apply_rgba_luts_copy(src, dst, luts);
         } else {
             let end_bytes: usize = x0_bytes.saturating_add(row_bytes);
             if end_bytes > row_stride {
@@ -1654,16 +1731,11 @@ pub(crate) fn restore_band_strip(
             }
             for row_idx in 0..height {
                 let row_off: usize = row_idx * row_stride;
-                let s_row: &[u8] = &src[row_off + x0_bytes..row_off + end_bytes];
-                let d_row: &mut [u8] = &mut dst[row_off + x0_bytes..row_off + end_bytes];
-                let src_chunks: &[[u8; 4]] = s_row.as_chunks::<4>().0;
-                let dst_chunks: &mut [[u8; 4]] = d_row.as_chunks_mut::<4>().0;
-                for (sp, dp) in src_chunks.iter().zip(dst_chunks.iter_mut()) {
-                    dp[0] = lut_r[sp[0] as usize];
-                    dp[1] = lut_g[sp[1] as usize];
-                    dp[2] = lut_b[sp[2] as usize];
-                    dp[3] = lut_a[sp[3] as usize];
-                }
+                apply_rgba_luts_copy(
+                    &src[row_off + x0_bytes..row_off + end_bytes],
+                    &mut dst[row_off + x0_bytes..row_off + end_bytes],
+                    luts,
+                );
             }
         }
     } else if full_width {
