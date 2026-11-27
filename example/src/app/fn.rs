@@ -415,9 +415,10 @@ pub fn euv_web_boot() {
     let canvas_up: HtmlCanvasElement = canvas.clone();
     let on_up: Closure<dyn FnMut(web_sys::PointerEvent)> =
         Closure::wrap(Box::new(move |ev: web_sys::PointerEvent| {
-            drop(canvas_up.release_pointer_capture(ev.pointer_id()));
+            ev.stop_propagation();
             let ptr: PointerEvent = web_pointer_from_dom(&ev, &canvas_up, Some(false));
             web_queue_pointer_up_event(ptr);
+            drop(canvas_up.release_pointer_capture(ev.pointer_id()));
         }) as Box<dyn FnMut(web_sys::PointerEvent)>);
     drop(
         canvas
@@ -426,6 +427,7 @@ pub fn euv_web_boot() {
     on_up.forget();
     let on_cancel: Closure<dyn FnMut(web_sys::PointerEvent)> =
         Closure::wrap(Box::new(move |ev: web_sys::PointerEvent| {
+            ev.stop_propagation();
             web_queue_pointer_cancel(web_pointer_id_from_dom(&ev));
         }) as Box<dyn FnMut(web_sys::PointerEvent)>);
     drop(canvas.add_event_listener_with_callback(

@@ -14,15 +14,15 @@ cargo add euv euv-ui
 ## Declarative Macro Usage
 
 ```rust
+let on_copy_code = move |copied: &str| {
+    let _: bool = status.set(format!("Copied {} bytes", copied.len()));
+};
 view! {
     EuvCodeBlock(source.to_string(), tokens) {
         language: "rust"
         filename: "src/main.rs"
         line_numbers: true
-        highlight_lines: vec![1, 4]
-        on_copy: move |copied: &str| {
-            let _: bool = status.set(format!("Copied {} bytes", copied.len()));
-        }
+        on_copy: on_copy_code
     }
 }
 ```
@@ -30,14 +30,14 @@ view! {
 ## Eva Bold Theme Palette
 
 | Token Role | Eva Light Bold | Eva Dark Bold |
-| :--- | :---: | :---: |
-| Background | `#EBEEF5` | `#282C34` |
-| Keyword | `#7C4DFF` | `#A78CFA` |
-| Function | `#437AED` | `#6495EE` |
-| Type | `#00BEC4` | `#56B7C3` |
-| String | `#53A053` | `#98C379` |
-| Number | `#FF6D12` | `#FF9070` |
-| Comment | `#A9A9AA` | `#676E95` |
+| :--------- | :------------: | :-----------: |
+| Background |   `#EBEEF5`    |   `#282C34`   |
+| Keyword    |   `#7C4DFF`    |   `#A78CFA`   |
+| Function   |   `#437AED`    |   `#6495EE`   |
+| Type       |   `#00BEC4`    |   `#56B7C3`   |
+| String     |   `#53A053`    |   `#98C379`   |
+| Number     |   `#FF6D12`    |   `#FF9070`   |
+| Comment    |   `#A9A9AA`    |   `#676E95`   |
 
 > [!TIP]
 > See the full [Markdown Syntax & Eva Theme Showcase](../guide/markdown-syntax.md) for live examples across Rust, TypeScript, JSON, Diff, Shell, YAML, GitHub Alerts, tables, and disclosures.
@@ -53,8 +53,8 @@ EuvCodeBlock
 
 ## Parts
 
-| Part | Type | Purpose |
-| :--- | :--- | :--- |
-| Code Block | `EuvCodeBlock` | Multi-language Eva Light/Dark Bold code viewer |
-| Theme Palette | `CodeThemePalette` | Exact VS Code Eva Light/Dark Bold token palette |
-| Markdown Suite | `EuvMarkdown` | Complete native GFM renderer embedding `EuvCodeBlock` |
+| Part           | Type               | Purpose                                               |
+| :------------- | :----------------- | :---------------------------------------------------- |
+| Code Block     | `EuvCodeBlock`     | Multi-language Eva Light/Dark Bold code viewer        |
+| Theme Palette  | `CodeThemePalette` | Exact VS Code Eva Light/Dark Bold token palette       |
+| Markdown Suite | `EuvMarkdown`      | Complete native GFM renderer embedding `EuvCodeBlock` |

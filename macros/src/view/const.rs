@@ -154,6 +154,9 @@ pub(crate) const PROP_FONT_WEIGHT: &str = "font_weight";
 /// Property keyword for font family.
 pub(crate) const PROP_FONT_FAMILY: &str = "font_family";
 
+/// Property keyword for italic text slant.
+pub(crate) const PROP_ITALIC: &str = "italic";
+
 /// Property keyword for horizontal text alignment.
 pub(crate) const PROP_TEXT_ALIGN: &str = "text_align";
 
@@ -329,6 +332,7 @@ pub(crate) const KNOWN_VIEW_PROPS: &[&str] = &[
     PROP_FONT_SIZE,
     PROP_FONT_WEIGHT,
     PROP_FONT_FAMILY,
+    PROP_ITALIC,
     PROP_TEXT_ALIGN,
     PROP_TEXT_OVERFLOW,
     PROP_Z_INDEX,

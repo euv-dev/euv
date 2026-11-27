@@ -24,11 +24,11 @@ Message
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Bubble | `euv_message_bubble` | `bubble` |
-| Message | `euv_message` | `message` |
-| MessageAvatar | `euv_message_avatar` | `message-avatar` |
+| Part           | Component             | Slot              |
+| -------------- | --------------------- | ----------------- |
+| Bubble         | `euv_message_bubble`  | `bubble`          |
+| Message        | `euv_message`         | `message`         |
+| MessageAvatar  | `euv_message_avatar`  | `message-avatar`  |
 | MessageContent | `euv_message_content` | `message-content` |
-| MessageFooter | `euv_message_footer` | `message-footer` |
-| MessageHeader | `euv_message_header` | `message-header` |
+| MessageFooter  | `euv_message_footer`  | `message-footer`  |
+| MessageHeader  | `euv_message_header`  | `message-header`  |

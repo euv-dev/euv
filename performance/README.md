@@ -1,35 +1,26 @@
-<center>
+<div align="center">
 
-## euv-performance
+# euv-performance
 
-[![](https://img.shields.io/crates/v/euv-performance.svg)](https://crates.io/crates/euv-performance)
-[![](https://img.shields.io/crates/d/euv-performance.svg)](https://img.shields.io/crates/d/euv-performance.svg)
-[![](https://docs.rs/euv-performance/badge.svg)](https://docs.rs/euv-performance)
-[![](https://github.com/euv-dev/euv/workflows/Rust/badge.svg)](https://github.com/euv-dev/euv/actions?query=workflow:Rust)
-[![](https://img.shields.io/crates/l/euv-performance.svg)](../LICENSE)
+[![Crates.io Version](https://img.shields.io/crates/v/euv-performance.svg?style=flat-square)](https://crates.io/crates/euv-performance)
+[![Crates.io Downloads](https://img.shields.io/crates/d/euv-performance.svg?style=flat-square)](https://crates.io/crates/euv-performance)
+[![Docs.rs](https://img.shields.io/docsrs/euv-performance?style=flat-square)](https://docs.rs/euv-performance)
+[![CI Status](https://img.shields.io/github/actions/workflow/status/euv-dev/euv/Rust.yml?style=flat-square&label=CI)](https://github.com/euv-dev/euv/actions)
+[![License: MIT](https://img.shields.io/crates/l/euv-performance.svg?style=flat-square)](../LICENSE)
 
-</center>
+[API Docs](https://docs.rs/euv-performance/latest/) · [Workspace README](../README.md)
 
-[Api Docs](https://docs.rs/euv-performance/latest/)
+</div>
 
-> Reproducible CPU and heap benchmarks for the euv runtime, game engine, and chart library.
+> Reproducible CPU, layout, reactivity, virtual list, batch mutation, WASM OTA hot-swap, and 3D ray-tracing benchmark harness for the `euv` framework.
 
-## Installation
-
-To use this crate, you can run cmd:
+## Usage
 
 ```shell
-cargo install euv-performance
+cargo run -p euv-performance --release
+../scripts/bench/stress-bench.sh
 ```
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](../LICENSE) file for details.
-
-## Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request.
-
-## Contact
-
-For any inquiries, please reach out to the author at [root@devhub.vip](mailto:root@devhub.vip).
+Licensed under the MIT License. See [LICENSE](../LICENSE) for details.

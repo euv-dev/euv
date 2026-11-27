@@ -60,12 +60,12 @@ impl EuvBreadcrumb {
                                     Style::default()
                                     .font_size(13.0)
                                     .font_weight(if is_cur {
-                                            FontWeight::SemiBold
+                                        FontWeight::SemiBold
                                         } else {
                                             FontWeight::Normal
                                     })
                                     .color(if is_cur {
-                                            p.get_foreground()
+                                        p.get_foreground()
                                         } else {
                                             p.get_muted_foreground()
                                     })
@@ -187,7 +187,7 @@ impl EuvSteps {
                                 .radius(12.0)
                                 .border(if done { 0.0 } else { 1.0 }, p.get_border())
                                 .background(if done {
-                                        p.get_primary()
+                                    p.get_primary()
                                     } else {
                                         p.get_secondary()
                                 })
@@ -199,7 +199,7 @@ impl EuvSteps {
                                     .font_size(12.0)
                                     .font_weight(FontWeight::Bold)
                                     .color(if done {
-                                            p.get_primary_foreground()
+                                        p.get_primary_foreground()
                                         } else {
                                             p.get_muted_foreground()
                                     })
@@ -254,7 +254,7 @@ impl EuvAccordion {
                             cursor: CursorIcon::Pointer
                             on_click: move |_: &UiEvent| {
                                 let _: bool = open_index.update(|cur: &mut Option<usize>| {
-                                        *cur = if *cur == Some(idx) { None } else { Some(idx) };
+                                    *cur = if *cur == Some(idx) { None } else { Some(idx) };
                                 });
                             }
                             text {
@@ -332,7 +332,7 @@ impl EuvToc {
                             .padding(Edges::symmetric(SPACE_XS, SPACE_SM))
                             .radius(g.get_radius_sm())
                             .background(if is_cur {
-                                    p.get_accent()
+                                p.get_accent()
                                 } else {
                                     COLOR_TRANSPARENT
                             })

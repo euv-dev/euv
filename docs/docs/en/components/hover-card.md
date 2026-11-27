@@ -21,8 +21,8 @@ HoverCard
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| HoverCard | `euv_hover_card` | `hover-card` |
+| Part             | Component                | Slot                 |
+| ---------------- | ------------------------ | -------------------- |
+| HoverCard        | `euv_hover_card`         | `hover-card`         |
 | HoverCardContent | `euv_hover_card_content` | `hover-card-content` |
 | HoverCardTrigger | `euv_hover_card_trigger` | `hover-card-trigger` |

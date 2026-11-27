@@ -30,7 +30,7 @@ impl TextMeasurer for DeterministicTextMeasurer {
         };
         for raw_line in text.split('\n') {
             if let Some(raw_limit) = wrap_limit {
-                let limit: f32 = raw_limit + 0.5;
+                let limit: f32 = raw_limit.max(1.0);
                 let mut current: String = String::new();
                 let mut current_w: f32 = 0.0;
                 let mut word: String = String::new();

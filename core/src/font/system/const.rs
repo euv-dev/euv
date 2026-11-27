@@ -11,6 +11,9 @@ pub const FONT_FAMILY_ANDROID_SYSTEM: &str = "Roboto / Noto Sans CJK";
 /// Display family name for Web browser Canvas system font.
 pub const FONT_FAMILY_WEB_SYSTEM: &str =
     "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif";
+/// Display family name for Web browser Canvas monospace code font.
+pub const FONT_FAMILY_WEB_MONO: &str =
+    "\"JetBrains Mono\", \"SF Mono\", Menlo, Monaco, Consolas, ui-monospace, monospace";
 
 pub(crate) const CJK_UNIFIED_START: u32 = 0x4E00;
 pub(crate) const CJK_UNIFIED_END: u32 = 0x9FFF;
@@ -25,9 +28,15 @@ pub(crate) const HANGUL_END: u32 = 0xD7AF;
 pub(crate) const ATLAS_DEFAULT_WIDTH: u32 = 512;
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
+pub(crate) const CT_FONT_UI_FIXED_PITCH: u32 = 1;
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 pub(crate) const CT_FONT_UI_SYSTEM: u32 = 2;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub(crate) const CT_FONT_UI_EMPHASIZED_SYSTEM: u32 = 3;
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+pub(crate) const CT_FONT_TRAIT_ITALIC: u32 = 1 << 0;
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+pub(crate) const CT_FONT_TRAIT_BOLD: u32 = 1 << 1;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub(crate) const CT_FONT_ORIENTATION_DEFAULT: u32 = 0;
 
@@ -49,6 +58,18 @@ pub(crate) const WIN_FONT_NAME_UTF16: [u16; 9] = [
     b' ' as u16,
     b'U' as u16,
     b'I' as u16,
+    0,
+];
+#[cfg(target_os = "windows")]
+pub(crate) const WIN_FONT_MONO_UTF16: [u16; 9] = [
+    b'C' as u16,
+    b'o' as u16,
+    b'n' as u16,
+    b's' as u16,
+    b'o' as u16,
+    b'l' as u16,
+    b'a' as u16,
+    b's' as u16,
     0,
 ];
 #[cfg(target_os = "windows")]
@@ -114,6 +135,24 @@ pub(crate) const LINUX_BOLD_FONT_CANDIDATES: [&str; 6] = [
     "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
 ];
 #[cfg(target_os = "linux")]
+pub(crate) const LINUX_MONO_FONT_CANDIDATES: [&str; 6] = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+    "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+    "/usr/share/fonts/truetype/liberation2/LiberationMono-Regular.ttf",
+    "/usr/share/fonts/noto/NotoSansMono-Regular.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf",
+];
+#[cfg(target_os = "linux")]
+pub(crate) const LINUX_MONO_BOLD_FONT_CANDIDATES: [&str; 6] = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf",
+    "/usr/share/fonts/TTF/DejaVuSansMono-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationMono-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation2/LiberationMono-Bold.ttf",
+    "/usr/share/fonts/noto/NotoSansMono-Bold.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSansMono-Bold.ttf",
+];
+#[cfg(target_os = "linux")]
 pub(crate) const LINUX_CJK_FONT_CANDIDATES: [&str; 4] = [
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
@@ -129,6 +168,16 @@ pub(crate) const ANDROID_FONT_CANDIDATES: [&str; 2] = [
 pub(crate) const ANDROID_BOLD_FONT_CANDIDATES: [&str; 2] = [
     "/system/fonts/Roboto-Bold.ttf",
     "/system/fonts/Roboto-Medium.ttf",
+];
+#[cfg(target_os = "android")]
+pub(crate) const ANDROID_MONO_FONT_CANDIDATES: [&str; 2] = [
+    "/system/fonts/DroidSansMono.ttf",
+    "/system/fonts/CutiveMono.ttf",
+];
+#[cfg(target_os = "android")]
+pub(crate) const ANDROID_MONO_BOLD_FONT_CANDIDATES: [&str; 2] = [
+    "/system/fonts/DroidSansMono.ttf",
+    "/system/fonts/Roboto-Bold.ttf",
 ];
 #[cfg(target_os = "android")]
 pub(crate) const ANDROID_CJK_FONT_CANDIDATES: [&str; 2] = [

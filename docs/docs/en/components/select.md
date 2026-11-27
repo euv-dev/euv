@@ -26,16 +26,16 @@ Select
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Select | `euv_select` | `select` |
-| SelectContent | `euv_select` | `select-content` |
-| SelectGroup | `select_option_group` | `select-group` |
-| SelectItem | `select_option_row` | `select-item` |
-| SelectLabel | `select_option_group` | `select-label` |
-| SelectSeparator | `euv_select` | `select-separator` |
-| SelectTrigger | `euv_select` | `select-trigger` |
-| SelectValue | `euv_select` | `select-value` |
+| Part            | Component             | Slot               |
+| --------------- | --------------------- | ------------------ |
+| Select          | `euv_select`          | `select`           |
+| SelectContent   | `euv_select`          | `select-content`   |
+| SelectGroup     | `select_option_group` | `select-group`     |
+| SelectItem      | `select_option_row`   | `select-item`      |
+| SelectLabel     | `select_option_group` | `select-label`     |
+| SelectSeparator | `euv_select`          | `select-separator` |
+| SelectTrigger   | `euv_select`          | `select-trigger`   |
+| SelectValue     | `euv_select`          | `select-value`     |
 
 ## Accessibility
 

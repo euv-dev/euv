@@ -13,6 +13,6 @@ cargo add euv-ui
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Badge | `euv_badge` | — |
+| Part  | Component   | Slot |
+| ----- | ----------- | ---- |
+| Badge | `euv_badge` | —    |

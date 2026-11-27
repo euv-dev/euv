@@ -2,31 +2,37 @@
 pub const EVA_LIGHT_BG: u32 = 0xEBEEF5;
 /// Exact VS Code `Eva Light Bold` header / tab strip background (`#E1E4EB`).
 pub const EVA_LIGHT_HEADER_BG: u32 = 0xE1E4EB;
-/// Exact VS Code `Eva Light Bold` border color (`#D4D8E2`).
-pub const EVA_LIGHT_BORDER: u32 = 0xD4D8E2;
+/// Exact VS Code `Eva Light Bold` border color (`#CED1D7`).
+pub const EVA_LIGHT_BORDER: u32 = 0xCED1D7;
 /// Exact VS Code `Eva Light Bold` foreground text (`#5D5D5F`).
 pub const EVA_LIGHT_FG: u32 = 0x5D5D5F;
 /// Exact VS Code `Eva Light Bold` line number color (`#B3B3B4`).
 pub const EVA_LIGHT_LINE_NUM: u32 = 0xB3B3B4;
 /// Exact VS Code `Eva Light Bold` active / highlighted line background (`#E3E6ED`).
 pub const EVA_LIGHT_LINE_HL: u32 = 0xE3E6ED;
-/// Exact VS Code `Eva Light Bold` comment foreground (`#A0A1A7`).
-pub const EVA_LIGHT_COMMENT: u32 = 0xA0A1A7;
-/// Exact VS Code `Eva Light Bold` keyword / storage / operator foreground (`#7C4DFF`, bold).
+/// Exact VS Code `Eva Light Bold` comment foreground (`#A9A9AA`, italic).
+pub const EVA_LIGHT_COMMENT: u32 = 0xA9A9AA;
+/// Exact VS Code `Eva Light Bold` storage keyword foreground (`#7C4DFF`, bold).
 pub const EVA_LIGHT_KEYWORD: u32 = 0x7C4DFF;
-/// Exact VS Code `Eva Light Bold` string literal foreground (`#437AED`).
-pub const EVA_LIGHT_STRING: u32 = 0x437AED;
+/// Exact VS Code `Eva Light Bold` control-flow keyword foreground (`#C838C6`, bold).
+pub const EVA_LIGHT_CONTROL: u32 = 0xC838C6;
+/// Exact VS Code `Eva Light Bold` operator foreground (`#00BEC4`).
+pub const EVA_LIGHT_OPERATOR: u32 = 0x00BEC4;
+/// Exact VS Code `Eva Light Bold` string literal foreground (`#53A053`).
+pub const EVA_LIGHT_STRING: u32 = 0x53A053;
 /// Exact VS Code `Eva Light Bold` numeric constant foreground (`#FF6D12`).
 pub const EVA_LIGHT_NUMBER: u32 = 0xFF6D12;
-/// Exact VS Code `Eva Light Bold` language constant / variable / tag foreground (`#00BEC4`).
-pub const EVA_LIGHT_CONSTANT: u32 = 0x00BEC4;
+/// Exact VS Code `Eva Light Bold` language constant / boolean foreground (`#C838C6`, bold).
+pub const EVA_LIGHT_CONSTANT: u32 = 0xC838C6;
 /// Exact VS Code `Eva Light Bold` function / macro / attribute foreground (`#437AED`, bold).
 pub const EVA_LIGHT_FUNCTION: u32 = 0x437AED;
-/// Exact VS Code `Eva Light Bold` type / trait / struct foreground (`#7C4DFF`, bold).
-pub const EVA_LIGHT_TYPE: u32 = 0x7C4DFF;
+/// Exact VS Code `Eva Light Bold` user type / struct / trait foreground (`#00BEC4`).
+pub const EVA_LIGHT_TYPE: u32 = 0x00BEC4;
+/// Exact VS Code `Eva Light Bold` primitive / numeric type foreground (`#EF8ED8`).
+pub const EVA_LIGHT_PRIMITIVE: u32 = 0xEF8ED8;
 /// Exact VS Code `Eva Light Bold` parameter / bold markup foreground (`#F0AA0B`).
 pub const EVA_LIGHT_PARAM: u32 = 0xF0AA0B;
-/// Exact VS Code `Eva Light Bold` property / heading markup foreground (`#CD6069`).
+/// Exact VS Code `Eva Light Bold` property / Result / heading foreground (`#CD6069`).
 pub const EVA_LIGHT_PROPERTY: u32 = 0xCD6069;
 /// Exact VS Code `Eva Light Bold` punctuation foreground (`#A0A1A7`).
 pub const EVA_LIGHT_PUNCT: u32 = 0xA0A1A7;
@@ -50,29 +56,35 @@ pub const EVA_DARK_BG: u32 = 0x282C34;
 pub const EVA_DARK_HEADER_BG: u32 = 0x21252B;
 /// Exact VS Code `Eva Dark Bold` border color (`#343A46`).
 pub const EVA_DARK_BORDER: u32 = 0x343A46;
-/// Exact VS Code `Eva Dark Bold` foreground text (`#9DA5B3`).
-pub const EVA_DARK_FG: u32 = 0x9DA5B3;
+/// Exact VS Code `Eva Dark Bold` foreground text (`#B0B7C3`).
+pub const EVA_DARK_FG: u32 = 0xB0B7C3;
 /// Exact VS Code `Eva Dark Bold` line number color (`#535773`).
 pub const EVA_DARK_LINE_NUM: u32 = 0x535773;
 /// Exact VS Code `Eva Dark Bold` active / highlighted line background (`#2F323C`).
 pub const EVA_DARK_LINE_HL: u32 = 0x2F323C;
-/// Exact VS Code `Eva Dark Bold` comment foreground (`#79859D`).
-pub const EVA_DARK_COMMENT: u32 = 0x79859D;
-/// Exact VS Code `Eva Dark Bold` keyword / storage / operator foreground (`#A78CFA`, bold).
+/// Exact VS Code `Eva Dark Bold` comment foreground (`#676E95`, italic).
+pub const EVA_DARK_COMMENT: u32 = 0x676E95;
+/// Exact VS Code `Eva Dark Bold` storage keyword foreground (`#A78CFA`, bold).
 pub const EVA_DARK_KEYWORD: u32 = 0xA78CFA;
-/// Exact VS Code `Eva Dark Bold` string literal foreground (`#6495EE`).
-pub const EVA_DARK_STRING: u32 = 0x6495EE;
+/// Exact VS Code `Eva Dark Bold` control-flow keyword foreground (`#CF68E1`, bold).
+pub const EVA_DARK_CONTROL: u32 = 0xCF68E1;
+/// Exact VS Code `Eva Dark Bold` operator foreground (`#56B7C3`).
+pub const EVA_DARK_OPERATOR: u32 = 0x56B7C3;
+/// Exact VS Code `Eva Dark Bold` string literal foreground (`#98C379`).
+pub const EVA_DARK_STRING: u32 = 0x98C379;
 /// Exact VS Code `Eva Dark Bold` numeric constant foreground (`#FF9070`).
 pub const EVA_DARK_NUMBER: u32 = 0xFF9070;
-/// Exact VS Code `Eva Dark Bold` language constant / variable / tag foreground (`#56B7C3`).
-pub const EVA_DARK_CONSTANT: u32 = 0x56B7C3;
+/// Exact VS Code `Eva Dark Bold` language constant / boolean foreground (`#CF68E1`, bold).
+pub const EVA_DARK_CONSTANT: u32 = 0xCF68E1;
 /// Exact VS Code `Eva Dark Bold` function / macro / attribute foreground (`#6495EE`, bold).
 pub const EVA_DARK_FUNCTION: u32 = 0x6495EE;
-/// Exact VS Code `Eva Dark Bold` type / trait / struct foreground (`#A78CFA`, bold).
-pub const EVA_DARK_TYPE: u32 = 0xA78CFA;
+/// Exact VS Code `Eva Dark Bold` user type / struct / trait foreground (`#56B7C3`).
+pub const EVA_DARK_TYPE: u32 = 0x56B7C3;
+/// Exact VS Code `Eva Dark Bold` primitive / numeric type foreground (`#FF6AB3`).
+pub const EVA_DARK_PRIMITIVE: u32 = 0xFF6AB3;
 /// Exact VS Code `Eva Dark Bold` parameter / bold markup foreground (`#E4BF7F`).
 pub const EVA_DARK_PARAM: u32 = 0xE4BF7F;
-/// Exact VS Code `Eva Dark Bold` property / heading markup foreground (`#E06C75`).
+/// Exact VS Code `Eva Dark Bold` property / Result / heading foreground (`#E06C75`).
 pub const EVA_DARK_PROPERTY: u32 = 0xE06C75;
 /// Exact VS Code `Eva Dark Bold` punctuation foreground (`#79859D`).
 pub const EVA_DARK_PUNCT: u32 = 0x79859D;
@@ -137,75 +149,31 @@ pub(crate) const CODE_KEYWORDS: &[&str] = &[
     "mut",
     "pub",
     "mod",
-    "use",
     "struct",
     "enum",
     "trait",
     "impl",
-    "for",
-    "in",
-    "while",
-    "loop",
-    "if",
-    "else",
-    "match",
-    "return",
-    "break",
-    "continue",
-    "where",
     "const",
     "static",
     "type",
-    "as",
     "ref",
-    "move",
     "async",
-    "await",
-    "unsafe",
-    "extern",
-    "crate",
-    "super",
-    "self",
-    "Self",
-    "dyn",
     "function",
     "class",
     "interface",
-    "export",
-    "import",
-    "from",
-    "default",
     "var",
-    "new",
-    "try",
-    "catch",
-    "throw",
-    "finally",
-    "switch",
-    "case",
     "def",
     "lambda",
-    "with",
-    "yield",
-    "pass",
-    "elif",
-    "and",
-    "or",
-    "not",
-    "select",
-    "where",
-    "insert",
-    "update",
-    "delete",
-    "create",
-    "table",
-    "echo",
-    "export",
     "local",
-    "then",
-    "fi",
-    "done",
-    "do",
+    "table",
+    "create",
+];
+pub(crate) const CODE_CONTROL_KEYWORDS: &[&str] = &[
+    "use", "for", "in", "while", "loop", "if", "else", "match", "return", "break", "continue",
+    "where", "as", "move", "await", "unsafe", "extern", "crate", "super", "self", "Self", "dyn",
+    "export", "import", "from", "default", "new", "try", "catch", "throw", "finally", "switch",
+    "case", "with", "yield", "pass", "elif", "and", "or", "not", "select", "insert", "update",
+    "delete", "echo", "then", "fi", "done", "do",
 ];
 pub(crate) const CODE_CONSTANTS: &[&str] = &[
     "true",
@@ -221,28 +189,14 @@ pub(crate) const CODE_CONSTANTS: &[&str] = &[
     "True",
     "False",
 ];
+pub(crate) const CODE_PRIMITIVE_TYPES: &[&str] = &[
+    "bool", "char", "str", "u8", "u16", "u32", "u64", "u128", "usize", "i8", "i16", "i32", "i64",
+    "i128", "isize", "f32", "f64", "number", "string", "boolean", "void", "any",
+];
+pub(crate) const CODE_RESULT_TYPES: &[&str] = &["Result", "Option"];
 pub(crate) const CODE_TYPES: &[&str] = &[
-    "bool",
-    "char",
-    "str",
-    "u8",
-    "u16",
-    "u32",
-    "u64",
-    "u128",
-    "usize",
-    "i8",
-    "i16",
-    "i32",
-    "i64",
-    "i128",
-    "isize",
-    "f32",
-    "f64",
     "String",
     "Vec",
-    "Option",
-    "Result",
     "Box",
     "Rc",
     "Arc",
@@ -258,9 +212,4 @@ pub(crate) const CODE_TYPES: &[&str] = &[
     "PageRetention",
     "Lifecycle",
     "Component",
-    "number",
-    "string",
-    "boolean",
-    "void",
-    "any",
 ];

@@ -13,6 +13,6 @@ cargo add euv-ui
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Toaster | `—` | not part of this build |
+| Part    | Component | Slot                   |
+| ------- | --------- | ---------------------- |
+| Toaster | `—`       | not part of this build |

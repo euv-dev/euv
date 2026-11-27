@@ -21,8 +21,8 @@ Collapsible
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Collapsible | `euv_collapsible` | `collapsible` |
+| Part               | Component                 | Slot                  |
+| ------------------ | ------------------------- | --------------------- |
+| Collapsible        | `euv_collapsible`         | `collapsible`         |
 | CollapsibleContent | `euv_collapsible_content` | `collapsible-content` |
 | CollapsibleTrigger | `euv_collapsible_trigger` | `collapsible-trigger` |

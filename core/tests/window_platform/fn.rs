@@ -70,6 +70,7 @@ fn pointer_click_input_typing_window_commands_and_router_work_end_to_end() {
         PointerEvent::mouse(20.0, 20.0),
     ));
     app.dispatch_window_event(WindowEvent::PointerUp(wid, PointerEvent::mouse(20.0, 20.0)));
+    app.dispatch_window_event(WindowEvent::PointerUp(wid, PointerEvent::mouse(20.0, 20.0)));
     assert_eq!(clicked.get(), 1);
     app.dispatch_window_event(WindowEvent::PointerDown(
         wid,

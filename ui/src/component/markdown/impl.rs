@@ -24,11 +24,14 @@ impl CodeThemePalette {
                 line_highlight: Color::hex(EVA_LIGHT_LINE_HL),
                 comment: Color::hex(EVA_LIGHT_COMMENT),
                 keyword: Color::hex(EVA_LIGHT_KEYWORD),
+                control: Color::hex(EVA_LIGHT_CONTROL),
+                operator: Color::hex(EVA_LIGHT_OPERATOR),
                 string: Color::hex(EVA_LIGHT_STRING),
                 number: Color::hex(EVA_LIGHT_NUMBER),
                 constant: Color::hex(EVA_LIGHT_CONSTANT),
                 function: Color::hex(EVA_LIGHT_FUNCTION),
                 ty: Color::hex(EVA_LIGHT_TYPE),
+                primitive: Color::hex(EVA_LIGHT_PRIMITIVE),
                 property: Color::hex(EVA_LIGHT_PROPERTY),
                 punctuation: Color::hex(EVA_LIGHT_PUNCT),
                 inline_code_bg: Color::hex(EVA_LIGHT_INLINE_CODE_BG),
@@ -49,11 +52,14 @@ impl CodeThemePalette {
                 line_highlight: Color::hex(EVA_DARK_LINE_HL),
                 comment: Color::hex(EVA_DARK_COMMENT),
                 keyword: Color::hex(EVA_DARK_KEYWORD),
+                control: Color::hex(EVA_DARK_CONTROL),
+                operator: Color::hex(EVA_DARK_OPERATOR),
                 string: Color::hex(EVA_DARK_STRING),
                 number: Color::hex(EVA_DARK_NUMBER),
                 constant: Color::hex(EVA_DARK_CONSTANT),
                 function: Color::hex(EVA_DARK_FUNCTION),
                 ty: Color::hex(EVA_DARK_TYPE),
+                primitive: Color::hex(EVA_DARK_PRIMITIVE),
                 property: Color::hex(EVA_DARK_PROPERTY),
                 punctuation: Color::hex(EVA_DARK_PUNCT),
                 inline_code_bg: Color::hex(EVA_DARK_INLINE_CODE_BG),
@@ -67,7 +73,7 @@ impl CodeThemePalette {
         }
     }
 
-    /// Returns `(Color, FontWeight)` matching the exact Eva Bold TextMate token rule for `kind`.
+    /// Returns `(Color, FontWeight)` matching the exact VS Code `Eva Light Bold` / `Eva Dark Bold` TextMate rule for `kind`.
     ///
     /// # Arguments
     ///
@@ -82,18 +88,22 @@ impl CodeThemePalette {
         match kind {
             CodeTokenKind::Plain => (self.get_foreground(), FontWeight::Normal),
             CodeTokenKind::Keyword => (self.get_keyword(), FontWeight::Bold),
-            CodeTokenKind::Type => (self.get_ty(), FontWeight::Bold),
+            CodeTokenKind::Control | CodeTokenKind::Constant => {
+                (self.get_control(), FontWeight::Bold)
+            }
+            CodeTokenKind::Operator => (self.get_operator(), FontWeight::Normal),
+            CodeTokenKind::Type => (self.get_ty(), FontWeight::Normal),
+            CodeTokenKind::PrimitiveType => (self.get_primitive(), FontWeight::Normal),
             CodeTokenKind::Function | CodeTokenKind::Macro => {
                 (self.get_function(), FontWeight::Bold)
             }
             CodeTokenKind::String => (self.get_string(), FontWeight::Normal),
-            CodeTokenKind::Number => (self.get_number(), FontWeight::Medium),
-            CodeTokenKind::Constant => (self.get_constant(), FontWeight::Medium),
+            CodeTokenKind::Number => (self.get_number(), FontWeight::Normal),
             CodeTokenKind::Comment => (self.get_comment(), FontWeight::Normal),
-            CodeTokenKind::Property => (self.get_property(), FontWeight::Medium),
+            CodeTokenKind::Property => (self.get_property(), FontWeight::Normal),
             CodeTokenKind::Punctuation => (self.get_punctuation(), FontWeight::Normal),
-            CodeTokenKind::DiffAdd => (self.get_diff_add(), FontWeight::Medium),
-            CodeTokenKind::DiffDel => (self.get_diff_del(), FontWeight::Medium),
+            CodeTokenKind::DiffAdd => (self.get_diff_add(), FontWeight::Normal),
+            CodeTokenKind::DiffDel => (self.get_diff_del(), FontWeight::Normal),
         }
     }
 }
@@ -250,36 +260,52 @@ impl EuvCodeBlock {
             raw_lines.into_iter().map(str::to_string).collect()
         };
         let show_nums: bool = show_line_numbers || lines_vec.len() > 1;
+        let code_font_size: f32 = 12.5;
+        let mono_cell_w: f32 = code_font_size * MONOSPACE_ADVANCE_RATIO;
         let line_nodes: Vec<NodeId> = lines_vec
             .into_iter()
             .enumerate()
             .map(|(idx, line_text): (usize, String)| {
                 let line_no: usize = idx + 1;
                 let is_hl: bool = highlight_lines.contains(&line_no);
-                let spans: Vec<CodeSpan> = tokenize_code_line(&line_text, &resolved_lang);
-                let mut merged: Vec<(String, Color, FontWeight)> = Vec::with_capacity(spans.len());
+                let expanded_line: String = line_text.replace('\t', "  ");
+                let leading_spaces: usize = expanded_line
+                    .bytes()
+                    .take_while(|b: &u8| *b == b' ')
+                    .count();
+                let trimmed_line: &str = &expanded_line[leading_spaces..];
+                let indent_px: f32 = (leading_spaces as f32) * mono_cell_w;
+                let spans: Vec<CodeSpan> = tokenize_code_line(trimmed_line, &resolved_lang);
+                let mut merged: Vec<(String, Color, FontWeight, bool)> =
+                    Vec::with_capacity(spans.len());
                 for sp in spans.into_iter() {
-                    let (fg, weight): (Color, FontWeight) = eva.token_style(sp.get_kind());
+                    let kind: CodeTokenKind = sp.get_kind();
+                    let (fg, weight): (Color, FontWeight) = eva.token_style(kind);
+                    let is_italic: bool = kind == CodeTokenKind::Comment;
                     if let Some(last) = merged.last_mut()
                         && last.1 == fg
                         && last.2 == weight
+                        && last.3 == is_italic
                     {
                         last.0.push_str(sp.get_text());
                     } else {
-                        merged.push((sp.get_text().clone(), fg, weight));
+                        merged.push((sp.get_text().clone(), fg, weight, is_italic));
                     }
                 }
                 let span_nodes: Vec<NodeId> = merged
                     .into_iter()
-                    .map(|(txt, fg, weight): (String, Color, FontWeight)| {
+                    .map(|(txt, fg, weight, is_italic): (String, Color, FontWeight, bool)| {
                         view! {
                             text {
                                 max_width: Length::Percent(100.0)
-                                font_size: 12.5
-                                font_family: FontFamily::Sans
+                                flex_shrink: 1.0
+                                font_size: code_font_size
+                                font_family: FontFamily::Monospace
                                 font_weight: weight
+                                italic: is_italic
                                 color: fg
                                 overflow: Overflow::Hidden
+                                text_overflow: TextOverflow::Clip
                                 { txt }
                             }
                         }
@@ -293,20 +319,23 @@ impl EuvCodeBlock {
                 view! {
                     row {
                         width: Length::Percent(100.0)
-                        padding: Edges::symmetric(1.5, SPACE_SM)
-                        align: AlignItems::Center
+                        min_height: Length::Px(20.0)
+                        padding: Edges::symmetric(1.0, SPACE_SM)
+                        align: AlignItems::Start
                         overflow: Overflow::Hidden
                         background: row_bg
                         if show_nums {
                             row {
-                                width: Length::Px(32.0)
+                                width: Length::Px(34.0)
                                 flex_shrink: 0.0
                                 padding: Edges::new(0.0, SPACE_SM, 0.0, 0.0)
                                 justify: JustifyContent::End
+                                align: AlignItems::Center
                                 text {
                                     font_size: 11.5
                                     font_family: FontFamily::Monospace
                                     color: if is_hl { eva.get_foreground() } else { eva.get_line_number() }
+                                    text_overflow: TextOverflow::Clip
                                     { format!("{line_no}") }
                                 }
                             }
@@ -314,8 +343,9 @@ impl EuvCodeBlock {
                         row {
                             flex_grow: 1.0
                             flex_shrink: 1.0
-                            min_width: Length::Px(0.0)
                             flex_wrap: FlexWrap::Wrap
+                            min_width: Length::Px(0.0)
+                            padding: Edges::new(0.0, 0.0, 0.0, indent_px)
                             align: AlignItems::Center
                             overflow: Overflow::Hidden
                             ..span_nodes
@@ -385,15 +415,19 @@ impl EuvCodeBlock {
                         flex_shrink: 0.0
                         align: AlignItems::Center
                         gap: SPACE_SM
-                        view {
-                            padding: Edges::symmetric(2.0, 8.0)
+                        row {
+                            padding: Edges::symmetric(3.0, 8.0)
                             radius: 99.0
+                            justify: JustifyContent::Center
+                            align: AlignItems::Center
                             background: eva.get_background()
                             border: (1.0, eva.get_border())
                             text {
                                 font_size: 10.5
                                 font_weight: FontWeight::Bold
                                 color: eva.get_keyword()
+                                text_align: TextAlign::Center
+                                text_overflow: TextOverflow::Clip
                                 { display_lang }
                             }
                         }
@@ -416,6 +450,7 @@ impl EuvCodeBlock {
                                 font_weight: FontWeight::SemiBold
                                 color: eva.get_function()
                                 text_align: TextAlign::Center
+                                text_overflow: TextOverflow::Clip
                                 { move || if copied_sig.get() { CODE_BTN_COPIED.to_string() } else { CODE_BTN_COPY.to_string() } }
                             }
                         }
@@ -523,14 +558,17 @@ impl EuvMarkdownInlineCode {
                 radius: 5.0
                 background: eva.get_inline_code_bg()
                 border: (1.0, eva.get_border())
+                justify: JustifyContent::Center
                 align: AlignItems::Center
                 overflow: Overflow::Hidden
                 text {
                     max_width: Length::Percent(100.0)
                     overflow: Overflow::Hidden
-                    font_size: 12.5
+                    text_overflow: TextOverflow::Clip
+                    text_align: TextAlign::Center
+                    font_size: 12.0
                     font_family: FontFamily::Monospace
-                    font_weight: FontWeight::Medium
+                    font_weight: FontWeight::Normal
                     color: eva.get_inline_code_fg()
                     { snippet }
                 }
@@ -819,8 +857,8 @@ impl EuvMarkdownList {
                                     cb(idx, next);
                                 }
                             }
-                            view {
-                                width: Length::Px(26.0)
+                            row {
+                                width: Length::Px(28.0)
                                 height: Length::Px(22.0)
                                 radius: 5.0
                                 justify: JustifyContent::Center
@@ -833,6 +871,7 @@ impl EuvMarkdownList {
                                     font_weight: FontWeight::Bold
                                     color: eva.get_keyword()
                                     text_align: TextAlign::Center
+                                    text_overflow: TextOverflow::Clip
                                     { move || if chk_sig.get() { MD_CHECKBOX_ON.to_string() } else { MD_CHECKBOX_OFF.to_string() } }
                                 }
                             }

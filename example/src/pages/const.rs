@@ -156,8 +156,7 @@ pub(crate) const BTN_RETURN_DYNAMIC: &str = "Return to Dynamic OTA";
 pub(crate) const AI_SCHEMA_RELEASE_STRIPPED: &str = "stripped-in-release";
 pub(crate) const AI_BRIDGE_STATUS_ACTIVE: &str = "dev-active";
 pub(crate) const AI_BRIDGE_STATUS_OFF: &str = "0B-release";
-pub(crate) const TOUCH_PAD_READY_TEXT: &str =
-    "Multi-Touch Pad Ready: place 1, 2, or more fingers inside the pad (sidebar & scroll isolated)";
+pub(crate) const TOUCH_PAD_READY_TEXT: &str = "Pad Ready: touch inside (1-5 fingers, isolated)";
 pub(crate) const TOUCH_PAD_CANVAS_HINT: &str = "Touch or drag with 1-5 fingers here";
 pub(crate) const FORMS_EXT_CARD_SUB: &str =
     "ToggleGroup, InputOTP, ColorPicker, TimePicker, TagInput, Calendar, and Collapsible";
@@ -199,7 +198,10 @@ impl MarkdownStudioPage {
     }
     fn render(&self) -> NodeId {
         let count: LocalState<i32> = local_state!(42);
-        let box_style: Style = style! { AlignItems::Center; Overflow::Hidden; };
+        let box_style: Style = style! {
+            AlignItems::Center
+            Overflow::Hidden
+        };
         view! {
             EuvCodeBlock(source, tokens) {
                 language: "rust"
@@ -226,7 +228,10 @@ pub(crate) const MD_SAMPLE_JSON: &str = r##"{
 }"##;
 pub(crate) const MD_SAMPLE_DIFF: &str = r##"@@ -1,4 +1,5 @@
 -let style = Style::empty().align(AlignItems::Center).overflow(Overflow::Hidden);
-+let style = style! { AlignItems::Center; Overflow::Hidden; };
++let style = style! {
++    AlignItems::Center
++    Overflow::Hidden
++};
 -impl Mountable for MyPage { fn mount(self, ctx: &mut BuildContext) -> NodeId { ... } }
 +#[component(retention = Freeze)]
 +impl MyPage { fn render(&self) -> NodeId { view! { ... } } }"##;
@@ -244,7 +249,7 @@ Welcome to **Euv Markdown Studio** — featuring *zero WebView*, ~~DOM bloat~~, 
 > Inactive showcase routes use `PageRetention::Freeze` — reactive effects and 3D engines suspend at 0% CPU until resumed.
 
 > [!WARNING]
-> Always terminate statements inside `style! { AlignItems::Center; Overflow::Hidden; }` with `;` for strict syntax uniformity.
+> Always place each style statement inside `style! { ... }` on its own line without semicolons.
 
 > [!CAUTION]
 > Legacy `Mountable` and `Style::empty()` APIs have been removed in favor of `Component`, `Lifecycle`, and `Style::default()`.
@@ -295,10 +300,8 @@ pub(crate) const BTN_OPEN_GAME_ENGINE: &str = "Open Game Engine";
 pub(crate) const BTN_OPEN_OS_SERVICES: &str = "Open OS Services";
 pub(crate) const LIFECYCLE_ACTIVE_DEFAULT: &str = "Active Cache: / = Active";
 pub(crate) const SOURCE_NONE: &str = "none";
-pub(crate) const MD_THEME_DESC_LIGHT: &str =
-    "Active VS Code Theme: Eva Light Bold (bg #EBEEF5 | kw #7C4DFF | fn #437AED | num #FF6D12)";
-pub(crate) const MD_THEME_DESC_DARK: &str =
-    "Active VS Code Theme: Eva Dark Bold (bg #282C34 | kw #A78CFA | fn #6495EE | num #FF9070)";
+pub(crate) const MD_THEME_DESC_LIGHT: &str = "VS Code Eva Light Bold: bg #EBEEF5 | kw #7C4DFF | ctrl #C838C6 | str #53A053 | fn #437AED | ty #00BEC4";
+pub(crate) const MD_THEME_DESC_DARK: &str = "VS Code Eva Dark Bold: bg #282C34 | kw #A78CFA | ctrl #CF68E1 | str #98C379 | fn #6495EE | ty #56B7C3";
 pub(crate) const MD_TAB_RUST: &str = "Rust";
 pub(crate) const MD_TAB_TS: &str = "TypeScript";
 pub(crate) const MD_TAB_JSON: &str = "JSON";
@@ -327,3 +330,45 @@ pub(crate) const BTN_SEARCH_DESKTOP: &str = "Search  Cmd+K";
 pub(crate) const BTN_SEARCH_MOBILE: &str = "Search";
 pub(crate) const LABEL_MODE_LIGHT: &str = "Light";
 pub(crate) const LABEL_MODE_DARK: &str = "Dark";
+pub(crate) const BNAV_HOME_LABEL: &str = "Home";
+pub(crate) const BNAV_HOME_ICON: &str = "H";
+pub(crate) const BNAV_DOCS_LABEL: &str = "Docs";
+pub(crate) const BNAV_DOCS_ICON: &str = "M";
+pub(crate) const BNAV_CASES_LABEL: &str = "Cases";
+pub(crate) const BNAV_CASES_ICON: &str = "L";
+pub(crate) const BNAV_STRESS_LABEL: &str = "Stress";
+pub(crate) const BNAV_STRESS_ICON: &str = "S";
+pub(crate) const BNAV_3D_LABEL: &str = "3D";
+pub(crate) const BNAV_3D_ICON: &str = "3D";
+pub(crate) const HOME_DIR_TITLE: &str = "Explore Directory";
+pub(crate) const HOME_DIR_SUBTITLE: &str =
+    "Tap any module below or swipe left/right anywhere to switch routes directly";
+pub(crate) const HOME_DIR_ARROW: &str = ">";
+pub(crate) const HOME_DIR_TAG_MD: &str = "MD";
+pub(crate) const HOME_DIR_TAG_LB: &str = "LB";
+pub(crate) const HOME_DIR_TAG_ST: &str = "ST";
+pub(crate) const HOME_DIR_TAG_3D: &str = "3D";
+pub(crate) const HOME_DIR_TAG_FM: &str = "FM";
+pub(crate) const HOME_DIR_TAG_ME: &str = "ME";
+pub(crate) const HOME_DIR_TAG_OV: &str = "OV";
+pub(crate) const HOME_DIR_TAG_TH: &str = "TH";
+pub(crate) const HOME_DIR_TAG_DT: &str = "DT";
+pub(crate) const HOME_DIR_TAG_RX: &str = "RX";
+pub(crate) const HOME_DIR_TAG_RN: &str = "RN";
+pub(crate) const HOME_DIR_TAG_OS: &str = "OS";
+pub(crate) const HOME_DIR_TAG_2D: &str = "2D";
+pub(crate) const HOME_DIR_TAG_OT: &str = "OT";
+pub(crate) const HOME_DIR_DESC_MD: &str = "Eva Light/Dark Bold code blocks & full GFM suite";
+pub(crate) const HOME_DIR_DESC_LB: &str = "Multi-touch isolation pad, AI Schema & shadcn parity";
+pub(crate) const HOME_DIR_DESC_ST: &str = "10 interactive live performance stress benchmarks";
+pub(crate) const HOME_DIR_DESC_3D: &str = "Cinematic + FullPathTracedGi 60 FPS open world";
+pub(crate) const HOME_DIR_DESC_FM: &str = "Inputs with exact caret, IME, toggles & pickers";
+pub(crate) const HOME_DIR_DESC_ME: &str = "Live Photo, SVG, GIF, Video, Audio, PDF & HTML";
+pub(crate) const HOME_DIR_DESC_OV: &str = "Zero-overshoot Drawer, Sheet, Modal & Popover";
+pub(crate) const HOME_DIR_DESC_TH: &str = "17 compiled design schemes with Light/Dark mode";
+pub(crate) const HOME_DIR_DESC_DT: &str = "100k virtual scroll list, tables & charts";
+pub(crate) const HOME_DIR_DESC_RX: &str = "Fine-grained Signals, Memos, Local & Global state";
+pub(crate) const HOME_DIR_DESC_RN: &str = "Auto / Software / Hardware / Hybrid render modes";
+pub(crate) const HOME_DIR_DESC_OS: &str = "Dynamic Island, permissions, haptics & safe area";
+pub(crate) const HOME_DIR_DESC_2D: &str = "2D physics arena with particles & touch joystick";
+pub(crate) const HOME_DIR_DESC_OT: &str = "Signed partial & global .wasm hot-swap runtime";

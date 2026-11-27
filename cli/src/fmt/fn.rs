@@ -68,6 +68,26 @@ pub fn format_euv_macros_in_source(source: &str) -> (String, usize) {
     (out, count)
 }
 
+/// Runs `crate-cli`'s unified Prettier-aligned text, derive, and Rust formatting pass before `euv` macro normalization.
+///
+/// # Arguments
+///
+/// - `&Path` - Root directory, `Cargo.toml` manifest path, or single file path.
+/// - `bool` - When `true`, checks formatting without modifying files.
+///
+/// # Returns
+///
+/// - `io::Result<UnifiedFmtReport>` - Summary of scanned and formatted non-Rust text files.
+pub fn run_unified_base_fmt(target_root: &Path, check: bool) -> io::Result<UnifiedFmtReport> {
+    let is_non_manifest_file: bool = target_root.is_file()
+        && target_root.file_name().and_then(OsStr::to_str) != Some(CARGO_TOML_NAME);
+    if is_non_manifest_file {
+        return format_workspace_text_files(target_root, check);
+    }
+    let runtime: Runtime = Builder::new_current_thread().enable_all().build()?;
+    runtime.block_on(execute_unified_fmt(target_root, check))
+}
+
 /// Formats all `.rs` files under `root` (or a single `.rs` file) in place or in `--check` mode.
 ///
 /// # Arguments
@@ -82,7 +102,7 @@ pub fn format_workspace_macros(root: &Path, check: bool) -> io::Result<FmtReport
     let mut files: Vec<PathBuf> = Vec::new();
     collect_rs_files(root, &mut files)?;
     files.sort();
-    let mut report: FmtReport = FmtReport::new(files.len(), 0, 0, check, Vec::new());
+    let mut report: FmtReport = FmtReport::new(files.len(), 0, 0, 0, 0, check, Vec::new());
     for file_path in files.into_iter() {
         let original: String = fs::read_to_string(&file_path)?;
         let (formatted, macro_hits): (String, usize) = format_euv_macros_in_source(&original);
@@ -164,7 +184,7 @@ fn format_macro_brace_body(inner: &str, base_indent: usize) -> String {
     }
     let mut out: String = String::with_capacity(inner.len() + 64);
     out.push_str("{\n");
-    let mut depth: usize = 1;
+    let mut indent_stack: Vec<usize> = Vec::new();
     let mut in_block_comment: bool = false;
     let mut raw_hashes: Option<usize> = None;
     for raw_line in inner.lines() {
@@ -178,19 +198,37 @@ fn format_macro_brace_body(inner: &str, base_indent: usize) -> String {
         if trimmed.is_empty() {
             continue;
         }
-        let leading_closes: usize = count_leading_closers(trimmed);
-        let line_depth: usize = depth.saturating_sub(leading_closes).max(1);
-        let indent_spaces: usize = base_indent + line_depth * EUV_FMT_INDENT_SPACES;
+        let (events, next_comment, next_raw): (Vec<bool>, bool, Option<usize>) =
+            scan_line_delimiter_events(trimmed, in_block_comment);
+        in_block_comment = next_comment;
+        raw_hashes = next_raw;
+        let leading_closes: usize = events
+            .iter()
+            .take_while(|is_open: &&bool| !**is_open)
+            .count();
+        for _ in 0..leading_closes {
+            let _: Option<usize> = indent_stack.pop();
+        }
+        let visual_depth: usize = 1 + indent_stack.iter().copied().sum::<usize>();
+        let indent_spaces: usize = base_indent + visual_depth * EUV_FMT_INDENT_SPACES;
         for _ in 0..indent_spaces {
             out.push(' ');
         }
         out.push_str(trimmed);
         out.push('\n');
-        let (opens, closes, next_comment, next_raw): (usize, usize, bool, Option<usize>) =
-            scan_line_delimiters(trimmed, in_block_comment);
-        in_block_comment = next_comment;
-        raw_hashes = next_raw;
-        depth = depth.saturating_add(opens).saturating_sub(closes).max(1);
+        let mut line_opens: usize = 0;
+        for is_open in events.into_iter().skip(leading_closes) {
+            if is_open {
+                line_opens += 1;
+            } else if line_opens > 0 {
+                line_opens -= 1;
+            } else {
+                let _: Option<usize> = indent_stack.pop();
+            }
+        }
+        for open_idx in 0..line_opens {
+            indent_stack.push(usize::from(open_idx == 0));
+        }
     }
     for _ in 0..base_indent {
         out.push(' ');
@@ -199,28 +237,7 @@ fn format_macro_brace_body(inner: &str, base_indent: usize) -> String {
     out
 }
 
-/// Counts leading closing delimiters (`}`, `)`, `]`) at the start of a trimmed source line.
-///
-/// # Arguments
-///
-/// - `&str` - Trimmed source line.
-///
-/// # Returns
-///
-/// - `usize` - Number of leading closing delimiters before the first non-closer token.
-fn count_leading_closers(trimmed: &str) -> usize {
-    let mut count: usize = 0;
-    for ch in trimmed.chars() {
-        match ch {
-            '}' | ')' | ']' => count += 1,
-            ' ' | '\t' => {}
-            _ => break,
-        }
-    }
-    count
-}
-
-/// Scans a single trimmed line for unbalanced `{`/`}`/`(`/`)`/`[`/`]` outside strings and comments.
+/// Scans a single trimmed line for ordered delimiter events (`true` for `{`/`(`/ `[`, `false` for `}`/`)`/`]`) outside strings and comments.
 ///
 /// # Arguments
 ///
@@ -229,16 +246,15 @@ fn count_leading_closers(trimmed: &str) -> usize {
 ///
 /// # Returns
 ///
-/// - `(usize, usize, bool, Option<usize>)` - `(opens, closes, next_in_block_comment, unclosed_raw_string_hashes)`.
-fn scan_line_delimiters(
+/// - `(Vec<bool>, bool, Option<usize>)` - `(ordered_events, next_in_block_comment, unclosed_raw_string_hashes)`.
+fn scan_line_delimiter_events(
     line: &str,
     mut in_block_comment: bool,
-) -> (usize, usize, bool, Option<usize>) {
+) -> (Vec<bool>, bool, Option<usize>) {
     let bytes: &[u8] = line.as_bytes();
     let len: usize = bytes.len();
     let mut i: usize = 0;
-    let mut opens: usize = 0;
-    let mut closes: usize = 0;
+    let mut events: Vec<bool> = Vec::new();
     while i < len {
         if in_block_comment {
             if bytes[i] == b'*' && i + 1 < len && bytes[i + 1] == b'/' {
@@ -265,7 +281,7 @@ fn scan_line_delimiters(
                     i = next_i;
                     continue;
                 }
-                None => return (opens, closes, in_block_comment, Some(hashes)),
+                None => return (events, in_block_comment, Some(hashes)),
             }
         }
         if bytes[i] == b'"' {
@@ -290,13 +306,13 @@ fn scan_line_delimiters(
             continue;
         }
         match bytes[i] {
-            b'{' | b'(' | b'[' => opens += 1,
-            b'}' | b')' | b']' => closes += 1,
+            b'{' | b'(' | b'[' => events.push(true),
+            b'}' | b')' | b']' => events.push(false),
             _ => {}
         }
         i += 1;
     }
-    (opens, closes, in_block_comment, None)
+    (events, in_block_comment, None)
 }
 
 /// Checks if a multi-line raw string literal closes on `line`.

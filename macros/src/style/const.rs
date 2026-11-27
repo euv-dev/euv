@@ -103,6 +103,9 @@ pub(crate) const STYLE_KEY_FONT_WEIGHT: &str = "font_weight";
 /// Style property key for font family.
 pub(crate) const STYLE_KEY_FONT_FAMILY: &str = "font_family";
 
+/// Style property key for italic text slant.
+pub(crate) const STYLE_KEY_ITALIC: &str = "italic";
+
 /// Style property key for horizontal text alignment.
 pub(crate) const STYLE_KEY_TEXT_ALIGN: &str = "text_align";
 
@@ -127,8 +130,13 @@ pub(crate) const STYLE_KEY_COLUMNS: &str = "columns";
 /// Error message prefix for duplicate style rule declarations.
 pub(crate) const ERR_STYLE_DUPLICATE_KEY: &str = "duplicate style property";
 
-/// Error message when a `style!` rule or shorthand expression is missing a trailing semicolon.
-pub(crate) const ERR_STYLE_MISSING_SEMI: &str = "expected `;` at end of `style!` statement — every rule and value shorthand must terminate with `;`";
+/// Error message when a `style!` rule contains a disallowed semicolon.
+pub(crate) const ERR_STYLE_UNEXPECTED_SEMI: &str =
+    "unexpected `;` in `style!` — place each style rule on its own line without semicolons";
+
+/// Error message when two `style!` statements appear on the same source line.
+pub(crate) const ERR_STYLE_NEWLINE_REQUIRED: &str =
+    "each style rule in `style!` must start on a new line";
 
 /// Exhaustive list of supported properties inside `style!` blocks for typo diagnostics.
 pub(crate) const KNOWN_STYLE_PROPS: &[&str] = &[
@@ -165,6 +173,7 @@ pub(crate) const KNOWN_STYLE_PROPS: &[&str] = &[
     STYLE_KEY_FONT_SIZE,
     STYLE_KEY_FONT_WEIGHT,
     STYLE_KEY_FONT_FAMILY,
+    STYLE_KEY_ITALIC,
     STYLE_KEY_TEXT_ALIGN,
     STYLE_KEY_TEXT_OVERFLOW,
     STYLE_KEY_OPACITY,

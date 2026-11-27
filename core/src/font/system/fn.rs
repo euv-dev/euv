@@ -236,6 +236,26 @@ unsafe extern "C" {
         size: f64,
         language: *const c_void,
     ) -> *mut c_void;
+    /// Derives a variant `CTFontRef` with the requested symbolic traits (bold / italic).
+    ///
+    /// # Arguments
+    ///
+    /// - `*const c_void` - Base CoreText font handle.
+    /// - `f64` - Point size (`0.0` preserves base size).
+    /// - `*const c_void` - Optional transform matrix pointer.
+    /// - `u32` - Desired symbolic trait bitmask.
+    /// - `u32` - Mask of symbolic traits to update.
+    ///
+    /// # Returns
+    ///
+    /// - `*mut c_void` - Derived `CTFontRef`, or null when unavailable.
+    fn CTFontCreateCopyWithSymbolicTraits(
+        font: *const c_void,
+        size: f64,
+        matrix: *const c_void,
+        sym_trait_value: u32,
+        sym_trait_mask: u32,
+    ) -> *mut c_void;
     /// Resolves a fallback `CTFontRef` covering the UTF-16 `range` in `string`.
     ///
     /// # Arguments
@@ -453,16 +473,42 @@ fn rasterize_coretext_glyph(key: GlyphKey) -> Option<RasterizedGlyph> {
     let mut utf16_buf: [u16; 2] = [0; 2];
     let encoded: &[u16] = key.get_codepoint().encode_utf16(&mut utf16_buf);
     let count: isize = encoded.len() as isize;
-    let ui_font_kind: u32 = if key.get_bold() {
+    let ui_font_kind: u32 = if key.get_monospace() {
+        CT_FONT_UI_FIXED_PITCH
+    } else if key.get_bold() {
         CT_FONT_UI_EMPHASIZED_SYSTEM
     } else {
         CT_FONT_UI_SYSTEM
     };
     unsafe {
-        let base_font: *mut c_void = CTFontCreateUIFontForLanguage(ui_font_kind, size_px, null());
-        if base_font.is_null() {
+        let raw_base: *mut c_void = CTFontCreateUIFontForLanguage(ui_font_kind, size_px, null());
+        if raw_base.is_null() {
             return None;
         }
+        let mut desired_traits: u32 = 0;
+        if key.get_monospace() && key.get_bold() {
+            desired_traits |= CT_FONT_TRAIT_BOLD;
+        }
+        if key.get_italic() {
+            desired_traits |= CT_FONT_TRAIT_ITALIC;
+        }
+        let base_font: *mut c_void = if desired_traits != 0 {
+            let styled: *mut c_void = CTFontCreateCopyWithSymbolicTraits(
+                raw_base,
+                0.0,
+                null(),
+                desired_traits,
+                desired_traits,
+            );
+            if styled.is_null() {
+                raw_base
+            } else {
+                CFRelease(raw_base);
+                styled
+            }
+        } else {
+            raw_base
+        };
         let base_ascent: f64 = CTFontGetAscent(base_font).max(size_px * 0.80);
         let base_descent: f64 = CTFontGetDescent(base_font).max(size_px * 0.24);
         let cf_str: *mut c_void = CFStringCreateWithCharacters(null(), encoded.as_ptr(), count);
@@ -691,7 +737,7 @@ fn rasterize_win32_face(
             0,
             0,
             weight,
-            0,
+            u32::from(key.get_italic()),
             0,
             0,
             WIN_DEFAULT_CHARSET,
@@ -806,6 +852,8 @@ fn rasterize_win32_gdi_glyph(key: GlyphKey) -> Option<RasterizedGlyph> {
         }
         let primary_ptr: *const u16 = if is_wide_unicode(key.get_codepoint()) {
             WIN_FONT_CJK_UTF16.as_ptr()
+        } else if key.get_monospace() {
+            WIN_FONT_MONO_UTF16.as_ptr()
         } else {
             WIN_FONT_NAME_UTF16.as_ptr()
         };
@@ -973,15 +1021,31 @@ fn init_freetype_runtime() -> Option<FreeTypeRuntime> {
             return None;
         }
         #[cfg(target_os = "linux")]
-        let (reg_list, bold_list, cjk_list): (&[&str], &[&str], &[&str]) = (
+        let (reg_list, bold_list, mono_list, mono_bold_list, cjk_list): (
+            &[&str],
+            &[&str],
+            &[&str],
+            &[&str],
+            &[&str],
+        ) = (
             &LINUX_FONT_CANDIDATES,
             &LINUX_BOLD_FONT_CANDIDATES,
+            &LINUX_MONO_FONT_CANDIDATES,
+            &LINUX_MONO_BOLD_FONT_CANDIDATES,
             &LINUX_CJK_FONT_CANDIDATES,
         );
         #[cfg(target_os = "android")]
-        let (reg_list, bold_list, cjk_list): (&[&str], &[&str], &[&str]) = (
+        let (reg_list, bold_list, mono_list, mono_bold_list, cjk_list): (
+            &[&str],
+            &[&str],
+            &[&str],
+            &[&str],
+            &[&str],
+        ) = (
             &ANDROID_FONT_CANDIDATES,
             &ANDROID_BOLD_FONT_CANDIDATES,
+            &ANDROID_MONO_FONT_CANDIDATES,
+            &ANDROID_MONO_BOLD_FONT_CANDIDATES,
             &ANDROID_CJK_FONT_CANDIDATES,
         );
         let regular_face: *mut FtFaceRec = freetype_open_first_face(library, ft_new_face, reg_list);
@@ -989,10 +1053,15 @@ fn init_freetype_runtime() -> Option<FreeTypeRuntime> {
             return None;
         }
         let bold_face: *mut FtFaceRec = freetype_open_first_face(library, ft_new_face, bold_list);
+        let mono_face: *mut FtFaceRec = freetype_open_first_face(library, ft_new_face, mono_list);
+        let mono_bold_face: *mut FtFaceRec =
+            freetype_open_first_face(library, ft_new_face, mono_bold_list);
         let cjk_face: *mut FtFaceRec = freetype_open_first_face(library, ft_new_face, cjk_list);
         Some(FreeTypeRuntime {
             regular_face,
             bold_face,
+            mono_face,
+            mono_bold_face,
             cjk_face,
             set_pixel_sizes,
             get_char_index,
@@ -1023,7 +1092,17 @@ fn rasterize_freetype_glyph(key: GlyphKey) -> Option<RasterizedGlyph> {
             let size_px: u32 = ((key.get_size_tenths() as f32) * 0.1)
                 .round()
                 .clamp(6.0, 256.0) as u32;
-            let primary_face: *mut FtFaceRec = if key.get_bold() && !rt.bold_face.is_null() {
+            let primary_face: *mut FtFaceRec = if key.get_monospace() {
+                if key.get_bold() && !rt.mono_bold_face.is_null() {
+                    rt.mono_bold_face
+                } else if !rt.mono_face.is_null() {
+                    rt.mono_face
+                } else if key.get_bold() && !rt.bold_face.is_null() {
+                    rt.bold_face
+                } else {
+                    rt.regular_face
+                }
+            } else if key.get_bold() && !rt.bold_face.is_null() {
                 rt.bold_face
             } else {
                 rt.regular_face
@@ -1142,8 +1221,14 @@ fn rasterize_web_canvas_glyph(key: GlyphKey) -> Option<RasterizedGlyph> {
     canvas.set_height(h);
     let raw: Object = canvas.get_context(WEB_FONT_CTX_2D).ok()??;
     let ctx2d: CanvasRenderingContext2d = raw.dyn_into::<CanvasRenderingContext2d>().ok()?;
-    let weight: &str = if key.get_bold() { "600" } else { "400" };
-    let font_decl: String = format!("{weight} {size_px}px {FONT_FAMILY_WEB_SYSTEM}");
+    let style_prefix: &str = if key.get_italic() { "italic " } else { "" };
+    let weight: &str = if key.get_bold() { "700" } else { "400" };
+    let family_decl: &str = if key.get_monospace() {
+        FONT_FAMILY_WEB_MONO
+    } else {
+        FONT_FAMILY_WEB_SYSTEM
+    };
+    let font_decl: String = format!("{style_prefix}{weight} {size_px}px {family_decl}");
     ctx2d.set_font(&font_decl);
     let mut text_buf: [u8; 4] = [0; 4];
     let text: &str = key.get_codepoint().encode_utf8(&mut text_buf);
@@ -1151,7 +1236,11 @@ fn rasterize_web_canvas_glyph(key: GlyphKey) -> Option<RasterizedGlyph> {
         .measure_text(text)
         .map(|m: TextMetrics| m.width())
         .unwrap_or((size_px * 0.62) as f64);
-    let advance: u32 = measured_w.ceil().max(2.0) as u32;
+    let advance: u32 = if key.get_monospace() && (key.get_codepoint() as u32) <= 0x7E {
+        (size_px * MONOSPACE_ADVANCE_RATIO).round().max(2.0) as u32
+    } else {
+        measured_w.round().max(2.0) as u32
+    };
     let w: u32 = (advance + 3).max(4);
     canvas.set_width(w);
     canvas.set_height(h);

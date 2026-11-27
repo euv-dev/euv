@@ -22,9 +22,9 @@ InputOTP
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| InputOTP | `euv_input_otp` | `input-otp` |
-| InputOTPGroup | `euv_input_otp_group` | `input-otp-group` |
+| Part              | Component                 | Slot                  |
+| ----------------- | ------------------------- | --------------------- |
+| InputOTP          | `euv_input_otp`           | `input-otp`           |
+| InputOTPGroup     | `euv_input_otp_group`     | `input-otp-group`     |
 | InputOTPSeparator | `euv_input_otp_separator` | `input-otp-separator` |
-| InputOTPSlot | `euv_input_otp_slot` | `input-otp-slot` |
+| InputOTPSlot      | `euv_input_otp_slot`      | `input-otp-slot`      |

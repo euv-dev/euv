@@ -128,6 +128,18 @@ impl DisplayList {
                         u32::from_le_bytes(style.get_color().to_rgba_bytes()) as u64,
                     );
                 }
+                DrawCommand::TextCaret {
+                    text_rect,
+                    text,
+                    color,
+                    ..
+                } => {
+                    Self::mix_hash(&mut hash, 13);
+                    Self::mix_hash(&mut hash, text_rect.get_x().to_bits() as u64);
+                    Self::mix_hash(&mut hash, text_rect.get_y().to_bits() as u64);
+                    Self::mix_hash(&mut hash, text.len() as u64);
+                    Self::mix_hash(&mut hash, u32::from_le_bytes(color.to_rgba_bytes()) as u64);
+                }
                 DrawCommand::Image { rect, buffer, .. } => {
                     Self::mix_hash(&mut hash, 6);
                     Self::mix_hash(&mut hash, rect.get_x().to_bits() as u64);
@@ -281,12 +293,36 @@ impl DisplayList {
                     Self::mix_hash(&mut hash, rect.get_width().to_bits() as u64);
                     Self::mix_hash(&mut hash, rect.get_height().to_bits() as u64);
                     Self::mix_hash(&mut hash, style.get_font_size().to_bits() as u64);
+                    Self::mix_hash(&mut hash, style.get_family() as u64);
                     Self::mix_hash(&mut hash, style.get_weight() as u64);
+                    Self::mix_hash(&mut hash, u64::from(style.get_italic()));
                     Self::mix_hash(&mut hash, style.get_align() as u64);
                     Self::mix_hash(
                         &mut hash,
                         u32::from_le_bytes(style.get_color().to_rgba_bytes()) as u64,
                     );
+                    Self::mix_hash(&mut hash, text.len() as u64);
+                    for byte in text.as_bytes().iter().copied() {
+                        Self::mix_hash(&mut hash, byte as u64);
+                    }
+                }
+                DrawCommand::TextCaret {
+                    text_rect,
+                    content_rect,
+                    text,
+                    style,
+                    caret_height,
+                    color,
+                    multiline,
+                } => {
+                    Self::mix_hash(&mut hash, 13);
+                    Self::mix_hash(&mut hash, text_rect.get_x().to_bits() as u64);
+                    Self::mix_hash(&mut hash, text_rect.get_y().to_bits() as u64);
+                    Self::mix_hash(&mut hash, content_rect.get_width().to_bits() as u64);
+                    Self::mix_hash(&mut hash, caret_height.to_bits() as u64);
+                    Self::mix_hash(&mut hash, style.get_font_size().to_bits() as u64);
+                    Self::mix_hash(&mut hash, u64::from(*multiline));
+                    Self::mix_hash(&mut hash, u32::from_le_bytes(color.to_rgba_bytes()) as u64);
                     Self::mix_hash(&mut hash, text.len() as u64);
                     for byte in text.as_bytes().iter().copied() {
                         Self::mix_hash(&mut hash, byte as u64);
@@ -713,50 +749,21 @@ impl PaintPass {
                         style: text_style,
                     });
                     if node.get_interaction().get_focused() && tree.get_caret_visible() {
-                        let meas: TextLayoutResult = DeterministicTextMeasurer.measure(
-                            if input_state.get_value().is_empty() {
-                                ""
-                            } else {
-                                rendered_text.as_str()
-                            },
-                            text_style,
-                            if input_state.get_multiline() {
-                                Some(shifted_content.get_width().max(1.0))
-                            } else {
-                                None
-                            },
-                        );
                         let caret_h: f32 = (text_style.get_font_size() * 1.15)
                             .min(shifted_content.get_height().max(12.0));
-                        let (caret_x, caret_y): (f32, f32) = if input_state.get_multiline() {
-                            let last_w: f32 = meas
-                                .get_lines()
-                                .last()
-                                .map(TextLine::get_width)
-                                .unwrap_or(0.0);
-                            let line_idx: usize = meas.get_lines().len().saturating_sub(1);
-                            let cy: f32 = shifted_content.get_y()
-                                + (line_idx as f32) * meas.get_line_height_px()
-                                + ((meas.get_line_height_px() - caret_h) * 0.5).max(0.0);
-                            (
-                                (shifted_content.get_x() + last_w + 1.0)
-                                    .min(shifted_content.right() - 2.0),
-                                cy.min(shifted_content.bottom() - caret_h)
-                                    .max(shifted_content.get_y()),
-                            )
+                        let caret_text: String = if input_state.get_value().is_empty() {
+                            String::new()
                         } else {
-                            (
-                                (shifted_content.get_x() + meas.get_size().get_width() + 1.0)
-                                    .min(shifted_content.right() - 2.0),
-                                shifted_content.get_y()
-                                    + ((shifted_content.get_height() - caret_h) * 0.5).max(0.0),
-                            )
+                            rendered_text
                         };
-                        display_list.push(DrawCommand::FillRoundedRect {
-                            rect: Rect::new(caret_x, caret_y, 1.5, caret_h),
+                        display_list.push(DrawCommand::TextCaret {
+                            text_rect,
+                            content_rect: shifted_content,
+                            text: caret_text,
+                            style: text_style,
+                            caret_height: caret_h,
                             color: style.get_text().get_color().multiply_alpha(opacity),
-                            radius: CornerRadius::all(0.5),
-                            border: Border::default(),
+                            multiline: input_state.get_multiline(),
                         });
                     }
                     display_list.push(DrawCommand::PopClip);
@@ -781,7 +788,18 @@ impl PaintPass {
             }
         }
         if clipped {
-            display_list.push(DrawCommand::PushClip(bounds));
+            let bw: f32 = paint.get_border().get_width();
+            let clip_rect: Rect = if bw > 0.0 {
+                Rect::new(
+                    bounds.get_x() + bw,
+                    bounds.get_y() + bw,
+                    (bounds.get_width() - bw * 2.0).max(0.0),
+                    (bounds.get_height() - bw * 2.0).max(0.0),
+                )
+            } else {
+                bounds
+            };
+            display_list.push(DrawCommand::PushClip(clip_rect));
         }
         let scale: f32 = display_list.get_scale_factor().max(0.5);
         let raw_node_scroll: Point = node.get_layout_box().get_scroll_offset();

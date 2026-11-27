@@ -344,6 +344,65 @@ impl HardwareRenderer {
                     };
                     self.push_instance(active_clip, inst);
                 }
+                DrawCommand::TextCaret {
+                    text_rect,
+                    content_rect,
+                    text,
+                    style,
+                    caret_height,
+                    color,
+                    multiline,
+                } => {
+                    let meas: TextLayoutResult = DeterministicTextMeasurer.measure(
+                        text,
+                        *style,
+                        if *multiline {
+                            Some(content_rect.get_width().max(1.0))
+                        } else {
+                            None
+                        },
+                    );
+                    let last_w: f32 = meas
+                        .get_lines()
+                        .last()
+                        .map(TextLine::get_width)
+                        .unwrap_or(0.0);
+                    let line_idx: usize = meas.get_lines().len().saturating_sub(1);
+                    let caret_x: f32 =
+                        (text_rect.get_x() + last_w + 1.5).min(content_rect.right() - 2.0);
+                    let caret_y: f32 = if *multiline {
+                        (content_rect.get_y()
+                            + (line_idx as f32) * meas.get_line_height_px()
+                            + ((meas.get_line_height_px() - caret_height) * 0.5).max(0.0))
+                        .min(content_rect.bottom() - caret_height)
+                        .max(content_rect.get_y())
+                    } else {
+                        content_rect.get_y()
+                            + ((content_rect.get_height() - caret_height) * 0.5).max(0.0)
+                    };
+                    let inst: GpuQuadInstance = GpuQuadInstance {
+                        rect: [
+                            caret_x * scale,
+                            caret_y * scale,
+                            (1.5 * scale).max(1.0),
+                            (caret_height * scale).max(2.0),
+                        ],
+                        clip: [
+                            active_clip.get_x(),
+                            active_clip.get_y(),
+                            active_clip.right(),
+                            active_clip.bottom(),
+                        ],
+                        color: color.to_f32_array(),
+                        secondary_color: [0.0; 4],
+                        radii: [0.5 * scale; 4],
+                        stroke_or_blur: 0.0,
+                        angle_rad: 0.0,
+                        kind: GpuPrimitiveKind::RoundedRect as u32,
+                        reserved: 0,
+                    };
+                    self.push_instance(active_clip, inst);
+                }
                 DrawCommand::Image { rect, radius, .. } => {
                     let snapped: Rect = snap_physical_rect(*rect, scale);
                     let inst: GpuQuadInstance = GpuQuadInstance {

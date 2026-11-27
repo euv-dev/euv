@@ -32,7 +32,7 @@ cat > "${BUILD_DIR}/rust/Cargo.toml" <<EOF
 
 [package]
 name = "euv-android-host"
-version = "0.40.0"
+version = "0.41.0"
 edition = "2024"
 
 [lib]
@@ -160,10 +160,20 @@ fn android_native_glyph_rasterizer(key: GlyphKey) -> Option<RasterizedGlyph> {
     }
     let env: JniEnv = env_ptr.cast();
     let size_px: f32 = ((key.get_size_tenths() as f32) * 0.1).max(6.0);
+    let mut style_flags: i32 = 0;
+    if key.get_bold() {
+        style_flags |= 1;
+    }
+    if key.get_monospace() {
+        style_flags |= 2;
+    }
+    if key.get_italic() {
+        style_flags |= 4;
+    }
     let args: [JValue; 3] = [
         JValue { i: key.get_codepoint() as i32 },
         JValue { f: size_px },
-        JValue { z: if key.get_bold() { 1 } else { 0 } },
+        JValue { i: style_flags },
     ];
     unsafe {
         let table: &JniNativeInterface = &*(*env);
@@ -328,7 +338,7 @@ pub extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeCreate(
                     env,
                     global_cls,
                     c"rasterizeGlyph".as_ptr(),
-                    c"(IFZ)[B".as_ptr(),
+                    c"(IFI)[B".as_ptr(),
                 );
                 let act_mid: JMethodId = (table.get_static_method_id)(
                     env,
@@ -957,6 +967,12 @@ public final class EuvNativeBridge {
     private static final Paint GLYPH_PAINT = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
     private static final Typeface FACE_REGULAR = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL);
     private static final Typeface FACE_BOLD = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD);
+    private static final Typeface FACE_ITALIC = Typeface.create(Typeface.SANS_SERIF, Typeface.ITALIC);
+    private static final Typeface FACE_BOLD_ITALIC = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD_ITALIC);
+    private static final Typeface FACE_MONO_REGULAR = Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL);
+    private static final Typeface FACE_MONO_BOLD = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD);
+    private static final Typeface FACE_MONO_ITALIC = Typeface.create(Typeface.MONOSPACE, Typeface.ITALIC);
+    private static final Typeface FACE_MONO_BOLD_ITALIC = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD_ITALIC);
     private static final String CHANNEL_ID = "euv_native_alerts";
     private static WeakReference<Activity> hostActivity = new WeakReference<>(null);
     private static int notifSeq = 100;
@@ -1078,9 +1094,20 @@ public final class EuvNativeBridge {
         return true;
     }
 
-    public static byte[] rasterizeGlyph(int codepoint, float sizePx, boolean bold) {
+    public static byte[] rasterizeGlyph(int codepoint, float sizePx, int styleFlags) {
         String text = new String(Character.toChars(codepoint));
-        GLYPH_PAINT.setTypeface(bold ? FACE_BOLD : FACE_REGULAR);
+        boolean bold = (styleFlags & 1) != 0;
+        boolean mono = (styleFlags & 2) != 0;
+        boolean italic = (styleFlags & 4) != 0;
+        Typeface face;
+        if (mono) {
+            face = bold ? (italic ? FACE_MONO_BOLD_ITALIC : FACE_MONO_BOLD)
+                        : (italic ? FACE_MONO_ITALIC : FACE_MONO_REGULAR);
+        } else {
+            face = bold ? (italic ? FACE_BOLD_ITALIC : FACE_BOLD)
+                        : (italic ? FACE_ITALIC : FACE_REGULAR);
+        }
+        GLYPH_PAINT.setTypeface(face);
         GLYPH_PAINT.setTextSize(Math.max(6.0f, sizePx));
         GLYPH_PAINT.setColor(Color.WHITE);
         Paint.FontMetrics fm = GLYPH_PAINT.getFontMetrics();
@@ -1745,8 +1772,8 @@ cat > "${BUILD_DIR}/AndroidManifest.xml" <<'EOF'
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="vip.ltpp.euv.showcase"
-    android:versionCode="4"
-    android:versionName="0.40.0">
+    android:versionCode="5"
+    android:versionName="0.41.0">
     <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="35" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />

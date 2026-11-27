@@ -21,8 +21,8 @@ Bubble
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Bubble | `euv_bubble` | `bubble` |
-| BubbleContent | `euv_bubble_content` | `bubble-content` |
+| Part            | Component              | Slot               |
+| --------------- | ---------------------- | ------------------ |
+| Bubble          | `euv_bubble`           | `bubble`           |
+| BubbleContent   | `euv_bubble_content`   | `bubble-content`   |
 | BubbleReactions | `euv_bubble_reactions` | `bubble-reactions` |

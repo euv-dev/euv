@@ -529,7 +529,8 @@ impl SceneTree {
             node.set_style(style);
         }
         if unhidden {
-            self.mark_dirty(target, DIRTY_LAYOUT | DIRTY_PAINT);
+            let layout_dirty: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+            self.mark_dirty(target, layout_dirty | DIRTY_PAINT);
         } else {
             self.mark_dirty(target, DIRTY_PAINT);
         }
@@ -578,7 +579,9 @@ impl SceneTree {
                     node.set_style(style);
                 }
                 if hide {
-                    self.mark_dirty(target, DIRTY_LAYOUT | DIRTY_PAINT);
+                    self.clear_subtree_hover(target);
+                    let layout_dirty: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                    self.mark_dirty(target, layout_dirty | DIRTY_PAINT);
                 } else {
                     self.mark_dirty(target, DIRTY_PAINT);
                 }
@@ -590,6 +593,27 @@ impl SceneTree {
         }
         self.set_transitions(remaining);
         any_updated
+    }
+
+    /// Clears transient hover/active flags throughout the subtree rooted at `root` when an overlay hides.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable scene tree.
+    /// - `NodeId` - Root node being hidden.
+    fn clear_subtree_hover(&mut self, root: NodeId) {
+        let mut stack: Vec<NodeId> = vec![root];
+        while let Some(id) = stack.pop() {
+            let children: Vec<NodeId> = match self.get_node_mut(id) {
+                Some(node) => {
+                    node.get_mut_interaction().set_hovered(false);
+                    node.get_mut_interaction().set_pressed(false);
+                    node.get_children().clone()
+                }
+                None => continue,
+            };
+            stack.extend(children);
+        }
     }
 
     /// Returns `true` while one or more node transitions are still running.
@@ -1715,9 +1739,11 @@ impl Context {
                 if let Some(node) = tree.get_node_mut(node_id) {
                     node.get_mut_handlers().set_on_click(Some(handler));
                     node.get_mut_interaction().set_focusable(true);
-                    let mut style: Style = node.get_style();
-                    style.get_mut_paint().set_cursor(CursorIcon::Pointer);
-                    node.set_style(style);
+                    if node.get_style().get_paint().get_cursor() == CursorIcon::Default {
+                        let mut style: Style = node.get_style();
+                        style.get_mut_paint().set_cursor(CursorIcon::Pointer);
+                        node.set_style(style);
+                    }
                 }
             },
             (),
@@ -1802,9 +1828,11 @@ impl Context {
             |tree: &mut SceneTree| {
                 if let Some(node) = tree.get_node_mut(node_id) {
                     node.get_mut_handlers().set_on_pointer_down(Some(handler));
-                    let mut style: Style = node.get_style();
-                    style.get_mut_paint().set_cursor(CursorIcon::Pointer);
-                    node.set_style(style);
+                    if node.get_style().get_paint().get_cursor() == CursorIcon::Default {
+                        let mut style: Style = node.get_style();
+                        style.get_mut_paint().set_cursor(CursorIcon::Pointer);
+                        node.set_style(style);
+                    }
                 }
             },
             (),
@@ -2071,5 +2099,99 @@ impl NodeRefTarget for Rc<Cell<Option<NodeId>>> {
     /// - `NodeId` - Mounted node handle.
     fn bind_node_ref(&mut self, id: NodeId) {
         self.set(Some(id));
+    }
+}
+
+/// `TextNodeContent` implementation mounting an owned `String` as a static text node.
+impl TextNodeContent for String {
+    /// Mounts a static text scene node from this `String`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Owned text string.
+    /// - `&mut Context` - Active scene build context.
+    /// - `Style` - Resolved text style.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Mounted text node handle.
+    fn mount_text_content(self, ctx: &mut Context, style: Style) -> NodeId {
+        ctx.text(self, style)
+    }
+}
+
+/// `TextNodeContent` implementation mounting a string slice as a static text node.
+impl TextNodeContent for &str {
+    /// Mounts a static text scene node from this `&str`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Borrowed text slice.
+    /// - `&mut Context` - Active scene build context.
+    /// - `Style` - Resolved text style.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Mounted text node handle.
+    fn mount_text_content(self, ctx: &mut Context, style: Style) -> NodeId {
+        ctx.text(self.to_string(), style)
+    }
+}
+
+/// `TextNodeContent` implementation mounting a borrowed `&String` as a static text node.
+impl TextNodeContent for &String {
+    /// Mounts a static text scene node from this `&String`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Borrowed string reference.
+    /// - `&mut Context` - Active scene build context.
+    /// - `Style` - Resolved text style.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Mounted text node handle.
+    fn mount_text_content(self, ctx: &mut Context, style: Style) -> NodeId {
+        ctx.text(self.clone(), style)
+    }
+}
+
+/// `TextNodeContent` implementation mounting a `Cow<str>` as a static text node.
+impl TextNodeContent for Cow<'_, str> {
+    /// Mounts a static text scene node from this `Cow<str>`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Copy-on-write string value.
+    /// - `&mut Context` - Active scene build context.
+    /// - `Style` - Resolved text style.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Mounted text node handle.
+    fn mount_text_content(self, ctx: &mut Context, style: Style) -> NodeId {
+        ctx.text(self.into_owned(), style)
+    }
+}
+
+/// `TextNodeContent` implementation mounting any `FnMut() -> S` closure or function item as a reactive text node.
+impl<F, S> TextNodeContent for F
+where
+    F: FnMut() -> S + 'static,
+    S: Into<String>,
+{
+    /// Mounts a reactive text scene node bound to this closure or function item.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Reactive text producer closure.
+    /// - `&mut Context` - Active scene build context.
+    /// - `Style` - Resolved text style.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Mounted reactive text node handle.
+    fn mount_text_content(mut self, ctx: &mut Context, style: Style) -> NodeId {
+        ctx.reactive_text(style, move || self().into())
     }
 }

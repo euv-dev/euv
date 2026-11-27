@@ -20,7 +20,7 @@ ToggleGroup
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| ToggleGroup | `euv_toggle_group` | `toggle-group` |
+| Part            | Component            | Slot                |
+| --------------- | -------------------- | ------------------- |
+| ToggleGroup     | `euv_toggle_group`   | `toggle-group`      |
 | ToggleGroupItem | `toggle_group_entry` | `toggle-group-item` |

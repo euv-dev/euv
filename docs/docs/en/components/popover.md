@@ -21,8 +21,8 @@ Popover
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Popover | `euv_popover` | `popover` |
-| PopoverContent | `euv_popover` | `popover-content` |
+| Part           | Component             | Slot              |
+| -------------- | --------------------- | ----------------- |
+| Popover        | `euv_popover`         | `popover`         |
+| PopoverContent | `euv_popover`         | `popover-content` |
 | PopoverTrigger | `euv_popover_trigger` | `popover-trigger` |

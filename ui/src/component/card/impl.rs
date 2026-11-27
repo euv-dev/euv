@@ -132,6 +132,7 @@ impl EuvHeader {
                 }
                 if !subtitle.is_empty() {
                     text {
+                        width: Length::Percent(100.0)
                         font_size: g.get_font_body()
                         color: p.get_muted_foreground()
                         { subtitle }
@@ -167,12 +168,15 @@ impl EuvStatCard {
         view! {
             view {
                 style: tokens.card_style()
+                width: Length::Percent(100.0)
                 gap: SPACE_SM
                 row {
                     width: Length::Percent(100.0)
                     justify: JustifyContent::SpaceBetween
                     align: AlignItems::Center
                     text {
+                        flex_shrink: 1.0
+                        min_width: Length::Px(0.0)
                         font_size: 12.0
                         font_weight: FontWeight::SemiBold
                         color: p.get_muted_foreground()
@@ -181,11 +185,13 @@ impl EuvStatCard {
                     view {
                         width: Length::Px(24.0)
                         height: Length::Px(4.0)
+                        flex_shrink: 0.0
                         radius: 99.0
                         background: p.get_primary()
                     }
                 }
                 text {
+                    width: Length::Percent(100.0)
                     font_size: 26.0
                     font_weight: FontWeight::Bold
                     color: p.get_foreground()
@@ -193,11 +199,14 @@ impl EuvStatCard {
                 }
                 if !caption.is_empty() {
                     row {
-                        padding: Edges::symmetric(3.0, 8.0)
-                        radius: 99.0
+                        max_width: Length::Percent(100.0)
+                        padding: Edges::symmetric(4.0, 10.0)
+                        radius: 12.0
                         background: p.get_primary().with_alpha(24)
                         align: AlignItems::Center
+                        overflow: Overflow::Hidden
                         text {
+                            max_width: Length::Percent(100.0)
                             font_size: 11.0
                             font_weight: FontWeight::SemiBold
                             color: p.get_primary()

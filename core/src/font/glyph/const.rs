@@ -5,10 +5,10 @@ pub const BITMAP_GLYPH_WIDTH: usize = 5;
 pub const BITMAP_GLYPH_HEIGHT: usize = 7;
 
 /// Horizontal advance ratio relative to font size for proportional UI text.
-pub const PROPORTIONAL_ADVANCE_RATIO: f32 = 0.58;
+pub const PROPORTIONAL_ADVANCE_RATIO: f32 = 0.57;
 
 /// Horizontal advance ratio relative to font size for monospace text.
-pub const MONOSPACE_ADVANCE_RATIO: f32 = 0.62;
+pub const MONOSPACE_ADVANCE_RATIO: f32 = 0.60;
 
 /// First printable ASCII code point present in the built-in font table.
 pub(crate) const ASCII_FIRST_PRINTABLE: u32 = 0x20;

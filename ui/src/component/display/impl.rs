@@ -114,13 +114,16 @@ impl EuvAlert {
                 background: p.get_muted()
                 border: (g.get_border_width(), accent)
                 radius: g.get_radius_md()
+                overflow: Overflow::Hidden
                 text {
+                    width: Length::Percent(100.0)
                     font_size: 14.0
                     font_weight: FontWeight::SemiBold
                     color: p.get_foreground()
                     { title }
                 }
                 text {
+                    width: Length::Percent(100.0)
                     font_size: 13.0
                     color: p.get_muted_foreground()
                     { description }

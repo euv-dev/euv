@@ -43,6 +43,23 @@ pub enum DrawCommand {
         /// Typography style.
         style: TextStyle,
     },
+    /// Draws a blinking text-input caret aligned to exact rasterized glyph advances.
+    TextCaret {
+        /// Text layout bounding rectangle in logical pixels.
+        text_rect: Rect,
+        /// Input inner content clip rectangle in logical pixels.
+        content_rect: Rect,
+        /// Active input text preceding the caret.
+        text: String,
+        /// Typography style matching the input's `TextRun`.
+        style: TextStyle,
+        /// Caret height in logical pixels.
+        caret_height: f32,
+        /// Caret fill color.
+        color: Color,
+        /// Whether the input wraps across multiple lines.
+        multiline: bool,
+    },
     /// Blits a decoded RGBA8 image buffer into `rect`.
     Image {
         /// Destination bounds.

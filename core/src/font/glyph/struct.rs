@@ -12,6 +12,14 @@ pub struct GlyphKey {
     /// Whether bold stroke thickening is active.
     #[get(type(copy))]
     pub(crate) bold: bool,
+    /// Whether a fixed-pitch monospace typeface is requested.
+    #[new(skip)]
+    #[get(type(copy))]
+    pub(crate) monospace: bool,
+    /// Whether an italic typeface is requested.
+    #[new(skip)]
+    #[get(type(copy))]
+    pub(crate) italic: bool,
 }
 
 /// Rasterized alpha-coverage glyph bitmap ready for software blitting or GPU atlas upload.

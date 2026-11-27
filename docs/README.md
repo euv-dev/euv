@@ -74,14 +74,14 @@ site:
       alt: '<the accessible name of the image>'
 ```
 
-| Key            | Meaning                                                     |
-| -------------- | ----------------------------------------------------------- |
+| Key            | Meaning                                                                        |
+| -------------- | ------------------------------------------------------------------------------ |
 | `footer_link`  | Where the footer text points — the license line opens the project's repository |
-| `footer_items` | The items of the row, in display order                      |
-| `text`         | The link text — plain and selectable                        |
-| `link`         | Where the item points                                       |
-| `icon`         | An optional local image rendered before the text            |
-| `alt`          | The accessible name of that image                           |
+| `footer_items` | The items of the row, in display order                                         |
+| `text`         | The link text — plain and selectable                                           |
+| `link`         | Where the item points                                                          |
+| `icon`         | An optional local image rendered before the text                               |
+| `alt`          | The accessible name of that image                                              |
 
 The row never wraps: an item that does not fit is cut with an ellipsis
 instead of being broken across two lines, because a notice cut in half

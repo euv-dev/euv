@@ -13,6 +13,6 @@ cargo add euv-ui
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Label | `euv_label` | — |
+| Part  | Component   | Slot |
+| ----- | ----------- | ---- |
+| Label | `euv_label` | —    |

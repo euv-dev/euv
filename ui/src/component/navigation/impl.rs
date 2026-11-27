@@ -83,7 +83,7 @@ impl EuvSidebarNav {
                             .padding(Edges::symmetric(0.0, SPACE_SM))
                             .radius(g.get_radius_md())
                             .background(if is_active {
-                                    p.get_primary().with_alpha(24)
+                                p.get_primary().with_alpha(24)
                                 } else {
                                     COLOR_TRANSPARENT
                             })
@@ -100,7 +100,7 @@ impl EuvSidebarNav {
                                 .height(Length::Px(18.0))
                                 .radius(99.0)
                                 .background(if is_active {
-                                        p.get_primary()
+                                    p.get_primary()
                                     } else {
                                         COLOR_TRANSPARENT
                                 })
@@ -159,7 +159,7 @@ impl EuvTabs {
                             .overflow(Overflow::Hidden)
                             .radius(g.get_radius_sm())
                             .background(if selected {
-                                    p.get_card()
+                                p.get_card()
                                 } else {
                                     COLOR_TRANSPARENT
                             })
@@ -186,6 +186,145 @@ impl EuvTabs {
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/// Declarative `#[component]` implementation for `EuvBottomNav`.
+#[component]
+/// Inherent implementation of [`EuvBottomNav`].
+impl EuvBottomNav {
+    /// Renders `EuvBottomNav` as a sleek Twitter/X-style persistent bottom tab bar.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Component descriptor reference.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Mounted bottom navigation bar container handle.
+    fn render(&self) -> NodeId {
+        let p: ThemePalette = self.get_tokens().get_palette();
+        let active_route: Signal<String> = self.get_active_route();
+        let Self { items, .. } = self.clone();
+        let tab_nodes: Vec<NodeId> = items
+            .into_iter()
+            .map(|item: EuvNavItem| {
+                let target_path: String = item.get_path().clone();
+                let click_path: String = target_path.clone();
+                let bar_path: String = target_path.clone();
+                let pill_path: String = target_path.clone();
+                let glyph_path: String = target_path.clone();
+                let label_path: String = target_path;
+                let label: String = item.get_label().clone();
+                let badge: String = if item.get_section().is_empty() {
+                    label
+                        .chars()
+                        .next()
+                        .map(|c: char| c.to_ascii_uppercase().to_string())
+                        .unwrap_or_default()
+                } else {
+                    item.get_section().clone()
+                };
+                view! {
+                    column {
+                        flex_grow: 1.0
+                        flex_shrink: 1.0
+                        min_width: Length::Px(0.0)
+                        height: Length::Percent(100.0)
+                        justify: JustifyContent::Center
+                        align: AlignItems::Center
+                        gap: 3.0
+                        padding: Edges::symmetric(4.0, 2.0)
+                        cursor: CursorIcon::Pointer
+                        on_click: move |_: &UiEvent| {
+                            let _: bool = active_route.set_if_changed(click_path.clone());
+                        }
+                        view {
+                            bind_style: move || {
+                                let active: bool = active_route.get() == bar_path;
+                                Style::default()
+                                .width(Length::Px(24.0))
+                                .height(Length::Px(2.5))
+                                .radius(99.0)
+                                .background(if active {
+                                    p.get_primary()
+                                    } else {
+                                        COLOR_TRANSPARENT
+                                })
+                            }
+                        }
+                        row {
+                            bind_style: move || {
+                                let active: bool = active_route.get() == pill_path;
+                                Style::default()
+                                .row()
+                                .min_width(Length::Px(34.0))
+                                .height(Length::Px(22.0))
+                                .padding(Edges::symmetric(0.0, 8.0))
+                                .radius(99.0)
+                                .justify(JustifyContent::Center)
+                                .align(AlignItems::Center)
+                                .background(if active {
+                                    p.get_primary().with_alpha(28)
+                                    } else {
+                                        COLOR_TRANSPARENT
+                                })
+                            }
+                            text {
+                                bind_style: move || {
+                                    let active: bool = active_route.get() == glyph_path;
+                                    Style::default()
+                                    .font_size(11.5)
+                                    .font_weight(if active {
+                                        FontWeight::Bold
+                                        } else {
+                                            FontWeight::SemiBold
+                                    })
+                                    .color(if active {
+                                        p.get_primary()
+                                        } else {
+                                            p.get_muted_foreground()
+                                    })
+                                    .text_align(TextAlign::Center)
+                                    .text_overflow(TextOverflow::Clip)
+                                }
+                                { badge }
+                            }
+                        }
+                        text {
+                            bind_style: move || {
+                                let active: bool = active_route.get() == label_path;
+                                Style::default()
+                                .font_size(10.5)
+                                .font_weight(if active {
+                                    FontWeight::Bold
+                                    } else {
+                                        FontWeight::Medium
+                                })
+                                .color(if active {
+                                    p.get_foreground()
+                                    } else {
+                                        p.get_muted_foreground()
+                                })
+                                .text_align(TextAlign::Center)
+                                .text_overflow(TextOverflow::Clip)
+                            }
+                            { label }
+                        }
+                    }
+                }
+            })
+            .collect();
+        view! {
+            row {
+                width: Length::Percent(100.0)
+                max_width: Length::Px(840.0)
+                height: Length::Px(56.0)
+                justify: JustifyContent::SpaceAround
+                align: AlignItems::Center
+                ..tab_nodes
             }
         }
     }

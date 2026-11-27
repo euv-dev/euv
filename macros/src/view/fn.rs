@@ -457,7 +457,6 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
 /// - `proc_macro2::TokenStream` - Expanded component mount expression returning `::euv::NodeId`.
 fn expand_component_element(elem: &ViewElement) -> proc_macro2::TokenStream {
     let path: &Path = &elem.path;
-    let span: Span = path.span();
     let last_name: String = path
         .segments
         .last()
@@ -470,16 +469,16 @@ fn expand_component_element(elem: &ViewElement) -> proc_macro2::TokenStream {
         .unwrap_or(false);
     let args: &[Expr] = elem.args.as_deref().unwrap_or(&[]);
     let mut builder_expr: proc_macro2::TokenStream = if is_type_ctor {
-        quote_spanned! {span=> #path::new(#(#args),*) }
+        quote! { <#path>::new(#(#args),*) }
     } else {
-        quote_spanned! {span=> #path(#(#args),*) }
+        quote! { #path(#(#args),*) }
     };
     let mut seen_props: HashSet<String> = HashSet::new();
     let mut node_ref_expr: Option<&Expr> = None;
     for flag in elem.flags.iter() {
         let fname: &Ident = &flag.name;
         let fargs: &[Expr] = &flag.args;
-        builder_expr = quote_spanned! {fname.span()=> (#builder_expr).#fname(#(#fargs),*) };
+        builder_expr = quote! { (#builder_expr).#fname(#(#fargs),*) };
     }
     for prop in elem.props.iter() {
         let pname_str: String = prop.name.to_string();
@@ -505,7 +504,7 @@ fn expand_component_element(elem: &ViewElement) -> proc_macro2::TokenStream {
         }
         let pname: &Ident = &prop.name;
         let val: &Expr = &prop.value;
-        builder_expr = quote_spanned! {pname.span()=> (#builder_expr).#pname(#val) };
+        builder_expr = quote! { (#builder_expr).#pname(#val) };
     }
     let child_method_name: &str = match last_name.as_str() {
         COMP_EUV_PAGE => METHOD_SECTION,
@@ -514,28 +513,28 @@ fn expand_component_element(elem: &ViewElement) -> proc_macro2::TokenStream {
         COMP_EUV_STAT_GRID => METHOD_CARD,
         _ => METHOD_CHILD,
     };
-    let child_method: Ident = Ident::new(child_method_name, span);
+    let child_method: Ident = Ident::new(child_method_name, Span::call_site());
     let mount_expr: proc_macro2::TokenStream = if elem.children.is_empty() {
-        quote_spanned! {span=> ::euv::Component::mount(#builder_expr) }
+        quote! { ::euv::Component::mount(#builder_expr) }
     } else if elem.children.iter().all(is_single_node_expr) {
         let mut chained: proc_macro2::TokenStream = builder_expr;
         for child in elem.children.iter() {
             let child_expr: proc_macro2::TokenStream = expand_single_node(child);
             chained = quote! { (#chained).#child_method(#child_expr) };
         }
-        quote_spanned! {span=> ::euv::Component::mount(#chained) }
+        quote! { ::euv::Component::mount(#chained) }
     } else {
-        let comp_ident: Ident = Ident::new(IDENT_COMP, span);
+        let comp_ident: Ident = Ident::new(IDENT_COMP, Span::call_site());
         let child_stmts: proc_macro2::TokenStream =
             expand_component_children_into(&comp_ident, &child_method, &elem.children);
-        quote_spanned! {span=> {
+        quote! {{
             let mut #comp_ident = #builder_expr;
             #child_stmts
             ::euv::Component::mount(#comp_ident)
         }}
     };
     match node_ref_expr {
-        Some(ref_target) => quote_spanned! {ref_target.span()=> {
+        Some(ref_target) => quote! {{
             let __euv_mounted: ::euv::NodeId = #mount_expr;
             ::euv::NodeRefTarget::bind_node_ref(&mut (#ref_target), __euv_mounted);
             __euv_mounted
@@ -673,6 +672,11 @@ fn expand_primitive_element(elem: &ViewElement) -> proc_macro2::TokenStream {
     };
     let tag_name: String = tag_ident.to_string();
     let tag_span: Span = tag_ident.span();
+    let tag_callsite: Ident = Ident::new(&tag_name, Span::call_site());
+    let mut schema_refs: Vec<proc_macro2::TokenStream> = Vec::with_capacity(elem.props.len() + 1);
+    schema_refs.push(quote! {
+        const _: fn() = ::euv::view_elements::#tag_ident::element;
+    });
     let leaf_tags: [&str; 3] = [TAG_INPUT, TAG_IMAGE, TAG_CANVAS];
     let is_leaf: bool = leaf_tags.contains(&tag_name.as_str());
     if is_leaf && !elem.children.is_empty() {
@@ -727,6 +731,7 @@ fn expand_primitive_element(elem: &ViewElement) -> proc_macro2::TokenStream {
                 format!("{ERR_DUPLICATE_PROP_PREFIX} `{pname}` in `view!` element `{tag_name}`");
             return Error::new(pspan, msg).to_compile_error();
         }
+        let pname_ident: &Ident = &prop.name;
         match pname.as_str() {
             PROP_STYLE => {
                 base_style = quote_spanned! {val.span()=> #val };
@@ -736,8 +741,8 @@ fn expand_primitive_element(elem: &ViewElement) -> proc_macro2::TokenStream {
             PROP_BIND_CHILDREN => bind_children = Some(val),
             PROP_NODE_REF => node_ref = Some(val),
             PROP_FOCUSABLE => focusable = Some(val),
-            PROP_DISPLAY => style_chain.push(quote_spanned! {pspan=> .display(#val) }),
-            PROP_POSITION => style_chain.push(quote_spanned! {pspan=> .position(#val) }),
+            PROP_DISPLAY => style_chain.push(quote! { .display(#val) }),
+            PROP_POSITION => style_chain.push(quote! { .position(#val) }),
             PROP_INSET => {
                 style_stmts.push(quote_spanned! {val.span()=>
                     let (__euv_it, __euv_ir, __euv_ib, __euv_il): (
@@ -749,52 +754,53 @@ fn expand_primitive_element(elem: &ViewElement) -> proc_macro2::TokenStream {
                     __euv_style = __euv_style.inset(__euv_it, __euv_ir, __euv_ib, __euv_il);
                 });
             }
-            PROP_WIDTH => style_chain.push(quote_spanned! {pspan=> .width(#val) }),
-            PROP_HEIGHT => style_chain.push(quote_spanned! {pspan=> .height(#val) }),
-            PROP_MIN_WIDTH => style_chain.push(quote_spanned! {pspan=> .min_width(#val) }),
-            PROP_MIN_HEIGHT => style_chain.push(quote_spanned! {pspan=> .min_height(#val) }),
-            PROP_MAX_WIDTH => style_chain.push(quote_spanned! {pspan=> .max_width(#val) }),
-            PROP_MAX_HEIGHT => style_chain.push(quote_spanned! {pspan=> .max_height(#val) }),
-            PROP_ASPECT_RATIO => style_chain.push(quote_spanned! {pspan=> .aspect_ratio(#val) }),
-            PROP_PADDING => style_chain.push(quote_spanned! {pspan=> .padding(#val) }),
-            PROP_MARGIN => style_chain.push(quote_spanned! {pspan=> .margin(#val) }),
-            PROP_GAP => style_chain.push(quote_spanned! {pspan=> .gap(#val) }),
-            PROP_BACKGROUND => style_chain.push(quote_spanned! {pspan=> .background(#val) }),
-            PROP_GRADIENT => style_chain.push(quote_spanned! {pspan=> .gradient(#val) }),
-            PROP_SHADOW => style_chain.push(quote_spanned! {pspan=> .shadow(#val) }),
-            PROP_FOCUS_RING => style_chain.push(quote_spanned! {pspan=> .focus_ring(#val) }),
-            PROP_CURSOR => style_chain.push(quote_spanned! {pspan=> .cursor(#val) }),
+            PROP_WIDTH => style_chain.push(quote! { .width(#val) }),
+            PROP_HEIGHT => style_chain.push(quote! { .height(#val) }),
+            PROP_MIN_WIDTH => style_chain.push(quote! { .min_width(#val) }),
+            PROP_MIN_HEIGHT => style_chain.push(quote! { .min_height(#val) }),
+            PROP_MAX_WIDTH => style_chain.push(quote! { .max_width(#val) }),
+            PROP_MAX_HEIGHT => style_chain.push(quote! { .max_height(#val) }),
+            PROP_ASPECT_RATIO => style_chain.push(quote! { .aspect_ratio(#val) }),
+            PROP_PADDING => style_chain.push(quote! { .padding(#val) }),
+            PROP_MARGIN => style_chain.push(quote! { .margin(#val) }),
+            PROP_GAP => style_chain.push(quote! { .gap(#val) }),
+            PROP_BACKGROUND => style_chain.push(quote! { .background(#val) }),
+            PROP_GRADIENT => style_chain.push(quote! { .gradient(#val) }),
+            PROP_SHADOW => style_chain.push(quote! { .shadow(#val) }),
+            PROP_FOCUS_RING => style_chain.push(quote! { .focus_ring(#val) }),
+            PROP_CURSOR => style_chain.push(quote! { .cursor(#val) }),
             PROP_POINTER_EVENTS => {
-                style_chain.push(quote_spanned! {pspan=> .pointer_events(#val) });
+                style_chain.push(quote! { .pointer_events(#val) });
             }
             PROP_STOP_SCROLL_PROPAGATION => {
-                style_chain.push(quote_spanned! {pspan=> .stop_scroll_propagation(#val) });
+                style_chain.push(quote! { .stop_scroll_propagation(#val) });
             }
             PROP_STOP_EVENT_PROPAGATION => {
-                style_chain.push(quote_spanned! {pspan=> .stop_event_propagation(#val) });
+                style_chain.push(quote! { .stop_event_propagation(#val) });
             }
-            PROP_COLOR => style_chain.push(quote_spanned! {pspan=> .color(#val) }),
-            PROP_RADIUS => style_chain.push(quote_spanned! {pspan=> .radius(#val) }),
+            PROP_COLOR => style_chain.push(quote! { .color(#val) }),
+            PROP_RADIUS => style_chain.push(quote! { .radius(#val) }),
             PROP_BORDER => {
                 style_stmts.push(quote_spanned! {val.span()=>
                     let (__euv_bw, __euv_bc): (f32, ::euv::Color) = #val;
                     __euv_style = __euv_style.border(__euv_bw, __euv_bc);
                 });
             }
-            PROP_ALIGN => style_chain.push(quote_spanned! {pspan=> .align(#val) }),
-            PROP_JUSTIFY => style_chain.push(quote_spanned! {pspan=> .justify(#val) }),
-            PROP_FLEX_GROW => style_chain.push(quote_spanned! {pspan=> .flex_grow(#val) }),
-            PROP_FLEX_SHRINK => style_chain.push(quote_spanned! {pspan=> .flex_shrink(#val) }),
-            PROP_FLEX_WRAP => style_chain.push(quote_spanned! {pspan=> .wrap(#val) }),
-            PROP_OVERFLOW => style_chain.push(quote_spanned! {pspan=> .overflow(#val) }),
-            PROP_FONT_SIZE => style_chain.push(quote_spanned! {pspan=> .font_size(#val) }),
-            PROP_FONT_WEIGHT => style_chain.push(quote_spanned! {pspan=> .font_weight(#val) }),
-            PROP_FONT_FAMILY => style_chain.push(quote_spanned! {pspan=> .font_family(#val) }),
-            PROP_TEXT_ALIGN => style_chain.push(quote_spanned! {pspan=> .text_align(#val) }),
-            PROP_TEXT_OVERFLOW => style_chain.push(quote_spanned! {pspan=> .text_overflow(#val) }),
-            PROP_Z_INDEX => style_chain.push(quote_spanned! {pspan=> .z_index(#val) }),
-            PROP_OPACITY => style_chain.push(quote_spanned! {pspan=> .opacity(#val) }),
-            PROP_COLUMNS => style_chain.push(quote_spanned! {pspan=> .grid(#val) }),
+            PROP_ALIGN => style_chain.push(quote! { .align(#val) }),
+            PROP_JUSTIFY => style_chain.push(quote! { .justify(#val) }),
+            PROP_FLEX_GROW => style_chain.push(quote! { .flex_grow(#val) }),
+            PROP_FLEX_SHRINK => style_chain.push(quote! { .flex_shrink(#val) }),
+            PROP_FLEX_WRAP => style_chain.push(quote! { .wrap(#val) }),
+            PROP_OVERFLOW => style_chain.push(quote! { .overflow(#val) }),
+            PROP_FONT_SIZE => style_chain.push(quote! { .font_size(#val) }),
+            PROP_FONT_WEIGHT => style_chain.push(quote! { .font_weight(#val) }),
+            PROP_FONT_FAMILY => style_chain.push(quote! { .font_family(#val) }),
+            PROP_ITALIC => style_chain.push(quote! { .italic(#val) }),
+            PROP_TEXT_ALIGN => style_chain.push(quote! { .text_align(#val) }),
+            PROP_TEXT_OVERFLOW => style_chain.push(quote! { .text_overflow(#val) }),
+            PROP_Z_INDEX => style_chain.push(quote! { .z_index(#val) }),
+            PROP_OPACITY => style_chain.push(quote! { .opacity(#val) }),
+            PROP_COLUMNS => style_chain.push(quote! { .grid(#val) }),
             PROP_ON_CLICK => on_click = Some(val),
             PROP_ON_CHANGE => on_change = Some(val),
             PROP_ON_SCROLL => on_scroll = Some(val),
@@ -891,6 +897,9 @@ fn expand_primitive_element(elem: &ViewElement) -> proc_macro2::TokenStream {
                 return unknown_prop_error(&prop.name, &scope, KNOWN_VIEW_PROPS).to_compile_error();
             }
         }
+        schema_refs.push(quote! {
+            const _: fn() = ::euv::view_elements::#tag_callsite::#pname_ident;
+        });
     }
     if bind_children.is_some() && !elem.children.is_empty() {
         return Error::new(tag_span, ERR_BIND_CHILDREN_CONFLICT).to_compile_error();
@@ -905,10 +914,10 @@ fn expand_primitive_element(elem: &ViewElement) -> proc_macro2::TokenStream {
         return Error::new(tag_span, ERR_A11Y_CONFLICT).to_compile_error();
     }
     let dir_chain: proc_macro2::TokenStream = match tag_name.as_str() {
-        TAG_ROW => quote_spanned! {tag_span=> .row() },
-        TAG_COLUMN | TAG_COL => quote_spanned! {tag_span=> .column() },
-        TAG_SCROLL if !has_custom_style => quote_spanned! {tag_span=> .column() },
-        TAG_GRID => quote_spanned! {tag_span=> .grid(2) },
+        TAG_ROW => quote! { .row() },
+        TAG_COLUMN | TAG_COL => quote! { .column() },
+        TAG_SCROLL if !has_custom_style => quote! { .column() },
+        TAG_GRID => quote! { .grid(2) },
         _ => quote! {},
     };
     let has_style_expr: bool = has_custom_style
@@ -928,11 +937,11 @@ fn expand_primitive_element(elem: &ViewElement) -> proc_macro2::TokenStream {
     };
     let node_creation: proc_macro2::TokenStream = match tag_name.as_str() {
         TAG_VIEW | TAG_ROW | TAG_COLUMN | TAG_COL | TAG_GRID => {
-            quote_spanned! {tag_span=> __euv_ctx.view(#style_expr) }
+            quote! { __euv_ctx.view(#style_expr) }
         }
-        TAG_SCROLL => quote_spanned! {tag_span=> __euv_ctx.scroll_view(#style_expr) },
-        TAG_PORTAL => quote_spanned! {tag_span=> __euv_ctx.portal(#style_expr) },
-        TAG_FRAGMENT => quote_spanned! {tag_span=> __euv_ctx.fragment() },
+        TAG_SCROLL => quote! { __euv_ctx.scroll_view(#style_expr) },
+        TAG_PORTAL => quote! { __euv_ctx.portal(#style_expr) },
+        TAG_FRAGMENT => quote! { __euv_ctx.fragment() },
         TAG_TEXT => {
             if elem.children.len() > 1 {
                 return Error::new(tag_span, ERR_TEXT_CHILD_INVALID).to_compile_error();
@@ -947,13 +956,15 @@ fn expand_primitive_element(elem: &ViewElement) -> proc_macro2::TokenStream {
                             quote_spanned! {closure.span()=> __euv_ctx.reactive_text(#style_expr, #closure) }
                         }
                         other => {
-                            quote_spanned! {other.span()=> __euv_ctx.text(::euv::into_text(#other), #style_expr) }
+                            quote! {
+                                ::euv::TextNodeContent::mount_text_content(#other, __euv_ctx, #style_expr)
+                            }
                         }
                     },
                     _ => return Error::new(tag_span, ERR_TEXT_CHILD_INVALID).to_compile_error(),
                 }
             } else {
-                quote_spanned! {tag_span=> __euv_ctx.text(::std::string::String::new(), #style_expr) }
+                quote! { __euv_ctx.text(::std::string::String::new(), #style_expr) }
             }
         }
         TAG_INPUT => {
@@ -981,7 +992,7 @@ fn expand_primitive_element(elem: &ViewElement) -> proc_macro2::TokenStream {
                 Some(d) => quote! { #d },
                 None => quote! { false },
             };
-            quote_spanned! {tag_span=>
+            quote! {
                 __euv_ctx.input(
                     ::euv::InputNodeState::new(#val_expr, #ph_expr, #caret_expr, #pw_expr, #ml_expr, #dis_expr),
                     #style_expr,
@@ -1012,7 +1023,7 @@ fn expand_primitive_element(elem: &ViewElement) -> proc_macro2::TokenStream {
                 }
                 None => quote! {},
             };
-            quote_spanned! {tag_span=> {
+            quote! {{
                 let mut __euv_slot: ::euv::DynamicComponentSlot = ::euv::DynamicComponentSlot::new(
                     ::euv::into_text(#id_expr),
                     #fb_expr,
@@ -1034,7 +1045,7 @@ fn expand_primitive_element(elem: &ViewElement) -> proc_macro2::TokenStream {
                 }
                 None => quote! {},
             };
-            quote_spanned! {tag_span=> {
+            quote! {{
                 let mut __euv_slot: ::euv::DynamicPageSlot = ::euv::DynamicPageSlot::new(
                     ::euv::into_text(#route_expr),
                     #fb_expr,
@@ -1046,7 +1057,7 @@ fn expand_primitive_element(elem: &ViewElement) -> proc_macro2::TokenStream {
         }
         _ => quote! { __euv_ctx.fragment() },
     };
-    let node_ident: Ident = Ident::new(IDENT_NODE, tag_span);
+    let node_ident: Ident = Ident::new(IDENT_NODE, Span::call_site());
     let mut post_stmts: Vec<proc_macro2::TokenStream> = Vec::new();
     if let Some(ref_target) = node_ref {
         post_stmts.push(quote_spanned! {ref_target.span()=>
@@ -1143,7 +1154,10 @@ fn expand_primitive_element(elem: &ViewElement) -> proc_macro2::TokenStream {
         && tag_name != TAG_PAGE_SLOT
         && !elem.children.is_empty();
     if post_stmts.is_empty() && !has_children {
-        return node_creation;
+        return quote! {{
+            #(#schema_refs)*
+            #node_creation
+        }};
     }
     let children_stmts: proc_macro2::TokenStream = if has_children {
         expand_children_into(&node_ident, &elem.children)
@@ -1151,6 +1165,7 @@ fn expand_primitive_element(elem: &ViewElement) -> proc_macro2::TokenStream {
         quote! {}
     };
     quote! {{
+        #(#schema_refs)*
         let #node_ident: ::euv::NodeId = #node_creation;
         #(#post_stmts)*
         #children_stmts

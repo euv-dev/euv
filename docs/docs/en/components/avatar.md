@@ -22,9 +22,9 @@ Avatar
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Avatar | `euv_avatar` | `avatar` |
-| AvatarBadge | `euv_avatar_badge` | `avatar-badge` |
+| Part           | Component             | Slot              |
+| -------------- | --------------------- | ----------------- |
+| Avatar         | `euv_avatar`          | `avatar`          |
+| AvatarBadge    | `euv_avatar_badge`    | `avatar-badge`    |
 | AvatarFallback | `euv_avatar_fallback` | `avatar-fallback` |
-| AvatarImage | `euv_avatar` | `avatar-image` |
+| AvatarImage    | `euv_avatar`          | `avatar-image`    |

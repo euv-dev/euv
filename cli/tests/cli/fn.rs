@@ -318,6 +318,45 @@ fn cli_fmt_normalizes_euv_macros_and_is_double_idempotent() {
     let out2: String = execute_cli(&parsed_check).unwrap();
     assert!(out2.contains("\"files_formatted\": 0"));
     drop(fs::remove_dir_all(&tmp));
+    let compound_src: &str = "fn demo() -> NodeId {\n    view! {\n        column {\n            text {\n                { move || {\n                        let entries: Vec<EuvRouteLifecycleEntry> = entries_sig.get();\n                        if entries.is_empty() {\n                            LIFECYCLE_ACTIVE_DEFAULT.to_string()\n                        } else {\n                            format!(\"Cached Routes: {}\", entries.len())\n                        }\n                } }\n            }\n        }\n    }\n}\n";
+    let expected_compound: &str = "fn demo() -> NodeId {\n    view! {\n        column {\n            text {\n                { move || {\n                    let entries: Vec<EuvRouteLifecycleEntry> = entries_sig.get();\n                    if entries.is_empty() {\n                        LIFECYCLE_ACTIVE_DEFAULT.to_string()\n                    } else {\n                        format!(\"Cached Routes: {}\", entries.len())\n                    }\n                } }\n            }\n        }\n    }\n}\n";
+    let (fmt_compound, hits_c1): (String, usize) = format_euv_macros_in_source(compound_src);
+    assert_eq!(hits_c1, 1);
+    assert_eq!(fmt_compound, expected_compound);
+    let (fmt_compound_2, hits_c2): (String, usize) = format_euv_macros_in_source(&fmt_compound);
+    assert_eq!(hits_c2, 0);
+    assert_eq!(fmt_compound_2, expected_compound);
+    let unified_tmp: PathBuf = env::temp_dir().join("euv_cli_unified_fmt_test_dir");
+    drop(fs::remove_dir_all(&unified_tmp));
+    fs::create_dir_all(&unified_tmp).unwrap();
+    let sample_md: PathBuf = unified_tmp.join("README.md");
+    let sample_yml: PathBuf = unified_tmp.join("ci.yml");
+    let sample_rs2: PathBuf = unified_tmp.join("ui.rs");
+    fs::write(&sample_md, "# Title\n\n| A | B |\n|---|---|\n| 1 | 2 |\n").unwrap();
+    fs::write(&sample_yml, "name: \"CI\"\non:\n- push\n").unwrap();
+    fs::write(&sample_rs2, messy).unwrap();
+    let unified_write: Cli =
+        Cli::try_parse_from(["euv", "fmt", "--path", unified_tmp.to_str().unwrap()]).unwrap();
+    let unified_out: String = execute_cli(&unified_write).unwrap();
+    assert!(unified_out.contains("\"text_files_formatted\": 2"));
+    assert!(unified_out.contains("\"files_formatted\": 1"));
+    let formatted_md: String = fs::read_to_string(&sample_md).unwrap();
+    let formatted_yml: String = fs::read_to_string(&sample_yml).unwrap();
+    assert!(formatted_md.contains("| --- | --- |"));
+    assert!(formatted_yml.contains("name: 'CI'"));
+    assert!(formatted_yml.contains("  - push"));
+    let unified_check: Cli = Cli::try_parse_from([
+        "euv",
+        "fmt",
+        "--check",
+        "--path",
+        unified_tmp.to_str().unwrap(),
+    ])
+    .unwrap();
+    let check_out: String = execute_cli(&unified_check).unwrap();
+    assert!(check_out.contains("\"text_files_formatted\": 0"));
+    assert!(check_out.contains("\"files_formatted\": 0"));
+    drop(fs::remove_dir_all(&unified_tmp));
 }
 
 fn http_request_bytes(addr: SocketAddr, method: &str, path: &str) -> Vec<u8> {

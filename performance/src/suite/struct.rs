@@ -1,7 +1,7 @@
 use super::*;
 
 /// Timing and throughput telemetry for a single micro- or macro-benchmark.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Getter, New)]
+#[derive(Clone, Debug, Deserialize, Getter, New, PartialEq, Serialize)]
 pub struct BenchMetric {
     /// Canonical benchmark name.
     pub(crate) name: String,
@@ -22,7 +22,7 @@ pub struct BenchMetric {
 }
 
 /// Complete serialized report produced by `run_full_benchmark_suite`.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Getter, New)]
+#[derive(Clone, Debug, Deserialize, Getter, New, PartialEq, Serialize)]
 pub struct BenchReport {
     /// Ordered benchmark results.
     pub(crate) metrics: Vec<BenchMetric>,

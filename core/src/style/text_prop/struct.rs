@@ -27,6 +27,9 @@ pub struct TextStyle {
     /// Foreground glyph color.
     #[get(type(copy))]
     pub(crate) color: Color,
+    /// Whether text is rendered in italic style.
+    #[get(type(copy))]
+    pub(crate) italic: bool,
     /// Whether text is underlined.
     #[get(type(copy))]
     pub(crate) underline: bool,

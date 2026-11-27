@@ -2,21 +2,21 @@ use super::*;
 
 style! {
     c_full_col {
-        FlexDirection::Column;
-        width: Length::Percent(100.0);
-        height: Length::Percent(100.0);
+        FlexDirection::Column
+        width: Length::Percent(100.0)
+        height: Length::Percent(100.0)
     }
     c_action_row {
-        FlexDirection::Row;
-        FlexWrap::Wrap;
-        AlignItems::Center;
-        width: Length::Percent(100.0);
-        gap: SPACE_SM;
+        FlexDirection::Row
+        FlexWrap::Wrap
+        AlignItems::Center
+        width: Length::Percent(100.0)
+        gap: SPACE_SM
     }
     c_scheme_grid {
-        columns: 4;
-        width: Length::Percent(100.0);
-        gap: SPACE_SM;
+        columns: 4
+        width: Length::Percent(100.0)
+        gap: SPACE_SM
     }
 }
 
@@ -113,44 +113,44 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                     }
                 };
                 let (cmd_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-                        Effect::new(move || {
-                                if let Some(idx) = cmd_sel.get() {
-                                    match idx {
-                                        0 => {
-                                            let _: bool = cmd_route.set_if_changed(ROUTE_OVERVIEW.to_string());
-                                        }
-                                        1 => {
-                                            let _: bool = cmd_route.set_if_changed(ROUTE_MARKDOWN.to_string());
-                                        }
-                                        2 => {
-                                            let _: bool = cmd_route.set_if_changed(ROUTE_LAB.to_string());
-                                        }
-                                        3 => {
-                                            let _: bool = cmd_route.set_if_changed(ROUTE_GAME_3D.to_string());
-                                        }
-                                        4 => {
-                                            let _: bool = cmd_route.set_if_changed(ROUTE_MEDIA.to_string());
-                                        }
-                                        5 => {
-                                            let _: bool = cmd_route.set_if_changed(ROUTE_DYNAMIC.to_string());
-                                        }
-                                        6 => {
-                                            let _: bool = cmd_route.set_if_changed(ROUTE_STRESS.to_string());
-                                        }
-                                        7 => {
-                                            let _: bool = cmd_route.set_if_changed(ROUTE_WINDOW.to_string());
-                                        }
-                                        8 => {
-                                            let _: bool = cmd_route.set_if_changed(ROUTE_THEMES.to_string());
-                                        }
-                                        _ => {
-                                            cmd_state.toggle_theme_mode();
-                                        }
-                                    }
-                                    let _: bool = cmd_sel.set_if_changed(None);
-                                    let _: bool = cmd_open.set_if_changed(false);
+                    Effect::new(move || {
+                        if let Some(idx) = cmd_sel.get() {
+                            match idx {
+                                0 => {
+                                    let _: bool = cmd_route.set_if_changed(ROUTE_OVERVIEW.to_string());
                                 }
-                        })
+                                1 => {
+                                    let _: bool = cmd_route.set_if_changed(ROUTE_MARKDOWN.to_string());
+                                }
+                                2 => {
+                                    let _: bool = cmd_route.set_if_changed(ROUTE_LAB.to_string());
+                                }
+                                3 => {
+                                    let _: bool = cmd_route.set_if_changed(ROUTE_GAME_3D.to_string());
+                                }
+                                4 => {
+                                    let _: bool = cmd_route.set_if_changed(ROUTE_MEDIA.to_string());
+                                }
+                                5 => {
+                                    let _: bool = cmd_route.set_if_changed(ROUTE_DYNAMIC.to_string());
+                                }
+                                6 => {
+                                    let _: bool = cmd_route.set_if_changed(ROUTE_STRESS.to_string());
+                                }
+                                7 => {
+                                    let _: bool = cmd_route.set_if_changed(ROUTE_WINDOW.to_string());
+                                }
+                                8 => {
+                                    let _: bool = cmd_route.set_if_changed(ROUTE_THEMES.to_string());
+                                }
+                                _ => {
+                                    cmd_state.toggle_theme_mode();
+                                }
+                            }
+                            let _: bool = cmd_sel.set_if_changed(None);
+                            let _: bool = cmd_open.set_if_changed(false);
+                        }
+                    })
                 });
                 let cmd_modal: NodeId = view! {
                     EuvModal(cmd_open, CMD_MODAL_TITLE.to_string(), cmd_list, tokens)
@@ -189,6 +189,50 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                             let nav: NodeId = view! {
                                 EuvSidebarNav(nav_items, state_shell.get_route(), tokens)
                             };
+                            let bottom_items: Vec<EuvNavItem> = vec![
+                                EuvNavItem::new(
+                                    ROUTE_OVERVIEW.to_string(),
+                                    BNAV_HOME_LABEL.to_string(),
+                                )
+                                .section(BNAV_HOME_ICON),
+                                EuvNavItem::new(
+                                    ROUTE_MARKDOWN.to_string(),
+                                    BNAV_DOCS_LABEL.to_string(),
+                                )
+                                .section(BNAV_DOCS_ICON),
+                                EuvNavItem::new(ROUTE_LAB.to_string(), BNAV_CASES_LABEL.to_string())
+                                .section(BNAV_CASES_ICON),
+                                EuvNavItem::new(
+                                    ROUTE_STRESS.to_string(),
+                                    BNAV_STRESS_LABEL.to_string(),
+                                )
+                                .section(BNAV_STRESS_ICON),
+                                EuvNavItem::new(
+                                    ROUTE_GAME_3D.to_string(),
+                                    BNAV_3D_LABEL.to_string(),
+                                )
+                                .section(BNAV_3D_ICON),
+                            ];
+                            let bottom_nav: NodeId = view! {
+                                EuvBottomNav(bottom_items, state_shell.get_route(), tokens)
+                            };
+                            let swipe_order: Vec<String> = vec![
+                                ROUTE_OVERVIEW.to_string(),
+                                ROUTE_MARKDOWN.to_string(),
+                                ROUTE_LAB.to_string(),
+                                ROUTE_STRESS.to_string(),
+                                ROUTE_GAME_3D.to_string(),
+                                ROUTE_FORMS.to_string(),
+                                ROUTE_MEDIA.to_string(),
+                                ROUTE_OVERLAYS.to_string(),
+                                ROUTE_THEMES.to_string(),
+                                ROUTE_DATA.to_string(),
+                                ROUTE_REACTIVE.to_string(),
+                                ROUTE_RENDER.to_string(),
+                                ROUTE_WINDOW.to_string(),
+                                ROUTE_GAME.to_string(),
+                                ROUTE_DYNAMIC.to_string(),
+                            ];
                             let state_for_outlet: ShowcaseState = state_shell.clone();
                             let router: EuvRouter = state_shell
                             .get_router()
@@ -206,27 +250,27 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                             let router_path_sig: Signal<String> = router.get_current_path();
                             let sctx: Context = current_context();
                             let (sync_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-                                    let _: Effect = Effect::new(move || {
-                                            let target: String = route_sig.get();
-                                            let _: bool = breadcrumb_sig
-                                            .set_if_changed(ShowcaseState::breadcrumb_for_route(&target));
-                                            if router_sync_in.get_current_path().get_untracked() != target {
-                                                router_sync_in.push(&target);
-                                            }
-                                    });
-                                    Effect::new(move || {
-                                            let rp: String = router_path_sig.get();
-                                            if route_sig.get_untracked() != rp {
-                                                let _: bool = route_sig.set_if_changed(rp);
-                                            }
-                                    })
+                                let _: Effect = Effect::new(move || {
+                                    let target: String = route_sig.get();
+                                    let _: bool = breadcrumb_sig
+                                    .set_if_changed(ShowcaseState::breadcrumb_for_route(&target));
+                                    if router_sync_in.get_current_path().get_untracked() != target {
+                                        router_sync_in.push(&target);
+                                    }
+                                });
+                                Effect::new(move || {
+                                    let rp: String = router_path_sig.get();
+                                    if route_sig.get_untracked() != rp {
+                                        let _: bool = route_sig.set_if_changed(rp);
+                                    }
+                                })
                             });
                             let page_node: NodeId = router
                             .outlet(move |matched: &EuvRouteMatch| {
-                                    let tok: ThemeTokens = untracked(|| {
-                                            state_for_outlet.get_theme().get_tokens().get()
-                                    });
-                                    mount_route_by_name(matched.get_path(), &state_for_outlet, tok)
+                                let tok: ThemeTokens = untracked(|| {
+                                    state_for_outlet.get_theme().get_tokens().get()
+                                });
+                                mount_route_by_name(matched.get_path(), &state_for_outlet, tok)
                             })
                             .with_theme(state_shell.get_theme().clone())
                             .with_double_back_exit(true)
@@ -300,6 +344,9 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                                     breadcrumb: breadcrumb_sig
                                     top_bar_actions: top_actions
                                     mobile_header_actions: mobile_actions
+                                    bottom_nav: bottom_nav
+                                    swipe_routes: swipe_order
+                                    show_fps: true
                                 }
                             }
                         }
@@ -393,19 +440,256 @@ pub fn mount_overview_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
     let local_counter: LocalState<u32> = local_state!(1_u32);
     let global_banner: Signal<ShowcaseGlobalBanner> =
         global_state!(ShowcaseGlobalBanner = ShowcaseGlobalBanner::default());
+    let dir_items: [(&str, &str, &str, &str); 14] = [
+        (
+            ROUTE_MARKDOWN,
+            HOME_DIR_TAG_MD,
+            NAV_LABEL_MARKDOWN,
+            HOME_DIR_DESC_MD,
+        ),
+        (ROUTE_LAB, HOME_DIR_TAG_LB, NAV_LABEL_LAB, HOME_DIR_DESC_LB),
+        (
+            ROUTE_STRESS,
+            HOME_DIR_TAG_ST,
+            NAV_LABEL_STRESS,
+            HOME_DIR_DESC_ST,
+        ),
+        (
+            ROUTE_GAME_3D,
+            HOME_DIR_TAG_3D,
+            NAV_LABEL_GAME_3D,
+            HOME_DIR_DESC_3D,
+        ),
+        (
+            ROUTE_FORMS,
+            HOME_DIR_TAG_FM,
+            NAV_LABEL_FORMS,
+            HOME_DIR_DESC_FM,
+        ),
+        (
+            ROUTE_MEDIA,
+            HOME_DIR_TAG_ME,
+            NAV_LABEL_MEDIA,
+            HOME_DIR_DESC_ME,
+        ),
+        (
+            ROUTE_OVERLAYS,
+            HOME_DIR_TAG_OV,
+            NAV_LABEL_OVERLAYS,
+            HOME_DIR_DESC_OV,
+        ),
+        (
+            ROUTE_THEMES,
+            HOME_DIR_TAG_TH,
+            NAV_LABEL_THEMES,
+            HOME_DIR_DESC_TH,
+        ),
+        (
+            ROUTE_DATA,
+            HOME_DIR_TAG_DT,
+            NAV_LABEL_DATA,
+            HOME_DIR_DESC_DT,
+        ),
+        (
+            ROUTE_REACTIVE,
+            HOME_DIR_TAG_RX,
+            NAV_LABEL_REACTIVE,
+            HOME_DIR_DESC_RX,
+        ),
+        (
+            ROUTE_RENDER,
+            HOME_DIR_TAG_RN,
+            NAV_LABEL_RENDER,
+            HOME_DIR_DESC_RN,
+        ),
+        (
+            ROUTE_WINDOW,
+            HOME_DIR_TAG_OS,
+            NAV_LABEL_WINDOW,
+            HOME_DIR_DESC_OS,
+        ),
+        (
+            ROUTE_GAME,
+            HOME_DIR_TAG_2D,
+            NAV_LABEL_GAME,
+            HOME_DIR_DESC_2D,
+        ),
+        (
+            ROUTE_DYNAMIC,
+            HOME_DIR_TAG_OT,
+            NAV_LABEL_DYNAMIC,
+            HOME_DIR_DESC_OT,
+        ),
+    ];
+    let dir_rows: Vec<NodeId> = dir_items
+        .iter()
+        .map(|(path, tag, label, desc): &(&str, &str, &str, &str)| {
+            let target: String = (*path).to_string();
+            let badge_txt: String = (*tag).to_string();
+            let title_txt: String = (*label).to_string();
+            let desc_txt: String = (*desc).to_string();
+            let on_dir_click = move |_: &UiEvent| {
+                let _: bool = route_sig.set_if_changed(target.clone());
+            };
+            view! {
+                row {
+                    width: Length::Percent(100.0)
+                    padding: Edges::symmetric(SPACE_SM, SPACE_MD)
+                    align: AlignItems::Center
+                    justify: JustifyContent::SpaceBetween
+                    gap: SPACE_SM
+                    radius: g.get_radius_md()
+                    background: p.get_background()
+                    border: (g.get_border_width(), p.get_border())
+                    cursor: CursorIcon::Pointer
+                    on_click: on_dir_click
+                    row {
+                        flex_grow: 1.0
+                        flex_shrink: 1.0
+                        min_width: Length::Px(0.0)
+                        align: AlignItems::Center
+                        gap: SPACE_SM
+                        overflow: Overflow::Hidden
+                        row {
+                            width: Length::Px(34.0)
+                            height: Length::Px(34.0)
+                            flex_shrink: 0.0
+                            radius: 99.0
+                            background: p.get_primary().with_alpha(26)
+                            justify: JustifyContent::Center
+                            align: AlignItems::Center
+                            text {
+                                font_size: 11.5
+                                font_family: FontFamily::Monospace
+                                font_weight: FontWeight::Bold
+                                color: p.get_primary()
+                                text_align: TextAlign::Center
+                                text_overflow: TextOverflow::Clip
+                                { badge_txt }
+                            }
+                        }
+                        column {
+                            flex_grow: 1.0
+                            flex_shrink: 1.0
+                            min_width: Length::Px(0.0)
+                            gap: 2.0
+                            overflow: Overflow::Hidden
+                            text {
+                                width: Length::Percent(100.0)
+                                font_size: 14.0
+                                font_weight: FontWeight::SemiBold
+                                color: p.get_foreground()
+                                overflow: Overflow::Hidden
+                                text_overflow: TextOverflow::Ellipsis
+                                { title_txt }
+                            }
+                            text {
+                                width: Length::Percent(100.0)
+                                font_size: 12.0
+                                color: p.get_muted_foreground()
+                                overflow: Overflow::Hidden
+                                text_overflow: TextOverflow::Ellipsis
+                                { desc_txt }
+                            }
+                        }
+                    }
+                    text {
+                        flex_shrink: 0.0
+                        font_size: 14.0
+                        font_weight: FontWeight::Bold
+                        color: p.get_muted_foreground()
+                        text_overflow: TextOverflow::Clip
+                        { HOME_DIR_ARROW }
+                    }
+                }
+            }
+        })
+        .collect();
     let hero_style: Style = style! {
-        FlexDirection::Column;
-        Overflow::Hidden;
-        width: Length::Percent(100.0);
-        padding: Edges::all(SPACE_XL);
-        gap: SPACE_MD;
-        background: p.get_card();
-        border: (g.get_border_width().max(1.0), p.get_primary().with_alpha(96));
-        radius: g.get_radius_xl();
-        shadow: g.get_shadow_md();
+        FlexDirection::Column
+        Overflow::Hidden
+        width: Length::Percent(100.0)
+        padding: Edges::all(SPACE_XL)
+        gap: SPACE_MD
+        background: p.get_card()
+        border: (g.get_border_width().max(1.0), p.get_primary().with_alpha(96))
+        radius: g.get_radius_xl()
+        shadow: g.get_shadow_md()
+    };
+    let on_open_markdown = move |_: &UiEvent| {
+        let _: bool = route_sig.set_if_changed(ROUTE_MARKDOWN.to_string());
+    };
+    let on_open_3d = move |_: &UiEvent| {
+        let _: bool = route_sig.set_if_changed(ROUTE_GAME_3D.to_string());
+    };
+    let on_open_stress = move |_: &UiEvent| {
+        let _: bool = route_sig.set_if_changed(ROUTE_STRESS.to_string());
+    };
+    let on_open_reactive = move |_: &UiEvent| {
+        let _: bool = route_sig.set_if_changed(ROUTE_REACTIVE.to_string());
+    };
+    let lifecycle_stats_text = move || -> String {
+        format!(
+            "Frozen Pages: {} | Mounts: {} | Freezes: {} | Resumes: {}",
+            frozen_sig.get(),
+            mounts_sig.get(),
+            freezes_sig.get(),
+            resumes_sig.get()
+        )
+    };
+    let last_hook_text = move || -> String { format!("Last Hook: {}", last_ev_sig.get()) };
+    let cached_routes_text = move || -> String {
+        let entries: Vec<EuvRouteLifecycleEntry> = entries_sig.get();
+        let summary: Vec<String> = entries
+            .iter()
+            .map(|e: &EuvRouteLifecycleEntry| format!("{}={:?}", e.get_path(), e.get_phase()))
+            .collect();
+        if summary.is_empty() {
+            LIFECYCLE_ACTIVE_DEFAULT.to_string()
+        } else {
+            format!("Cached Routes: {}", summary.join(" | "))
+        }
+    };
+    let global_local_text = move || -> String {
+        let gb: ShowcaseGlobalBanner = global_banner.get();
+        let last_src: &str = if gb.get_last_source().is_empty() {
+            SOURCE_NONE
+        } else {
+            gb.get_last_source().as_str()
+        };
+        format!(
+            "GlobalState Pulses: {} (source: {}) | LocalState (preserved across Freeze): {}",
+            gb.get_pulses(),
+            last_src,
+            local_counter.get()
+        )
+    };
+    let on_emit_pulse = move |_: &UiEvent| {
+        let seq: u32 = local_counter.get_untracked();
+        emit!(ShowcasePulseEvent {
+            source: ROUTE_OVERVIEW.to_string(),
+            seq,
+        });
+    };
+    let on_local_inc = move |_: &UiEvent| {
+        let _: bool = local_counter.update(|v: &mut u32| *v += 1);
+    };
+    let on_open_game = move |_: &UiEvent| {
+        let _: bool = route_sig.set_if_changed(ROUTE_GAME.to_string());
+    };
+    let on_open_window = move |_: &UiEvent| {
+        let _: bool = route_sig.set_if_changed(ROUTE_WINDOW.to_string());
     };
     view! {
         EuvPage(OVERVIEW_TITLE.to_string(), OVERVIEW_SUBTITLE.to_string(), tokens) {
+            EuvCard(HOME_DIR_TITLE.to_string(), tokens) {
+                subtitle: HOME_DIR_SUBTITLE
+                column {
+                    width: Length::Percent(100.0)
+                    gap: SPACE_SM
+                    ..dir_rows
+                }
+            }
             view {
                 style: hero_style
                 row {
@@ -419,39 +703,33 @@ pub fn mount_overview_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
                     EuvBadge(HERO_BADGE_FREEZE.to_string(), EuvTone::Warning, tokens)
                 }
                 text {
+                    width: Length::Percent(100.0)
                     font_size: 20.0
                     font_weight: FontWeight::Bold
                     color: p.get_foreground()
                     { HERO_HEADLINE }
                 }
                 text {
+                    width: Length::Percent(100.0)
                     font_size: 13.5
                     color: p.get_muted_foreground()
                     { HERO_DESCRIPTION }
                 }
                 EuvActionRow() {
                     EuvButton(BTN_OPEN_MARKDOWN.to_string(), tokens) {
-                        on_click: move |_: &UiEvent| {
-                            let _: bool = route_sig.set_if_changed(ROUTE_MARKDOWN.to_string());
-                        }
+                        on_click: on_open_markdown
                     }
                     EuvButton(BTN_OPEN_3D_RT.to_string(), tokens) {
                         secondary()
-                        on_click: move |_: &UiEvent| {
-                            let _: bool = route_sig.set_if_changed(ROUTE_GAME_3D.to_string());
-                        }
+                        on_click: on_open_3d
                     }
                     EuvButton(BTN_OPEN_STRESS_LAB.to_string(), tokens) {
                         outline()
-                        on_click: move |_: &UiEvent| {
-                            let _: bool = route_sig.set_if_changed(ROUTE_STRESS.to_string());
-                        }
+                        on_click: on_open_stress
                     }
                     EuvButton(BTN_TRY_REACTIVITY.to_string(), tokens) {
                         outline()
-                        on_click: move |_: &UiEvent| {
-                            let _: bool = route_sig.set_if_changed(ROUTE_REACTIVE.to_string());
-                        }
+                        on_click: on_open_reactive
                     }
                 }
             }
@@ -478,89 +756,51 @@ pub fn mount_overview_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
             EuvCard(CARD_LIFECYCLE_TITLE.to_string(), tokens) {
                 subtitle: CARD_LIFECYCLE_SUB
                 text {
+                    width: Length::Percent(100.0)
                     font_size: 13.5
                     font_weight: FontWeight::SemiBold
                     color: p.get_primary()
-                    { move || format!(
-                            "Frozen Pages: {} | Mounts: {} | Freezes: {} | Resumes: {}",
-                            frozen_sig.get(),
-                            mounts_sig.get(),
-                            freezes_sig.get(),
-                            resumes_sig.get()
-                    ) }
+                    { lifecycle_stats_text }
                 }
                 text {
+                    width: Length::Percent(100.0)
                     font_size: 12.5
                     font_family: FontFamily::Monospace
                     color: p.get_muted_foreground()
-                    { move || format!("Last Hook: {}", last_ev_sig.get()) }
+                    { last_hook_text }
                 }
                 text {
+                    width: Length::Percent(100.0)
                     font_size: 12.5
                     color: p.get_foreground()
-                    { move || {
-                            let entries: Vec<EuvRouteLifecycleEntry> = entries_sig.get();
-                            let summary: Vec<String> = entries
-                            .iter()
-                            .map(|e: &EuvRouteLifecycleEntry| format!("{}={:?}", e.get_path(), e.get_phase()))
-                            .collect();
-                            if summary.is_empty() {
-                                LIFECYCLE_ACTIVE_DEFAULT.to_string()
-                            } else {
-                                format!("Cached Routes: {}", summary.join(" | "))
-                            }
-                    } }
+                    { cached_routes_text }
                 }
                 text {
+                    width: Length::Percent(100.0)
                     font_size: 12.5
                     font_weight: FontWeight::Medium
                     color: p.get_success()
-                    { move || {
-                            let gb: ShowcaseGlobalBanner = global_banner.get();
-                            let last_src: &str = if gb.get_last_source().is_empty() {
-                                SOURCE_NONE
-                            } else {
-                                gb.get_last_source().as_str()
-                            };
-                            format!(
-                                "GlobalState Pulses: {} (source: {}) | LocalState (preserved across Freeze): {}",
-                                gb.get_pulses(),
-                                last_src,
-                                local_counter.get()
-                            )
-                    } }
+                    { global_local_text }
                 }
                 EuvActionRow() {
                     EuvButton(BTN_EMIT_PULSE.to_string(), tokens) {
                         sm()
-                        on_click: move |_: &UiEvent| {
-                            let seq: u32 = local_counter.get_untracked();
-                            emit!(ShowcasePulseEvent {
-                                    source: ROUTE_OVERVIEW.to_string(),
-                                    seq,
-                            });
-                        }
+                        on_click: on_emit_pulse
                     }
                     EuvButton(BTN_LOCAL_INC.to_string(), tokens) {
                         secondary()
                         sm()
-                        on_click: move |_: &UiEvent| {
-                            let _: bool = local_counter.update(|v: &mut u32| *v += 1);
-                        }
+                        on_click: on_local_inc
                     }
                     EuvButton(BTN_OPEN_GAME_ENGINE.to_string(), tokens) {
                         outline()
                         sm()
-                        on_click: move |_: &UiEvent| {
-                            let _: bool = route_sig.set_if_changed(ROUTE_GAME.to_string());
-                        }
+                        on_click: on_open_game
                     }
                     EuvButton(BTN_OPEN_OS_SERVICES.to_string(), tokens) {
                         outline()
                         sm()
-                        on_click: move |_: &UiEvent| {
-                            let _: bool = route_sig.set_if_changed(ROUTE_WINDOW.to_string());
-                        }
+                        on_click: on_open_window
                     }
                 }
             }
@@ -662,8 +902,8 @@ pub fn mount_markdown_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
                         sm()
                         on_click: move |_: &UiEvent| {
                             emit!(ShowcasePulseEvent {
-                                    source: ROUTE_MARKDOWN.to_string(),
-                                    seq: 1,
+                                source: ROUTE_MARKDOWN.to_string(),
+                                seq: 1,
                             });
                         }
                     }
@@ -685,23 +925,22 @@ pub fn mount_markdown_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
                     width: Length::Percent(100.0)
                     bind_children: move || {
                         let tab: usize = lang_tab.get();
-                        let (src, lang, fname, hl): (&str, &str, &str, Vec<usize>) = match tab {
-                            1 => (MD_SAMPLE_TS, MD_LANG_TS, MD_FILE_TS, vec![3, 7]),
-                            2 => (MD_SAMPLE_JSON, MD_LANG_JSON, MD_FILE_JSON, vec![2, 3]),
-                            3 => (MD_SAMPLE_DIFF, MD_LANG_DIFF, MD_FILE_DIFF, vec![2, 4]),
-                            _ => (MD_SAMPLE_RUST, MD_LANG_RUST, MD_FILE_RUST, vec![1, 7, 8]),
+                        let (src, lang, fname): (&str, &str, &str) = match tab {
+                            1 => (MD_SAMPLE_TS, MD_LANG_TS, MD_FILE_TS),
+                            2 => (MD_SAMPLE_JSON, MD_LANG_JSON, MD_FILE_JSON),
+                            3 => (MD_SAMPLE_DIFF, MD_LANG_DIFF, MD_FILE_DIFF),
+                            _ => (MD_SAMPLE_RUST, MD_LANG_RUST, MD_FILE_RUST),
                         };
                         let cb_log: Signal<String> = copy_log;
                         let block: NodeId = EuvCodeBlock::new(src.to_string(), tokens)
                         .language(lang)
                         .filename(fname)
                         .line_numbers(true)
-                        .highlight_lines(hl)
                         .on_copy(move |txt: &str| {
-                                let _: bool = cb_log.set(format!(
-                                        "Copied {} bytes ({lang}) via Eva Bold EuvCodeBlock",
-                                        txt.len()
-                                ));
+                            let _: bool = cb_log.set(format!(
+                                "Copied {} bytes ({lang}) via Eva Bold EuvCodeBlock",
+                                txt.len()
+                            ));
                         })
                         .mount();
                         vec![block]
@@ -718,13 +957,13 @@ pub fn mount_markdown_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
                 subtitle: MD_DOC_CARD_SUB
                 { EuvMarkdown::new(MD_FULL_DOCUMENT.to_string(), tokens)
                     .on_link(move |url: &str| {
-                            let _: bool = link_log_doc.set(url.to_string());
+                        let _: bool = link_log_doc.set(url.to_string());
                     })
                     .on_copy(move |code: &str| {
-                            let _: bool = copy_log_doc.set(format!("Copied {} bytes from Markdown fence", code.len()));
+                        let _: bool = copy_log_doc.set(format!("Copied {} bytes from Markdown fence", code.len()));
                     })
                     .on_toggle_task(move |_idx: usize, _checked: bool| {
-                            let _: bool = tasks_doc.update(|n: &mut u32| *n += 1);
+                        let _: bool = tasks_doc.update(|n: &mut u32| *n += 1);
                     })
                     .mount() }
             }
@@ -773,9 +1012,9 @@ pub fn mount_reactive_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
                             secondary()
                             on_click: move |_: &UiEvent| {
                                 batch(|| {
-                                        for _ in 0..10 {
-                                            let _: bool = counter.update(|v: &mut i32| *v += 1);
-                                        }
+                                    for _ in 0..10 {
+                                        let _: bool = counter.update(|v: &mut i32| *v += 1);
+                                    }
                                 });
                             }
                         }
@@ -848,21 +1087,21 @@ pub fn mount_render_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                             let line_x0: f32 = (circle_x + circle_r + 16.0).min(bounds.right() - 24.0);
                             let line_x1: f32 = (bounds.right() - 16.0).max(line_x0);
                             dl.push(DrawCommand::FillRoundedRect {
-                                    rect: Rect::new(bounds.get_x() + 16.0, bounds.get_y() + 16.0, rect_w, 108.0),
-                                    color: p.get_primary(),
-                                    radius: CornerRadius::all(14.0),
-                                    border: Border::default(),
+                                rect: Rect::new(bounds.get_x() + 16.0, bounds.get_y() + 16.0, rect_w, 108.0),
+                                color: p.get_primary(),
+                                radius: CornerRadius::all(14.0),
+                                border: Border::default(),
                             });
                             dl.push(DrawCommand::Circle {
-                                    center: Point::new(circle_x.min(bounds.right() - circle_r - 8.0), bounds.get_y() + 70.0),
-                                    radius: circle_r,
-                                    color: p.get_success(),
+                                center: Point::new(circle_x.min(bounds.right() - circle_r - 8.0), bounds.get_y() + 70.0),
+                                radius: circle_r,
+                                color: p.get_success(),
                             });
                             dl.push(DrawCommand::Line {
-                                    from: Point::new(line_x0, bounds.get_y() + 28.0),
-                                    to: Point::new(line_x1, bounds.get_y() + 112.0),
-                                    color: p.get_warning(),
-                                    width: 3.0,
+                                from: Point::new(line_x0, bounds.get_y() + 28.0),
+                                to: Point::new(line_x1, bounds.get_y() + 112.0),
+                                color: p.get_warning(),
+                                width: 3.0,
                             });
                         }
                     }
@@ -1011,8 +1250,8 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         font_weight: FontWeight::SemiBold
                         color: p.get_primary()
                         { move || {
-                                let vp: Size = vp_sig.get();
-                                format!("Live Viewport: {:.0}x{:.0} | Breakpoint: {:?}", vp.get_width(), vp.get_height(), bp_sig.get())
+                            let vp: Size = vp_sig.get();
+                            format!("Live Viewport: {:.0}x{:.0} | Breakpoint: {:?}", vp.get_width(), vp.get_height(), bp_sig.get())
                         } }
                     }
                     text {
@@ -1051,7 +1290,7 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                                     content.set_progress_percent(Some(next_pct));
                                     let _ = svc.start_live_activity("euv-showcase-island".to_string(), content);
                                     let _: bool = native_feedback.set(format!(
-                                            "Dynamic Island LIVE ({next_pct}%) dispatched to {platform:?}"
+                                        "Dynamic Island LIVE ({next_pct}%) dispatched to {platform:?}"
                                     ));
                                 } else {
                                     let _: bool = dispatch_native_action(
@@ -1108,8 +1347,8 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                                 let _: bool = a11y_count.update(|v: &mut u32| *v += 1);
                                 let _: bool = haptic_count.update(|v: &mut u32| *v += 1);
                                 let _: bool = native_feedback.set(format!(
-                                        "Dispatched Haptic pulse (ok={fired}) + A11y announcement #{}",
-                                        a11y_count.get_untracked()
+                                    "Dispatched Haptic pulse (ok={fired}) + A11y announcement #{}",
+                                    a11y_count.get_untracked()
                                 ));
                             }
                         }
@@ -1138,14 +1377,14 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                     font_weight: FontWeight::SemiBold
                     color: p.get_primary()
                     { move || {
-                            let cap_txt: String = match fps_limit_sig.get() {
-                                None => "Unlimited (Max FPS)".to_string(),
-                                Some(v) => format!("Capped at {v} FPS"),
-                            };
-                            format!(
-                                "Frame Rate Policy: {cap_txt} | Live Measured: {:.1} FPS",
-                                live_fps_sig.get()
-                            )
+                        let cap_txt: String = match fps_limit_sig.get() {
+                            None => "Unlimited (Max FPS)".to_string(),
+                            Some(v) => format!("Capped at {v} FPS"),
+                        };
+                        format!(
+                            "Frame Rate Policy: {cap_txt} | Live Measured: {:.1} FPS",
+                            live_fps_sig.get()
+                        )
                     } }
                 }
             }
@@ -1187,15 +1426,15 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         font_weight: FontWeight::SemiBold
                         color: Color::hex(0xF8FAFC)
                         { move || {
-                                let tp: PlatformKind = all_platforms[target_plat_idx.get() % 7];
-                                let im: IslandPresentationMode = all_island_modes[island_mode_idx.get() % 6];
-                                let def_im: IslandPresentationMode = PlatformServiceHub::default_island_mode(tp);
-                                let active: bool = island_active.get();
-                                let pct: u8 = island_progress.get();
-                                let state_tag: &str = if active { "LIVE" } else { "IDLE" };
-                                format!(
-                                    "[{state_tag}] Dynamic Island ({tp:?}) | Mode: {im:?} (OS Default: {def_im:?}) | Progress: {pct}%"
-                                )
+                            let tp: PlatformKind = all_platforms[target_plat_idx.get() % 7];
+                            let im: IslandPresentationMode = all_island_modes[island_mode_idx.get() % 6];
+                            let def_im: IslandPresentationMode = PlatformServiceHub::default_island_mode(tp);
+                            let active: bool = island_active.get();
+                            let pct: u8 = island_progress.get();
+                            let state_tag: &str = if active { "LIVE" } else { "IDLE" };
+                            format!(
+                                "[{state_tag}] Dynamic Island ({tp:?}) | Mode: {im:?} (OS Default: {def_im:?}) | Progress: {pct}%"
+                            )
                         } }
                     }
                 }
@@ -1212,8 +1451,8 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                             );
                             svc.send_notification(n.clone());
                             let _: bool = sys_notifs.update(|v: &mut Vec<(String, String)>| {
-                                    v.insert(0, (n.get_title().clone(), n.get_body().clone()));
-                                    v.truncate(5);
+                                v.insert(0, (n.get_title().clone(), n.get_body().clone()));
+                                v.truncate(5);
                             });
                         }
                     }
@@ -1232,8 +1471,8 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                             n.set_badge_count(Some(3));
                             svc.send_notification(n.clone());
                             let _: bool = sys_notifs.update(|v: &mut Vec<(String, String)>| {
-                                    v.insert(0, (n.get_title().clone(), n.get_body().clone()));
-                                    v.truncate(5);
+                                v.insert(0, (n.get_title().clone(), n.get_body().clone()));
+                                v.truncate(5);
                             });
                         }
                     }
@@ -1261,60 +1500,60 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         .copied()
                         .enumerate()
                         .map(|(idx, perm): (usize, SystemPermission)| {
-                                let st: PermissionStatus = statuses
-                                .get(idx)
-                                .copied()
-                                .unwrap_or(PermissionStatus::NotDetermined);
-                                let native_key: &'static str = perm.native_key(tp);
-                                view! {
-                                    column {
+                            let st: PermissionStatus = statuses
+                            .get(idx)
+                            .copied()
+                            .unwrap_or(PermissionStatus::NotDetermined);
+                            let native_key: &'static str = perm.native_key(tp);
+                            view! {
+                                column {
+                                    width: Length::Percent(100.0)
+                                    padding: Edges::symmetric(SPACE_SM, SPACE_SM)
+                                    gap: SPACE_XS
+                                    background: p.get_card()
+                                    border: (g.get_border_width(), p.get_border())
+                                    radius: g.get_radius_sm()
+                                    text {
                                         width: Length::Percent(100.0)
-                                        padding: Edges::symmetric(SPACE_SM, SPACE_SM)
-                                        gap: SPACE_XS
-                                        background: p.get_card()
-                                        border: (g.get_border_width(), p.get_border())
-                                        radius: g.get_radius_sm()
-                                        text {
-                                            width: Length::Percent(100.0)
-                                            font_size: 12.0
-                                            color: p.get_foreground()
-                                            { format!("{perm:?} [{st:?}] · {native_key}") }
-                                        }
-                                        EuvActionRow() {
-                                            EuvButton("Request".to_string(), tokens) {
-                                                outline()
-                                                sm()
-                                                on_click: move |_: &UiEvent| {
-                                                    let mut mgr: PermissionManager = PermissionManager::new();
-                                                    let desc: PermissionDescriptor =
-                                                    mgr.request(perm, format!("Test {perm:?} access"), platform);
-                                                    let _: bool = perm_statuses.update(|vec: &mut Vec<PermissionStatus>| {
-                                                            if let Some(slot) = vec.get_mut(idx) {
-                                                                *slot = desc.get_status();
-                                                            }
-                                                    });
-                                                    let _: bool = native_feedback.set(format!(
-                                                            "Requested {perm:?} ({}) -> {:?}",
-                                                            perm.native_key(platform),
-                                                            desc.get_status()
-                                                    ));
-                                                }
+                                        font_size: 12.0
+                                        color: p.get_foreground()
+                                        { format!("{perm:?} [{st:?}] · {native_key}") }
+                                    }
+                                    EuvActionRow() {
+                                        EuvButton("Request".to_string(), tokens) {
+                                            outline()
+                                            sm()
+                                            on_click: move |_: &UiEvent| {
+                                                let mut mgr: PermissionManager = PermissionManager::new();
+                                                let desc: PermissionDescriptor =
+                                                mgr.request(perm, format!("Test {perm:?} access"), platform);
+                                                let _: bool = perm_statuses.update(|vec: &mut Vec<PermissionStatus>| {
+                                                    if let Some(slot) = vec.get_mut(idx) {
+                                                        *slot = desc.get_status();
+                                                    }
+                                                });
+                                                let _: bool = native_feedback.set(format!(
+                                                    "Requested {perm:?} ({}) -> {:?}",
+                                                    perm.native_key(platform),
+                                                    desc.get_status()
+                                                ));
                                             }
-                                            EuvButton("Deny".to_string(), tokens) {
-                                                destructive()
-                                                sm()
-                                                on_click: move |_: &UiEvent| {
-                                                    let _: bool = perm_statuses.update(|vec: &mut Vec<PermissionStatus>| {
-                                                            if let Some(slot) = vec.get_mut(idx) {
-                                                                *slot = PermissionStatus::Denied;
-                                                            }
-                                                    });
-                                                    let _: bool = native_feedback.set(format!("Marked {perm:?} as Denied"));
-                                                }
+                                        }
+                                        EuvButton("Deny".to_string(), tokens) {
+                                            destructive()
+                                            sm()
+                                            on_click: move |_: &UiEvent| {
+                                                let _: bool = perm_statuses.update(|vec: &mut Vec<PermissionStatus>| {
+                                                    if let Some(slot) = vec.get_mut(idx) {
+                                                        *slot = PermissionStatus::Denied;
+                                                    }
+                                                });
+                                                let _: bool = native_feedback.set(format!("Marked {perm:?} as Denied"));
                                             }
                                         }
                                     }
                                 }
+                            }
                         })
                         .collect()
                     }
@@ -1379,10 +1618,18 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     let attach_vis: Signal<bool> = Signal::new(true);
     let q_sel: Signal<Option<usize>> = Signal::new(Some(0));
     let touches_sig: Signal<Vec<(u64, Point)>> = ctx.get_active_touches();
+    let pad_bounds_cell: Rc<Cell<Rect>> = Rc::new(Cell::new(Rect::default()));
+    let pad_bounds_memo: Rc<Cell<Rect>> = Rc::clone(&pad_bounds_cell);
+    let pad_bounds_paint: Rc<Cell<Rect>> = Rc::clone(&pad_bounds_cell);
     let touch_ids_memo: Memo<Vec<u64>> = Memo::new(move || {
+        let pad_rect: Rect = pad_bounds_memo.get();
+        if pad_rect.get_width() <= 0.0 || pad_rect.get_height() <= 0.0 {
+            return Vec::new();
+        }
         touches_sig
             .get()
             .into_iter()
+            .filter(|(_, pt): &(u64, Point)| pad_rect.contains(*pt))
             .map(|(id, _): (u64, Point)| id)
             .collect()
     });
@@ -1399,11 +1646,19 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
         ) {
             EuvCard("Multi-Touch & Gesture Isolation Pad".to_string(), tokens) {
                 subtitle: "Simultaneous multi-finger tracking with pointer IDs, pinch distance line, and gesture non-penetration"
-                text {
-                    font_size: 12.5
-                    font_weight: FontWeight::Medium
-                    color: p.get_primary()
-                    { move || {
+                row {
+                    width: Length::Percent(100.0)
+                    height: Length::Px(22.0)
+                    align: AlignItems::Center
+                    overflow: Overflow::Hidden
+                    text {
+                        width: Length::Percent(100.0)
+                        font_size: 12.5
+                        font_weight: FontWeight::Medium
+                        color: p.get_primary()
+                        overflow: Overflow::Hidden
+                        text_overflow: TextOverflow::Ellipsis
+                        { move || {
                             let ids: Vec<u64> = touch_ids_memo.get();
                             if ids.is_empty() {
                                 TOUCH_PAD_READY_TEXT.to_string()
@@ -1412,10 +1667,11 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                                 .iter()
                                 .map(|id: &u64| format!("#{id}"))
                                 .collect::<Vec<String>>()
-                                .join("  ");
-                                format!("Active Touches: {}  |  Pointers: {labels}", ids.len())
+                                .join(" ");
+                                format!("Inside Pad: {} | Pointers: {labels}", ids.len())
                             }
-                    } }
+                        } }
+                    }
                 }
                 canvas {
                     node_ref: touch_pad_id
@@ -1427,6 +1683,7 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                     stop_scroll_propagation: true
                     stop_event_propagation: true
                     painter: move |bounds: Rect, dl: &mut DisplayList| {
+                        pad_bounds_paint.set(bounds);
                         let pts: Vec<(u64, Point)> = touches_sig.get_untracked();
                         let palette: [Color; 5] = [
                             Color::hex(0x2563EB),
@@ -1446,38 +1703,38 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                             .set_color(p.get_muted_foreground())
                             .set_align(TextAlign::Center);
                             dl.push(DrawCommand::TextRun {
-                                    rect: Rect::new(
-                                        bounds.get_x() + 12.0,
-                                        bounds.get_y() + (bounds.get_height() - 18.0) * 0.5,
-                                        (bounds.get_width() - 24.0).max(1.0),
-                                        20.0,
-                                    ),
-                                    text: TOUCH_PAD_CANVAS_HINT.to_string(),
-                                    style: hint_style,
+                                rect: Rect::new(
+                                    bounds.get_x() + 12.0,
+                                    bounds.get_y() + (bounds.get_height() - 18.0) * 0.5,
+                                    (bounds.get_width() - 24.0).max(1.0),
+                                    20.0,
+                                ),
+                                text: TOUCH_PAD_CANVAS_HINT.to_string(),
+                                style: hint_style,
                             });
                             return;
                         }
                         if inside_pts.len() >= 2 {
                             for pair in inside_pts.windows(2) {
                                 dl.push(DrawCommand::Line {
-                                        from: pair[0].1,
-                                        to: pair[1].1,
-                                        color: p.get_primary().multiply_alpha(0.75),
-                                        width: 2.0,
+                                    from: pair[0].1,
+                                    to: pair[1].1,
+                                    color: p.get_primary().multiply_alpha(0.75),
+                                    width: 2.0,
                                 });
                             }
                         }
                         for (idx, (pid, pt)) in inside_pts.iter().enumerate() {
                             let col: Color = palette[idx % palette.len()];
                             dl.push(DrawCommand::Circle {
-                                    center: *pt,
-                                    radius: 26.0,
-                                    color: col.multiply_alpha(0.24),
+                                center: *pt,
+                                radius: 26.0,
+                                color: col.multiply_alpha(0.24),
                             });
                             dl.push(DrawCommand::Circle {
-                                    center: *pt,
-                                    radius: 10.0,
-                                    color: col,
+                                center: *pt,
+                                radius: 10.0,
+                                color: col,
                             });
                             let mut tag_style: TextStyle = TextStyle::default();
                             tag_style
@@ -1485,9 +1742,9 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                             .set_weight(FontWeight::Bold)
                             .set_color(col);
                             dl.push(DrawCommand::TextRun {
-                                    rect: Rect::new(pt.get_x() + 14.0, pt.get_y() - 24.0, 96.0, 16.0),
-                                    text: format!("#{pid}({:.0},{:.0})", pt.get_x(), pt.get_y()),
-                                    style: tag_style,
+                                rect: Rect::new(pt.get_x() + 14.0, pt.get_y() - 24.0, 96.0, 16.0),
+                                text: format!("#{pid}({:.0},{:.0})", pt.get_x(), pt.get_y()),
+                                style: tag_style,
                             });
                         }
                         let mut hud_style: TextStyle = TextStyle::default();
@@ -1496,14 +1753,14 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         .set_weight(FontWeight::Medium)
                         .set_color(p.get_foreground());
                         dl.push(DrawCommand::TextRun {
-                                rect: Rect::new(
-                                    bounds.get_x() + 10.0,
-                                    bounds.get_y() + 8.0,
-                                    (bounds.get_width() - 20.0).max(1.0),
-                                    18.0,
-                                ),
-                                text: format!("Live Contacts Inside Pad: {}", inside_pts.len()),
-                                style: hud_style,
+                            rect: Rect::new(
+                                bounds.get_x() + 10.0,
+                                bounds.get_y() + 8.0,
+                                (bounds.get_width() - 20.0).max(1.0),
+                                18.0,
+                            ),
+                            text: format!("Live Contacts Inside Pad: {}", inside_pts.len()),
+                            style: hud_style,
                         });
                     }
                 }
@@ -1515,30 +1772,30 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                     font_size: 12.5
                     color: p.get_foreground()
                     { move || {
-                            let _: u32 = ai_tick.get();
-                            let rs: ReactiveStats = reactive_stats();
-                            #[cfg(debug_assertions)]
-                            let proto_label: &str = AI_SCHEMA_PROTOCOL_VERSION;
-                            #[cfg(not(debug_assertions))]
-                            let proto_label: &str = AI_SCHEMA_RELEASE_STRIPPED;
-                            let bridge_label: &str = if DevAutomationBridge::is_enabled() {
-                                AI_BRIDGE_STATUS_ACTIVE
-                            } else {
-                                AI_BRIDGE_STATUS_OFF
-                            };
-                            format!(
-                                "Protocol: {} ({}) | Route: {} | Scheme: {} | Live FPS: {:.1} | Signals: {} | Memos: {} | Effects: {} | Scopes: {} | Clock: {}",
-                                proto_label,
-                                bridge_label,
-                                ai_route_sig.get(),
-                                ai_scheme_sig.get().as_str(),
-                                ai_fps_sig.get(),
-                                rs.get_live_signals(),
-                                rs.get_live_memos(),
-                                rs.get_live_effects(),
-                                rs.get_live_scopes(),
-                                rs.get_clock()
-                            )
+                        let _: u32 = ai_tick.get();
+                        let rs: ReactiveStats = reactive_stats();
+                        #[cfg(debug_assertions)]
+                        let proto_label: &str = AI_SCHEMA_PROTOCOL_VERSION;
+                        #[cfg(not(debug_assertions))]
+                        let proto_label: &str = AI_SCHEMA_RELEASE_STRIPPED;
+                        let bridge_label: &str = if DevAutomationBridge::is_enabled() {
+                            AI_BRIDGE_STATUS_ACTIVE
+                        } else {
+                            AI_BRIDGE_STATUS_OFF
+                        };
+                        format!(
+                            "Protocol: {} ({}) | Route: {} | Scheme: {} | Live FPS: {:.1} | Signals: {} | Memos: {} | Effects: {} | Scopes: {} | Clock: {}",
+                            proto_label,
+                            bridge_label,
+                            ai_route_sig.get(),
+                            ai_scheme_sig.get().as_str(),
+                            ai_fps_sig.get(),
+                            rs.get_live_signals(),
+                            rs.get_live_memos(),
+                            rs.get_live_effects(),
+                            rs.get_live_scopes(),
+                            rs.get_clock()
+                        )
                     } }
                 }
                 EuvActionRow() {
@@ -1707,17 +1964,17 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                             EuvTextDirection::Ltr
                         };
                         vec![view! {
-                                EuvDirection(
-                                    dir,
-                                    view! {
-                                        text {
-                                            font_size: 13.0
-                                            color: p.get_foreground()
-                                            { format!("Direction preview ({dir:?}): Unified layout alignment across LTR & RTL") }
-                                        }
-                                    },
-                                    tokens
-                                )
+                            EuvDirection(
+                                dir,
+                                view! {
+                                    text {
+                                        font_size: 13.0
+                                        color: p.get_foreground()
+                                        { format!("Direction preview ({dir:?}): Unified layout alignment across LTR & RTL") }
+                                    }
+                                },
+                                tokens
+                            )
                         }]
                     }
                 }
@@ -1755,11 +2012,11 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                     font_size: 12.0
                     color: p.get_muted_foreground()
                     { move || format!(
-                            "Inner Clicks: {} | Outer Parent Clicks: {} | Resize-Preserved Counter: {} | Overlay Stack Depth: {}",
-                            child_clicks.get(),
-                            parent_clicks.get(),
-                            preserve_cnt.get(),
-                            EuvOverlayStack::active_count()
+                        "Inner Clicks: {} | Outer Parent Clicks: {} | Resize-Preserved Counter: {} | Overlay Stack Depth: {}",
+                        child_clicks.get(),
+                        parent_clicks.get(),
+                        preserve_cnt.get(),
+                        EuvOverlayStack::active_count()
                     ) }
                 }
                 column {
@@ -1768,44 +2025,44 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         let locked: bool = block_scroll.get();
                         let stop_clk: bool = stop_bubble.get();
                         vec![view! {
-                                column {
+                            column {
+                                width: Length::Percent(100.0)
+                                padding: Edges::all(SPACE_MD)
+                                gap: SPACE_SM
+                                background: p.get_muted()
+                                border: (g.get_border_width(), p.get_border())
+                                radius: g.get_radius_md()
+                                on_click: move |_: &UiEvent| {
+                                    let _: bool = parent_clicks.update(|v: &mut u32| *v += 1);
+                                }
+                                scroll {
                                     width: Length::Percent(100.0)
-                                    padding: Edges::all(SPACE_MD)
-                                    gap: SPACE_SM
-                                    background: p.get_muted()
+                                    height: Length::Px(110.0)
+                                    padding: Edges::all(SPACE_SM)
+                                    gap: SPACE_XS
+                                    background: p.get_card()
                                     border: (g.get_border_width(), p.get_border())
-                                    radius: g.get_radius_md()
-                                    on_click: move |_: &UiEvent| {
-                                        let _: bool = parent_clicks.update(|v: &mut u32| *v += 1);
-                                    }
-                                    scroll {
-                                        width: Length::Percent(100.0)
-                                        height: Length::Px(110.0)
-                                        padding: Edges::all(SPACE_SM)
-                                        gap: SPACE_XS
-                                        background: p.get_card()
-                                        border: (g.get_border_width(), p.get_border())
-                                        radius: g.get_radius_sm()
-                                        stop_scroll_propagation: locked
-                                        stop_event_propagation: stop_clk
-                                        for row_i in 1..=8 {
-                                            text {
-                                                font_size: 12.0
-                                                color: p.get_foreground()
-                                                { format!("Nested Scroll Row #{row_i} (scroll_lock={locked}, stop_bubble={stop_clk})") }
-                                            }
-                                        }
-                                    }
-                                    EuvActionRow() {
-                                        EuvButton("Click Inner Target".to_string(), tokens) {
-                                            secondary()
-                                            sm()
-                                            on_click: move |_: &UiEvent| {
-                                                let _: bool = child_clicks.update(|v: &mut u32| *v += 1);
-                                            }
+                                    radius: g.get_radius_sm()
+                                    stop_scroll_propagation: locked
+                                    stop_event_propagation: stop_clk
+                                    for row_i in 1..=8 {
+                                        text {
+                                            font_size: 12.0
+                                            color: p.get_foreground()
+                                            { format!("Nested Scroll Row #{row_i} (scroll_lock={locked}, stop_bubble={stop_clk})") }
                                         }
                                     }
                                 }
+                                EuvActionRow() {
+                                    EuvButton("Click Inner Target".to_string(), tokens) {
+                                        secondary()
+                                        sm()
+                                        on_click: move |_: &UiEvent| {
+                                            let _: bool = child_clicks.update(|v: &mut u32| *v += 1);
+                                        }
+                                    }
+                                }
+                            }
                         }]
                     }
                 }
@@ -1930,17 +2187,17 @@ pub fn mount_forms_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         font_size: 12.0
                         color: p.get_muted_foreground()
                         { move || {
-                                let c: Color = picker_color.get();
-                                let (hh, mm): (u8, u8) = picker_time.get();
-                                format!(
-                                    "Color: #{:02X}{:02X}{:02X} | Time: {:02}:{:02} | Tags: {}",
-                                    c.get_r(),
-                                    c.get_g(),
-                                    c.get_b(),
-                                    hh,
-                                    mm,
-                                    tag_items.get().len()
-                                )
+                            let c: Color = picker_color.get();
+                            let (hh, mm): (u8, u8) = picker_time.get();
+                            format!(
+                                "Color: #{:02X}{:02X}{:02X} | Time: {:02}:{:02} | Tags: {}",
+                                c.get_r(),
+                                c.get_g(),
+                                c.get_b(),
+                                hh,
+                                mm,
+                                tag_items.get().len()
+                            )
                         } }
                     }
                     EuvCalendar(LABEL_CALENDAR_MONTH.to_string(), 30, state.get_calendar_day(), tokens)
@@ -2134,18 +2391,18 @@ pub fn mount_data_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                     )
                     EuvTree(
                         vec![EuvTreeNode::new(
-                                TREE_NODE_WORKSPACE.to_string(),
-                                vec![
-                                    EuvTreeNode::new(
-                                        TREE_NODE_CORE.to_string(),
-                                        vec![
-                                            EuvTreeNode::new(TREE_NODE_RENDER.to_string(), Vec::new()),
-                                            EuvTreeNode::new(TREE_NODE_REACTIVE.to_string(), Vec::new()),
-                                        ],
-                                    ),
-                                    EuvTreeNode::new(TREE_NODE_UI.to_string(), Vec::new()),
-                                    EuvTreeNode::new(TREE_NODE_PERF.to_string(), Vec::new()),
-                                ],
+                            TREE_NODE_WORKSPACE.to_string(),
+                            vec![
+                                EuvTreeNode::new(
+                                    TREE_NODE_CORE.to_string(),
+                                    vec![
+                                        EuvTreeNode::new(TREE_NODE_RENDER.to_string(), Vec::new()),
+                                        EuvTreeNode::new(TREE_NODE_REACTIVE.to_string(), Vec::new()),
+                                    ],
+                                ),
+                                EuvTreeNode::new(TREE_NODE_UI.to_string(), Vec::new()),
+                                EuvTreeNode::new(TREE_NODE_PERF.to_string(), Vec::new()),
+                            ],
                         )],
                         tokens
                     ) {
@@ -2155,16 +2412,16 @@ pub fn mount_data_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         font_size: 12.0
                         color: p.get_muted_foreground()
                         { move || {
-                                let cur: String = tree_sel
-                                .get()
-                                .unwrap_or_else(|| TREE_NONE_SELECTED.to_string());
-                                format!("{TREE_SELECTED_PREFIX}: {cur}")
+                            let cur: String = tree_sel
+                            .get()
+                            .unwrap_or_else(|| TREE_NONE_SELECTED.to_string());
+                            format!("{TREE_SELECTED_PREFIX}: {cur}")
                         } }
                     }
                     EuvAccordion(
                         vec![EuvAccordionItem::new(
-                                "Virtualization".to_string(),
-                                "Only visible rows + overscan are materialized in O(visible).".to_string(),
+                            "Virtualization".to_string(),
+                            "Only visible rows + overscan are materialized in O(visible).".to_string(),
                         )],
                         state.get_accordion_open(),
                         tokens
@@ -2224,13 +2481,13 @@ pub fn mount_game_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                             sm()
                             on_click: move |_: &UiEvent| {
                                 host_wave.ingest_event(&WindowEvent::KeyDown(
-                                        WindowId::new(1),
-                                        KeyEvent::new(KeyCode::Character('r'), Modifiers::default(), false),
+                                    WindowId::new(1),
+                                    KeyEvent::new(KeyCode::Character('r'), Modifiers::default(), false),
                                 ));
                                 let _: u32 = host_wave.step(1.0 / 60.0);
                                 host_wave.ingest_event(&WindowEvent::KeyUp(
-                                        WindowId::new(1),
-                                        KeyEvent::new(KeyCode::Character('r'), Modifiers::default(), false),
+                                    WindowId::new(1),
+                                    KeyEvent::new(KeyCode::Character('r'), Modifiers::default(), false),
                                 ));
                             }
                         }
@@ -2909,17 +3166,17 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                             .map(|addr: SocketAddr| addr.port())
                                             .unwrap_or(0);
                                             drop(spawn(move || {
-                                                        if let Ok((mut stream, _)) = listener.accept() {
-                                                            let mut req_buf: [u8; 512] = [0; 512];
-                                                            let _: Result<usize, Error> = stream.read(&mut req_buf);
-                                                            let hdr: String = format!(
-                                                                "HTTP/1.1 200 OK\r\nContent-Type: application/wasm\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                                                                bytes_srv.len()
-                                                            );
-                                                            let _: Result<(), Error> = stream.write_all(hdr.as_bytes());
-                                                            let _: Result<(), Error> = stream.write_all(&bytes_srv);
-                                                            let _: Result<(), Error> = stream.flush();
-                                                        }
+                                                if let Ok((mut stream, _)) = listener.accept() {
+                                                    let mut req_buf: [u8; 512] = [0; 512];
+                                                    let _: Result<usize, Error> = stream.read(&mut req_buf);
+                                                    let hdr: String = format!(
+                                                        "HTTP/1.1 200 OK\r\nContent-Type: application/wasm\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                                                        bytes_srv.len()
+                                                    );
+                                                    let _: Result<(), Error> = stream.write_all(hdr.as_bytes());
+                                                    let _: Result<(), Error> = stream.write_all(&bytes_srv);
+                                                    let _: Result<(), Error> = stream.flush();
+                                                }
                                             }));
                                             let url: String =
                                             format!("http://127.0.0.1:{port}/live-module-v3.wasm");
@@ -2930,16 +3187,16 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                             )
                                             .with_checksum(compute_wasm_checksum(&bytes))
                                             .with_signature(compute_wasm_signature(
-                                                    &bytes,
-                                                    3,
-                                                    WASM_SHOWCASE_SIGNING_KEY,
+                                                &bytes,
+                                                3,
+                                                WASM_SHOWCASE_SIGNING_KEY,
                                             ))
                                             .with_allow_downgrade(true);
                                             match m_http.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY) {
                                                 Ok(v) => {
                                                     let _: bool = s_http.set(format!(
-                                                            "Downloaded {} bytes over real HTTP ({url}) -> executed & mounted .wasm v{v} natively!",
-                                                            bytes.len()
+                                                        "Downloaded {} bytes over real HTTP ({url}) -> executed & mounted .wasm v{v} natively!",
+                                                        bytes.len()
                                                     ));
                                                 }
                                                 Err(e) => {
@@ -3013,7 +3270,7 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 let _: bool = wasm_offline_sig.set(next);
                                 r_off.set_offline(next);
                                 let _: bool = s_off.set(if next {
-                                        "Simulated OFFLINE enabled — re-downloading v1 will serve verified offline cache!".to_string()
+                                    "Simulated OFFLINE enabled — re-downloading v1 will serve verified offline cache!".to_string()
                                     } else {
                                         "Simulated ONLINE restored — fetching live .wasm from CDN".to_string()
                                 });
@@ -3055,21 +3312,21 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                         font_size: 12.0
                         color: p.get_muted_foreground()
                         { move || {
-                                let st: WasmLoadState = partial_state_sig.get();
-                                let gst: WasmLoadState = global_state_sig.get();
-                                let tel: WasmDynamicTelemetry = wasm_tel_sig.get();
-                                format!(
-                                    "Partial={st:?} | Global={gst:?} | OK={}/{} Cache={} Retries={} Rollbacks={} Traps={} FuelStops={} Rejects={} Events={}",
-                                    tel.get_downloads_succeeded(),
-                                    tel.get_downloads_started(),
-                                    tel.get_cache_hits(),
-                                    tel.get_retries_performed(),
-                                    tel.get_rollbacks_executed(),
-                                    tel.get_sandbox_traps_caught(),
-                                    tel.get_fuel_exhaustions_caught(),
-                                    tel.get_integrity_rejections(),
-                                    tel.get_events_handled()
-                                )
+                            let st: WasmLoadState = partial_state_sig.get();
+                            let gst: WasmLoadState = global_state_sig.get();
+                            let tel: WasmDynamicTelemetry = wasm_tel_sig.get();
+                            format!(
+                                "Partial={st:?} | Global={gst:?} | OK={}/{} Cache={} Retries={} Rollbacks={} Traps={} FuelStops={} Rejects={} Events={}",
+                                tel.get_downloads_succeeded(),
+                                tel.get_downloads_started(),
+                                tel.get_cache_hits(),
+                                tel.get_retries_performed(),
+                                tel.get_rollbacks_executed(),
+                                tel.get_sandbox_traps_caught(),
+                                tel.get_fuel_exhaustions_caught(),
+                                tel.get_integrity_rejections(),
+                                tel.get_events_handled()
+                            )
                         } }
                     }
                 }
@@ -3087,9 +3344,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 WasmDownloadRequest::global(URL_WASM_GLOBAL_V1.to_string(), 1)
                                 .with_checksum(compute_wasm_checksum(&bytes))
                                 .with_signature(compute_wasm_signature(
-                                        &bytes,
-                                        1,
-                                        WASM_SHOWCASE_SIGNING_KEY,
+                                    &bytes,
+                                    1,
+                                    WASM_SHOWCASE_SIGNING_KEY,
                                 ))
                                 .with_allow_downgrade(true);
                                 match m_g1.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY) {
@@ -3112,9 +3369,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 WasmDownloadRequest::global(URL_WASM_GLOBAL_V2.to_string(), 2)
                                 .with_checksum(compute_wasm_checksum(&bytes))
                                 .with_signature(compute_wasm_signature(
-                                        &bytes,
-                                        2,
-                                        WASM_SHOWCASE_SIGNING_KEY,
+                                    &bytes,
+                                    2,
+                                    WASM_SHOWCASE_SIGNING_KEY,
                                 ))
                                 .with_allow_downgrade(true);
                                 match m_g2.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY) {
@@ -3304,7 +3561,7 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 .set_background_hex(Some(0x1D4ED8))
                                 .set_color_hex(Some(0xFFFFFF));
                                 let mut title: DynamicNodeSpec = DynamicNodeSpec::text(format!(
-                                        "Dynamic JSON Banner v{next_v}: Surgical Component Patch"
+                                    "Dynamic JSON Banner v{next_v}: Surgical Component Patch"
                                 ));
                                 title
                                 .get_mut_style()
@@ -3366,9 +3623,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                                 EuvButton(BTN_CLAIM_OFFER.to_string(), tokens) {
                                                     on_click: move |_: &UiEvent| {
                                                         hub_click.dispatch_action(DynamicActionEvent::new(
-                                                                SLOT_PROMO_BANNER.to_string(),
-                                                                "claim_offer".to_string(),
-                                                                format!("native-v{next_v}"),
+                                                            SLOT_PROMO_BANNER.to_string(),
+                                                            "claim_offer".to_string(),
+                                                            format!("native-v{next_v}"),
                                                         ));
                                                     }
                                                 }
@@ -3454,12 +3711,12 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                             on_click: move |_: &UiEvent| {
                                 let next_v: u64 = hub_p1.page_version(ROUTE_DYNAMIC_PANEL).saturating_add(1);
                                 let spec: DynamicNodeSpec = DynamicNodeSpec::card(format!(
-                                        "Hot-Updated Dynamic Page Panel v{next_v}"
+                                    "Hot-Updated Dynamic Page Panel v{next_v}"
                                 ))
                                 .child(DynamicNodeSpec::badge(format!("Page Revision v{next_v}")))
                                 .child(DynamicNodeSpec::text(
-                                        "Page-level layout replaced live without restarting the application."
-                                        .to_string(),
+                                    "Page-level layout replaced live without restarting the application."
+                                    .to_string(),
                                 ));
                                 let mut upd: DynamicPageUpdate = DynamicPageUpdate::new(
                                     ROUTE_DYNAMIC_PANEL.to_string(),
@@ -3532,8 +3789,8 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                     DynamicNodeSpec::card(format!("Runtime-Injected Page /promo-live (v{next_v})"))
                                     .child(DynamicNodeSpec::badge("Zero Recompile Route".to_string()))
                                     .child(DynamicNodeSpec::text(
-                                            "This entire route was injected dynamically at runtime via signed JSON manifest."
-                                            .to_string(),
+                                        "This entire route was injected dynamically at runtime via signed JSON manifest."
+                                        .to_string(),
                                     ))
                                     .child(back_btn),
                                 );
@@ -3571,21 +3828,21 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                         font_size: 12.0
                         color: p.get_muted_foreground()
                         { move || {
-                                let _: u64 = banner_rev.get();
-                                let _: u64 = metrics_rev.get();
-                                let _: u64 = panel_rev.get();
-                                let tel: DynamicTelemetry = tel_sig.get();
-                                format!(
-                                    "Versions: banner=v{} metrics=v{} panel=v{} | Applied: comp={} page={} rollbacks={} rejected={} | Last Action: {}",
-                                    hub_for_status.component_version(SLOT_PROMO_BANNER),
-                                    hub_for_status.component_version(SLOT_METRICS_WIDGET),
-                                    hub_for_status.page_version(ROUTE_DYNAMIC_PANEL),
-                                    tel.get_components_applied(),
-                                    tel.get_pages_applied(),
-                                    tel.get_rollbacks(),
-                                    tel.get_rejected(),
-                                    action_log.get(),
-                                )
+                            let _: u64 = banner_rev.get();
+                            let _: u64 = metrics_rev.get();
+                            let _: u64 = panel_rev.get();
+                            let tel: DynamicTelemetry = tel_sig.get();
+                            format!(
+                                "Versions: banner=v{} metrics=v{} panel=v{} | Applied: comp={} page={} rollbacks={} rejected={} | Last Action: {}",
+                                hub_for_status.component_version(SLOT_PROMO_BANNER),
+                                hub_for_status.component_version(SLOT_METRICS_WIDGET),
+                                hub_for_status.page_version(ROUTE_DYNAMIC_PANEL),
+                                tel.get_components_applied(),
+                                tel.get_pages_applied(),
+                                tel.get_rollbacks(),
+                                tel.get_rejected(),
+                                action_log.get(),
+                            )
                         } }
                     }
                 }

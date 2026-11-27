@@ -1317,8 +1317,11 @@ fn render_highlighted_code_html(language: &str, code: &str, out: &mut String) {
         for span in spans.iter() {
             let class_opt: Option<&str> = match span.get_kind() {
                 CodeTokenKind::Keyword => Some(TOK_CLASS_KW),
+                CodeTokenKind::Control => Some(TOK_CLASS_CTRL),
+                CodeTokenKind::Operator => Some(TOK_CLASS_OP),
                 CodeTokenKind::Function => Some(TOK_CLASS_FN),
                 CodeTokenKind::Type => Some(TOK_CLASS_TY),
+                CodeTokenKind::PrimitiveType => Some(TOK_CLASS_PRIM),
                 CodeTokenKind::String => Some(TOK_CLASS_STR),
                 CodeTokenKind::Number => Some(TOK_CLASS_NUM),
                 CodeTokenKind::Comment => Some(TOK_CLASS_CMT),

@@ -384,16 +384,16 @@ impl EuvCheckbox {
                                 let x1: f32 = bounds.get_x() + 10.5;
                                 let y1: f32 = bounds.get_y() + 2.5;
                                 dl.push(DrawCommand::Line {
-                                        from: Point::new(x0, y0),
-                                        to: Point::new(xm, ym),
-                                        color: check_fg,
-                                        width: 2.0,
+                                    from: Point::new(x0, y0),
+                                    to: Point::new(xm, ym),
+                                    color: check_fg,
+                                    width: 2.0,
                                 });
                                 dl.push(DrawCommand::Line {
-                                        from: Point::new(xm, ym),
-                                        to: Point::new(x1, y1),
-                                        color: check_fg,
-                                        width: 2.0,
+                                    from: Point::new(xm, ym),
+                                    to: Point::new(x1, y1),
+                                    color: check_fg,
+                                    width: 2.0,
                                 });
                             }
                         }
@@ -489,7 +489,7 @@ impl EuvSegmented {
                             .overflow(Overflow::Hidden)
                             .radius(g.get_radius_sm())
                             .background(if active {
-                                    p.get_card()
+                                p.get_card()
                                 } else {
                                     COLOR_TRANSPARENT
                             })

@@ -44,6 +44,23 @@ pub fn tokenize_code_line(line: &str, language: &str) -> Vec<CodeSpan> {
             out.push(CodeSpan::new(line[i..].to_string(), CodeTokenKind::Comment));
             break;
         }
+        if ch == b'\''
+            && lang == CODE_LANG_RUST
+            && i + 1 < len
+            && (bytes[i + 1].is_ascii_alphabetic() || bytes[i + 1] == b'_')
+            && (i + 2 >= len || bytes[i + 2] != b'\'')
+        {
+            let start: usize = i;
+            i += 2;
+            while i < len && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
+                i += 1;
+            }
+            out.push(CodeSpan::new(
+                line[start..i].to_string(),
+                CodeTokenKind::Macro,
+            ));
+            continue;
+        }
         if ch == b'"' || ch == b'\'' || ch == b'`' {
             let quote: u8 = ch;
             let start: usize = i;
@@ -103,10 +120,20 @@ pub fn tokenize_code_line(line: &str, language: &str) -> Vec<CodeSpan> {
             }
             let word: &str = &line[start..i];
             let next_non_ws: Option<u8> = line[i..].bytes().find(|b: &u8| !b.is_ascii_whitespace());
+            let prev_non_ws: Option<u8> = line[..start]
+                .bytes()
+                .rev()
+                .find(|b: &u8| !b.is_ascii_whitespace());
             let kind: CodeTokenKind = if CODE_KEYWORDS.contains(&word) {
                 CodeTokenKind::Keyword
+            } else if CODE_CONTROL_KEYWORDS.contains(&word) {
+                CodeTokenKind::Control
             } else if CODE_CONSTANTS.contains(&word) {
                 CodeTokenKind::Constant
+            } else if CODE_PRIMITIVE_TYPES.contains(&word) {
+                CodeTokenKind::PrimitiveType
+            } else if CODE_RESULT_TYPES.contains(&word) {
+                CodeTokenKind::Property
             } else if CODE_TYPES.contains(&word)
                 || word
                     .chars()
@@ -117,8 +144,8 @@ pub fn tokenize_code_line(line: &str, language: &str) -> Vec<CodeSpan> {
                 CodeTokenKind::Type
             } else if next_non_ws == Some(b'(') {
                 CodeTokenKind::Function
-            } else if next_non_ws == Some(b':')
-                && (lang == CODE_LANG_TOML || lang == CODE_LANG_YAML)
+            } else if prev_non_ws == Some(b'.')
+                || (next_non_ws == Some(b':') && (lang == CODE_LANG_TOML || lang == CODE_LANG_YAML))
             {
                 CodeTokenKind::Property
             } else {
@@ -149,9 +176,9 @@ pub fn tokenize_code_line(line: &str, language: &str) -> Vec<CodeSpan> {
             CodeTokenKind::Punctuation
         } else if matches!(
             sym,
-            "=" | "+" | "-" | "*" | "/" | ">" | "<" | "!" | "&" | "|"
+            "=" | "+" | "-" | "*" | "/" | ">" | "<" | "!" | "&" | "|" | "^" | "%"
         ) {
-            CodeTokenKind::Keyword
+            CodeTokenKind::Operator
         } else {
             CodeTokenKind::Plain
         };

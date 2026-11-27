@@ -13,6 +13,6 @@ cargo add euv-ui
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Switch | `euv_switch` | — |
+| Part   | Component    | Slot |
+| ------ | ------------ | ---- |
+| Switch | `euv_switch` | —    |

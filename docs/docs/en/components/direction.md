@@ -14,4 +14,4 @@ cargo add euv-ui
 ## Parts
 
 | Part | Component | Slot |
-| --- | --- | --- |
+| ---- | --------- | ---- |

@@ -21,8 +21,8 @@ Tooltip
 
 ## Parts
 
-| Part | Component | Slot |
-| --- | --- | --- |
-| Tooltip | `euv_tooltip` | `tooltip` |
+| Part           | Component     | Slot              |
+| -------------- | ------------- | ----------------- |
+| Tooltip        | `euv_tooltip` | `tooltip`         |
 | TooltipContent | `euv_tooltip` | `tooltip-content` |
 | TooltipTrigger | `euv_tooltip` | `tooltip-trigger` |

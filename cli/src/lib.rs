@@ -37,6 +37,7 @@ use std::{
 
 use {
     clap::{Args, Parser, Subcommand, ValueEnum},
+    crate_cli::{UnifiedFmtReport, execute_unified_fmt, format_workspace_text_files},
     euv_core::{
         GraphicsBackend, PlatformCapabilities, PlatformKind, RenderConfig, RenderMode, Renderer,
         build_partial_widget_wasm, compute_wasm_checksum, compute_wasm_signature,
@@ -45,4 +46,5 @@ use {
     lombok_macros::{Data, Getter, New},
     serde::{Deserialize, Serialize},
     serde_json::to_string_pretty,
+    tokio::runtime::{Builder, Runtime},
 };
