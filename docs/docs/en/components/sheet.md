@@ -25,14 +25,21 @@ let sheet_body: NodeId = view! {
             width: Length::Percent(100.0)
             "Hold the top grabber pill: drag down to close or drag up to expand."
         }
-        EuvButton("Close Sheet".to_string(), tokens) {
+        EuvButton {
+            label: "Close Sheet"
+            tokens: tokens
             outline()
             on_click: on_close
         }
     }
 };
 view! {
-    EuvSheet(sheet_open, "Quick Sheet".to_string(), sheet_body, tokens)
+    EuvSheet {
+        open: sheet_open
+        title: "Quick Sheet"
+        body: sheet_body
+        tokens: tokens
+    }
 }
 ```
 

@@ -103,6 +103,10 @@ impl EuvAlert {
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let (accent, _): (Color, Color) = self.get_tone().colors(p);
+        let border_col: Color = match self.get_tone() {
+            EuvTone::Primary | EuvTone::Neutral => p.get_border(),
+            _ => accent.with_alpha(152),
+        };
         let Self {
             title, description, ..
         } = self.clone();
@@ -112,7 +116,7 @@ impl EuvAlert {
                 padding: Edges::all(SPACE_MD)
                 gap: SPACE_XS
                 background: p.get_muted()
-                border: (g.get_border_width(), accent)
+                border: (g.get_border_width(), border_col)
                 radius: g.get_radius_md()
                 overflow: Overflow::Hidden
                 text {
@@ -452,10 +456,14 @@ impl EuvTable {
                     }
                 }
                 for row_cells in rows.into_iter() {
+                    view {
+                        width: Length::Percent(100.0)
+                        height: Length::Px(g.get_border_width().max(1.0))
+                        background: p.get_border()
+                    }
                     row {
                         width: Length::Percent(100.0)
                         padding: Edges::symmetric(SPACE_SM, SPACE_MD)
-                        border: (g.get_border_width(), p.get_border())
                         gap: SPACE_SM
                         for cell_text in row_cells.into_iter() {
                             view {

@@ -18,7 +18,9 @@ let on_copy_code = move |copied: &str| {
     let _: bool = status.set(format!("Copied {} bytes", copied.len()));
 };
 view! {
-    EuvCodeBlock(source.to_string(), tokens) {
+    EuvCodeBlock {
+        code: source
+        tokens: tokens
         language: "rust"
         filename: "src/main.rs"
         line_numbers: true

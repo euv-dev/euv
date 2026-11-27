@@ -25,14 +25,21 @@ let drawer_body: NodeId = view! {
             width: Length::Percent(100.0)
             "Drag the left grabber bar inward to expand or outward to dismiss."
         }
-        EuvButton("Close Drawer".to_string(), tokens) {
+        EuvButton {
+            label: "Close Drawer"
+            tokens: tokens
             outline()
             on_click: on_close
         }
     }
 };
 view! {
-    EuvDrawer(drawer_open, "Inspector Drawer".to_string(), drawer_body, tokens)
+    EuvDrawer {
+        open: drawer_open
+        title: "Inspector Drawer"
+        body: drawer_body
+        tokens: tokens
+    }
 }
 ```
 

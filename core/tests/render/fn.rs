@@ -1035,3 +1035,515 @@ fn portal_base_scene_cache_matches_uncached_full_redraw_bit_identically() {
         "portal base-scene backdrop cache must remain 100% bit-identical to uncached rasterization"
     );
 }
+
+#[test]
+fn focused_input_retap_reopens_ime_after_keyboard_dismissal_without_blurring() {
+    reset_reactive_runtime();
+    let mut inp_id: NodeId = NodeId::default();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(360, 640).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(|| {
+        let mut ctx: Context = current_context();
+        let sc: NodeId = ctx.scroll_view(
+            Style::default()
+                .column()
+                .width(Length::Percent(100.0))
+                .height(Length::Percent(100.0))
+                .padding(Edges::all(16.0))
+                .gap(12.0)
+                .background(COLOR_WHITE),
+        );
+        let inp: NodeId = ctx.input(
+            InputNodeState::new(
+                "hello".to_string(),
+                "Type here".to_string(),
+                5,
+                false,
+                false,
+                false,
+            ),
+            Style::default()
+                .width(Length::Percent(100.0))
+                .height(Length::Px(42.0)),
+        );
+        ctx.append(sc, inp);
+        for _ in 0..20 {
+            let filler: NodeId = ctx.view(
+                Style::default()
+                    .width(Length::Percent(100.0))
+                    .height(Length::Px(48.0)),
+            );
+            ctx.append(sc, filler);
+        }
+        inp_id = inp;
+        sc
+    });
+    let wid: WindowId = app.get_window_state().get_id();
+    let _: FrameStats = app.step_frame().unwrap();
+    let rect: Rect = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_node(inp_id)
+                .map(|n: &SceneNode| n.get_layout_box().get_bounds())
+                .unwrap_or_default()
+        },
+        Rect::default(),
+    );
+    let ix: f32 = rect.get_x() + rect.get_width() * 0.5;
+    let iy: f32 = rect.get_y() + rect.get_height() * 0.5;
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(1, ix, iy),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(wid, PointerEvent::touch(1, ix, iy)));
+    assert!(app.is_ime_active());
+    app.dispatch_window_event(WindowEvent::Ime(wid, ImeEvent::Disabled));
+    assert!(!app.is_ime_active());
+    let _: FrameStats = app.step_frame().unwrap();
+    assert!(!app.is_ime_active());
+    let still_focused: bool = app.get_scene().with_read(
+        |tree: &SceneTree| tree.get_focus().focused_node() == Some(inp_id),
+        false,
+    );
+    assert!(still_focused);
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(2, ix, iy),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::touch(2, ix, iy + 36.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::touch(2, ix, iy + 36.0),
+    ));
+    assert!(!app.is_ime_active());
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(3, ix, iy),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(wid, PointerEvent::touch(3, ix, iy)));
+    assert!(app.is_ime_active());
+    app.dispatch_window_event(WindowEvent::Ime(wid, ImeEvent::Disabled));
+    assert!(!app.is_ime_active());
+    let _: FrameStats = app.step_frame().unwrap();
+    assert!(!app.is_ime_active());
+    app.dispatch_window_event(WindowEvent::PointerDown(wid, PointerEvent::mouse(ix, iy)));
+    assert!(app.is_ime_active());
+}
+
+#[test]
+fn rounded_overflow_hidden_clips_child_corners_inside_parent_border() {
+    reset_reactive_runtime();
+    let bg_blue: Color = Color::hex(0x0000FF);
+    let border_dark: Color = Color::hex(0x111111);
+    let child_red: Color = Color::hex(0xFF0000);
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(200, 120).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    cfg.set_clear_color(bg_blue);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(|| {
+        let mut ctx: Context = current_context();
+        let root: NodeId = ctx.view(
+            Style::default()
+                .column()
+                .width(Length::Px(200.0))
+                .height(Length::Px(120.0))
+                .padding(Edges::all(20.0))
+                .background(bg_blue),
+        );
+        let card: NodeId = ctx.view(
+            Style::default()
+                .column()
+                .width(Length::Px(160.0))
+                .height(Length::Px(80.0))
+                .background(COLOR_WHITE)
+                .border(2.0, border_dark)
+                .radius(20.0)
+                .overflow(Overflow::Hidden),
+        );
+        let fill_child: NodeId = ctx.view(
+            Style::default()
+                .width(Length::Percent(100.0))
+                .height(Length::Percent(100.0))
+                .background(child_red),
+        );
+        ctx.append(card, fill_child);
+        ctx.append(root, card);
+        root
+    });
+    let _: FrameStats = app.step_frame().unwrap();
+    let mut dl: DisplayList = DisplayList::default();
+    app.get_scene().with_read(
+        |tree: &SceneTree| {
+            PaintPass::build(tree, Size::new(200.0, 120.0), 1.0, bg_blue, &mut dl);
+        },
+        (),
+    );
+    let has_rounded_clip: bool = dl
+        .get_commands()
+        .iter()
+        .any(|c: &DrawCommand| matches!(c, DrawCommand::PushRoundedClip { .. }));
+    assert!(has_rounded_clip);
+    let fb: &Framebuffer = app.get_renderer().framebuffer().unwrap();
+    let outer_corner: Color = fb.get_pixel(21, 21).unwrap();
+    assert_eq!(outer_corner, bg_blue);
+    let inner_center: Color = fb.get_pixel(100, 60).unwrap();
+    assert_eq!(inner_center, child_red);
+    let border_arc: Color = fb.get_pixel(26, 26).unwrap();
+    assert!(
+        border_arc.get_r() < 80,
+        "child fill must not bleed over parent rounded border arc: got {border_arc:?}"
+    );
+}
+
+#[test]
+fn native_display_refresh_rate_updates_context_and_telemetry_above_60hz() {
+    reset_reactive_runtime();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(320, 240).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    assert!(app.display_refresh_rate_hz() >= 60.0);
+    app.update_display_refresh_rate_hz(180.0);
+    assert_eq!(app.display_refresh_rate_hz(), 180.0);
+    assert_eq!(
+        app.get_context().get_display_refresh_rate().get_untracked(),
+        180.0
+    );
+    assert_eq!(app.get_context().get_live_fps().get_untracked(), 180.0);
+    app.report_host_refresh_rate(144.0);
+    assert_eq!(app.display_refresh_rate_hz(), 144.0);
+    assert_eq!(app.get_context().get_live_fps().get_untracked(), 144.0);
+    app.set_fps_limit(Some(120));
+    app.report_host_refresh_rate(180.0);
+    assert_eq!(app.display_refresh_rate_hz(), 180.0);
+    assert_eq!(app.get_context().get_live_fps().get_untracked(), 120.0);
+}
+
+#[test]
+fn fractional_scroll_keeps_card_height_and_text_offset_strictly_invariant_across_dpis() {
+    reset_reactive_runtime();
+    let scene: SceneHandle = SceneHandle::new_tree();
+    let mut ctx: Context = Context::new(scene.clone(), PlatformKind::Headless);
+    let sc: NodeId = ctx.scroll_view(
+        Style::default()
+            .column()
+            .width(Length::Px(360.0))
+            .height(Length::Px(420.0))
+            .padding(Edges::all(13.0))
+            .gap(11.0)
+            .background(COLOR_WHITE),
+    );
+    let card_bg: Color = Color::hex(0xE2E8F0);
+    let card_a: NodeId = ctx.view(
+        Style::default()
+            .column()
+            .width(Length::Percent(100.0))
+            .height(Length::Px(63.4))
+            .padding(Edges::symmetric(9.3, 12.0))
+            .background(card_bg)
+            .border(1.0, Color::hex(0x94A3B8))
+            .radius(10.0),
+    );
+    let title_a: NodeId = ctx.text(
+        "Coherent Scroll Card".to_string(),
+        Style::default().font_size(14.5).color(COLOR_BLACK),
+    );
+    ctx.append(card_a, title_a);
+    ctx.append(sc, card_a);
+    for idx in 0..16u32 {
+        let row: NodeId = ctx.view(
+            Style::default()
+                .width(Length::Percent(100.0))
+                .height(Length::Px(54.0))
+                .background(Color::hex(0xF8FAFC)),
+        );
+        let lbl: NodeId = ctx.text(
+            format!("Row #{idx}"),
+            Style::default().font_size(13.0).color(COLOR_BLACK),
+        );
+        ctx.append(row, lbl);
+        ctx.append(sc, row);
+    }
+    scene.with_write(
+        |tree: &mut SceneTree| {
+            let root: NodeId = tree.get_root();
+            tree.replace_children(root, vec![sc]);
+        },
+        (),
+    );
+    let mut engine: LayoutEngine = LayoutEngine::default();
+    let vp: Size = Size::new(360.0, 420.0);
+    let _: LayoutStats = scene.with_write(
+        |tree: &mut SceneTree| engine.compute(tree, vp),
+        LayoutStats::default(),
+    );
+    let scales: [f32; 6] = [1.0, 1.25, 1.5, 2.0, 2.625, 3.0];
+    let mut dl: DisplayList = DisplayList::default();
+    for scale in scales.into_iter() {
+        let mut expected_card_h: Option<i32> = None;
+        let mut expected_text_rel_y: Option<i32> = None;
+        let mut prev_card_y: Option<i32> = None;
+        for step in 0..40u32 {
+            let sy: f32 = (step as f32) * 0.73;
+            scene.with_write(
+                |tree: &mut SceneTree| {
+                    tree.set_scroll_offset(sc, Point::new(0.0, sy));
+                },
+                (),
+            );
+            scene.with_read(
+                |tree: &SceneTree| {
+                    PaintPass::build(tree, vp, scale, COLOR_WHITE, &mut dl);
+                },
+                (),
+            );
+            let mut card_rect: Option<Rect> = None;
+            let mut text_rect: Option<Rect> = None;
+            for cmd in dl.get_commands().iter() {
+                match cmd {
+                    DrawCommand::FillRoundedRect { rect, color, .. } if *color == card_bg => {
+                        card_rect = Some(snap_physical_rect(*rect, scale));
+                    }
+                    DrawCommand::TextRun { rect, text, .. } if text == "Coherent Scroll Card" => {
+                        text_rect = Some(*rect);
+                    }
+                    _ => {}
+                }
+            }
+            let cr: Rect = card_rect.expect("expected card draw command");
+            let tr: Rect = text_rect.expect("expected text draw command");
+            let orig_text_b: Rect = scene.with_read(
+                |tree: &SceneTree| {
+                    tree.get_node(title_a)
+                        .unwrap()
+                        .get_layout_box()
+                        .get_content_bounds()
+                },
+                Rect::default(),
+            );
+            assert!((tr.get_width() - orig_text_b.get_width()).abs() < 1e-4);
+            assert!((tr.get_height() - orig_text_b.get_height()).abs() < 1e-4);
+            let card_y: i32 = cr.get_y().round() as i32;
+            let card_h: i32 = cr.get_height().round() as i32;
+            let text_y: i32 = (tr.get_y() * scale).round() as i32;
+            if let Some(exp_h) = expected_card_h {
+                assert_eq!(
+                    card_h, exp_h,
+                    "card height shimmered at scale={scale} step={step}: {card_h} != {exp_h}"
+                );
+            } else {
+                expected_card_h = Some(card_h);
+            }
+            let rel_y: i32 = text_y - card_y;
+            if let Some(exp_rel) = expected_text_rel_y {
+                assert_eq!(
+                    rel_y, exp_rel,
+                    "text drifted relative to card at scale={scale} step={step}: {rel_y} != {exp_rel}"
+                );
+            } else {
+                expected_text_rel_y = Some(rel_y);
+            }
+            if let Some(py) = prev_card_y {
+                assert!(
+                    card_y <= py,
+                    "card jumped backwards during downward scroll at scale={scale} step={step}: {card_y} > {py}"
+                );
+            }
+            prev_card_y = Some(card_y);
+        }
+    }
+}
+
+#[test]
+fn hierarchical_transform_propagates_to_children_and_hit_test_in_pixel_lockstep() {
+    reset_reactive_runtime();
+    let scene: SceneHandle = SceneHandle::new_tree();
+    let mut ctx: Context = Context::new(scene.clone(), PlatformKind::Headless);
+    let panel_bg: Color = Color::hex(0x1E293B);
+    let btn_bg: Color = Color::hex(0x2563EB);
+    let panel: NodeId = ctx.view(
+        Style::default()
+            .column()
+            .width(Length::Px(220.0))
+            .height(Length::Px(140.0))
+            .padding(Edges::all(16.0))
+            .background(panel_bg),
+    );
+    let btn: NodeId = ctx.view(
+        Style::default()
+            .width(Length::Px(120.0))
+            .height(Length::Px(40.0))
+            .background(btn_bg),
+    );
+    let btn_txt: NodeId = ctx.text(
+        "Slide Action".to_string(),
+        Style::default().font_size(14.0).color(COLOR_WHITE),
+    );
+    ctx.append(btn, btn_txt);
+    ctx.append(panel, btn);
+    scene.with_write(
+        |tree: &mut SceneTree| {
+            let root: NodeId = tree.get_root();
+            tree.replace_children(root, vec![panel]);
+        },
+        (),
+    );
+    let mut engine: LayoutEngine = LayoutEngine::default();
+    let vp: Size = Size::new(600.0, 400.0);
+    let _: LayoutStats = scene.with_write(
+        |tree: &mut SceneTree| engine.compute(tree, vp),
+        LayoutStats::default(),
+    );
+    let scale: f32 = 2.0;
+    let mut dl_base: DisplayList = DisplayList::default();
+    scene.with_read(
+        |tree: &SceneTree| {
+            PaintPass::build(tree, vp, scale, COLOR_WHITE, &mut dl_base);
+        },
+        (),
+    );
+    let extract_positions: &dyn Fn(&DisplayList) -> (i32, i32, i32) =
+        &|dl: &DisplayList| -> (i32, i32, i32) {
+            let mut px: i32 = 0;
+            let mut bx: i32 = 0;
+            let mut tx: i32 = 0;
+            for cmd in dl.get_commands().iter() {
+                match cmd {
+                    DrawCommand::FillRoundedRect { rect, color, .. } if *color == panel_bg => {
+                        px = snap_physical_rect(*rect, scale).get_x().round() as i32;
+                    }
+                    DrawCommand::FillRoundedRect { rect, color, .. } if *color == btn_bg => {
+                        bx = snap_physical_rect(*rect, scale).get_x().round() as i32;
+                    }
+                    DrawCommand::TextRun { rect, text, .. } if text == "Slide Action" => {
+                        tx = (rect.get_x() * scale).round() as i32;
+                    }
+                    _ => {}
+                }
+            }
+            (px, bx, tx)
+        };
+    let (p0, b0, t0): (i32, i32, i32) = extract_positions(&dl_base);
+    let shift_dp: f32 = 143.7;
+    scene.with_write(
+        |tree: &mut SceneTree| {
+            if let Some(n) = tree.get_node_mut(panel) {
+                let mut st: Style = n.get_style();
+                st.get_mut_paint()
+                    .set_transform(Transform2D::new(shift_dp, 18.2, 1.0, 1.0, 0.0));
+                n.set_style(st);
+            }
+            tree.mark_dirty(panel, DIRTY_PAINT);
+        },
+        (),
+    );
+    let mut dl_shifted: DisplayList = DisplayList::default();
+    scene.with_read(
+        |tree: &SceneTree| {
+            PaintPass::build(tree, vp, scale, COLOR_WHITE, &mut dl_shifted);
+        },
+        (),
+    );
+    let (p1, b1, t1): (i32, i32, i32) = extract_positions(&dl_shifted);
+    let expected_dx: i32 = (shift_dp * scale).round() as i32;
+    assert_eq!(p1 - p0, expected_dx);
+    assert_eq!(b1 - b0, expected_dx);
+    assert_eq!(t1 - t0, expected_dx);
+    let hit_shifted: Option<NodeId> = scene.with_read(
+        |tree: &SceneTree| {
+            let b: Rect = tree.node_screen_bounds(btn).unwrap();
+            hit_test(
+                tree,
+                Point::new(
+                    b.get_x() + b.get_width() * 0.5,
+                    b.get_y() + b.get_height() * 0.5,
+                ),
+            )
+        },
+        None,
+    );
+    assert!(hit_shifted == Some(btn) || hit_shifted == Some(btn_txt));
+    let hit_old: Option<NodeId> = scene.with_read(
+        |tree: &SceneTree| hit_test(tree, Point::new(40.0, 30.0)),
+        None,
+    );
+    assert_ne!(hit_old, Some(btn));
+    assert_ne!(hit_old, Some(btn_txt));
+}
+
+#[test]
+fn scroll_transitions_and_fixed_size_text_updates_trigger_zero_layout_recomputation() {
+    reset_reactive_runtime();
+    let scene: SceneHandle = SceneHandle::new_tree();
+    let mut ctx: Context = Context::new(scene.clone(), PlatformKind::Headless);
+    let root_col: NodeId = ctx.view(
+        Style::default()
+            .column()
+            .width(Length::Px(400.0))
+            .height(Length::Px(400.0))
+            .background(COLOR_WHITE),
+    );
+    let fps_txt: NodeId = ctx.text(
+        "60 FPS".to_string(),
+        Style::default()
+            .width(Length::Px(50.0))
+            .height(Length::Px(14.0))
+            .font_size(11.0),
+    );
+    let sc: NodeId = ctx.scroll_view(
+        Style::default()
+            .column()
+            .width(Length::Percent(100.0))
+            .height(Length::Px(320.0)),
+    );
+    for _ in 0..20 {
+        let item: NodeId = ctx.view(
+            Style::default()
+                .width(Length::Percent(100.0))
+                .height(Length::Px(48.0)),
+        );
+        ctx.append(sc, item);
+    }
+    ctx.append(root_col, fps_txt);
+    ctx.append(root_col, sc);
+    scene.with_write(
+        |tree: &mut SceneTree| {
+            let root: NodeId = tree.get_root();
+            tree.replace_children(root, vec![root_col]);
+        },
+        (),
+    );
+    let mut engine: LayoutEngine = LayoutEngine::default();
+    let vp: Size = Size::new(400.0, 400.0);
+    let init: LayoutStats = scene.with_write(
+        |tree: &mut SceneTree| engine.compute(tree, vp),
+        LayoutStats::default(),
+    );
+    assert!(init.get_nodes_computed() > 0);
+    scene.with_write(
+        |tree: &mut SceneTree| {
+            tree.set_scroll_offset(sc, Point::new(0.0, 84.5));
+            tree.set_text(fps_txt, "180 FPS".to_string());
+            tree.start_transition(NodeTransition::route_slide_enter(sc, 160.0));
+        },
+        (),
+    );
+    for _ in 0..10 {
+        let step_layout: LayoutStats = scene.with_write(
+            |tree: &mut SceneTree| {
+                let _: bool = tree.tick_transitions(1.0 / 120.0);
+                engine.compute(tree, vp)
+            },
+            LayoutStats::default(),
+        );
+        assert_eq!(step_layout.get_nodes_computed(), 0);
+    }
+}

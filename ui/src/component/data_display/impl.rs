@@ -399,11 +399,18 @@ impl EuvList {
                 background: p.get_card()
                 border: (g.get_border_width(), p.get_border())
                 radius: g.get_radius_md()
-                for item in items.into_iter() {
+                overflow: Overflow::Hidden
+                for (idx, item) in items.into_iter().enumerate() {
+                    if idx > 0 {
+                        view {
+                            width: Length::Percent(100.0)
+                            height: Length::Px(g.get_border_width().max(1.0))
+                            background: p.get_border()
+                        }
+                    }
                     row {
                         width: Length::Percent(100.0)
                         padding: Edges::symmetric(SPACE_SM, SPACE_MD)
-                        border: (g.get_border_width(), p.get_border())
                         text {
                             font_size: 13.0
                             color: p.get_foreground()
@@ -571,6 +578,7 @@ impl EuvTree {
                 background: p.get_card()
                 border: (g.get_border_width(), p.get_border())
                 radius: g.get_radius_md()
+                overflow: Overflow::Hidden
                 ..branch_nodes
             }
         }

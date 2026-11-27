@@ -452,7 +452,10 @@ pub(crate) const IDENT_FB_ROOT: &str = "__euv_fb_root";
 
 /// Error message when an element tag has neither `{ ... }` body nor `(args...)`.
 pub(crate) const ERR_EXPECTED_BODY_OR_ARGS: &str =
-    "expected `{ ... }` body or `(args...)` after element tag";
+    "expected `{ ... }` body after element or component tag";
+
+/// Error message when a PascalCase component passes positional `(...)` arguments instead of named attributes inside `{ ... }`.
+pub(crate) const ERR_COMPONENT_POSITIONAL_ARGS: &str = "component parameters must be passed as named attributes inside `Component { prop: value }` instead of positional `(...)` arguments";
 
 /// Legacy Web/HTML container tags rejected with native migration guidance.
 pub(crate) const HTML_CONTAINER_TAGS: &[&str] = &[
@@ -478,7 +481,8 @@ pub(crate) const HTML_REPLACE_CONTAINER: &str = "`column`, `row`, `view`, or `gr
 pub(crate) const HTML_REPLACE_TEXT: &str = "`text`";
 
 /// Error message suffix for legacy HTML button/link tags.
-pub(crate) const HTML_REPLACE_BUTTON: &str = "`EuvButton(...)` or `view { on_click: ... }`";
+pub(crate) const HTML_REPLACE_BUTTON: &str =
+    "`EuvButton { label: \"...\" tokens: tokens }` or `view { on_click: ... }`";
 
 /// Error message suffix for legacy HTML image tag.
 pub(crate) const HTML_REPLACE_IMAGE: &str = "`image { source: ... }`";

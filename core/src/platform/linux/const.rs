@@ -4,6 +4,21 @@ pub(crate) const LINUX_LIB_X11: &str = "libX11.so.6\0";
 /// Shared library name for Linux Wayland client runtime.
 pub(crate) const LINUX_LIB_WAYLAND: &str = "libwayland-client.so.0\0";
 
+/// Shared library name for Linux XRandR extension runtime.
+pub(crate) const LINUX_LIB_XRANDR: &str = "libXrandr.so.2\0";
+
+/// Dynamic symbol for `XRRGetScreenInfo`.
+pub(crate) const SYM_XRR_GET_SCREEN_INFO: &str = "XRRGetScreenInfo\0";
+
+/// Dynamic symbol for `XRRConfigCurrentRate`.
+pub(crate) const SYM_XRR_CONFIG_CURRENT_RATE: &str = "XRRConfigCurrentRate\0";
+
+/// Dynamic symbol for `XRRFreeScreenConfigInfo`.
+pub(crate) const SYM_XRR_FREE_SCREEN_CONFIG_INFO: &str = "XRRFreeScreenConfigInfo\0";
+
+/// Environment variable overriding detected display refresh rate in Hertz on Linux.
+pub(crate) const LINUX_REFRESH_ENV_VAR: &str = "EUV_REFRESH_RATE_HZ";
+
 /// Dynamic symbol for `XOpenDisplay`.
 pub(crate) const SYM_X_OPEN_DISPLAY: &str = "XOpenDisplay\0";
 

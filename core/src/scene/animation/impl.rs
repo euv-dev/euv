@@ -218,7 +218,7 @@ impl NodeTransition {
         self
     }
 
-    /// Creates a standard route-switch entrance transition (`220ms EaseOutCubic`, fade + 12px upward glide).
+    /// Creates a standard route-switch entrance transition (`240ms EaseOutQuint`, fade + 14px upward glide).
     ///
     /// # Arguments
     ///
@@ -233,17 +233,77 @@ impl NodeTransition {
             node,
             elapsed: 0.0,
             delay: 0.0,
-            duration: 0.24,
+            duration: 0.22,
             easing: Easing::EaseOutQuint,
             from_opacity: 0.0,
             to_opacity: 1.0,
             from_tx: 0.0,
             to_tx: 0.0,
-            from_ty: 14.0,
+            from_ty: 12.0,
             to_ty: 0.0,
-            from_scale: 0.992,
+            from_scale: 1.0,
             to_scale: 1.0,
             hide_on_complete: false,
+        }
+    }
+
+    /// Creates a directional horizontal page-slide entrance transition (`260ms EaseOutQuint`, opaque crisp slide).
+    ///
+    /// # Arguments
+    ///
+    /// - `NodeId` - Incoming page container node.
+    /// - `f32` - Starting horizontal translation offset in logical pixels (`+px` enters from right, `-px` enters from left).
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Directional horizontal route entrance transition.
+    #[must_use]
+    pub fn route_slide_enter(node: NodeId, start_tx: f32) -> Self {
+        Self {
+            node,
+            elapsed: 0.0,
+            delay: 0.0,
+            duration: 0.26,
+            easing: Easing::EaseOutQuint,
+            from_opacity: 1.0,
+            to_opacity: 1.0,
+            from_tx: start_tx,
+            to_tx: 0.0,
+            from_ty: 0.0,
+            to_ty: 0.0,
+            from_scale: 1.0,
+            to_scale: 1.0,
+            hide_on_complete: false,
+        }
+    }
+
+    /// Creates a directional horizontal page-slide exit transition (`220ms EaseOutQuint`) hiding the node on completion.
+    ///
+    /// # Arguments
+    ///
+    /// - `NodeId` - Outgoing page container node.
+    /// - `f32` - Ending horizontal translation offset in logical pixels (`-px` exits left, `+px` exits right).
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Directional horizontal route exit transition.
+    #[must_use]
+    pub fn route_slide_exit(node: NodeId, end_tx: f32) -> Self {
+        Self {
+            node,
+            elapsed: 0.0,
+            delay: 0.0,
+            duration: 0.22,
+            easing: Easing::EaseOutQuint,
+            from_opacity: 1.0,
+            to_opacity: 0.25,
+            from_tx: 0.0,
+            to_tx: end_tx,
+            from_ty: 0.0,
+            to_ty: 0.0,
+            from_scale: 1.0,
+            to_scale: 1.0,
+            hide_on_complete: true,
         }
     }
 

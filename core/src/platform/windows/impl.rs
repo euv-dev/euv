@@ -298,4 +298,23 @@ impl PlatformBackend for WindowsPlatform {
     fn system_theme(&self) -> ThemeMode {
         ThemeMode::Light
     }
+
+    /// Queries the active Win32 monitor refresh rate via GDI `GetDeviceCaps`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Platform reference.
+    ///
+    /// # Returns
+    ///
+    /// - `f32` - Active monitor refresh rate in Hertz.
+    fn display_refresh_rate_hz(&self) -> f32 {
+        let hwnd: usize = self
+            .get_windows()
+            .values()
+            .next()
+            .map(WindowsWindowRecord::get_hwnd)
+            .unwrap_or(0);
+        win32_display_refresh_rate_hz(hwnd)
+    }
 }

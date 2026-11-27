@@ -4,12 +4,12 @@
 
 **Dev-Only AI Schema v1 Bridge & Programmatic UI Automation**
 
-[![Crates.io Version](https://img.shields.io/crates/v/euv-automation.svg?style=flat-square)](https://crates.io/crates/euv-automation)
-[![Crates.io Downloads](https://img.shields.io/crates/d/euv-automation.svg?style=flat-square)](https://crates.io/crates/euv-automation)
+[![Crates.io Version](https://flat.badgen.net/crates/v/euv-automation)](https://crates.io/crates/euv-automation)
+[![Crates.io Downloads](https://flat.badgen.net/crates/d/euv-automation)](https://crates.io/crates/euv-automation)
 [![Docs.rs](https://img.shields.io/docsrs/euv-automation?style=flat-square)](https://docs.rs/euv-automation)
 [![CI Status](https://img.shields.io/github/actions/workflow/status/euv-dev/euv/rust.yml?style=flat-square&label=CI)](https://github.com/euv-dev/euv/actions)
 [![Rust 2024](https://img.shields.io/badge/edition-2024-orange.svg?style=flat-square)](https://www.rust-lang.org)
-[![License: MIT](https://img.shields.io/crates/l/euv-automation.svg?style=flat-square)](../LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](../LICENSE)
 
 [Workspace Overview](../README.md) · [API Docs](https://docs.rs/euv-automation/latest/) · [Agent Engineering Rules](../AGENTS.md)
 

@@ -161,4 +161,10 @@ pub struct App {
     /// Damage region rasterized during the most recent rendered frame for partial native surface presentation.
     #[get(type(copy))]
     pub(crate) last_frame_damage: DamageRegion,
+    /// Detected native hardware display refresh rate in Hertz (`60.0` fallback, `120.0`/`144.0`/`180.0`+ on high-refresh screens).
+    #[get(type(copy))]
+    pub(crate) display_refresh_rate_hz: f32,
+    /// Whether motion animations, smooth scrolling, inertia, or active games were running on the previous frame.
+    #[get(type(copy))]
+    pub(crate) was_animating: bool,
 }

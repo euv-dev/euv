@@ -77,7 +77,11 @@ impl EuvImage {
         let h_px: f32 = self.get_height_px();
         let format_lbl: String = self.get_asset().get_metadata().get_format_label().clone();
         let img_buf: ImageBuffer = self.get_asset().get_buffer().clone();
-        let caption: String = self.get_caption().clone();
+        let caption: String = if self.get_caption().is_empty() {
+            self.get_asset().get_alt_text().clone()
+        } else {
+            self.get_caption().clone()
+        };
         let aspect: f32 =
             (img_buf.get_width().max(1) as f32) / (img_buf.get_height().max(1) as f32);
         let fit_w: f32 = (h_px * aspect).round().max(48.0);
@@ -89,6 +93,7 @@ impl EuvImage {
                 background: p.get_card()
                 border: (g.get_border_width(), p.get_border())
                 radius: g.get_radius_lg()
+                overflow: Overflow::Hidden
                 row {
                     flex_wrap: FlexWrap::Wrap
                     width: Length::Percent(100.0)
@@ -101,7 +106,11 @@ impl EuvImage {
                         color: p.get_card_foreground()
                         { caption }
                     }
-                    EuvBadge(format_lbl, EuvTone::Primary, tokens)
+                    EuvBadge {
+                        label: format_lbl
+                        tone: EuvTone::Primary
+                        tokens: tokens
+                    }
                 }
                 row {
                     width: Length::Percent(100.0)
@@ -185,6 +194,7 @@ impl EuvSvgView {
                 background: p.get_card()
                 border: (g.get_border_width(), p.get_border())
                 radius: g.get_radius_lg()
+                overflow: Overflow::Hidden
                 row {
                     flex_wrap: FlexWrap::Wrap
                     width: Length::Percent(100.0)
@@ -197,7 +207,11 @@ impl EuvSvgView {
                         color: p.get_card_foreground()
                         { label }
                     }
-                    EuvBadge(badge_txt, EuvTone::Primary, tokens)
+                    EuvBadge {
+                        label: badge_txt
+                        tone: EuvTone::Primary
+                        tokens: tokens
+                    }
                 }
                 row {
                     width: Length::Percent(100.0)
@@ -269,6 +283,7 @@ impl EuvGifPlayer {
                 background: p.get_card()
                 border: (g.get_border_width(), p.get_border())
                 radius: g.get_radius_lg()
+                overflow: Overflow::Hidden
                 bind_children: move || {
                     let anim: GifAnimation = sig.get();
                     let total_f: usize = anim.get_frames().len().max(1);
@@ -292,11 +307,11 @@ impl EuvGifPlayer {
                                     color: p.get_card_foreground()
                                     { anim.get_metadata().get_title().clone() }
                                 }
-                                EuvBadge(
-                                    format!("GIF · Frame {cur_f}/{total_f}"),
-                                    if is_playing { EuvTone::Success } else { EuvTone::Neutral },
-                                    tokens,
-                                )
+                                EuvBadge {
+                                    label: format!("GIF · Frame {cur_f}/{total_f}")
+                                    tone: if is_playing { EuvTone::Success } else { EuvTone::Neutral }
+                                    tokens: tokens
+                                }
                             }
                         },
                         view! {
@@ -318,15 +333,14 @@ impl EuvGifPlayer {
                             }
                         },
                         view! {
-                            EuvActionRow() {
-                                EuvButton(
-                                    if is_playing {
+                            EuvActionRow {
+                                EuvButton {
+                                    label: if is_playing {
                                         LABEL_PAUSE_GIF.to_string()
                                     } else {
                                         LABEL_PLAY_GIF.to_string()
-                                    },
-                                    tokens,
-                                ) {
+                                    }
+                                    tokens: tokens
                                     sm()
                                     on_click: move |_: &UiEvent| {
                                         let mut next: GifAnimation = sig.get_untracked();
@@ -335,7 +349,9 @@ impl EuvGifPlayer {
                                         let _: bool = sig.set(next);
                                     }
                                 }
-                                EuvButton(LABEL_NEXT_FRAME.to_string(), tokens) {
+                                EuvButton {
+                                    label: LABEL_NEXT_FRAME.to_string()
+                                    tokens: tokens
                                     secondary()
                                     sm()
                                     on_click: move |_: &UiEvent| {
@@ -404,6 +420,7 @@ impl EuvLivePhoto {
                 background: p.get_card()
                 border: (g.get_border_width(), p.get_border())
                 radius: g.get_radius_lg()
+                overflow: Overflow::Hidden
                 bind_children: move || {
                     let live: LivePhotoAsset = sig.get();
                     let active: bool = live.get_active_motion();
@@ -428,15 +445,15 @@ impl EuvLivePhoto {
                                     color: p.get_card_foreground()
                                     { live.get_metadata().get_title().clone() }
                                 }
-                                EuvBadge(
-                                    if active {
+                                EuvBadge {
+                                    label: if active {
                                         LABEL_LIVE_PLAYING.to_string()
                                     } else {
                                         LABEL_LIVE_PHOTO.to_string()
-                                    },
-                                    if active { EuvTone::Warning } else { EuvTone::Primary },
-                                    tokens,
-                                )
+                                    }
+                                    tone: if active { EuvTone::Warning } else { EuvTone::Primary }
+                                    tokens: tokens
+                                }
                             }
                         },
                         view! {
@@ -475,15 +492,14 @@ impl EuvLivePhoto {
                             }
                         },
                         view! {
-                            EuvActionRow() {
-                                EuvButton(
-                                    if active {
+                            EuvActionRow {
+                                EuvButton {
+                                    label: if active {
                                         LABEL_STOP_LIVE.to_string()
                                     } else {
                                         LABEL_TRIGGER_LIVE.to_string()
-                                    },
-                                    tokens,
-                                ) {
+                                    }
+                                    tokens: tokens
                                     sm()
                                     on_click: move |_: &UiEvent| {
                                         let mut next: LivePhotoAsset = sig.get_untracked();
@@ -495,14 +511,13 @@ impl EuvLivePhoto {
                                         let _: bool = sig.set(next);
                                     }
                                 }
-                                EuvButton(
-                                    if muted {
+                                EuvButton {
+                                    label: if muted {
                                         LABEL_UNMUTE.to_string()
                                     } else {
                                         LABEL_MUTE.to_string()
-                                    },
-                                    tokens,
-                                ) {
+                                    }
+                                    tokens: tokens
                                     outline()
                                     sm()
                                     on_click: move |_: &UiEvent| {
@@ -596,6 +611,7 @@ impl EuvVideoPlayer {
                 background: p.get_card()
                 border: (g.get_border_width(), p.get_border())
                 radius: g.get_radius_lg()
+                overflow: Overflow::Hidden
                 bind_children: move || {
                     let track: VideoTrack = sig.get();
                     let playing: bool = track.get_state() == PlaybackState::Playing;
@@ -629,11 +645,11 @@ impl EuvVideoPlayer {
                                     color: p.get_card_foreground()
                                     { track.get_metadata().get_title().clone() }
                                 }
-                                EuvBadge(
-                                    track.get_metadata().get_format_label().clone(),
-                                    if playing { EuvTone::Success } else { EuvTone::Primary },
-                                    tokens,
-                                )
+                                EuvBadge {
+                                    label: track.get_metadata().get_format_label().clone()
+                                    tone: if playing { EuvTone::Success } else { EuvTone::Primary }
+                                    tokens: tokens
+                                }
                             }
                         },
                         view! {
@@ -662,18 +678,20 @@ impl EuvVideoPlayer {
                             }
                         },
                         view! {
-                            EuvProgress((cur / dur).clamp(0.0, 1.0), tokens)
+                            EuvProgress {
+                                value: (cur / dur).clamp(0.0, 1.0)
+                                tokens: tokens
+                            }
                         },
                         view! {
-                            EuvActionRow() {
-                                EuvButton(
-                                    if playing {
+                            EuvActionRow {
+                                EuvButton {
+                                    label: if playing {
                                         LABEL_PAUSE_VIDEO.to_string()
                                     } else {
                                         LABEL_PLAY_VIDEO.to_string()
-                                    },
-                                    tokens,
-                                ) {
+                                    }
+                                    tokens: tokens
                                     sm()
                                     on_click: move |_: &UiEvent| {
                                         let mut next: VideoTrack = sig.get_untracked();
@@ -684,7 +702,9 @@ impl EuvVideoPlayer {
                                         let _: bool = sig.set(next);
                                     }
                                 }
-                                EuvButton(LABEL_SEEK_BACK_3S.to_string(), tokens) {
+                                EuvButton {
+                                    label: LABEL_SEEK_BACK_3S.to_string()
+                                    tokens: tokens
                                     secondary()
                                     sm()
                                     on_click: move |_: &UiEvent| {
@@ -694,7 +714,9 @@ impl EuvVideoPlayer {
                                         let _: bool = sig.set(next);
                                     }
                                 }
-                                EuvButton(LABEL_SEEK_FWD_3S.to_string(), tokens) {
+                                EuvButton {
+                                    label: LABEL_SEEK_FWD_3S.to_string()
+                                    tokens: tokens
                                     secondary()
                                     sm()
                                     on_click: move |_: &UiEvent| {
@@ -704,7 +726,9 @@ impl EuvVideoPlayer {
                                         let _: bool = sig.set(next);
                                     }
                                 }
-                                EuvButton(format!("{rate:.1}x"), tokens) {
+                                EuvButton {
+                                    label: format!("{rate:.1}x")
+                                    tokens: tokens
                                     outline()
                                     sm()
                                     on_click: move |_: &UiEvent| {
@@ -721,14 +745,13 @@ impl EuvVideoPlayer {
                                         let _: bool = sig.set(next);
                                     }
                                 }
-                                EuvButton(
-                                    if muted {
+                                EuvButton {
+                                    label: if muted {
                                         LABEL_UNMUTE.to_string()
                                     } else {
                                         LABEL_MUTE.to_string()
-                                    },
-                                    tokens,
-                                ) {
+                                    }
+                                    tokens: tokens
                                     ghost()
                                     sm()
                                     on_click: move |_: &UiEvent| {
@@ -791,6 +814,7 @@ impl EuvAudioPlayer {
                 background: p.get_card()
                 border: (g.get_border_width(), p.get_border())
                 radius: g.get_radius_lg()
+                overflow: Overflow::Hidden
                 bind_children: move || {
                     let track: AudioTrack = sig.get();
                     let playing: bool = track.get_state() == PlaybackState::Playing;
@@ -816,11 +840,11 @@ impl EuvAudioPlayer {
                                     color: p.get_card_foreground()
                                     { track.get_metadata().get_title().clone() }
                                 }
-                                EuvBadge(
-                                    track.get_metadata().get_format_label().clone(),
-                                    EuvTone::Primary,
-                                    tokens,
-                                )
+                                EuvBadge {
+                                    label: track.get_metadata().get_format_label().clone()
+                                    tone: EuvTone::Primary
+                                    tokens: tokens
+                                }
                             }
                         },
                         view! {
@@ -876,15 +900,14 @@ impl EuvAudioPlayer {
                             }
                         },
                         view! {
-                            EuvActionRow() {
-                                EuvButton(
-                                    if playing {
+                            EuvActionRow {
+                                EuvButton {
+                                    label: if playing {
                                         LABEL_PAUSE_AUDIO.to_string()
                                     } else {
                                         LABEL_PLAY_AUDIO.to_string()
-                                    },
-                                    tokens,
-                                ) {
+                                    }
+                                    tokens: tokens
                                     sm()
                                     on_click: move |_: &UiEvent| {
                                         let mut next: AudioTrack = sig.get_untracked();
@@ -895,7 +918,9 @@ impl EuvAudioPlayer {
                                         let _: bool = sig.set(next);
                                     }
                                 }
-                                EuvButton(LABEL_SEEK_BACK_2S.to_string(), tokens) {
+                                EuvButton {
+                                    label: LABEL_SEEK_BACK_2S.to_string()
+                                    tokens: tokens
                                     secondary()
                                     sm()
                                     on_click: move |_: &UiEvent| {
@@ -905,7 +930,9 @@ impl EuvAudioPlayer {
                                         let _: bool = sig.set(next);
                                     }
                                 }
-                                EuvButton(LABEL_SEEK_FWD_2S.to_string(), tokens) {
+                                EuvButton {
+                                    label: LABEL_SEEK_FWD_2S.to_string()
+                                    tokens: tokens
                                     secondary()
                                     sm()
                                     on_click: move |_: &UiEvent| {
@@ -915,14 +942,13 @@ impl EuvAudioPlayer {
                                         let _: bool = sig.set(next);
                                     }
                                 }
-                                EuvButton(
-                                    if muted {
+                                EuvButton {
+                                    label: if muted {
                                         LABEL_UNMUTE_AUDIO.to_string()
                                     } else {
                                         LABEL_MUTE_AUDIO.to_string()
-                                    },
-                                    tokens,
-                                ) {
+                                    }
+                                    tokens: tokens
                                     outline()
                                     sm()
                                     on_click: move |_: &UiEvent| {
@@ -987,6 +1013,7 @@ impl EuvPdfViewer {
                 background: p.get_card()
                 border: (g.get_border_width(), p.get_border())
                 radius: g.get_radius_lg()
+                overflow: Overflow::Hidden
                 bind_children: move || {
                     let doc: PdfDocument = sig.get();
                     let total_pages: usize = doc.get_pages().len().max(1);
@@ -1012,22 +1039,24 @@ impl EuvPdfViewer {
                                     color: p.get_card_foreground()
                                     { doc.get_title().clone() }
                                 }
-                                EuvBadge(
-                                    format!(
+                                EuvBadge {
+                                    label: format!(
                                         "PDF {} · Page {}/{} · {}%",
                                         doc.get_version(),
                                         cur_page + 1,
                                         total_pages,
                                         zoom_pct
-                                    ),
-                                    EuvTone::Destructive,
-                                    tokens,
-                                )
+                                    )
+                                    tone: EuvTone::Destructive
+                                    tokens: tokens
+                                }
                             }
                         },
                         view! {
-                            EuvActionRow() {
-                                EuvButton(LABEL_PREV_PAGE.to_string(), tokens) {
+                            EuvActionRow {
+                                EuvButton {
+                                    label: LABEL_PREV_PAGE.to_string()
+                                    tokens: tokens
                                     secondary()
                                     sm()
                                     on_click: move |_: &UiEvent| {
@@ -1036,7 +1065,9 @@ impl EuvPdfViewer {
                                         let _: bool = sig.set(next);
                                     }
                                 }
-                                EuvButton(LABEL_NEXT_PAGE.to_string(), tokens) {
+                                EuvButton {
+                                    label: LABEL_NEXT_PAGE.to_string()
+                                    tokens: tokens
                                     secondary()
                                     sm()
                                     on_click: move |_: &UiEvent| {
@@ -1045,7 +1076,9 @@ impl EuvPdfViewer {
                                         let _: bool = sig.set(next);
                                     }
                                 }
-                                EuvButton(LABEL_ZOOM_OUT.to_string(), tokens) {
+                                EuvButton {
+                                    label: LABEL_ZOOM_OUT.to_string()
+                                    tokens: tokens
                                     outline()
                                     sm()
                                     on_click: move |_: &UiEvent| {
@@ -1054,7 +1087,9 @@ impl EuvPdfViewer {
                                         let _: bool = sig.set(next);
                                     }
                                 }
-                                EuvButton(LABEL_ZOOM_IN.to_string(), tokens) {
+                                EuvButton {
+                                    label: LABEL_ZOOM_IN.to_string()
+                                    tokens: tokens
                                     outline()
                                     sm()
                                     on_click: move |_: &UiEvent| {
@@ -1227,15 +1262,15 @@ impl EuvHtmlView {
                         color: p.get_card_foreground()
                         { document.get_title().clone() }
                     }
-                    EuvBadge(
-                        format!(
+                    EuvBadge {
+                        label: format!(
                             "HTML5 · {} blocks · {} links",
                             document.get_blocks().len(),
                             document.get_links_count()
-                        ),
-                        EuvTone::Success,
-                        tokens,
-                    )
+                        )
+                        tone: EuvTone::Success
+                        tokens: tokens
+                    }
                 }
                 for block in document.get_blocks().iter() {
                     match block.get_kind() {
@@ -1292,7 +1327,9 @@ impl EuvHtmlView {
                             color: p.get_card_foreground()
                             { format!("• {}", block.get_text()) }
                         },
-                        HtmlNodeKind::Link => EuvButton(block.get_text().clone(), tokens) {
+                        HtmlNodeKind::Link => EuvButton {
+                            label: block.get_text().clone()
+                            tokens: tokens
                             outline()
                             sm()
                             on_click: {
@@ -1313,7 +1350,9 @@ impl EuvHtmlView {
                             color: p.get_muted_foreground()
                             { format!("[Image: {}]", block.get_text()) }
                         },
-                        HtmlNodeKind::HorizontalRule => EuvDivider(false, tokens),
+                        HtmlNodeKind::HorizontalRule => EuvDivider {
+                            tokens: tokens
+                        },
                     }
                 }
             }

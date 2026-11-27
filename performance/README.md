@@ -4,12 +4,12 @@
 
 **Reproducible CPU, Layout, Reactivity, Virtual List & 3D Benchmark Harness**
 
-[![Crates.io Version](https://img.shields.io/crates/v/euv-performance.svg?style=flat-square)](https://crates.io/crates/euv-performance)
-[![Crates.io Downloads](https://img.shields.io/crates/d/euv-performance.svg?style=flat-square)](https://crates.io/crates/euv-performance)
+[![Crates.io Version](https://flat.badgen.net/crates/v/euv-performance)](https://crates.io/crates/euv-performance)
+[![Crates.io Downloads](https://flat.badgen.net/crates/d/euv-performance)](https://crates.io/crates/euv-performance)
 [![Docs.rs](https://img.shields.io/docsrs/euv-performance?style=flat-square)](https://docs.rs/euv-performance)
 [![CI Status](https://img.shields.io/github/actions/workflow/status/euv-dev/euv/rust.yml?style=flat-square&label=CI)](https://github.com/euv-dev/euv/actions)
 [![Rust 2024](https://img.shields.io/badge/edition-2024-orange.svg?style=flat-square)](https://www.rust-lang.org)
-[![License: MIT](https://img.shields.io/crates/l/euv-performance.svg?style=flat-square)](../LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](../LICENSE)
 
 [Workspace Overview](../README.md) · [API Docs](https://docs.rs/euv-performance/latest/) · [Agent Engineering Rules](../AGENTS.md)
 

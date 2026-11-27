@@ -367,22 +367,32 @@ impl SceneTree {
     /// - `NodeId` - Target text node handle.
     /// - `String` - Replacement text string.
     pub fn set_text(&mut self, id: NodeId, text: String) {
-        let changed: bool = match self.get_node_mut(id) {
-            Some(node) => match node.get_mut_kind() {
-                NodeKind::Text(current) => {
-                    if *current == text {
-                        false
-                    } else {
-                        *current = text;
-                        true
+        let (changed, fixed_size): (bool, bool) = match self.get_node_mut(id) {
+            Some(node) => {
+                let layout: LayoutStyle = node.get_style().get_layout();
+                let has_fixed: bool = matches!(layout.get_width(), Length::Px(_))
+                    && matches!(layout.get_height(), Length::Px(_));
+                match node.get_mut_kind() {
+                    NodeKind::Text(current) => {
+                        if *current == text {
+                            (false, has_fixed)
+                        } else {
+                            *current = text;
+                            (true, has_fixed)
+                        }
                     }
+                    _ => (false, false),
                 }
-                _ => false,
-            },
-            None => false,
+            }
+            None => (false, false),
         };
         if changed {
-            self.mark_dirty(id, DIRTY_TEXT_CHANGE_MASK);
+            let mask: u16 = if fixed_size {
+                DIRTY_PAINT
+            } else {
+                DIRTY_TEXT_CHANGE_MASK
+            };
+            self.mark_dirty(id, mask);
         }
     }
 
@@ -455,7 +465,7 @@ impl SceneTree {
         }
     }
 
-    /// Computes screen-space logical bounds for `id` after subtracting ancestor scroll offsets.
+    /// Computes screen-space logical bounds for `id` after applying ancestor scroll offsets and transforms.
     ///
     /// # Arguments
     ///
@@ -470,11 +480,30 @@ impl SceneTree {
         let node: &SceneNode = self.get_node(id)?;
         let raw: Rect = node.get_layout_box().get_bounds();
         let off: Point = self.ancestor_scroll_offset(id);
+        let tr: Transform2D = node.get_style().get_paint().get_transform();
+        let mut tx: f32 = tr.get_translate_x();
+        let mut ty: f32 = tr.get_translate_y();
+        let mut cursor: Option<NodeId> = node.parent_id();
+        while let Some(pid) = cursor {
+            if let Some(pnode) = self.get_node(pid) {
+                let ptr: Transform2D = pnode.get_style().get_paint().get_transform();
+                tx += ptr.get_translate_x();
+                ty += ptr.get_translate_y();
+                if matches!(pnode.get_kind(), NodeKind::Portal)
+                    || pnode.get_style().get_layout().get_position() == Position::Fixed
+                {
+                    break;
+                }
+                cursor = pnode.parent_id();
+            } else {
+                break;
+            }
+        }
         Some(Rect::new(
-            raw.get_x() - off.get_x(),
-            raw.get_y() - off.get_y(),
-            raw.get_width(),
-            raw.get_height(),
+            raw.get_x() - off.get_x() + tx,
+            raw.get_y() - off.get_y() + ty,
+            raw.get_width() * tr.get_scale_x(),
+            raw.get_height() * tr.get_scale_y(),
         ))
     }
 
@@ -870,13 +899,22 @@ impl SceneTree {
             let mut region: DamageRegion = DamageRegion::default();
             for (nid, raw_bounds, margin) in dirty_ids.into_iter() {
                 let off: Point = self.ancestor_scroll_offset(nid);
-                let phys: Rect = Rect::new(
+                let base_phys: Rect = Rect::new(
                     ((raw_bounds.get_x() - off.get_x() - margin) * scale).floor(),
                     ((raw_bounds.get_y() - off.get_y() - margin) * scale).floor(),
                     ((raw_bounds.get_width() + margin * 2.0) * scale).ceil(),
                     ((raw_bounds.get_height() + margin * 2.0) * scale).ceil(),
                 );
-                region.add_rect(phys);
+                region.add_rect(base_phys);
+                if let Some(screen_bounds) = self.node_screen_bounds(nid) {
+                    let shifted_phys: Rect = Rect::new(
+                        ((screen_bounds.get_x() - margin) * scale).floor(),
+                        ((screen_bounds.get_y() - margin) * scale).floor(),
+                        ((screen_bounds.get_width() + margin * 2.0) * scale).ceil(),
+                        ((screen_bounds.get_height() + margin * 2.0) * scale).ceil(),
+                    );
+                    region.add_rect(shifted_phys);
+                }
             }
             region
         };
@@ -1154,6 +1192,39 @@ impl SceneHandle {
         dispatch_lifecycle_freeze(&observers);
     }
 
+    /// Freezes a subtree immediately for lifecycle/effects while animating its visual exit to `Display::None`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene handle reference.
+    /// - `NodeId` - Subtree root handle to freeze and animate out.
+    /// - `NodeTransition` - Exit transition specification (`hide_on_complete` is enforced).
+    pub fn freeze_subtree_animated(&self, root: NodeId, exit_transition: NodeTransition) {
+        let observers: Vec<(NodeId, Rc<dyn Lifecycle>)> = self.with_write(
+            |tree: &mut SceneTree| {
+                let obs: Vec<(NodeId, Rc<dyn Lifecycle>)> = tree.collect_subtree_lifecycles(root);
+                tree.cancel_subtree_transitions(root);
+                if let Some(node) = tree.get_node_mut(root) {
+                    let mut st: Style = node.get_style();
+                    st.get_mut_layout()
+                        .set_position(Position::Absolute)
+                        .set_top(Some(0.0))
+                        .set_right(Some(0.0))
+                        .set_bottom(None)
+                        .set_left(Some(0.0))
+                        .set_z_index(0);
+                    st.get_mut_paint().set_pointer_events(PointerEvents::None);
+                    node.set_style(st);
+                }
+                tree.start_transition(exit_transition.with_hide_on_complete(true));
+                tree.mark_dirty(root, DIRTY_LAYOUT | DIRTY_PAINT);
+                obs
+            },
+            Vec::new(),
+        );
+        dispatch_lifecycle_freeze(&observers);
+    }
+
     /// Resumes a previously frozen subtree (`Display::Flex`) and dispatches `Lifecycle::on_resume` outside any scene borrow.
     ///
     /// # Arguments
@@ -1341,10 +1412,12 @@ impl Context {
             platform,
             safe_area: Signal::new(SafeAreaInsets::default()),
             gesture: Signal::new(None),
+            swipe_drag_offset: Signal::new(0.0),
             system_back: Signal::new(0),
             dynamic_hub: DynamicUpdateHub::new(),
             fps_limit: Signal::new(None),
             live_fps: Signal::new(60.0),
+            display_refresh_rate: Signal::new(60.0),
             active_touches: Signal::new(Vec::new()),
             exit_requested: Signal::new(false),
             clock_ms: Rc::new(Cell::new(0)),

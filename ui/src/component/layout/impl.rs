@@ -153,6 +153,7 @@ impl EuvAppShell {
         let vp_sig: Signal<Size> = ctx.get_viewport_size();
         let safe_sig: Signal<SafeAreaInsets> = ctx.get_safe_area();
         let gesture_sig: Signal<Option<GestureEvent>> = ctx.get_gesture();
+        let swipe_drag_sig: Signal<f32> = ctx.get_swipe_drag_offset();
         let fps_sig: Signal<f32> = ctx.get_live_fps();
         let show_fps: bool = self.get_show_fps();
         let Self {
@@ -192,7 +193,6 @@ impl EuvAppShell {
         let mut desktop_top_divider: NodeId = NodeId::default();
         let mut crumb_txt: NodeId = NodeId::default();
         let mut main_area: NodeId = NodeId::default();
-        let mut bottom_divider: NodeId = NodeId::default();
         let mut bottom_bar_host: NodeId = NodeId::default();
         let mut drawer_portal: NodeId = NodeId::default();
         let mut drawer_panel: NodeId = NodeId::default();
@@ -201,7 +201,7 @@ impl EuvAppShell {
         let mobile_fps_pill: Option<NodeId> = if show_fps {
             Some(view! {
                 row {
-                    min_width: Length::Px(64.0)
+                    min_width: Length::Px(72.0)
                     height: Length::Px(26.0)
                     padding: Edges::symmetric(0.0, 8.0)
                     radius: 99.0
@@ -228,6 +228,8 @@ impl EuvAppShell {
                         }
                     }
                     text {
+                        width: Length::Px(50.0)
+                        height: Length::Px(14.0)
                         font_size: 11.0
                         font_family: FontFamily::Monospace
                         font_weight: FontWeight::Bold
@@ -271,6 +273,8 @@ impl EuvAppShell {
                         }
                     }
                     text {
+                        width: Length::Px(50.0)
+                        height: Length::Px(14.0)
                         font_size: 11.0
                         font_family: FontFamily::Monospace
                         font_weight: FontWeight::Bold
@@ -332,6 +336,8 @@ impl EuvAppShell {
                         }
                         text {
                             node_ref: top_title_txt
+                            width: Length::Percent(100.0)
+                            flex_grow: 1.0
                             flex_shrink: 1.0
                             min_width: Length::Px(0.0)
                             font_size: 15.0
@@ -353,7 +359,9 @@ impl EuvAppShell {
                             { mob_act }
                         }
                         if !has_bottom_nav {
-                            EuvButton(SHELL_MENU_LABEL.to_string(), tokens) {
+                            EuvButton {
+                                label: SHELL_MENU_LABEL.to_string()
+                                tokens: tokens
                                 outline()
                                 sm()
                                 on_click: move |_: &UiEvent| {
@@ -467,21 +475,22 @@ impl EuvAppShell {
                         }
                     }
                 }
-                view {
-                    node_ref: bottom_divider
-                    display: if has_bottom_nav { Display::Flex } else { Display::None }
-                    width: Length::Percent(100.0)
-                    height: Length::Px(div_h)
-                    background: p.get_border()
-                }
                 row {
                     node_ref: bottom_bar_host
                     display: if has_bottom_nav { Display::Flex } else { Display::None }
-                    width: Length::Percent(100.0)
+                    position: Position::Fixed
+                    inset: (None, None, Some(SHELL_BOTTOM_NAV_FLOAT_COMPACT), Some(SHELL_BOTTOM_NAV_SIDE_MARGIN))
+                    width: Length::Px(340.0)
                     height: Length::Px(SHELL_BOTTOM_NAV_HEIGHT)
+                    padding: Edges::symmetric(0.0, 6.0)
                     justify: JustifyContent::Center
                     align: AlignItems::Center
-                    background: p.get_card()
+                    background: p.get_card().with_alpha(244)
+                    border: (g.get_border_width(), p.get_border())
+                    radius: SHELL_BOTTOM_NAV_HEIGHT * 0.5
+                    shadow: g.get_shadow_lg()
+                    overflow: Overflow::Hidden
+                    stop_scroll_propagation: true
                     z_index: Z_INDEX_CHROME
                     if let Some(bn) = bottom_nav {
                         { bn }
@@ -693,7 +702,16 @@ impl EuvAppShell {
                 } else {
                     crumb_txt
                 };
-                let _: Effect = handle_crumb.bind_text(target_title_node, move || crumb_sig.get());
+                let _: Effect = handle_crumb.bind_text(target_title_node, move || {
+                    let full: String = crumb_sig.get();
+                    if bp_sig.get().is_compact()
+                        && let Some((_, leaf)) = full.rsplit_once(" / ")
+                    {
+                        leaf.to_string()
+                    } else {
+                        full
+                    }
+                });
             }
             let _: Effect = Effect::new(move || {
                 let bp: Breakpoint = bp_sig.get();
@@ -705,16 +723,28 @@ impl EuvAppShell {
                 let bottom_inset: f32 = safe.get_bottom();
                 let left_inset: f32 = safe.get_left();
                 let right_inset: f32 = safe.get_right();
+                let vp_w: f32 = vp.get_width().max(240.0);
                 let vp_h: f32 = vp.get_height().max(240.0);
                 let header_h: f32 = MOBILE_HEADER_HEIGHT + top_inset;
-                let bottom_h: f32 = if has_bottom_nav {
-                    SHELL_BOTTOM_NAV_HEIGHT + bottom_inset + div_h
+                let float_gap: f32 = if bp.is_compact() {
+                    SHELL_BOTTOM_NAV_FLOAT_COMPACT
                 } else {
-                    0.0
+                    SHELL_BOTTOM_NAV_FLOAT_WIDE
                 };
+                let dock_bottom: f32 = float_gap + bottom_inset;
+                let usable_w: f32 = (vp_w - left_inset - right_inset).max(200.0);
+                let side_margin: f32 = if bp.is_compact() {
+                    SHELL_BOTTOM_NAV_SIDE_MARGIN
+                } else {
+                    32.0
+                };
+                let min_dock_w: f32 = 240.0_f32.min((usable_w - 16.0).max(160.0));
+                let dock_w: f32 =
+                    (usable_w - side_margin * 2.0).clamp(min_dock_w, SHELL_BOTTOM_NAV_MAX_WIDTH);
+                let dock_left: f32 = left_inset + ((usable_w - dock_w) * 0.5).max(8.0);
                 let desktop_bar_h: f32 = 52.0 + top_inset;
                 let body_h: f32 = if compact {
-                    (vp_h - header_h - div_h - bottom_h).max(120.0)
+                    (vp_h - header_h - div_h).max(120.0)
                 } else {
                     vp_h
                 };
@@ -848,7 +878,7 @@ impl EuvAppShell {
                             SPACE_XL
                         };
                         let main_bottom_pad: f32 = if has_bottom_nav {
-                            main_pad
+                            main_pad + SHELL_BOTTOM_NAV_HEIGHT + dock_bottom + 12.0
                         } else {
                             main_pad + bottom_inset
                         };
@@ -866,14 +896,14 @@ impl EuvAppShell {
                         }
                         if has_bottom_nav && let Some(n) = tree.get_node_mut(bottom_bar_host) {
                             let mut st: Style = n.get_style();
+                            st.get_mut_layout().set_width(Length::Px(dock_w));
                             st.get_mut_layout()
-                                .set_height(Length::Px(SHELL_BOTTOM_NAV_HEIGHT + bottom_inset));
-                            st.get_mut_layout().set_padding(Edges::new(
-                                0.0,
-                                right_inset,
-                                bottom_inset,
-                                left_inset,
-                            ));
+                                .set_height(Length::Px(SHELL_BOTTOM_NAV_HEIGHT));
+                            st.get_mut_layout().set_left(Some(dock_left));
+                            st.get_mut_layout().set_bottom(Some(dock_bottom));
+                            st.get_mut_layout().set_right(None);
+                            st.get_mut_layout().set_top(None);
+                            st.get_mut_layout().set_padding(Edges::symmetric(0.0, 7.0));
                             n.set_style(st);
                         }
                         if let Some(n) = tree.get_node_mut(drawer_scroll) {
@@ -908,6 +938,90 @@ impl EuvAppShell {
                     .unwrap_or(0),
             ));
             let handle_swipe: SceneHandle = handle.clone();
+            let drag_was_active: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+            let swipe_route_committed: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+            let swipe_route_committed_drag: Rc<Cell<bool>> = Rc::clone(&swipe_route_committed);
+            let swipe_routes_drag: Vec<String> = swipe_routes.clone();
+            let _: Effect = Effect::new(move || {
+                let raw_dx: f32 = swipe_drag_sig.get();
+                if menu_open.get_untracked()
+                    || EuvOverlayStack::active_count() > 0
+                    || swipe_routes_drag.is_empty()
+                {
+                    if drag_was_active.replace(false) {
+                        handle_swipe.with_write(
+                            |tree: &mut SceneTree| {
+                                if let Some(n) = tree.get_node_mut(main_area) {
+                                    let mut st: Style = n.get_style();
+                                    st.get_mut_paint().set_transform(Transform2D::default());
+                                    n.set_style(st);
+                                    tree.mark_dirty(main_area, DIRTY_PAINT);
+                                }
+                            },
+                            (),
+                        );
+                    }
+                    return;
+                }
+                if raw_dx.abs() > 1.0 {
+                    drag_was_active.set(true);
+                    let damped_tx: f32 = (raw_dx * 0.36).clamp(-120.0, 120.0);
+                    handle_swipe.with_write(
+                        |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(main_area);
+                            if let Some(n) = tree.get_node_mut(main_area) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_paint()
+                                    .set_transform(Transform2D::new(damped_tx, 0.0, 1.0, 1.0, 0.0));
+                                n.set_style(st);
+                                tree.mark_dirty(main_area, DIRTY_PAINT);
+                            }
+                        },
+                        (),
+                    );
+                } else if drag_was_active.replace(false) {
+                    if swipe_route_committed_drag.replace(false) {
+                        handle_swipe.with_write(
+                            |tree: &mut SceneTree| {
+                                tree.cancel_subtree_transitions(main_area);
+                                if let Some(n) = tree.get_node_mut(main_area) {
+                                    let mut st: Style = n.get_style();
+                                    st.get_mut_paint().set_transform(Transform2D::default());
+                                    n.set_style(st);
+                                    tree.mark_dirty(main_area, DIRTY_PAINT);
+                                }
+                            },
+                            (),
+                        );
+                    } else {
+                        let cur_tx: f32 = handle_swipe.with_read(
+                            |tree: &SceneTree| {
+                                tree.get_node(main_area)
+                                    .map(|n: &SceneNode| {
+                                        n.get_style().get_paint().get_transform().get_translate_x()
+                                    })
+                                    .unwrap_or(0.0)
+                            },
+                            0.0,
+                        );
+                        if cur_tx.abs() > 0.5 {
+                            handle_swipe.start_transition(
+                                NodeTransition::slide_fade(
+                                    main_area,
+                                    Point::new(cur_tx, 0.0),
+                                    Point::new(0.0, 0.0),
+                                    1.0,
+                                    1.0,
+                                    0.22,
+                                    false,
+                                )
+                                .with_easing(Easing::EaseOutQuint),
+                            );
+                        }
+                    }
+                }
+            });
+            let handle_swipe_reset: SceneHandle = handle.clone();
             let _: Effect = Effect::new(move || {
                 if let Some(ev) = gesture_sig.get() {
                     let seq: u64 = ev.get_sequence();
@@ -918,6 +1032,11 @@ impl EuvAppShell {
                             }
                             return;
                         }
+                        if EuvOverlayStack::active_count() > 0 {
+                            return;
+                        }
+                        let drawer_intent: bool =
+                            ev.get_origin().get_x() <= 72.0 || ev.get_delta().get_x() >= 96.0;
                         if !swipe_routes.is_empty()
                             && let Some(route_sig) = route_signal
                         {
@@ -931,42 +1050,47 @@ impl EuvAppShell {
                             {
                                 let next_path: String = swipe_routes[cur_idx + 1].clone();
                                 if route_sig.set_if_changed(next_path) {
-                                    handle_swipe.start_transition(
-                                        NodeTransition::slide_fade(
-                                            main_area,
-                                            Point::new(28.0, 0.0),
-                                            Point::new(0.0, 0.0),
-                                            0.88,
-                                            1.0,
-                                            0.18,
-                                            false,
-                                        )
-                                        .with_easing(Easing::EaseOutQuint),
+                                    swipe_route_committed.set(true);
+                                    handle_swipe_reset.with_write(
+                                        |tree: &mut SceneTree| {
+                                            tree.cancel_subtree_transitions(main_area);
+                                            if let Some(n) = tree.get_node_mut(main_area) {
+                                                let mut st: Style = n.get_style();
+                                                st.get_mut_paint()
+                                                    .set_transform(Transform2D::default());
+                                                n.set_style(st);
+                                                tree.mark_dirty(main_area, DIRTY_PAINT);
+                                            }
+                                        },
+                                        (),
                                     );
                                 }
                             } else if ev.get_kind() == GestureEventKind::SwipeRight {
                                 if cur_idx > 0 {
                                     let prev_path: String = swipe_routes[cur_idx - 1].clone();
                                     if route_sig.set_if_changed(prev_path) {
-                                        handle_swipe.start_transition(
-                                            NodeTransition::slide_fade(
-                                                main_area,
-                                                Point::new(-28.0, 0.0),
-                                                Point::new(0.0, 0.0),
-                                                0.88,
-                                                1.0,
-                                                0.18,
-                                                false,
-                                            )
-                                            .with_easing(Easing::EaseOutQuint),
+                                        swipe_route_committed.set(true);
+                                        handle_swipe_reset.with_write(
+                                            |tree: &mut SceneTree| {
+                                                tree.cancel_subtree_transitions(main_area);
+                                                if let Some(n) = tree.get_node_mut(main_area) {
+                                                    let mut st: Style = n.get_style();
+                                                    st.get_mut_paint()
+                                                        .set_transform(Transform2D::default());
+                                                    n.set_style(st);
+                                                    tree.mark_dirty(main_area, DIRTY_PAINT);
+                                                }
+                                            },
+                                            (),
                                         );
                                     }
-                                } else {
+                                } else if drawer_intent {
                                     let _: bool = menu_open.set_if_changed(true);
                                 }
                             }
                         } else if bp_sig.get_untracked().is_compact()
                             && ev.get_kind() == GestureEventKind::SwipeRight
+                            && drawer_intent
                         {
                             let _: bool = menu_open.set_if_changed(true);
                         }
@@ -1192,7 +1316,11 @@ impl EuvPage {
                 width: Length::Percent(100.0)
                 max_width: Length::Px(1040.0)
                 gap: SPACE_LG
-                EuvHeader(title, subtitle, tokens)
+                EuvHeader {
+                    title: title
+                    subtitle: subtitle
+                    tokens: tokens
+                }
                 ..sections
             }
         }

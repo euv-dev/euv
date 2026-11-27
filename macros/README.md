@@ -2,16 +2,16 @@
 
 # euv-macros
 
-<img src="https://docs.ltpp.vip/img/euv-macros.png" alt="euv-macros logo" height="160">
+<img src="https://ltpp.vip/github/pages/docs-pages/pages/img/euv.png" alt="euv-macros logo" height="160">
 
 **Zero-Overhead Declarative UI, Style, Lifecycle & Reactive Proc Macros**
 
-[![Crates.io Version](https://img.shields.io/crates/v/euv-macros.svg?style=flat-square)](https://crates.io/crates/euv-macros)
-[![Crates.io Downloads](https://img.shields.io/crates/d/euv-macros.svg?style=flat-square)](https://crates.io/crates/euv-macros)
+[![Crates.io Version](https://flat.badgen.net/crates/v/euv-macros)](https://crates.io/crates/euv-macros)
+[![Crates.io Downloads](https://flat.badgen.net/crates/d/euv-macros)](https://crates.io/crates/euv-macros)
 [![Docs.rs](https://img.shields.io/docsrs/euv-macros?style=flat-square)](https://docs.rs/euv-macros)
 [![CI Status](https://img.shields.io/github/actions/workflow/status/euv-dev/euv/rust.yml?style=flat-square&label=CI)](https://github.com/euv-dev/euv/actions)
 [![Rust 2024](https://img.shields.io/badge/edition-2024-orange.svg?style=flat-square)](https://www.rust-lang.org)
-[![License: MIT](https://img.shields.io/crates/l/euv-macros.svg?style=flat-square)](../LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](../LICENSE)
 
 [Workspace Overview](../README.md) · [API Docs](https://docs.rs/euv-macros/latest/) · [Agent Engineering Rules](../AGENTS.md)
 
@@ -25,7 +25,8 @@ Zero-overhead procedural macros for `euv`, compiling declarative UI (`view!`), n
 
 ## Responsibilities & Module Layout
 
-- `view! { ... }` — Zero-context declarative scene construction with IDE Go-to-Definition on built-in tags (`euv::view_elements`), properties, and custom component structs
+- `view! { ... }` — Zero-context declarative scene construction requiring named component props (`Component { prop: value }`) with IDE Go-to-Definition on built-in tags (`euv::view_elements`), properties, component structs, and prop fields
+- `#[derive(Props)]` — Implements `ComponentProps` and span-preserving fluent named-prop setters (with `#[prop(custom)]` and `#[prop(default = expr)]`)
 - `style! { ... }` — Compile-time newline-separated `Style` builder (one rule per line, no `;`) with IDE Go-to-Definition via `euv::style_props`
 - `#[component(retention = Freeze)]` — Splits `impl MyComp` into `Lifecycle` + `Component` with configurable retention (`Freeze`, `Destroy`, `Alive`)
 - `#[event]` / `emit!` / `on_event!` — Typed cross-component `EventBus` declarations, dispatching, and scope-owned subscriptions

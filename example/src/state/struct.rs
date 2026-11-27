@@ -378,6 +378,9 @@ pub struct DemoPhysicsScene {
     /// Total fixed physics ticks simulated.
     #[get(type(copy))]
     pub(crate) ticks: u64,
+    /// Last rendered viewport size in logical pixels for responsive camera framing in inline and fullscreen modes.
+    #[get(type(copy))]
+    pub(crate) viewport_size: Size,
 }
 
 /// Interactive AAA 3D open-world city scene with PBR shading, BVH ray tracing, model importing, and runtime settings.

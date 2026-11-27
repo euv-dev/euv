@@ -2,6 +2,7 @@
 use std::path::Path;
 use std::{
     env,
+    hint::spin_loop,
     thread::sleep,
     time::{Duration, Instant},
 };
@@ -114,19 +115,33 @@ fn main() {
                         let elapsed: Duration = frame_start.elapsed();
                         let active_anim: bool = app.has_active_animations();
                         let busy_game_or_anim: bool = on_game_route || active_anim;
-                        let cap_budget: Option<Duration> = app.fps_limit().map(|fps: u32| {
-                            Duration::from_micros(1_000_000 / u64::from(fps.max(1)))
-                        });
-                        let target: Option<Duration> =
+                        let native_hz: f64 =
+                            f64::from(app.display_refresh_rate_hz().clamp(24.0, 480.0));
+                        let target_hz: f64 = app
+                            .fps_limit()
+                            .map(|fps: u32| f64::from(fps.max(1)))
+                            .unwrap_or(native_hz);
+                        let frame_budget: Duration = Duration::from_micros(
+                            (1_000_000.0 / target_hz).round().max(1000.0) as u64,
+                        );
+                        let target: Duration =
                             if busy_game_or_anim || last_stats.get_pixels_shaded() > 0 {
-                                cap_budget
+                                frame_budget
                             } else {
-                                Some(cap_budget.unwrap_or(Duration::from_millis(8)))
+                                frame_budget.max(Duration::from_millis(4))
                             };
-                        if let Some(budget) = target
-                            && elapsed < budget
-                        {
-                            sleep(budget - elapsed);
+                        if let Some(remaining) = target.checked_sub(elapsed) {
+                            if busy_game_or_anim {
+                                let spin_guard: Duration = Duration::from_micros(1500);
+                                if let Some(coarse) = remaining.checked_sub(spin_guard) {
+                                    sleep(coarse);
+                                }
+                                while frame_start.elapsed() < target {
+                                    spin_loop();
+                                }
+                            } else {
+                                sleep(remaining);
+                            }
                         }
                     }
                     print_stats(&last_stats);

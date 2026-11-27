@@ -31,16 +31,16 @@ locales:
 
 # euv-docs
 
-<img src="https://docs.ltpp.vip/img/euv-docs.png" alt="euv-docs logo" height="160">
+<img src="https://ltpp.vip/github/pages/docs-pages/pages/img/euv.png" alt="euv-docs logo" height="160">
 
 **Zero-JS Static Documentation Site Generator Powered by euv + euv-ui**
 
-[![Crates.io Version](https://img.shields.io/crates/v/euv-docs.svg?style=flat-square)](https://crates.io/crates/euv-docs)
-[![Crates.io Downloads](https://img.shields.io/crates/d/euv-docs.svg?style=flat-square)](https://crates.io/crates/euv-docs)
+[![Crates.io Version](https://flat.badgen.net/crates/v/euv-docs)](https://crates.io/crates/euv-docs)
+[![Crates.io Downloads](https://flat.badgen.net/crates/d/euv-docs)](https://crates.io/crates/euv-docs)
 [![Docs.rs](https://img.shields.io/docsrs/euv-docs?style=flat-square)](https://docs.rs/euv-docs)
 [![CI Status](https://img.shields.io/github/actions/workflow/status/euv-dev/euv/rust.yml?style=flat-square&label=CI)](https://github.com/euv-dev/euv/actions)
 [![Rust 2024](https://img.shields.io/badge/edition-2024-orange.svg?style=flat-square)](https://www.rust-lang.org)
-[![License: MIT](https://img.shields.io/crates/l/euv-docs.svg?style=flat-square)](../LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](../LICENSE)
 
 [Workspace Overview](../README.md) · [API Docs](https://docs.rs/euv-docs/latest/) · [Agent Engineering Rules](../AGENTS.md)
 

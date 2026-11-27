@@ -1,12 +1,13 @@
 use super::*;
 
 /// Elevated surface card container with optional title, subtitle, and child nodes.
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvCard {
     /// Optional card heading.
     pub(crate) title: String,
     /// Optional muted subtitle.
     #[new(skip)]
+    #[prop(custom)]
     pub(crate) subtitle: String,
     /// Active theme tokens.
     #[get(type(copy))]
@@ -17,7 +18,7 @@ pub struct EuvCard {
 }
 
 /// Page header banner component displaying title and subtitle consistently across all pages.
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvHeader {
     /// Page title text.
     pub(crate) title: String,
@@ -29,7 +30,7 @@ pub struct EuvHeader {
 }
 
 /// Compact KPI / telemetry metric card.
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvStatCard {
     /// Metric label.
     pub(crate) label: String,

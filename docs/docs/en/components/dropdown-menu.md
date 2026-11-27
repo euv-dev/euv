@@ -15,11 +15,10 @@ cargo add euv euv-ui
 
 ```rust
 view! {
-    EuvDropdown(
-        "Quick Actions".to_string(),
-        vec!["Export PNG".to_string(), "Copy DeepLink".to_string()],
-        tokens
-    ) {
+    EuvDropdown {
+        trigger: "Quick Actions"
+        items: vec!["Export PNG".to_string(), "Copy DeepLink".to_string()]
+        tokens: tokens
         open: dropdown_open
         selected: dropdown_selected
     }

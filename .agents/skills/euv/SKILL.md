@@ -15,9 +15,10 @@ metadata:
 2. `euv` is a **7-platform direct-OS-API native Rust UI framework** (Web, Android, iOS, iPadOS, macOS, Windows, Linux) with zero WebView, zero DOM, and zero virtual DOM. `euv-ui` is a separate crate not re-exported by root `euv`.
 3. Enforce declarative macro discipline (`AGENTS.md` §1):
   - Never embed multi-line business logic, event handlers, canvas painters, or reactive closures inline inside `view!` or other macros; bind them to sibling `let` variables or helper `fn`s first.
+  - Pass custom component parameters inside `view!` exclusively via self-documenting named attributes (`Component { prop: value }`, backed by `#[derive(Props)]`); positional `Component(...)` calls are rejected at compile time.
   - `style! { ... }` uses one rule per line with **no semicolons** (`;` is a compile error).
-  - Preserve IDE go-to-definition bindings (`euv::view_elements`, `euv::style_props`, direct component type spans) and never emit `use` statements inside proc-macro bodies (`TextNodeContent` UFCS only).
-  - Use ambient framework-managed `Context` (zero explicit `in ctx`), `#[component(retention = Freeze)]`, and `PageRetention::Freeze` for inactive routes.
+  - Preserve IDE go-to-definition bindings (`euv::view_elements`, `euv::style_props`, direct component type and prop field spans) and never emit `use` statements inside proc-macro bodies (`TextNodeContent` UFCS only).
+  - Use ambient framework-managed `Context` (zero explicit `in ctx`), `#[component(retention = Freeze)]`, and `PageRetention::Freeze` for inactive routes with directional slide transitions.
 
 4. Enforce UI & rendering invariants (`AGENTS.md` §2):
   - Zero-overshoot monotonic easing (`EaseOutQuint`/`EaseOutCubic`) and floating interactive drag grabbers on drawers and sheets.

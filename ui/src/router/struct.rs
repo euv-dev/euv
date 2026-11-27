@@ -133,10 +133,12 @@ pub struct EuvRouterOutlet {
     pub(crate) double_back_exit: bool,
     /// Bottom prompt message displayed on the first root Back press before a consecutive second Back exits.
     pub(crate) exit_prompt: String,
+    /// Optional ordered route sequence used to compute left/right directional slide transitions across tabs and swipes.
+    pub(crate) route_order: Vec<String>,
 }
 
 /// Declarative navigation link pushing a target path onto an `EuvRouter` when clicked.
-#[derive(Clone, Data, Debug)]
+#[derive(Clone, Data, Debug, Props)]
 pub struct EuvLink {
     /// Target route path (e.g. `"/themes"`).
     pub(crate) to: String,

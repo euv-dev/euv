@@ -450,6 +450,196 @@ pub fn composite_fill_and_border(
     Color::new(r, g, b, a)
 }
 
+/// Tests whether a physical visible rectangle overlaps any rounded-corner cutout square of `(clip_rect, radius)`.
+///
+/// # Arguments
+///
+/// - `Rect` - Candidate command visible bounds in physical pixels.
+/// - `Rect` - Physical rounded clip rectangle.
+/// - `CornerRadius` - Physical clip corner radii.
+///
+/// # Returns
+///
+/// - `bool` - True if at least one rounded corner box overlaps `vis`.
+#[must_use]
+pub(crate) fn rect_intersects_rounded_corners(
+    vis: Rect,
+    clip_rect: Rect,
+    radius: CornerRadius,
+) -> bool {
+    let half_w: f32 = clip_rect.get_width() * 0.5;
+    let half_h: f32 = clip_rect.get_height() * 0.5;
+    let max_r: f32 = half_w.min(half_h).max(0.0);
+    if max_r <= 0.25 {
+        return false;
+    }
+    let x0: f32 = clip_rect.get_x();
+    let y0: f32 = clip_rect.get_y();
+    let x1: f32 = clip_rect.right();
+    let y1: f32 = clip_rect.bottom();
+    let r_tl: f32 = radius.get_top_left().min(max_r);
+    if r_tl > 0.25
+        && Rect::new(x0, y0, r_tl + 1.0, r_tl + 1.0)
+            .intersect(vis)
+            .is_some()
+    {
+        return true;
+    }
+    let r_tr: f32 = radius.get_top_right().min(max_r);
+    if r_tr > 0.25
+        && Rect::new(x1 - r_tr - 1.0, y0, r_tr + 1.0, r_tr + 1.0)
+            .intersect(vis)
+            .is_some()
+    {
+        return true;
+    }
+    let r_br: f32 = radius.get_bottom_right().min(max_r);
+    if r_br > 0.25
+        && Rect::new(x1 - r_br - 1.0, y1 - r_br - 1.0, r_br + 1.0, r_br + 1.0)
+            .intersect(vis)
+            .is_some()
+    {
+        return true;
+    }
+    let r_bl: f32 = radius.get_bottom_left().min(max_r);
+    r_bl > 0.25
+        && Rect::new(x0, y1 - r_bl - 1.0, r_bl + 1.0, r_bl + 1.0)
+            .intersect(vis)
+            .is_some()
+}
+
+/// Appends up to four pairwise-disjoint rounded-corner pixel boxes clipped to `(clip, fb_w, band_y0..band_y1)`.
+///
+/// # Arguments
+///
+/// - `RoundedClipMask` - Physical rounded clip descriptor.
+/// - `Rect` - Active band-intersected clip bounds.
+/// - `(u32, u32, u32)` - Tuple `(fb_w, band_y0, band_y1)`.
+/// - `&mut Vec<(u32, u32, u32, u32)>` - Output list of `(x0, y0, x1, y1)` corner pixel boxes.
+pub(crate) fn collect_rounded_clip_boxes(
+    mask: RoundedClipMask,
+    clip: Rect,
+    band_bounds: (u32, u32, u32),
+    out: &mut Vec<(u32, u32, u32, u32)>,
+) {
+    let (fb_w, band_y0, band_y1): (u32, u32, u32) = band_bounds;
+    let clip_x0: u32 = (clip.get_x().floor().max(0.0) as u32).min(fb_w);
+    let clip_y0: u32 = (clip.get_y().floor().max(0.0) as u32).clamp(band_y0, band_y1);
+    let clip_x1: u32 = (clip.right().ceil().max(0.0) as u32).min(fb_w);
+    let clip_y1: u32 = (clip.bottom().ceil().max(0.0) as u32).clamp(band_y0, band_y1);
+    if clip_x0 >= clip_x1 || clip_y0 >= clip_y1 {
+        return;
+    }
+    let rect: Rect = mask.get_rect();
+    let radius: CornerRadius = mask.get_radius();
+    let half_w: f32 = rect.get_width() * 0.5;
+    let half_h: f32 = rect.get_height() * 0.5;
+    let max_r: f32 = half_w.min(half_h).max(0.0);
+    if max_r <= 0.25 {
+        return;
+    }
+    let mid_x: u32 = ((rect.get_x() + half_w).round().max(0.0) as u32).min(fb_w);
+    let mid_y: u32 = (rect.get_y() + half_h).round().max(0.0) as u32;
+    let rx0_base: u32 = (rect.get_x().floor().max(0.0) as u32).min(fb_w);
+    let ry0_base: u32 = rect.get_y().floor().max(0.0) as u32;
+    let rx1_base: u32 = (rect.right().ceil().max(0.0) as u32).min(fb_w);
+    let ry1_base: u32 = rect.bottom().ceil().max(0.0) as u32;
+    let r_tl: f32 = radius.get_top_left().min(max_r);
+    if r_tl > 0.25 {
+        let bx0: u32 = rx0_base.max(clip_x0);
+        let bx1: u32 =
+            (((rect.get_x() + r_tl + 1.0).ceil().max(0.0) as u32).min(mid_x)).min(clip_x1);
+        let by0: u32 = ry0_base.max(clip_y0);
+        let by1: u32 =
+            (((rect.get_y() + r_tl + 1.0).ceil().max(0.0) as u32).min(mid_y)).min(clip_y1);
+        if bx0 < bx1 && by0 < by1 {
+            out.push((bx0, by0, bx1, by1));
+        }
+    }
+    let r_tr: f32 = radius.get_top_right().min(max_r);
+    if r_tr > 0.25 {
+        let bx0: u32 =
+            (((rect.right() - r_tr - 1.0).floor().max(0.0) as u32).max(mid_x)).max(clip_x0);
+        let bx1: u32 = rx1_base.min(clip_x1);
+        let by0: u32 = ry0_base.max(clip_y0);
+        let by1: u32 =
+            (((rect.get_y() + r_tr + 1.0).ceil().max(0.0) as u32).min(mid_y)).min(clip_y1);
+        if bx0 < bx1 && by0 < by1 {
+            out.push((bx0, by0, bx1, by1));
+        }
+    }
+    let r_br: f32 = radius.get_bottom_right().min(max_r);
+    if r_br > 0.25 {
+        let bx0: u32 =
+            (((rect.right() - r_br - 1.0).floor().max(0.0) as u32).max(mid_x)).max(clip_x0);
+        let bx1: u32 = rx1_base.min(clip_x1);
+        let by0: u32 =
+            (((rect.bottom() - r_br - 1.0).floor().max(0.0) as u32).max(mid_y)).max(clip_y0);
+        let by1: u32 = ry1_base.min(clip_y1);
+        if bx0 < bx1 && by0 < by1 {
+            out.push((bx0, by0, bx1, by1));
+        }
+    }
+    let r_bl: f32 = radius.get_bottom_left().min(max_r);
+    if r_bl > 0.25 {
+        let bx0: u32 = rx0_base.max(clip_x0);
+        let bx1: u32 =
+            (((rect.get_x() + r_bl + 1.0).ceil().max(0.0) as u32).min(mid_x)).min(clip_x1);
+        let by0: u32 =
+            (((rect.bottom() - r_bl - 1.0).floor().max(0.0) as u32).max(mid_y)).max(clip_y0);
+        let by1: u32 = ry1_base.min(clip_y1);
+        if bx0 < bx1 && by0 < by1 {
+            out.push((bx0, by0, bx1, by1));
+        }
+    }
+}
+
+/// Evaluates anti-aliased rounded-clip mask coverage in `[0.0, 1.0]` for physical pixel `(x, y)`.
+///
+/// # Arguments
+///
+/// - `u32` - Physical pixel X coordinate.
+/// - `u32` - Physical pixel Y coordinate.
+/// - `RoundedClipMask` - Physical rounded clip descriptor.
+/// - `AntialiasingMode` - Active anti-aliasing policy.
+///
+/// # Returns
+///
+/// - `f32` - Mask coverage in `[0.0, 1.0]` (`1.0` inside, `0.0` outside).
+#[must_use]
+pub(crate) fn rounded_clip_coverage(
+    x: u32,
+    y: u32,
+    mask: RoundedClipMask,
+    aa: AntialiasingMode,
+) -> f32 {
+    let rect: Rect = mask.get_rect();
+    let half_w: f32 = rect.get_width() * 0.5;
+    let half_h: f32 = rect.get_height() * 0.5;
+    let px: f32 = (x as f32) + 0.5 - (rect.get_x() + half_w);
+    let py: f32 = (y as f32) + 0.5 - (rect.get_y() + half_h);
+    let corner_r: f32 = quadrant_corner_radius(mask.get_radius(), px, py)
+        .min(half_w)
+        .min(half_h)
+        .max(0.0);
+    if corner_r <= 0.0 {
+        return 1.0;
+    }
+    let dist: f32 = rounded_box_sdf(px, py, half_w, half_h, corner_r);
+    if dist <= -1.0 {
+        return 1.0;
+    }
+    if dist >= 1.0 {
+        return 0.0;
+    }
+    if aa == AntialiasingMode::None {
+        return if dist <= 0.0 { 1.0 } else { 0.0 };
+    }
+    let (cov, _): (f32, f32) =
+        rounded_box_supersampled_coverage(px, py, half_w, half_h, corner_r, 0.0);
+    cov
+}
+
 /// Returns the process-wide persistent horizontal-band rasterizer worker pool, lazily spawning warm threads once.
 ///
 /// # Returns
@@ -476,6 +666,12 @@ pub(crate) fn run_band_job_loop(job: &BandJob) {
         unsafe { from_raw_parts(job.prepped_ptr as *const PreppedCommand, job.prepped_len) };
     let layouts: &[TextLayoutResult] =
         unsafe { from_raw_parts(job.layouts_ptr as *const TextLayoutResult, job.layouts_len) };
+    let rounded_clips: &[RoundedClipMask] = unsafe {
+        from_raw_parts(
+            job.rounded_clips_ptr as *const RoundedClipMask,
+            job.rounded_clips_len,
+        )
+    };
     let atlas: &GlyphAtlas = unsafe { &*(job.atlas_ptr as *const GlyphAtlas) };
     let mut local_shaded: usize = 0;
     loop {
@@ -499,7 +695,13 @@ pub(crate) fn run_band_job_loop(job: &BandJob) {
             height: task.get_height(),
         };
         local_shaded += SoftwareRenderer::render_band(
-            &mut band, commands, prepped, layouts, atlas, job.scale, job.aa,
+            &mut band,
+            commands,
+            prepped,
+            layouts,
+            rounded_clips,
+            atlas,
+            (job.scale, job.aa),
         );
     }
     if local_shaded > 0 {

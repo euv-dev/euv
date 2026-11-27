@@ -126,3 +126,13 @@ pub trait Component: Lifecycle + Sized + 'static {
         node
     }
 }
+
+/// Initialization contract enabling declarative named-attribute component construction inside `view! { MyComp { prop: value } }`.
+pub trait ComponentProps: Sized {
+    /// Constructs a component descriptor with default property values ready for fluent named-prop chaining.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Component instance initialized with its declared prop defaults.
+    fn init_props() -> Self;
+}

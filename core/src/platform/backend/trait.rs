@@ -142,4 +142,17 @@ pub trait PlatformBackend: WindowController {
     ///
     /// - `ThemeMode` - Detected OS appearance mode.
     fn system_theme(&self) -> ThemeMode;
+
+    /// Queries the active display's native hardware refresh rate in Hertz (`60.0` fallback).
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Backend reference.
+    ///
+    /// # Returns
+    ///
+    /// - `f32` - Native display refresh rate in Hertz (e.g. `120.0`, `144.0`, `180.0`).
+    fn display_refresh_rate_hz(&self) -> f32 {
+        60.0
+    }
 }

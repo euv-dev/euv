@@ -297,14 +297,12 @@ impl EuvCodeBlock {
                     .map(|(txt, fg, weight, is_italic): (String, Color, FontWeight, bool)| {
                         view! {
                             text {
-                                max_width: Length::Percent(100.0)
-                                flex_shrink: 1.0
+                                flex_shrink: 0.0
                                 font_size: code_font_size
                                 font_family: FontFamily::Monospace
                                 font_weight: weight
                                 italic: is_italic
                                 color: fg
-                                overflow: Overflow::Hidden
                                 text_overflow: TextOverflow::Clip
                                 { txt }
                             }
@@ -318,11 +316,10 @@ impl EuvCodeBlock {
                 };
                 view! {
                     row {
-                        width: Length::Percent(100.0)
+                        min_width: Length::Percent(100.0)
                         min_height: Length::Px(20.0)
                         padding: Edges::symmetric(1.0, SPACE_SM)
-                        align: AlignItems::Start
-                        overflow: Overflow::Hidden
+                        align: AlignItems::Center
                         background: row_bg
                         if show_nums {
                             row {
@@ -341,13 +338,9 @@ impl EuvCodeBlock {
                             }
                         }
                         row {
-                            flex_grow: 1.0
-                            flex_shrink: 1.0
-                            flex_wrap: FlexWrap::Wrap
-                            min_width: Length::Px(0.0)
-                            padding: Edges::new(0.0, 0.0, 0.0, indent_px)
+                            flex_shrink: 0.0
+                            padding: Edges::new(0.0, SPACE_MD, 0.0, indent_px)
                             align: AlignItems::Center
-                            overflow: Overflow::Hidden
                             ..span_nodes
                         }
                     }
@@ -369,7 +362,6 @@ impl EuvCodeBlock {
                     gap: SPACE_SM
                     overflow: Overflow::Hidden
                     background: eva.get_header_bg()
-                    border: (1.0, eva.get_border())
                     row {
                         flex_grow: 1.0
                         flex_shrink: 1.0
@@ -456,7 +448,13 @@ impl EuvCodeBlock {
                         }
                     }
                 }
-                column {
+                view {
+                    width: Length::Percent(100.0)
+                    height: Length::Px(1.0)
+                    background: eva.get_border()
+                }
+                scroll {
+                    style: Style::default().column()
                     width: Length::Percent(100.0)
                     padding: Edges::symmetric(SPACE_SM, SPACE_XS)
                     gap: 1.0
@@ -677,10 +675,16 @@ impl EuvMarkdownParagraph {
                     }
                 },
                 EuvMarkdownInline::Code(code) => view! {
-                    EuvMarkdownInlineCode(code, tokens)
+                    EuvMarkdownInlineCode {
+                        code: code
+                        tokens: tokens
+                    }
                 },
                 EuvMarkdownInline::Kbd(key) => view! {
-                    EuvKbd(key, tokens)
+                    EuvKbd {
+                        key: key
+                        tokens: tokens
+                    }
                 },
                 EuvMarkdownInline::Link { label, url } => {
                     let cb_opt: Option<MarkdownStrCallback> = on_link.clone();
@@ -782,7 +786,10 @@ impl EuvMarkdownQuote {
                         }
                     }
                     for line in lines.into_iter() {
-                        EuvMarkdownParagraph(parse_markdown_inlines(&line), tokens)
+                        EuvMarkdownParagraph {
+                            inlines: parse_markdown_inlines(&line)
+                            tokens: tokens
+                        }
                     }
                 }
             }
@@ -880,7 +887,10 @@ impl EuvMarkdownList {
                                 flex_shrink: 1.0
                                 min_width: Length::Px(0.0)
                                 overflow: Overflow::Hidden
-                                EuvMarkdownParagraph(parse_markdown_inlines(&text_str), tokens)
+                                EuvMarkdownParagraph {
+                                    inlines: parse_markdown_inlines(&text_str)
+                                    tokens: tokens
+                                }
                             }
                         }
                     }
@@ -907,7 +917,10 @@ impl EuvMarkdownList {
                                 flex_shrink: 1.0
                                 min_width: Length::Px(0.0)
                                 overflow: Overflow::Hidden
-                                EuvMarkdownParagraph(parse_markdown_inlines(&text_str), tokens)
+                                EuvMarkdownParagraph {
+                                    inlines: parse_markdown_inlines(&text_str)
+                                    tokens: tokens
+                                }
                             }
                         }
                     }
@@ -986,11 +999,18 @@ impl EuvMarkdownTable {
                     })
                     .collect();
                 view! {
-                    row {
+                    column {
                         width: Length::Percent(100.0)
-                        background: if ri % 2 == 1 { p.get_muted().with_alpha(96) } else { p.get_card() }
-                        border: (1.0, p.get_border())
-                        ..cells
+                        view {
+                            width: Length::Percent(100.0)
+                            height: Length::Px(1.0)
+                            background: p.get_border()
+                        }
+                        row {
+                            width: Length::Percent(100.0)
+                            background: if ri % 2 == 1 { p.get_muted().with_alpha(96) } else { p.get_card() }
+                            ..cells
+                        }
                     }
                 }
             })
@@ -1004,7 +1024,6 @@ impl EuvMarkdownTable {
                 row {
                     width: Length::Percent(100.0)
                     background: eva.get_header_bg()
-                    border: (1.0, p.get_border())
                     for (ci, header) in headers.into_iter().enumerate() {
                         row {
                             flex_grow: 1.0
@@ -1101,7 +1120,11 @@ impl EuvMarkdownImage {
                         color: p.get_foreground()
                         { alt }
                     }
-                    EuvBadge(MD_IMAGE_BADGE.to_string(), EuvTone::Primary, tokens)
+                    EuvBadge {
+                        label: MD_IMAGE_BADGE.to_string()
+                        tone: EuvTone::Primary
+                        tokens: tokens
+                    }
                 }
                 text {
                     width: Length::Percent(100.0)
@@ -1140,12 +1163,20 @@ impl EuvMarkdownDetails {
                 width: Length::Percent(100.0)
                 gap: SPACE_XS
                 for line in body.into_iter() {
-                    EuvMarkdownParagraph(parse_markdown_inlines(&line), tokens)
+                    EuvMarkdownParagraph {
+                        inlines: parse_markdown_inlines(&line)
+                        tokens: tokens
+                    }
                 }
             }
         };
         view! {
-            EuvCollapsible(open, summary, body_node, tokens)
+            EuvCollapsible {
+                open: open
+                title: summary
+                content: body_node
+                tokens: tokens
+            }
         }
     }
 }
@@ -1237,7 +1268,11 @@ impl EuvMarkdown {
             .into_iter()
             .map(|blk: EuvMarkdownBlock| match blk {
                 EuvMarkdownBlock::Heading { level, text } => view! {
-                    EuvMarkdownHeading(level, text, tokens)
+                    EuvMarkdownHeading {
+                        level: level
+                        text: text
+                        tokens: tokens
+                    }
                 },
                 EuvMarkdownBlock::Paragraph(inlines) => {
                     let mut para: EuvMarkdownParagraph = EuvMarkdownParagraph::new(inlines, tokens);
@@ -1256,7 +1291,11 @@ impl EuvMarkdown {
                     cb_block.mount()
                 }
                 EuvMarkdownBlock::Quote { kind, lines } => view! {
-                    EuvMarkdownQuote(kind, lines, tokens)
+                    EuvMarkdownQuote {
+                        kind: kind
+                        lines: lines
+                        tokens: tokens
+                    }
                 },
                 EuvMarkdownBlock::List { ordered, items } => {
                     let mut list: EuvMarkdownList = EuvMarkdownList::new(ordered, items, tokens);
@@ -1270,18 +1309,34 @@ impl EuvMarkdown {
                     alignments,
                     rows,
                 } => view! {
-                    EuvMarkdownTable(headers, alignments, rows, tokens)
+                    EuvMarkdownTable {
+                        headers: headers
+                        alignments: alignments
+                        rows: rows
+                        tokens: tokens
+                    }
                 },
                 EuvMarkdownBlock::Divider => view! {
-                    EuvMarkdownDivider(tokens)
+                    EuvMarkdownDivider {
+                        tokens: tokens
+                    }
                 },
                 EuvMarkdownBlock::Image { alt, url } => view! {
-                    EuvMarkdownImage(alt, url, tokens)
+                    EuvMarkdownImage {
+                        alt: alt
+                        url: url
+                        tokens: tokens
+                    }
                 },
                 EuvMarkdownBlock::Details { summary, body } => {
                     let open_sig: Signal<bool> = Signal::new(false);
                     view! {
-                        EuvMarkdownDetails(summary, body, open_sig, tokens)
+                        EuvMarkdownDetails {
+                            summary: summary
+                            body: body
+                            open: open_sig
+                            tokens: tokens
+                        }
                     }
                 }
             })

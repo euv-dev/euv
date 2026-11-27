@@ -191,7 +191,7 @@ impl HardwareRenderer {
                 DrawCommand::Clear(c) => {
                     clear_color = *c;
                 }
-                DrawCommand::PushClip(rect) => {
+                DrawCommand::PushClip(rect) | DrawCommand::PushRoundedClip { rect, .. } => {
                     let phys: Rect = snap_physical_rect(*rect, scale);
                     clip_stack.push(active_clip.intersect(phys).unwrap_or_default());
                 }

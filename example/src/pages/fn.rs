@@ -107,7 +107,10 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                 let cmd_route: Signal<String> = state_c.get_route();
                 let cmd_state: ShowcaseState = state_c.clone();
                 let cmd_list: NodeId = view! {
-                    EuvCommand(cmd_items, cmd_sel, tokens) {
+                    EuvCommand {
+                        items: cmd_items
+                        selected: cmd_sel
+                        tokens: tokens
                         query: cmd_query
                         placeholder: CMD_PLACEHOLDER
                     }
@@ -153,7 +156,12 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                     })
                 });
                 let cmd_modal: NodeId = view! {
-                    EuvModal(cmd_open, CMD_MODAL_TITLE.to_string(), cmd_list, tokens)
+                    EuvModal {
+                        open: cmd_open
+                        title: CMD_MODAL_TITLE.to_string()
+                        body: cmd_list
+                        tokens: tokens
+                    }
                 };
                 let rctx: Context = current_context();
                 rctx.get_scene().with_write(
@@ -187,7 +195,11 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                                 }
                             }
                             let nav: NodeId = view! {
-                                EuvSidebarNav(nav_items, state_shell.get_route(), tokens)
+                                EuvSidebarNav {
+                                    items: nav_items
+                                    active_route: state_shell.get_route()
+                                    tokens: tokens
+                                }
                             };
                             let bottom_items: Vec<EuvNavItem> = vec![
                                 EuvNavItem::new(
@@ -214,7 +226,11 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                                 .section(BNAV_3D_ICON),
                             ];
                             let bottom_nav: NodeId = view! {
-                                EuvBottomNav(bottom_items, state_shell.get_route(), tokens)
+                                EuvBottomNav {
+                                    items: bottom_items
+                                    active_route: state_shell.get_route()
+                                    tokens: tokens
+                                }
                             };
                             let swipe_order: Vec<String> = vec![
                                 ROUTE_OVERVIEW.to_string(),
@@ -273,6 +289,7 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                                 mount_route_by_name(matched.get_path(), &state_for_outlet, tok)
                             })
                             .with_theme(state_shell.get_theme().clone())
+                            .with_route_order(swipe_order.clone())
                             .with_double_back_exit(true)
                             .mount();
                             sctx.get_scene().with_write(
@@ -295,21 +312,27 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                                 row {
                                     gap: SPACE_SM
                                     align: AlignItems::Center
-                                    EuvButton(BTN_SEARCH_DESKTOP.to_string(), tokens) {
+                                    EuvButton {
+                                        label: BTN_SEARCH_DESKTOP.to_string()
+                                        tokens: tokens
                                         outline()
                                         sm()
                                         on_click: move |_: &UiEvent| {
                                             let _: bool = cmd_open.set_if_changed(true);
                                         }
                                     }
-                                    EuvButton(scheme_label, tokens) {
+                                    EuvButton {
+                                        label: scheme_label
+                                        tokens: tokens
                                         secondary()
                                         sm()
                                         on_click: move |_: &UiEvent| {
                                             st_scheme_top.next_scheme();
                                         }
                                     }
-                                    EuvButton(mode_label.clone(), tokens) {
+                                    EuvButton {
+                                        label: mode_label.clone()
+                                        tokens: tokens
                                         outline()
                                         sm()
                                         on_click: move |_: &UiEvent| {
@@ -322,14 +345,18 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                                 row {
                                     gap: SPACE_XS
                                     align: AlignItems::Center
-                                    EuvButton(BTN_SEARCH_MOBILE.to_string(), tokens) {
+                                    EuvButton {
+                                        label: BTN_SEARCH_MOBILE.to_string()
+                                        tokens: tokens
                                         outline()
                                         sm()
                                         on_click: move |_: &UiEvent| {
                                             let _: bool = cmd_open.set_if_changed(true);
                                         }
                                     }
-                                    EuvButton(mode_label, tokens) {
+                                    EuvButton {
+                                        label: mode_label
+                                        tokens: tokens
                                         ghost()
                                         sm()
                                         on_click: move |_: &UiEvent| {
@@ -339,7 +366,11 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                                 }
                             };
                             view! {
-                                EuvAppShell(SHOWCASE_BRAND.to_string(), nav, page_node, tokens) {
+                                EuvAppShell {
+                                    brand: SHOWCASE_BRAND.to_string()
+                                    sidebar: nav
+                                    main_content: page_node
+                                    tokens: tokens
                                     route: state_shell.get_route()
                                     breadcrumb: breadcrumb_sig
                                     top_bar_actions: top_actions
@@ -681,8 +712,13 @@ pub fn mount_overview_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
         let _: bool = route_sig.set_if_changed(ROUTE_WINDOW.to_string());
     };
     view! {
-        EuvPage(OVERVIEW_TITLE.to_string(), OVERVIEW_SUBTITLE.to_string(), tokens) {
-            EuvCard(HOME_DIR_TITLE.to_string(), tokens) {
+        EuvPage {
+            title: OVERVIEW_TITLE.to_string()
+            subtitle: OVERVIEW_SUBTITLE.to_string()
+            tokens: tokens
+            EuvCard {
+                title: HOME_DIR_TITLE.to_string()
+                tokens: tokens
                 subtitle: HOME_DIR_SUBTITLE
                 column {
                     width: Length::Percent(100.0)
@@ -697,10 +733,26 @@ pub fn mount_overview_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
                     flex_wrap: FlexWrap::Wrap
                     align: AlignItems::Center
                     gap: SPACE_XS
-                    EuvBadge(HERO_BADGE_VER.to_string(), EuvTone::Primary, tokens)
-                    EuvBadge(HERO_BADGE_ZERO_WV.to_string(), EuvTone::Success, tokens)
-                    EuvBadge(HERO_BADGE_EVA.to_string(), EuvTone::Neutral, tokens)
-                    EuvBadge(HERO_BADGE_FREEZE.to_string(), EuvTone::Warning, tokens)
+                    EuvBadge {
+                        label: HERO_BADGE_VER.to_string()
+                        tone: EuvTone::Primary
+                        tokens: tokens
+                    }
+                    EuvBadge {
+                        label: HERO_BADGE_ZERO_WV.to_string()
+                        tone: EuvTone::Success
+                        tokens: tokens
+                    }
+                    EuvBadge {
+                        label: HERO_BADGE_EVA.to_string()
+                        tone: EuvTone::Neutral
+                        tokens: tokens
+                    }
+                    EuvBadge {
+                        label: HERO_BADGE_FREEZE.to_string()
+                        tone: EuvTone::Warning
+                        tokens: tokens
+                    }
                 }
                 text {
                     width: Length::Percent(100.0)
@@ -715,45 +767,55 @@ pub fn mount_overview_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
                     color: p.get_muted_foreground()
                     { HERO_DESCRIPTION }
                 }
-                EuvActionRow() {
-                    EuvButton(BTN_OPEN_MARKDOWN.to_string(), tokens) {
+                EuvActionRow {
+                    EuvButton {
+                        label: BTN_OPEN_MARKDOWN.to_string()
+                        tokens: tokens
                         on_click: on_open_markdown
                     }
-                    EuvButton(BTN_OPEN_3D_RT.to_string(), tokens) {
+                    EuvButton {
+                        label: BTN_OPEN_3D_RT.to_string()
+                        tokens: tokens
                         secondary()
                         on_click: on_open_3d
                     }
-                    EuvButton(BTN_OPEN_STRESS_LAB.to_string(), tokens) {
+                    EuvButton {
+                        label: BTN_OPEN_STRESS_LAB.to_string()
+                        tokens: tokens
                         outline()
                         on_click: on_open_stress
                     }
-                    EuvButton(BTN_TRY_REACTIVITY.to_string(), tokens) {
+                    EuvButton {
+                        label: BTN_TRY_REACTIVITY.to_string()
+                        tokens: tokens
                         outline()
                         on_click: on_open_reactive
                     }
                 }
             }
-            EuvStatGrid() {
-                EuvStatCard(
-                    STAT_PLATFORMS_LABEL.to_string(),
-                    STAT_PLATFORMS_VAL.to_string(),
-                    STAT_PLATFORMS_CAP.to_string(),
-                    tokens
-                )
-                EuvStatCard(
-                    STAT_SCHEMES_LABEL.to_string(),
-                    STAT_SCHEMES_VAL.to_string(),
-                    STAT_SCHEMES_CAP.to_string(),
-                    tokens
-                )
-                EuvStatCard(
-                    STAT_RENDER_LABEL.to_string(),
-                    STAT_RENDER_VAL.to_string(),
-                    STAT_RENDER_CAP.to_string(),
-                    tokens
-                )
+            EuvStatGrid {
+                EuvStatCard {
+                    label: STAT_PLATFORMS_LABEL.to_string()
+                    value: STAT_PLATFORMS_VAL.to_string()
+                    caption: STAT_PLATFORMS_CAP.to_string()
+                    tokens: tokens
+                }
+                EuvStatCard {
+                    label: STAT_SCHEMES_LABEL.to_string()
+                    value: STAT_SCHEMES_VAL.to_string()
+                    caption: STAT_SCHEMES_CAP.to_string()
+                    tokens: tokens
+                }
+                EuvStatCard {
+                    label: STAT_RENDER_LABEL.to_string()
+                    value: STAT_RENDER_VAL.to_string()
+                    caption: STAT_RENDER_CAP.to_string()
+                    tokens: tokens
+                }
             }
-            EuvCard(CARD_LIFECYCLE_TITLE.to_string(), tokens) {
+            EuvCard {
+                title: CARD_LIFECYCLE_TITLE.to_string()
+                tokens: tokens
                 subtitle: CARD_LIFECYCLE_SUB
                 text {
                     width: Length::Percent(100.0)
@@ -782,46 +844,56 @@ pub fn mount_overview_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
                     color: p.get_success()
                     { global_local_text }
                 }
-                EuvActionRow() {
-                    EuvButton(BTN_EMIT_PULSE.to_string(), tokens) {
+                EuvActionRow {
+                    EuvButton {
+                        label: BTN_EMIT_PULSE.to_string()
+                        tokens: tokens
                         sm()
                         on_click: on_emit_pulse
                     }
-                    EuvButton(BTN_LOCAL_INC.to_string(), tokens) {
+                    EuvButton {
+                        label: BTN_LOCAL_INC.to_string()
+                        tokens: tokens
                         secondary()
                         sm()
                         on_click: on_local_inc
                     }
-                    EuvButton(BTN_OPEN_GAME_ENGINE.to_string(), tokens) {
+                    EuvButton {
+                        label: BTN_OPEN_GAME_ENGINE.to_string()
+                        tokens: tokens
                         outline()
                         sm()
                         on_click: on_open_game
                     }
-                    EuvButton(BTN_OPEN_OS_SERVICES.to_string(), tokens) {
+                    EuvButton {
+                        label: BTN_OPEN_OS_SERVICES.to_string()
+                        tokens: tokens
                         outline()
                         sm()
                         on_click: on_open_window
                     }
                 }
             }
-            EuvCard(CARD_PLATFORMS_TITLE.to_string(), tokens) {
+            EuvCard {
+                title: CARD_PLATFORMS_TITLE.to_string()
+                tokens: tokens
                 subtitle: CARD_PLATFORMS_SUB
-                EuvTable(
-                    vec![
+                EuvTable {
+                    headers: vec![
                         TABLE_COL_TARGET.to_string(),
                         TABLE_COL_BACKEND.to_string(),
                         TABLE_COL_GPU.to_string(),
-                    ],
-                    vec![
+                    ]
+                    rows: vec![
                         vec![ROW_WEB.to_string(), ROW_WEB_API.to_string(), ROW_WEB_GPU.to_string()],
                         vec![ROW_MACOS.to_string(), ROW_MACOS_API.to_string(), ROW_MACOS_GPU.to_string()],
                         vec![ROW_IOS.to_string(), ROW_IOS_API.to_string(), ROW_MACOS_GPU.to_string()],
                         vec![ROW_ANDROID.to_string(), ROW_ANDROID_API.to_string(), ROW_ANDROID_GPU.to_string()],
                         vec![ROW_WINDOWS.to_string(), ROW_WINDOWS_API.to_string(), ROW_WINDOWS_GPU.to_string()],
                         vec![ROW_LINUX.to_string(), ROW_LINUX_API.to_string(), ROW_ANDROID_GPU.to_string()],
-                    ],
-                    tokens
-                )
+                    ]
+                    tokens: tokens
+                }
             }
         }
     }
@@ -875,8 +947,13 @@ pub fn mount_markdown_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
         })
         .collect();
     view! {
-        EuvPage(MD_STUDIO_TITLE.to_string(), MD_STUDIO_SUBTITLE.to_string(), tokens) {
-            EuvCard(MD_THEME_CARD_TITLE.to_string(), tokens) {
+        EuvPage {
+            title: MD_STUDIO_TITLE.to_string()
+            subtitle: MD_STUDIO_SUBTITLE.to_string()
+            tokens: tokens
+            EuvCard {
+                title: MD_THEME_CARD_TITLE.to_string()
+                tokens: tokens
                 subtitle: MD_THEME_CARD_SUB
                 text {
                     font_size: 12.5
@@ -891,13 +968,17 @@ pub fn mount_markdown_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
                     flex_wrap: FlexWrap::Wrap
                     gap: SPACE_SM
                     ..swatch_nodes
-                    EuvButton(BTN_TOGGLE_EVA_MODE.to_string(), tokens) {
+                    EuvButton {
+                        label: BTN_TOGGLE_EVA_MODE.to_string()
+                        tokens: tokens
                         sm()
                         on_click: move |_: &UiEvent| {
                             st_toggle.toggle_theme_mode();
                         }
                     }
-                    EuvButton(BTN_EMIT_PULSE.to_string(), tokens) {
+                    EuvButton {
+                        label: BTN_EMIT_PULSE.to_string()
+                        tokens: tokens
                         outline()
                         sm()
                         on_click: move |_: &UiEvent| {
@@ -909,18 +990,20 @@ pub fn mount_markdown_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
                     }
                 }
             }
-            EuvCard(MD_CODE_CARD_TITLE.to_string(), tokens) {
+            EuvCard {
+                title: MD_CODE_CARD_TITLE.to_string()
+                tokens: tokens
                 subtitle: MD_CODE_CARD_SUB
-                EuvSegmented(
-                    vec![
+                EuvSegmented {
+                    options: vec![
                         MD_TAB_RUST.to_string(),
                         MD_TAB_TS.to_string(),
                         MD_TAB_JSON.to_string(),
                         MD_TAB_DIFF.to_string(),
-                    ],
-                    lang_tab,
-                    tokens
-                )
+                    ]
+                    selected: lang_tab
+                    tokens: tokens
+                }
                 column {
                     width: Length::Percent(100.0)
                     bind_children: move || {
@@ -953,7 +1036,9 @@ pub fn mount_markdown_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
                     { move || format!("Copy: {} | Link: {} | Tasks Toggled: {}", copy_log.get(), link_log.get(), tasks_toggled.get()) }
                 }
             }
-            EuvCard(MD_DOC_CARD_TITLE.to_string(), tokens) {
+            EuvCard {
+                title: MD_DOC_CARD_TITLE.to_string()
+                tokens: tokens
                 subtitle: MD_DOC_CARD_SUB
                 { EuvMarkdown::new(MD_FULL_DOCUMENT.to_string(), tokens)
                     .on_link(move |url: &str| {
@@ -986,8 +1071,13 @@ pub fn mount_reactive_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
     let counter: Signal<i32> = state.get_counter();
     let doubled: Memo<i32> = state.get_doubled();
     view! {
-        EuvPage(REACTIVE_TITLE.to_string(), REACTIVE_SUBTITLE.to_string(), tokens) {
-            EuvCard(REACTIVE_CARD_TITLE.to_string(), tokens) {
+        EuvPage {
+            title: REACTIVE_TITLE.to_string()
+            subtitle: REACTIVE_SUBTITLE.to_string()
+            tokens: tokens
+            EuvCard {
+                title: REACTIVE_CARD_TITLE.to_string()
+                tokens: tokens
                 subtitle: REACTIVE_CARD_SUB
                 column {
                     gap: SPACE_MD
@@ -1002,13 +1092,17 @@ pub fn mount_reactive_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
                         color: p.get_primary()
                         { move || format!("{PREFIX_DOUBLED}{}", doubled.get()) }
                     }
-                    EuvActionRow() {
-                        EuvButton(BTN_INCREMENT.to_string(), tokens) {
+                    EuvActionRow {
+                        EuvButton {
+                            label: BTN_INCREMENT.to_string()
+                            tokens: tokens
                             on_click: move |_: &UiEvent| {
                                 let _: bool = counter.update(|v: &mut i32| *v += 1);
                             }
                         }
-                        EuvButton(BTN_BATCH_TEN.to_string(), tokens) {
+                        EuvButton {
+                            label: BTN_BATCH_TEN.to_string()
+                            tokens: tokens
                             secondary()
                             on_click: move |_: &UiEvent| {
                                 batch(|| {
@@ -1018,7 +1112,9 @@ pub fn mount_reactive_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
                                 });
                             }
                         }
-                        EuvButton(BTN_RESET.to_string(), tokens) {
+                        EuvButton {
+                            label: BTN_RESET.to_string()
+                            tokens: tokens
                             outline()
                             on_click: move |_: &UiEvent| {
                                 let _: bool = counter.set_if_changed(0);
@@ -1046,19 +1142,24 @@ pub fn mount_render_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     let g: ThemeGeometry = tokens.get_geometry();
     let mode_idx: Signal<usize> = state.get_render_mode_index();
     view! {
-        EuvPage(RENDER_TITLE.to_string(), RENDER_SUBTITLE.to_string(), tokens) {
-            EuvCard(RENDER_CARD_TITLE.to_string(), tokens) {
+        EuvPage {
+            title: RENDER_TITLE.to_string()
+            subtitle: RENDER_SUBTITLE.to_string()
+            tokens: tokens
+            EuvCard {
+                title: RENDER_CARD_TITLE.to_string()
+                tokens: tokens
                 subtitle: RENDER_CARD_SUB
-                EuvSegmented(
-                    vec![
+                EuvSegmented {
+                    options: vec![
                         MODE_AUTO.to_string(),
                         MODE_SOFTWARE.to_string(),
                         MODE_HARDWARE.to_string(),
                         MODE_HYBRID.to_string(),
-                    ],
-                    mode_idx,
-                    tokens
-                )
+                    ]
+                    selected: mode_idx
+                    tokens: tokens
+                }
                 column {
                     gap: SPACE_SM
                     text {
@@ -1201,6 +1302,7 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     ];
     let fps_limit_sig: Signal<Option<u32>> = ctx_win.get_fps_limit();
     let live_fps_sig: Signal<f32> = ctx_win.get_live_fps();
+    let native_hz_sig: Signal<f32> = ctx_win.get_display_refresh_rate();
     let fps_idx: Signal<usize> = Signal::new(match fps_limit_sig.get_untracked() {
         Some(30) => 1,
         Some(60) => 2,
@@ -1225,8 +1327,13 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     let mut body_id: NodeId = NodeId::default();
     let mut fps_card_id: NodeId = NodeId::default();
     let page: NodeId = view! {
-        EuvPage(WINDOW_TITLE.to_string(), WINDOW_SUBTITLE.to_string(), tokens) {
-            EuvCard(WINDOW_CARD_TITLE.to_string(), tokens) {
+        EuvPage {
+            title: WINDOW_TITLE.to_string()
+            subtitle: WINDOW_SUBTITLE.to_string()
+            tokens: tokens
+            EuvCard {
+                title: WINDOW_CARD_TITLE.to_string()
+                tokens: tokens
                 subtitle: WINDOW_CARD_SUB
                 column {
                     node_ref: body_id
@@ -1269,8 +1376,10 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         color: p.get_muted_foreground()
                         { move || format!("A11y Bridge: {} (announcements={}) | Haptics: {} (pulses={})", caps.get_accessibility_bridge(), a11y_count.get(), caps.get_haptics(), haptic_count.get()) }
                     }
-                    EuvActionRow() {
-                        EuvButton("Toggle Dynamic Island".to_string(), tokens) {
+                    EuvActionRow {
+                        EuvButton {
+                            label: "Toggle Dynamic Island".to_string()
+                            tokens: tokens
                             on_click: move |_: &UiEvent| {
                                 let next_active: bool = !island_active.get_untracked();
                                 let _: bool = island_active.set_if_changed(next_active);
@@ -1302,7 +1411,9 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                                 }
                             }
                         }
-                        EuvButton("Register euv:// Protocol".to_string(), tokens) {
+                        EuvButton {
+                            label: "Register euv:// Protocol".to_string()
+                            tokens: tokens
                             secondary()
                             on_click: move |_: &UiEvent| {
                                 let mut reg: ProtocolRegistry = ProtocolRegistry::new();
@@ -1321,7 +1432,9 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                                 }
                             }
                         }
-                        EuvButton("Request Camera Permission".to_string(), tokens) {
+                        EuvButton {
+                            label: "Request Camera Permission".to_string()
+                            tokens: tokens
                             outline()
                             on_click: move |_: &UiEvent| {
                                 let mut mgr: PermissionManager = PermissionManager::new();
@@ -1335,7 +1448,9 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                                 let _: bool = native_feedback.set(format!("Permission requested: {msg}"));
                             }
                         }
-                        EuvButton("Announce A11y + Haptic".to_string(), tokens) {
+                        EuvButton {
+                            label: "Announce A11y + Haptic".to_string()
+                            tokens: tokens
                             outline()
                             on_click: move |_: &UiEvent| {
                                 let mut svc: PlatformServiceHub = PlatformServiceHub::new(platform);
@@ -1353,32 +1468,42 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                             }
                         }
                     }
-                    EuvSwitch(fs_sig, SWITCH_FULLSCREEN.to_string(), tokens)
-                    EuvCodeBlock(CODE_WINDOW_SNIPPET.to_string(), tokens)
+                    EuvSwitch {
+                        checked: fs_sig
+                        label: SWITCH_FULLSCREEN.to_string()
+                        tokens: tokens
+                    }
+                    EuvCodeBlock {
+                        code: CODE_WINDOW_SNIPPET.to_string()
+                        tokens: tokens
+                    }
                 }
             }
-            EuvCard("Cross-Platform Frame Rate Limiter".to_string(), tokens) {
+            EuvCard {
+                title: "Cross-Platform Frame Rate Limiter".to_string()
+                tokens: tokens
                 node_ref: fps_card_id
-                subtitle: "Default Unlimited (Max FPS) on Desktop, Web, Android & iOS — adjust cap live anytime"
-                EuvSegmented(
-                    vec![
-                        "Unlimited".to_string(),
+                subtitle: "Prioritizes native hardware refresh rate (120Hz/144Hz/180Hz+) across Desktop, Web, Android & iOS"
+                EuvSegmented {
+                    options: vec![
+                        "Native Auto".to_string(),
                         "30 FPS".to_string(),
                         "60 FPS".to_string(),
                         "120 FPS".to_string(),
                         "144 FPS".to_string(),
                         "240 FPS".to_string(),
-                    ],
-                    fps_idx,
-                    tokens
-                )
+                    ]
+                    selected: fps_idx
+                    tokens: tokens
+                }
                 text {
                     font_size: 13.0
                     font_weight: FontWeight::SemiBold
                     color: p.get_primary()
                     { move || {
+                        let native_hz: f32 = native_hz_sig.get();
                         let cap_txt: String = match fps_limit_sig.get() {
-                            None => "Unlimited (Max FPS)".to_string(),
+                            None => format!("Native Auto ({native_hz:.0} Hz)"),
                             Some(v) => format!("Capped at {v} FPS"),
                         };
                         format!(
@@ -1388,10 +1513,12 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                     } }
                 }
             }
-            EuvCard("Cross-Platform Dynamic Island & Notifications".to_string(), tokens) {
+            EuvCard {
+                title: "Cross-Platform Dynamic Island & Notifications".to_string()
+                tokens: tokens
                 subtitle: "Test Live Activities across all 7 platforms and dispatch native OS notifications"
-                EuvSegmented(
-                    vec![
+                EuvSegmented {
+                    options: vec![
                         "iOS".to_string(),
                         "iPadOS".to_string(),
                         LABEL_PLATFORM_ANDROID.to_string(),
@@ -1399,22 +1526,22 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         "Windows".to_string(),
                         "Linux".to_string(),
                         "Web".to_string(),
-                    ],
-                    target_plat_idx,
-                    tokens
-                )
-                EuvSegmented(
-                    vec![
+                    ]
+                    selected: target_plat_idx
+                    tokens: tokens
+                }
+                EuvSegmented {
+                    options: vec![
                         "Compact".to_string(),
                         "Minimal".to_string(),
                         "Expanded".to_string(),
                         "LockScreen".to_string(),
                         "FallbackNotif".to_string(),
                         "StatusBar".to_string(),
-                    ],
-                    island_mode_idx,
-                    tokens
-                )
+                    ]
+                    selected: island_mode_idx
+                    tokens: tokens
+                }
                 column {
                     width: Length::Percent(100.0)
                     padding: Edges::all(SPACE_MD)
@@ -1438,8 +1565,10 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         } }
                     }
                 }
-                EuvActionRow() {
-                    EuvButton("Trigger Alert Notification".to_string(), tokens) {
+                EuvActionRow {
+                    EuvButton {
+                        label: "Trigger Alert Notification".to_string()
+                        tokens: tokens
                         sm()
                         on_click: move |_: &UiEvent| {
                             let tp: PlatformKind = all_platforms[target_plat_idx.get_untracked() % 7];
@@ -1456,7 +1585,9 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                             });
                         }
                     }
-                    EuvButton("Trigger Silent + Badge(3)".to_string(), tokens) {
+                    EuvButton {
+                        label: "Trigger Silent + Badge(3)".to_string()
+                        tokens: tokens
                         secondary()
                         sm()
                         on_click: move |_: &UiEvent| {
@@ -1476,7 +1607,9 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                             });
                         }
                     }
-                    EuvButton("Clear Notifications".to_string(), tokens) {
+                    EuvButton {
+                        label: "Clear Notifications".to_string()
+                        tokens: tokens
                         outline()
                         sm()
                         on_click: move |_: &UiEvent| {
@@ -1484,9 +1617,14 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         }
                     }
                 }
-                EuvSonner(sys_notifs, tokens)
+                EuvSonner {
+                    messages: sys_notifs
+                    tokens: tokens
+                }
             }
-            EuvCard("Complete 14-Category OS Permissions Matrix".to_string(), tokens) {
+            EuvCard {
+                title: "Complete 14-Category OS Permissions Matrix".to_string()
+                tokens: tokens
                 subtitle: "Inspect per-platform native entitlement keys and test Grant / Deny flows"
                 column {
                     width: Length::Percent(100.0)
@@ -1519,8 +1657,10 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                                         color: p.get_foreground()
                                         { format!("{perm:?} [{st:?}] · {native_key}") }
                                     }
-                                    EuvActionRow() {
-                                        EuvButton("Request".to_string(), tokens) {
+                                    EuvActionRow {
+                                        EuvButton {
+                                            label: "Request".to_string()
+                                            tokens: tokens
                                             outline()
                                             sm()
                                             on_click: move |_: &UiEvent| {
@@ -1539,7 +1679,9 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                                                 ));
                                             }
                                         }
-                                        EuvButton("Deny".to_string(), tokens) {
+                                        EuvButton {
+                                            label: "Deny".to_string()
+                                            tokens: tokens
                                             destructive()
                                             sm()
                                             on_click: move |_: &UiEvent| {
@@ -1639,12 +1781,13 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     let ai_scheme_sig: Signal<DesignScheme> = state.get_theme().get_scheme();
     let mut touch_pad_id: NodeId = NodeId::default();
     let page: NodeId = view! {
-        EuvPage(
-            "UI & Edge-Case Lab".to_string(),
-            "Full shadcn/ui component parity + multi-touch, propagation, overlay stack, AI Schema v1, and resize-preservation tests".to_string(),
-            tokens
-        ) {
-            EuvCard("Multi-Touch & Gesture Isolation Pad".to_string(), tokens) {
+        EuvPage {
+            title: "UI & Edge-Case Lab".to_string()
+            subtitle: "Full shadcn/ui component parity + multi-touch, propagation, overlay stack, AI Schema v1, and resize-preservation tests".to_string()
+            tokens: tokens
+            EuvCard {
+                title: "Multi-Touch & Gesture Isolation Pad".to_string()
+                tokens: tokens
                 subtitle: "Simultaneous multi-finger tracking with pointer IDs, pinch distance line, and gesture non-penetration"
                 row {
                     width: Length::Percent(100.0)
@@ -1765,7 +1908,9 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                     }
                 }
             }
-            EuvCard("AI Schema v1 & Reactive Telemetry Bridge".to_string(), tokens) {
+            EuvCard {
+                title: "AI Schema v1 & Reactive Telemetry Bridge".to_string()
+                tokens: tokens
                 subtitle: "Live introspection of SceneTree bounds, A11y tree, reactive graph, FPS, and interactive agent actions"
                 text {
                     width: Length::Percent(100.0)
@@ -1798,8 +1943,10 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         )
                     } }
                 }
-                EuvActionRow() {
-                    EuvButton("Refresh AI Telemetry".to_string(), tokens) {
+                EuvActionRow {
+                    EuvButton {
+                        label: "Refresh AI Telemetry".to_string()
+                        tokens: tokens
                         outline()
                         sm()
                         on_click: move |_: &UiEvent| {
@@ -1807,65 +1954,90 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         }
                     }
                 }
-                EuvCodeBlock(
-                    "GET /ai/schema | /ai/snapshot | /ai/a11y | /ai/health\nPOST /ai/query | /ai/action | /ai/script (dev-only; 0B in release)".to_string(),
-                    tokens
-                )
+                EuvCodeBlock {
+                    code: "GET /ai/schema | /ai/snapshot | /ai/a11y | /ai/health\nPOST /ai/query | /ai/action | /ai/script (dev-only; 0B in release)".to_string()
+                    tokens: tokens
+                }
             }
-            EuvCard("Complete shadcn/ui Component Parity".to_string(), tokens) {
+            EuvCard {
+                title: "Complete shadcn/ui Component Parity".to_string()
+                tokens: tokens
                 subtitle: "Trace, Attachment, Bubble, Marker, Questionnaire, Chart, Combobox, DataTable, DatePicker, InputGroup, Item, NativeSelect, NavigationMenu, Resizable, Separator, Direction, Avatar, Kbd, Spinner, Skeleton, Breadcrumb, Empty"
                 row {
                     style: c_action_row()
-                    EuvMarker("01".to_string(), "Zero WebView".to_string(), EuvTone::Primary, tokens)
-                    EuvMarker("02".to_string(), "120+ FPS".to_string(), EuvTone::Success, tokens)
-                    EuvMarker("03".to_string(), "Multi-Touch".to_string(), EuvTone::Warning, tokens)
-                    EuvAvatar("EU".to_string(), 32.0, tokens)
-                    EuvKbd("Cmd+K".to_string(), tokens)
-                    EuvSpinner(18.0, tokens)
+                    EuvMarker {
+                        code: "01".to_string()
+                        label: "Zero WebView".to_string()
+                        tone: EuvTone::Primary
+                        tokens: tokens
+                    }
+                    EuvMarker {
+                        code: "02".to_string()
+                        label: "120+ FPS".to_string()
+                        tone: EuvTone::Success
+                        tokens: tokens
+                    }
+                    EuvMarker {
+                        code: "03".to_string()
+                        label: "Multi-Touch".to_string()
+                        tone: EuvTone::Warning
+                        tokens: tokens
+                    }
+                    EuvAvatar {
+                        initials: "EU".to_string()
+                        size: 32.0
+                        tokens: tokens
+                    }
+                    EuvKbd {
+                        key: "Cmd+K".to_string()
+                        tokens: tokens
+                    }
+                    EuvSpinner {
+                        size: 18.0
+                        tokens: tokens
+                    }
                 }
-                EuvTrace(
-                    "Frame Pipeline Trace (1.42ms Total)".to_string(),
-                    vec![
+                EuvTrace {
+                    title: "Frame Pipeline Trace (1.42ms Total)".to_string()
+                    spans: vec![
                         EuvTraceSpan::new("layout.compute".to_string(), 0.14, 0.0, 0.12, EuvTone::Primary),
                         EuvTraceSpan::new("bvh.raytrace_gi".to_string(), 0.88, 0.12, 0.60, EuvTone::Success),
                         EuvTraceSpan::new("fxaa.tonemap".to_string(), 0.24, 0.72, 0.16, EuvTone::Warning),
                         EuvTraceSpan::new("present.blit".to_string(), 0.16, 0.88, 0.12, EuvTone::Neutral),
-                    ],
-                    tokens
-                )
-                EuvAttachment(
-                    "vice-boulevard-rt.wasm".to_string(),
-                    "48.2 KB · application/wasm · SHA-verified".to_string(),
-                    attach_vis,
-                    tokens
-                )
-                EuvBubble(
-                    "Euv Runtime".to_string(),
-                    "All 60+ shadcn/ui components rendered directly via Rust SceneTree with zero WebView.".to_string(),
-                    tokens
-                ) {
+                    ]
+                    tokens: tokens
+                }
+                EuvAttachment {
+                    filename: "vice-boulevard-rt.wasm".to_string()
+                    meta: "48.2 KB · application/wasm · SHA-verified".to_string()
+                    visible: attach_vis
+                    tokens: tokens
+                }
+                EuvBubble {
+                    author: "Euv Runtime".to_string()
+                    content: "All 60+ shadcn/ui components rendered directly via Rust SceneTree with zero WebView.".to_string()
+                    tokens: tokens
                     timestamp: "09:41"
                 }
-                EuvBubble(
-                    "Developer".to_string(),
-                    "Verify multi-touch, text wrapping, blinking input caret & uncapped FPS live!".to_string(),
-                    tokens
-                ) {
+                EuvBubble {
+                    author: "Developer".to_string()
+                    content: "Verify multi-touch, text wrapping, blinking input caret & uncapped FPS live!".to_string()
+                    tokens: tokens
                     timestamp: "09:42"
                     outgoing: true
                 }
-                EuvQuestionnaire(
-                    "Preferred native target deployment pipeline?".to_string(),
-                    vec![
+                EuvQuestionnaire {
+                    prompt: "Preferred native target deployment pipeline?".to_string()
+                    options: vec![
                         "Universal Native (Android + iOS + Desktop + Web)".to_string(),
                         "Dynamic OTA .wasm Hot-Swap Modules".to_string(),
                         "Embedded 3D Ray-Traced Engine Viewport".to_string(),
-                    ],
-                    q_sel,
-                    tokens
-                )
-                EuvNavigationMenu(
-                    vec![
+                    ]
+                    selected: q_sel
+                    tokens: tokens
+                }
+                EuvNavigationMenu {
+                    items: vec![
                         (
                             "Architecture".to_string(),
                             "Arena signals + deterministic Flexbox/Grid + retained scene graph.".to_string(),
@@ -1878,83 +2050,117 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                             "Media Suite".to_string(),
                             "Pure-Rust Image, SVG, GIF, LIVE Photo, Video, WAV Audio, PDF, HTML.".to_string(),
                         ),
-                    ],
-                    state.get_lab_nav_menu_active(),
-                    tokens
-                )
-                EuvChart("Frame Rate Telemetry (Bar)".to_string(), EuvChartKind::Bar, chart_data.clone(), tokens)
-                EuvChart("3D Ray-Tracing Throughput (Area)".to_string(), EuvChartKind::Area, chart_data, tokens)
-                EuvCombobox(
-                    vec![
+                    ]
+                    active: state.get_lab_nav_menu_active()
+                    tokens: tokens
+                }
+                EuvChart {
+                    title: "Frame Rate Telemetry (Bar)".to_string()
+                    kind: EuvChartKind::Bar
+                    data: chart_data.clone()
+                    tokens: tokens
+                }
+                EuvChart {
+                    title: "3D Ray-Tracing Throughput (Area)".to_string()
+                    kind: EuvChartKind::Area
+                    data: chart_data
+                    tokens: tokens
+                }
+                EuvCombobox {
+                    options: vec![
                         "euv Native Rust".to_string(),
                         "WebAssembly Zero-JS".to_string(),
                         "Android ARM64 JNI".to_string(),
                         "iOS CoreText Metal".to_string(),
                         "macOS AppKit Retina".to_string(),
-                    ],
-                    state.get_lab_combobox_selected(),
-                    state.get_lab_combobox_open(),
-                    tokens
-                ) {
+                    ]
+                    selected: state.get_lab_combobox_selected()
+                    open: state.get_lab_combobox_open()
+                    tokens: tokens
                     query: state.get_lab_combobox_query()
                     placeholder: "Filter frameworks..."
                 }
-                EuvDatePicker(LABEL_CALENDAR_MONTH.to_string(), state.get_lab_date_day(), state.get_lab_date_open(), tokens)
-                EuvInputGroup(state.get_lab_input_group_val(), tokens) {
+                EuvDatePicker {
+                    month_label: LABEL_CALENDAR_MONTH.to_string()
+                    selected_day: state.get_lab_date_day()
+                    open: state.get_lab_date_open()
+                    tokens: tokens
+                }
+                EuvInputGroup {
+                    value: state.get_lab_input_group_val()
+                    tokens: tokens
                     prefix: "https://"
                     placeholder: "subdomain"
                     suffix: ".euv.dev"
                 }
-                EuvNativeSelect(
-                    vec![
+                EuvNativeSelect {
+                    options: vec![
                         "60 Hz Standard".to_string(),
                         "120 Hz ProMotion".to_string(),
                         "Unlocked Benchmark".to_string(),
-                    ],
-                    state.get_lab_native_select_idx(),
-                    tokens
-                )
-                EuvDataTable(
-                    vec!["Target".to_string(), "Font Engine".to_string(), "Status".to_string()],
-                    vec![
+                    ]
+                    selected: state.get_lab_native_select_idx()
+                    tokens: tokens
+                }
+                EuvDataTable {
+                    headers: vec!["Target".to_string(), "Font Engine".to_string(), "Status".to_string()]
+                    rows: vec![
                         vec![LABEL_PLATFORM_ANDROID.to_string(), "Skia Paint AA".to_string(), "1:1 DPI".to_string()],
                         vec!["iOS / iPadOS".to_string(), "CoreText @3x".to_string(), "ProMotion".to_string()],
                         vec![LABEL_PLATFORM_MACOS.to_string(), "CoreText Retina".to_string(), "Live Resize".to_string()],
                         vec!["WebAssembly".to_string(), "Canvas2D AA".to_string(), "Zero-JS".to_string()],
-                    ],
-                    tokens
-                ) {
+                    ]
+                    tokens: tokens
                     filter: state.get_lab_table_filter()
                     sort_ascending: state.get_lab_table_sort_asc()
                     selected_row: state.get_lab_table_selected()
                 }
-                EuvResizable(left_split, right_split, state.get_lab_split_ratio(), tokens)
-                EuvItem("Production shadcn/ui Alignment".to_string(), tokens) {
+                EuvResizable {
+                    left: left_split
+                    right: right_split
+                    split_ratio: state.get_lab_split_ratio()
+                    tokens: tokens
+                }
+                EuvItem {
+                    title: "Production shadcn/ui Alignment".to_string()
+                    tokens: tokens
                     leading: "EU"
                     description: "Unified layout grammar across all 17 design schemes with per-theme surface/radius tokens"
-                    trailing: "v0.39"
+                    trailing: LAB_ITEM_VER
                 }
                 column {
                     width: Length::Percent(100.0)
                     gap: SPACE_SM
-                    EuvBreadcrumb(
-                        vec!["Euv Studio".to_string(), "Design System".to_string(), "Components".to_string()],
-                        tokens
-                    ) {
+                    EuvBreadcrumb {
+                        segments: vec!["Euv Studio".to_string(), "Design System".to_string(), "Components".to_string()]
+                        tokens: tokens
                         active: state.get_breadcrumb_active()
                     }
-                    EuvTypography("Unified shadcn/ui Typography & Surface Tokens".to_string(), EuvTypographyVariant::H3, tokens)
-                    EuvSkeleton(260.0, 18.0, tokens)
-                    EuvEmpty(
-                        "No Pending Warnings".to_string(),
-                        "All layout, scroll, shadow and typography checks passed.".to_string(),
-                        tokens
-                    )
+                    EuvTypography {
+                        text: "Unified shadcn/ui Typography & Surface Tokens".to_string()
+                        variant: EuvTypographyVariant::H3
+                        tokens: tokens
+                    }
+                    EuvSkeleton {
+                        width: 260.0
+                        height: 18.0
+                        tokens: tokens
+                    }
+                    EuvEmpty {
+                        title: "No Pending Warnings".to_string()
+                        description: "All layout, scroll, shadow and typography checks passed.".to_string()
+                        tokens: tokens
+                    }
                 }
             }
-            EuvCard("Boundary & Event Penetration Regression Lab".to_string(), tokens) {
+            EuvCard {
+                title: "Boundary & Event Penetration Regression Lab".to_string()
+                tokens: tokens
                 subtitle: "Verify scroll lock, flexible event bubbling, overlay back stack, RTL alignment, and zero-rebuild resize preservation"
-                EuvSeparator("EDGE-CASE REGRESSION SUITE".to_string(), tokens)
+                EuvSeparator {
+                    label: "EDGE-CASE REGRESSION SUITE".to_string()
+                    tokens: tokens
+                }
                 column {
                     width: Length::Percent(100.0)
                     bind_children: move || {
@@ -1964,35 +2170,51 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                             EuvTextDirection::Ltr
                         };
                         vec![view! {
-                            EuvDirection(
-                                dir,
-                                view! {
+                            EuvDirection {
+                                direction: dir
+                                child: view! {
                                     text {
                                         font_size: 13.0
                                         color: p.get_foreground()
                                         { format!("Direction preview ({dir:?}): Unified layout alignment across LTR & RTL") }
                                     }
-                                },
-                                tokens
-                            )
+                                }
+                                tokens: tokens
+                            }
                         }]
                     }
                 }
                 column {
                     width: Length::Percent(100.0)
                     gap: SPACE_XS
-                    EuvSwitch(block_scroll, "Lock Scroll Penetration".to_string(), tokens)
-                    EuvSwitch(stop_bubble, "Stop Click Bubbling".to_string(), tokens)
-                    EuvSwitch(rtl_sig, "RTL Direction".to_string(), tokens)
+                    EuvSwitch {
+                        checked: block_scroll
+                        label: "Lock Scroll Penetration".to_string()
+                        tokens: tokens
+                    }
+                    EuvSwitch {
+                        checked: stop_bubble
+                        label: "Stop Click Bubbling".to_string()
+                        tokens: tokens
+                    }
+                    EuvSwitch {
+                        checked: rtl_sig
+                        label: "RTL Direction".to_string()
+                        tokens: tokens
+                    }
                 }
-                EuvActionRow() {
-                    EuvButton("Increment Preserved Counter".to_string(), tokens) {
+                EuvActionRow {
+                    EuvButton {
+                        label: "Increment Preserved Counter".to_string()
+                        tokens: tokens
                         sm()
                         on_click: move |_: &UiEvent| {
                             let _: bool = preserve_cnt.update(|v: &mut u32| *v += 1);
                         }
                     }
-                    EuvButton("Open Stacked Modal + Drawer".to_string(), tokens) {
+                    EuvButton {
+                        label: "Open Stacked Modal + Drawer".to_string()
+                        tokens: tokens
                         secondary()
                         sm()
                         on_click: move |_: &UiEvent| {
@@ -2000,7 +2222,9 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                             let _: bool = drawer_open.set_if_changed(true);
                         }
                     }
-                    EuvButton("Dismiss Top Overlay (Back)".to_string(), tokens) {
+                    EuvButton {
+                        label: "Dismiss Top Overlay (Back)".to_string()
+                        tokens: tokens
                         outline()
                         sm()
                         on_click: move |_: &UiEvent| {
@@ -2053,8 +2277,10 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                                         }
                                     }
                                 }
-                                EuvActionRow() {
-                                    EuvButton("Click Inner Target".to_string(), tokens) {
+                                EuvActionRow {
+                                    EuvButton {
+                                        label: "Click Inner Target".to_string()
+                                        tokens: tokens
                                         secondary()
                                         sm()
                                         on_click: move |_: &UiEvent| {
@@ -2105,7 +2331,11 @@ pub fn mount_forms_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     let picker_time: Signal<(u8, u8)> = state.get_picker_time();
     let tag_items: Signal<Vec<String>> = state.get_tag_items();
     let input_node: NodeId = view! {
-        EuvInput(username, PLACEHOLDER_USERNAME.to_string(), tokens)
+        EuvInput {
+            value: username
+            placeholder: PLACEHOLDER_USERNAME.to_string()
+            tokens: tokens
+        }
     };
     let collapsible_body: NodeId = view! {
         text {
@@ -2115,51 +2345,99 @@ pub fn mount_forms_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
         }
     };
     view! {
-        EuvPage(FORMS_TITLE.to_string(), FORMS_SUBTITLE.to_string(), tokens) {
-            EuvCard(FORMS_CARD_TITLE.to_string(), tokens) {
+        EuvPage {
+            title: FORMS_TITLE.to_string()
+            subtitle: FORMS_SUBTITLE.to_string()
+            tokens: tokens
+            EuvCard {
+                title: FORMS_CARD_TITLE.to_string()
+                tokens: tokens
                 subtitle: FORMS_CARD_SUB
                 column {
                     gap: SPACE_MD
-                    EuvTabs(
-                        vec![TAB_GENERAL.to_string(), TAB_GRAPHICS.to_string(), TAB_SECURITY.to_string()],
-                        state.get_active_tab(),
-                        tokens
-                    )
-                    EuvField(FIELD_USERNAME.to_string(), input_node, tokens)
-                    EuvTextarea(state.get_bio(), "Write notes...".to_string(), 54.0, tokens)
+                    EuvTabs {
+                        labels: vec![TAB_GENERAL.to_string(), TAB_GRAPHICS.to_string(), TAB_SECURITY.to_string()]
+                        active: state.get_active_tab()
+                        tokens: tokens
+                    }
+                    EuvField {
+                        label: FIELD_USERNAME.to_string()
+                        control: input_node
+                        tokens: tokens
+                    }
+                    EuvTextarea {
+                        value: state.get_bio()
+                        placeholder: "Write notes...".to_string()
+                        height: 54.0
+                        tokens: tokens
+                    }
                     row {
                         style: c_action_row()
-                        EuvNumberInput(stepper, tokens) {
+                        EuvNumberInput {
+                            value: stepper
+                            tokens: tokens
                             range(0, 20)
                             step: 1
                         }
-                        EuvToggle(state.get_pin_toggled(), "Pin Config".to_string(), tokens)
-                        EuvRating(rating, 5, tokens)
+                        EuvToggle {
+                            pressed: state.get_pin_toggled()
+                            label: "Pin Config".to_string()
+                            tokens: tokens
+                        }
+                        EuvRating {
+                            value: rating
+                            max_stars: 5
+                            tokens: tokens
+                        }
                     }
-                    EuvRadioGroup(
-                        vec!["Software CPU".to_string(), "Hardware GPU".to_string(), "Hybrid".to_string()],
-                        state.get_radio_index(),
-                        tokens
-                    )
-                    EuvSlider(state.get_slider_value(), 0.0, 100.0, tokens)
-                    EuvSelect(
-                        vec!["Metal".to_string(), "Vulkan".to_string(), "Direct3D 12".to_string(), "WebGPU".to_string()],
-                        state.get_select_index(),
-                        state.get_select_open(),
-                        tokens
-                    )
-                    EuvSwitch(state.get_hardware_accel(), SWITCH_HW_LABEL.to_string(), tokens)
-                    EuvCheckbox(state.get_agree_terms(), CHECKBOX_TERMS_LABEL.to_string(), tokens)
+                    EuvRadioGroup {
+                        options: vec!["Software CPU".to_string(), "Hardware GPU".to_string(), "Hybrid".to_string()]
+                        selected: state.get_radio_index()
+                        tokens: tokens
+                    }
+                    EuvSlider {
+                        value: state.get_slider_value()
+                        min: 0.0
+                        max: 100.0
+                        tokens: tokens
+                    }
+                    EuvSelect {
+                        options: vec!["Metal".to_string(), "Vulkan".to_string(), "Direct3D 12".to_string(), "WebGPU".to_string()]
+                        selected: state.get_select_index()
+                        open: state.get_select_open()
+                        tokens: tokens
+                    }
+                    EuvSwitch {
+                        checked: state.get_hardware_accel()
+                        label: SWITCH_HW_LABEL.to_string()
+                        tokens: tokens
+                    }
+                    EuvCheckbox {
+                        checked: state.get_agree_terms()
+                        label: CHECKBOX_TERMS_LABEL.to_string()
+                        tokens: tokens
+                    }
                     text {
                         font_size: 12.0
                         color: p.get_muted_foreground()
                         { move || format!("Handle: {} | Stepper: {} | Stars: {}/5 | Day: {}", username.get(), stepper.get(), rating.get(), cal_day.get()) }
                     }
-                    EuvActionRow() {
-                        EuvButton(BTN_PRIMARY_LABEL.to_string(), tokens)
-                        EuvButton(BTN_SECONDARY_LABEL.to_string(), tokens) { secondary() }
-                        EuvButton(BTN_OUTLINE_LABEL.to_string(), tokens) { outline() }
-                        EuvButton(BTN_DESTRUCTIVE_LABEL.to_string(), tokens) {
+                    EuvActionRow {
+                        EuvButton {
+                            label: BTN_PRIMARY_LABEL.to_string()
+                            tokens: tokens
+                        }
+                        EuvButton {
+                            label: BTN_SECONDARY_LABEL.to_string()
+                            tokens: tokens
+                            secondary() }
+                        EuvButton {
+                            label: BTN_OUTLINE_LABEL.to_string()
+                            tokens: tokens
+                            outline() }
+                        EuvButton {
+                            label: BTN_DESTRUCTIVE_LABEL.to_string()
+                            tokens: tokens
                             destructive()
                             on_click: move |_: &UiEvent| {
                                 let _: bool = username.set_if_changed(DEFAULT_USERNAME.to_string());
@@ -2168,19 +2446,33 @@ pub fn mount_forms_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                     }
                 }
             }
-            EuvCard("shadcn/ui Extended Form Controls".to_string(), tokens) {
+            EuvCard {
+                title: "shadcn/ui Extended Form Controls".to_string()
+                tokens: tokens
                 subtitle: FORMS_EXT_CARD_SUB
                 column {
                     gap: SPACE_MD
-                    EuvToggleGroup(
-                        vec!["Bold".to_string(), "Italic".to_string(), "Underline".to_string()],
-                        state.get_toggle_group_index(),
-                        tokens
-                    )
-                    EuvInputOtp(state.get_otp_code(), 6, tokens)
-                    EuvColorPicker(picker_color, tokens)
-                    EuvTimePicker(picker_time, tokens)
-                    EuvTagInput(tag_items, tokens) {
+                    EuvToggleGroup {
+                        options: vec!["Bold".to_string(), "Italic".to_string(), "Underline".to_string()]
+                        selected: state.get_toggle_group_index()
+                        tokens: tokens
+                    }
+                    EuvInputOtp {
+                        value: state.get_otp_code()
+                        length: 6
+                        tokens: tokens
+                    }
+                    EuvColorPicker {
+                        value: picker_color
+                        tokens: tokens
+                    }
+                    EuvTimePicker {
+                        value: picker_time
+                        tokens: tokens
+                    }
+                    EuvTagInput {
+                        tags: tag_items
+                        tokens: tokens
                         placeholder: TAG_INPUT_PLACEHOLDER
                     }
                     text {
@@ -2200,8 +2492,18 @@ pub fn mount_forms_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                             )
                         } }
                     }
-                    EuvCalendar(LABEL_CALENDAR_MONTH.to_string(), 30, state.get_calendar_day(), tokens)
-                    EuvCollapsible(state.get_collapsible_open(), "Advanced Form Details".to_string(), collapsible_body, tokens)
+                    EuvCalendar {
+                        month_label: LABEL_CALENDAR_MONTH.to_string()
+                        days_in_month: 30
+                        selected_day: state.get_calendar_day()
+                        tokens: tokens
+                    }
+                    EuvCollapsible {
+                        open: state.get_collapsible_open()
+                        title: "Advanced Form Details".to_string()
+                        content: collapsible_body
+                        tokens: tokens
+                    }
                 }
             }
         }
@@ -2232,8 +2534,13 @@ pub fn mount_themes_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     let all_schemes: [DesignScheme; 17] = DesignScheme::all();
     let cur_mode: ThemeMode = mode_sig.get_untracked();
     view! {
-        EuvPage(THEMES_TITLE.to_string(), THEMES_SUBTITLE.to_string(), tokens) {
-            EuvCard(THEMES_CARD_TITLE.to_string(), tokens) {
+        EuvPage {
+            title: THEMES_TITLE.to_string()
+            subtitle: THEMES_SUBTITLE.to_string()
+            tokens: tokens
+            EuvCard {
+                title: THEMES_CARD_TITLE.to_string()
+                tokens: tokens
                 subtitle: THEMES_CARD_SUB
                 column {
                     gap: SPACE_MD
@@ -2243,13 +2550,17 @@ pub fn mount_themes_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         color: p.get_foreground()
                         { move || format!("{PREFIX_ACTIVE_SCHEME}{} ({:?})", scheme_sig.get().as_str(), mode_sig.get()) }
                     }
-                    EuvActionRow() {
-                        EuvButton(BTN_NEXT_SCHEME.to_string(), tokens) {
+                    EuvActionRow {
+                        EuvButton {
+                            label: BTN_NEXT_SCHEME.to_string()
+                            tokens: tokens
                             on_click: move |_: &UiEvent| {
                                 state_for_cycle.next_scheme();
                             }
                         }
-                        EuvButton(BTN_TOGGLE_MODE.to_string(), tokens) {
+                        EuvButton {
+                            label: BTN_TOGGLE_MODE.to_string()
+                            tokens: tokens
                             outline()
                             on_click: move |_: &UiEvent| {
                                 state_for_mode.toggle_theme_mode();
@@ -2260,7 +2571,9 @@ pub fn mount_themes_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         style: c_scheme_grid()
                         columns: scheme_cols
                         for scheme in all_schemes.iter().copied() {
-                            EuvButton(scheme.as_str().to_string(), ThemeTokens::resolve(scheme, cur_mode)) {
+                            EuvButton {
+                                label: scheme.as_str().to_string()
+                                tokens: ThemeTokens::resolve(scheme, cur_mode)
                                 sm()
                                 on_click: move |_: &UiEvent| {
                                     let _: bool = scheme_sig.set_if_changed(scheme);
@@ -2326,28 +2639,45 @@ pub fn mount_data_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     };
     let tree_sel: Signal<Option<String>> = state.get_tree_selected();
     view! {
-        EuvPage(DATA_TITLE.to_string(), DATA_SUBTITLE.to_string(), tokens) {
-            EuvCard(DATA_CARD_TITLE.to_string(), tokens) {
+        EuvPage {
+            title: DATA_TITLE.to_string()
+            subtitle: DATA_SUBTITLE.to_string()
+            tokens: tokens
+            EuvCard {
+                title: DATA_CARD_TITLE.to_string()
+                tokens: tokens
                 subtitle: DATA_CARD_SUB
                 column {
                     gap: SPACE_MD
-                    EuvMenubar(
-                        vec!["File".to_string(), "Edit".to_string(), "View".to_string(), "Profiles".to_string()],
-                        state.get_menubar_active(),
-                        tokens
-                    )
+                    EuvMenubar {
+                        menus: vec!["File".to_string(), "Edit".to_string(), "View".to_string(), "Profiles".to_string()]
+                        active_menu: state.get_menubar_active()
+                        tokens: tokens
+                    }
                     row {
                         style: c_action_row()
-                        EuvBadge(BADGE_READY.to_string(), EuvTone::Success, tokens)
-                        EuvBadge(BADGE_LIVE.to_string(), EuvTone::Primary, tokens)
+                        EuvBadge {
+                            label: BADGE_READY.to_string()
+                            tone: EuvTone::Success
+                            tokens: tokens
+                        }
+                        EuvBadge {
+                            label: BADGE_LIVE.to_string()
+                            tone: EuvTone::Primary
+                            tokens: tokens
+                        }
                     }
-                    EuvActionRow() {
-                        EuvButton(BTN_SCROLL_DOWN.to_string(), tokens) {
+                    EuvActionRow {
+                        EuvButton {
+                            label: BTN_SCROLL_DOWN.to_string()
+                            tokens: tokens
                             on_click: move |_: &UiEvent| {
                                 vlist_down.scroll_by(160.0);
                             }
                         }
-                        EuvButton(BTN_SCROLL_TOP.to_string(), tokens) {
+                        EuvButton {
+                            label: BTN_SCROLL_TOP.to_string()
+                            tokens: tokens
                             outline()
                             on_click: move |_: &UiEvent| {
                                 let _: bool = scroll_y.set_if_changed(0.0);
@@ -2359,38 +2689,48 @@ pub fn mount_data_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         color: p.get_muted_foreground()
                         { move || format!("scroll_y={:.0}px | top_row=#{}", scroll_y.get(), (scroll_y.get() / 32.0).floor() as usize) }
                     }
-                    EuvProgress(0.84, tokens)
+                    EuvProgress {
+                        value: 0.84
+                        tokens: tokens
+                    }
                     { list_node }
-                    EuvCommand(
-                        vec!["Switch to Dark Mode".to_string(), "Open OTA Updates".to_string(), "Run Physics Tick".to_string()],
-                        state.get_command_selected(),
-                        tokens
-                    ) {
+                    EuvCommand {
+                        items: vec!["Switch to Dark Mode".to_string(), "Open OTA Updates".to_string(), "Run Physics Tick".to_string()]
+                        selected: state.get_command_selected()
+                        tokens: tokens
                         query: state.get_command_query()
                         placeholder: "Search commands..."
                     }
-                    EuvCarousel(
-                        vec![
+                    EuvCarousel {
+                        slides: vec![
                             "Slide 1: Native Metal & Vulkan".to_string(),
                             "Slide 2: Complete shadcn/ui Parity".to_string(),
                             "Slide 3: Instant Responsive Resize".to_string(),
-                        ],
-                        state.get_carousel_index(),
-                        tokens
-                    )
+                        ]
+                        active_slide: state.get_carousel_index()
+                        tokens: tokens
+                    }
                     column {
                         width: Length::Percent(100.0)
                         max_width: Length::Px(360.0)
-                        EuvAspectRatio(16.0 / 9.0, aspect_inner, tokens)
+                        EuvAspectRatio {
+                            ratio: 16.0 / 9.0
+                            child: aspect_inner
+                            tokens: tokens
+                        }
                     }
-                    EuvPagination(state.get_page_index(), 12, tokens)
-                    EuvSteps(
-                        vec!["Layout".to_string(), "Paint".to_string(), "Present".to_string()],
-                        state.get_step_index(),
-                        tokens
-                    )
-                    EuvTree(
-                        vec![EuvTreeNode::new(
+                    EuvPagination {
+                        current: state.get_page_index()
+                        total_pages: 12
+                        tokens: tokens
+                    }
+                    EuvSteps {
+                        labels: vec!["Layout".to_string(), "Paint".to_string(), "Present".to_string()]
+                        active: state.get_step_index()
+                        tokens: tokens
+                    }
+                    EuvTree {
+                        roots: vec![EuvTreeNode::new(
                             TREE_NODE_WORKSPACE.to_string(),
                             vec![
                                 EuvTreeNode::new(
@@ -2403,9 +2743,8 @@ pub fn mount_data_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                                 EuvTreeNode::new(TREE_NODE_UI.to_string(), Vec::new()),
                                 EuvTreeNode::new(TREE_NODE_PERF.to_string(), Vec::new()),
                             ],
-                        )],
-                        tokens
-                    ) {
+                        )]
+                        tokens: tokens
                         selected: state.get_tree_selected()
                     }
                     text {
@@ -2418,14 +2757,14 @@ pub fn mount_data_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                             format!("{TREE_SELECTED_PREFIX}: {cur}")
                         } }
                     }
-                    EuvAccordion(
-                        vec![EuvAccordionItem::new(
+                    EuvAccordion {
+                        items: vec![EuvAccordionItem::new(
                             "Virtualization".to_string(),
                             "Only visible rows + overscan are materialized in O(visible).".to_string(),
-                        )],
-                        state.get_accordion_open(),
-                        tokens
-                    )
+                        )]
+                        open_index: state.get_accordion_open()
+                        tokens: tokens
+                    }
                 }
             }
         }
@@ -2461,22 +2800,37 @@ pub fn mount_game_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             .radius(g.get_radius_md()),
     );
     let fs_2d_open: Signal<bool> = Signal::new(false);
-    let fs_2d_portal: NodeId =
-        mount_game_fullscreen_portal(fs_2d_open, &host, "2D Physics Arena", tokens);
+    let fs_2d_portal: NodeId = mount_game_fullscreen_portal(
+        fs_2d_open,
+        &host,
+        viewport,
+        None,
+        "2D Physics Arena",
+        tokens,
+    );
     view! {
-        EuvPage(GAME_TITLE.to_string(), GAME_SUBTITLE.to_string(), tokens) {
-            EuvCard(GAME_CARD_TITLE.to_string(), tokens) {
+        EuvPage {
+            title: GAME_TITLE.to_string()
+            subtitle: GAME_SUBTITLE.to_string()
+            tokens: tokens
+            EuvCard {
+                title: GAME_CARD_TITLE.to_string()
+                tokens: tokens
                 subtitle: GAME_CARD_SUB
                 column {
                     gap: SPACE_MD
-                    EuvActionRow() {
-                        EuvButton(BTN_STEP_PHYSICS.to_string(), tokens) {
+                    EuvActionRow {
+                        EuvButton {
+                            label: BTN_STEP_PHYSICS.to_string()
+                            tokens: tokens
                             sm()
                             on_click: move |_: &UiEvent| {
                                 let _: u32 = host_btn.step(0.051);
                             }
                         }
-                        EuvButton("Spawn Enemy Wave".to_string(), tokens) {
+                        EuvButton {
+                            label: "Spawn Enemy Wave".to_string()
+                            tokens: tokens
                             outline()
                             sm()
                             on_click: move |_: &UiEvent| {
@@ -2493,43 +2847,55 @@ pub fn mount_game_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         }
                     }
                     { viewport }
-                    EuvActionRow() {
-                        EuvButton("Left (A)".to_string(), tokens) {
+                    EuvActionRow {
+                        EuvButton {
+                            label: "Left (A)".to_string()
+                            tokens: tokens
                             outline()
                             sm()
                             on_click: move |_: &UiEvent| {
                                 pulse_game_key(&host_left, KeyCode::ArrowLeft);
                             }
                         }
-                        EuvButton("Up (W)".to_string(), tokens) {
+                        EuvButton {
+                            label: "Up (W)".to_string()
+                            tokens: tokens
                             outline()
                             sm()
                             on_click: move |_: &UiEvent| {
                                 pulse_game_key(&host_up, KeyCode::ArrowUp);
                             }
                         }
-                        EuvButton("Down (S)".to_string(), tokens) {
+                        EuvButton {
+                            label: "Down (S)".to_string()
+                            tokens: tokens
                             outline()
                             sm()
                             on_click: move |_: &UiEvent| {
                                 pulse_game_key(&host_down, KeyCode::ArrowDown);
                             }
                         }
-                        EuvButton("Right (D)".to_string(), tokens) {
+                        EuvButton {
+                            label: "Right (D)".to_string()
+                            tokens: tokens
                             outline()
                             sm()
                             on_click: move |_: &UiEvent| {
                                 pulse_game_key(&host_right, KeyCode::ArrowRight);
                             }
                         }
-                        EuvButton("Dash (E)".to_string(), tokens) {
+                        EuvButton {
+                            label: "Dash (E)".to_string()
+                            tokens: tokens
                             secondary()
                             sm()
                             on_click: move |_: &UiEvent| {
                                 pulse_game_key(&host_dash, KeyCode::Character('e'));
                             }
                         }
-                        EuvButton("Fullscreen".to_string(), tokens) {
+                        EuvButton {
+                            label: "Fullscreen".to_string()
+                            tokens: tokens
                             sm()
                             on_click: move |_: &UiEvent| {
                                 let _: bool = fs_2d_open.set_if_changed(true);
@@ -2543,12 +2909,14 @@ pub fn mount_game_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     }
 }
 
-/// Mounts a reusable fullscreen portal overlay hosting any 2D/3D `GameEngineHost` with safe exit & Back support.
+/// Mounts a reusable fullscreen portal overlay hosting any 2D/3D `GameEngineHost` with safe exit, Back support, and touch controls.
 ///
 /// # Arguments
 ///
 /// - `Signal<bool>` - Fullscreen visibility toggle signal.
 /// - `&GameEngineHost` - Target game engine host.
+/// - `NodeId` - Embedded inline viewport hidden while fullscreen is active to avoid redundant rendering.
+/// - `Option<Signal<u8>>` - Optional 3D camera mode signal for fullscreen camera toggling.
 /// - `&str` - Title shown in the fullscreen HUD bar.
 /// - `ThemeTokens` - Active design tokens.
 ///
@@ -2558,6 +2926,8 @@ pub fn mount_game_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
 fn mount_game_fullscreen_portal(
     open: Signal<bool>,
     host: &GameEngineHost,
+    inline_viewport: NodeId,
+    cam_mode_opt: Option<Signal<u8>>,
     title: &str,
     tokens: ThemeTokens,
 ) -> NodeId {
@@ -2565,63 +2935,144 @@ fn mount_game_fullscreen_portal(
     let fs_viewport: NodeId = host.mount_viewport(
         Style::default()
             .flex_grow(1.0)
+            .flex_shrink(1.0)
+            .min_height(Length::Px(0.0))
             .width(Length::Percent(100.0))
-            .height(Length::Percent(100.0))
+            .overflow(Overflow::Hidden)
             .stop_scroll_propagation(true)
             .stop_event_propagation(true),
     );
+    let ctrl_left: NodeId =
+        mount_game_control_button(FS_CTRL_LEFT, host, KeyCode::ArrowLeft, false, tokens);
+    let ctrl_up: NodeId = mount_game_control_button(
+        if cam_mode_opt.is_some() {
+            FS_CTRL_DRIVE
+        } else {
+            FS_CTRL_UP
+        },
+        host,
+        KeyCode::ArrowUp,
+        true,
+        tokens,
+    );
+    let ctrl_down: NodeId = mount_game_control_button(
+        if cam_mode_opt.is_some() {
+            FS_CTRL_REVERSE
+        } else {
+            FS_CTRL_DOWN
+        },
+        host,
+        KeyCode::ArrowDown,
+        false,
+        tokens,
+    );
+    let ctrl_right: NodeId =
+        mount_game_control_button(FS_CTRL_RIGHT, host, KeyCode::ArrowRight, false, tokens);
+    let extra_ctrl: NodeId = if let Some(cam_sig) = cam_mode_opt {
+        let on_cam = move |_: &UiEvent| {
+            let next: u8 = (cam_sig.get_untracked() + 1) % 4;
+            let _: bool = cam_sig.set_if_changed(next);
+        };
+        view! {
+            EuvButton {
+                label: FS_CTRL_CAMERA.to_string()
+                tokens: tokens
+                secondary()
+                sm()
+                on_click: on_cam
+            }
+        }
+    } else {
+        mount_game_control_button(FS_CTRL_DASH, host, KeyCode::Character('e'), false, tokens)
+    };
+    let on_exit = move |_: &UiEvent| {
+        let _: bool = open.set_if_changed(false);
+    };
     let mut top_bar_id: NodeId = NodeId::default();
+    let mut bottom_bar_id: NodeId = NodeId::default();
     let portal: NodeId = view! {
         portal {
+            style: Style::default().column()
             display: Display::None
             position: Position::Fixed
             inset: (Some(0.0), Some(0.0), Some(0.0), Some(0.0))
             width: Length::Percent(100.0)
             height: Length::Percent(100.0)
             background: Color::hex(0x09090B)
+            overflow: Overflow::Hidden
             stop_scroll_propagation: true
             z_index: Z_INDEX_MODAL
             row {
                 node_ref: top_bar_id
                 width: Length::Percent(100.0)
+                flex_shrink: 0.0
                 justify: JustifyContent::SpaceBetween
                 align: AlignItems::Center
                 padding: Edges::symmetric(SPACE_SM, SPACE_MD)
-                background: Color::rgba(9, 9, 11, 220)
+                background: Color::rgba(9, 9, 11, 236)
                 text {
+                    flex_shrink: 1.0
+                    min_width: Length::Px(0.0)
                     font_size: 14.0
                     font_weight: FontWeight::SemiBold
                     color: Color::hex(0xFAFAFA)
+                    text_overflow: TextOverflow::Ellipsis
                     { format!("{title} · Fullscreen") }
                 }
-                EuvButton("Exit Fullscreen".to_string(), tokens) {
+                EuvButton {
+                    label: BTN_EXIT_FULLSCREEN.to_string()
+                    tokens: tokens
                     secondary()
                     sm()
-                    on_click: move |_: &UiEvent| {
-                        let _: bool = open.set_if_changed(false);
-                    }
+                    on_click: on_exit
                 }
             }
             { fs_viewport }
+            row {
+                node_ref: bottom_bar_id
+                width: Length::Percent(100.0)
+                flex_shrink: 0.0
+                flex_wrap: FlexWrap::Wrap
+                justify: JustifyContent::Center
+                align: AlignItems::Center
+                gap: SPACE_SM
+                padding: Edges::symmetric(SPACE_SM, SPACE_MD)
+                background: Color::rgba(9, 9, 11, 232)
+                { ctrl_left }
+                { ctrl_up }
+                { ctrl_down }
+                { ctrl_right }
+                { extra_ctrl }
+            }
         }
     };
     let handle: SceneHandle = ctx.get_scene().clone();
     let safe_sig: Signal<SafeAreaInsets> = ctx.get_safe_area();
     let prev_fs: Rc<Cell<bool>> = Rc::new(Cell::new(false));
     let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-        let _: Effect = EuvOverlayStack::bind_signal(open, "GameFullscreenPortal", Z_INDEX_MODAL);
+        let _: Effect = EuvOverlayStack::bind_signal(open, FS_OVERLAY_NAME, Z_INDEX_MODAL);
         Effect::new(move || {
             let is_open: bool = open.get();
             let safe: SafeAreaInsets = safe_sig.get();
             if is_open != prev_fs.replace(is_open) {
                 let _: bool = dispatch_native_action(
                     NATIVE_ACTION_FULLSCREEN,
-                    if is_open { "on" } else { "off" },
+                    if is_open { FS_ACTION_ON } else { FS_ACTION_OFF },
                     "",
                 );
             }
             handle.with_write(
                 |tree: &mut SceneTree| {
+                    if let Some(n) = tree.get_node_mut(inline_viewport) {
+                        let mut st: Style = n.get_style();
+                        st.get_mut_layout().set_display(if is_open {
+                            Display::None
+                        } else {
+                            Display::Flex
+                        });
+                        n.set_style(st);
+                        tree.mark_dirty(inline_viewport, DIRTY_LAYOUT | DIRTY_PAINT);
+                    }
                     if let Some(n) = tree.get_node_mut(portal) {
                         let mut st: Style = n.get_style();
                         st.get_mut_layout().set_display(if is_open {
@@ -2637,6 +3088,16 @@ fn mount_game_fullscreen_portal(
                             SPACE_SM + safe.get_top(),
                             SPACE_MD + safe.get_right(),
                             SPACE_SM,
+                            SPACE_MD + safe.get_left(),
+                        ));
+                        n.set_style(st);
+                    }
+                    if let Some(n) = tree.get_node_mut(bottom_bar_id) {
+                        let mut st: Style = n.get_style();
+                        st.get_mut_layout().set_padding(Edges::new(
+                            SPACE_SM,
+                            SPACE_MD + safe.get_right(),
+                            SPACE_SM + safe.get_bottom(),
                             SPACE_MD + safe.get_left(),
                         ));
                         n.set_style(st);
@@ -2682,7 +3143,9 @@ fn mount_game_control_button(
     let host_click: GameEngineHost = host.clone();
     let node: NodeId = if primary {
         view! {
-            EuvButton(label.to_string(), tokens) {
+            EuvButton {
+                label: label.to_string()
+                tokens: tokens
                 sm()
                 on_click: move |_: &UiEvent| {
                     pulse_game_key(&host_click, code);
@@ -2691,7 +3154,9 @@ fn mount_game_control_button(
         }
     } else {
         view! {
-            EuvButton(label.to_string(), tokens) {
+            EuvButton {
+                label: label.to_string()
+                tokens: tokens
                 outline()
                 sm()
                 on_click: move |_: &UiEvent| {
@@ -2752,10 +3217,30 @@ pub fn mount_game3d_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             .radius(g.get_radius_md()),
     );
     let fs_3d_open: Signal<bool> = Signal::new(false);
-    let fs_3d_portal: NodeId =
-        mount_game_fullscreen_portal(fs_3d_open, &host, "Vice Boulevard 3D RT", tokens);
-    let res_slider: NodeId = view! { EuvSlider(res_scale, 40.0, 125.0, tokens) };
-    let sun_slider: NodeId = view! { EuvSlider(time_sig, 6.0, 23.0, tokens) };
+    let fs_3d_portal: NodeId = mount_game_fullscreen_portal(
+        fs_3d_open,
+        &host,
+        viewport,
+        Some(cam_mode_sig),
+        "Vice Boulevard 3D RT",
+        tokens,
+    );
+    let res_slider: NodeId = view! {
+        EuvSlider {
+            value: res_scale
+            min: 40.0
+            max: 125.0
+            tokens: tokens
+        }
+    };
+    let sun_slider: NodeId = view! {
+        EuvSlider {
+            value: time_sig
+            min: 6.0
+            max: 23.0
+            tokens: tokens
+        }
+    };
     let ctx: Context = current_context();
     let (sync_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
         Effect::new(move || {
@@ -2782,20 +3267,27 @@ pub fn mount_game3d_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     });
     let mut sync_host_id: NodeId = NodeId::default();
     let page: NodeId = view! {
-        EuvPage(GAME3D_TITLE.to_string(), GAME3D_SUBTITLE.to_string(), tokens) {
-            EuvCard(GAME3D_CARD_TITLE.to_string(), tokens) {
+        EuvPage {
+            title: GAME3D_TITLE.to_string()
+            subtitle: GAME3D_SUBTITLE.to_string()
+            tokens: tokens
+            EuvCard {
+                title: GAME3D_CARD_TITLE.to_string()
+                tokens: tokens
                 subtitle: GAME3D_CARD_SUB
                 column {
                     node_ref: sync_host_id
                     width: Length::Percent(100.0)
                     gap: SPACE_MD
                     { viewport }
-                    EuvActionRow() {
+                    EuvActionRow {
                         { mount_game_control_button("Steer Left (A)", &host, KeyCode::ArrowLeft, false, tokens) }
                         { mount_game_control_button("Drive Fwd (W)", &host, KeyCode::ArrowUp, false, tokens) }
                         { mount_game_control_button("Reverse (S)", &host, KeyCode::ArrowDown, false, tokens) }
                         { mount_game_control_button("Steer Right (D)", &host, KeyCode::ArrowRight, false, tokens) }
-                        EuvButton("Switch Camera".to_string(), tokens) {
+                        EuvButton {
+                            label: "Switch Camera".to_string()
+                            tokens: tokens
                             secondary()
                             sm()
                             on_click: move |_: &UiEvent| {
@@ -2803,13 +3295,17 @@ pub fn mount_game3d_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                                 let _: bool = cam_mode_sig.set_if_changed(next);
                             }
                         }
-                        EuvButton("Fullscreen 3D".to_string(), tokens) {
+                        EuvButton {
+                            label: "Fullscreen 3D".to_string()
+                            tokens: tokens
                             sm()
                             on_click: move |_: &UiEvent| {
                                 let _: bool = fs_3d_open.set_if_changed(true);
                             }
                         }
-                        EuvButton("Import .OBJ Monument".to_string(), tokens) {
+                        EuvButton {
+                            label: "Import .OBJ Monument".to_string()
+                            tokens: tokens
                             secondary()
                             sm()
                             on_click: move |_: &UiEvent| {
@@ -2818,7 +3314,9 @@ pub fn mount_game3d_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                                 let _: bool = import_sig.set_if_changed(next);
                             }
                         }
-                        EuvButton("Import .glTF Tower".to_string(), tokens) {
+                        EuvButton {
+                            label: "Import .glTF Tower".to_string()
+                            tokens: tokens
                             outline()
                             sm()
                             on_click: move |_: &UiEvent| {
@@ -2833,33 +3331,37 @@ pub fn mount_game3d_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                         color: p.get_muted_foreground()
                         { move || status_sig.get() }
                     }
-                    EuvSegmented(
-                        vec![
+                    EuvSegmented {
+                        options: vec![
                             "Low".to_string(),
                             "Medium".to_string(),
                             "High".to_string(),
                             "Ultra".to_string(),
                             "Cinematic".to_string(),
-                        ],
-                        preset_idx,
-                        tokens
-                    )
-                    EuvSegmented(
-                        vec![
+                        ]
+                        selected: preset_idx
+                        tokens: tokens
+                    }
+                    EuvSegmented {
+                        options: vec![
                             "RT Off".to_string(),
                             "RT Shadows".to_string(),
                             "RT Refl".to_string(),
                             "RT Full GI".to_string(),
-                        ],
-                        rt_idx,
-                        tokens
-                    )
-                    EuvField("Runtime Render Resolution Scale (%)".to_string(), res_slider, tokens)
-                    EuvField(
-                        "Time of Day / Sun Lighting (6h Dawn -> 17h Sunset -> 22h Night)".to_string(),
-                        sun_slider,
-                        tokens
-                    )
+                        ]
+                        selected: rt_idx
+                        tokens: tokens
+                    }
+                    EuvField {
+                        label: "Runtime Render Resolution Scale (%)".to_string()
+                        control: res_slider
+                        tokens: tokens
+                    }
+                    EuvField {
+                        label: "Time of Day / Sun Lighting (6h Dawn -> 17h Sunset -> 22h Night)".to_string()
+                        control: sun_slider
+                        tokens: tokens
+                    }
                     { fs_3d_portal }
                 }
             }
@@ -2894,7 +3396,9 @@ pub fn mount_overlays_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
     let alert_open: Signal<bool> = state.get_alert_dialog_open();
     let ctx_sel: Signal<Option<usize>> = Signal::new(None);
     let tip_btn: NodeId = view! {
-        EuvButton("Hover Tooltip".to_string(), tokens) {
+        EuvButton {
+            label: "Hover Tooltip".to_string()
+            tokens: tokens
             outline()
             sm()
         }
@@ -2911,7 +3415,9 @@ pub fn mount_overlays_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
             row {
                 width: Length::Percent(100.0)
                 justify: JustifyContent::End
-                EuvButton(BTN_CLOSE_MODAL.to_string(), tokens) {
+                EuvButton {
+                    label: BTN_CLOSE_MODAL.to_string()
+                    tokens: tokens
                     outline()
                     on_click: move |_: &UiEvent| {
                         let _: bool = modal_open.set_if_changed(false);
@@ -2932,7 +3438,9 @@ pub fn mount_overlays_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
             row {
                 width: Length::Percent(100.0)
                 justify: JustifyContent::End
-                EuvButton("Close Drawer".to_string(), tokens) {
+                EuvButton {
+                    label: "Close Drawer".to_string()
+                    tokens: tokens
                     outline()
                     on_click: move |_: &UiEvent| {
                         let _: bool = drawer_open.set_if_changed(false);
@@ -2953,7 +3461,9 @@ pub fn mount_overlays_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
             row {
                 width: Length::Percent(100.0)
                 justify: JustifyContent::End
-                EuvButton("Close Sheet".to_string(), tokens) {
+                EuvButton {
+                    label: "Close Sheet".to_string()
+                    tokens: tokens
                     outline()
                     on_click: move |_: &UiEvent| {
                         let _: bool = sheet_open.set_if_changed(false);
@@ -2963,97 +3473,146 @@ pub fn mount_overlays_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
         }
     };
     view! {
-        EuvPage(OVERLAYS_TITLE.to_string(), OVERLAYS_SUBTITLE.to_string(), tokens) {
+        EuvPage {
+            title: OVERLAYS_TITLE.to_string()
+            subtitle: OVERLAYS_SUBTITLE.to_string()
+            tokens: tokens
             column {
                 width: Length::Percent(100.0)
                 gap: SPACE_LG
-                EuvAlert(ALERT_TITLE.to_string(), ALERT_DESC.to_string(), EuvTone::Primary, tokens)
-                EuvCard(OVERLAYS_CARD_TITLE.to_string(), tokens) {
+                EuvAlert {
+                    title: ALERT_TITLE.to_string()
+                    description: ALERT_DESC.to_string()
+                    tone: EuvTone::Primary
+                    tokens: tokens
+                }
+                EuvCard {
+                    title: OVERLAYS_CARD_TITLE.to_string()
+                    tokens: tokens
                     subtitle: OVERLAYS_CARD_SUB
-                    EuvActionRow() {
-                        EuvButton(BTN_OPEN_MODAL.to_string(), tokens) {
+                    EuvActionRow {
+                        EuvButton {
+                            label: BTN_OPEN_MODAL.to_string()
+                            tokens: tokens
                             on_click: move |_: &UiEvent| {
                                 let _: bool = modal_open.set_if_changed(true);
                             }
                         }
-                        EuvButton("Alert Dialog".to_string(), tokens) {
+                        EuvButton {
+                            label: "Alert Dialog".to_string()
+                            tokens: tokens
                             destructive()
                             on_click: move |_: &UiEvent| {
                                 let _: bool = alert_open.set_if_changed(true);
                             }
                         }
-                        EuvButton(BTN_TOGGLE_TOAST.to_string(), tokens) {
+                        EuvButton {
+                            label: BTN_TOGGLE_TOAST.to_string()
+                            tokens: tokens
                             secondary()
                             on_click: move |_: &UiEvent| {
                                 let _: bool = toast_visible.update(|v: &mut bool| *v = !*v);
                             }
                         }
-                        EuvButton("Toggle Drawer".to_string(), tokens) {
+                        EuvButton {
+                            label: "Toggle Drawer".to_string()
+                            tokens: tokens
                             outline()
                             on_click: move |_: &UiEvent| {
                                 let _: bool = drawer_open.update(|v: &mut bool| *v = !*v);
                             }
                         }
-                        EuvButton("Toggle Sheet".to_string(), tokens) {
+                        EuvButton {
+                            label: "Toggle Sheet".to_string()
+                            tokens: tokens
                             outline()
                             on_click: move |_: &UiEvent| {
                                 let _: bool = sheet_open.update(|v: &mut bool| *v = !*v);
                             }
                         }
-                        EuvButton("Toggle Notification".to_string(), tokens) {
+                        EuvButton {
+                            label: "Toggle Notification".to_string()
+                            tokens: tokens
                             outline()
                             on_click: move |_: &UiEvent| {
                                 let _: bool = notif_visible.update(|v: &mut bool| *v = !*v);
                             }
                         }
                     }
-                    EuvDropdown(
-                        "Quick Actions".to_string(),
-                        vec!["Export PNG".to_string(), "Copy DeepLink".to_string()],
-                        tokens
-                    ) {
+                    EuvDropdown {
+                        label: "Quick Actions".to_string()
+                        items: vec!["Export PNG".to_string(), "Copy DeepLink".to_string()]
+                        tokens: tokens
                         open: state.get_dropdown_open()
                         selected: state.get_dropdown_selected()
                     }
-                    EuvHoverCard("@euv-dev".to_string(), "euv 0.39 Native Engine".to_string(), tokens) {
+                    EuvHoverCard {
+                        trigger_label: "@euv-dev".to_string()
+                        title: HOVER_CARD_ENGINE_TITLE.to_string()
+                        tokens: tokens
                         open: state.get_hover_card_open()
                         description: "Full ui.shadcn.com component alignment across all 7 native targets."
                     }
-                    EuvTooltip("Zero-WebView floating tooltip".to_string(), tip_btn, tokens)
-                    EuvContextMenu(
-                        "Context Menu Surface".to_string(),
-                        vec![
+                    EuvTooltip {
+                        text: "Zero-WebView floating tooltip".to_string()
+                        trigger: tip_btn
+                        tokens: tokens
+                    }
+                    EuvContextMenu {
+                        trigger_label: "Context Menu Surface".to_string()
+                        items: vec![
                             "Inspect Scene Node".to_string(),
                             "Copy AI Selector".to_string(),
                             "Capture Frame Hash".to_string(),
-                        ],
-                        tokens
-                    ) {
+                        ]
+                        tokens: tokens
                         selected: ctx_sel
                     }
                 }
-                EuvModal(modal_open, MODAL_TITLE.to_string(), modal_body, tokens)
-                EuvAlertDialog(
-                    alert_open,
-                    "Are you absolutely sure?".to_string(),
-                    state.get_alert_dialog_confirmed(),
-                    tokens
-                ) {
+                EuvModal {
+                    open: modal_open
+                    title: MODAL_TITLE.to_string()
+                    body: modal_body
+                    tokens: tokens
+                }
+                EuvAlertDialog {
+                    open: alert_open
+                    title: "Are you absolutely sure?".to_string()
+                    confirmed: state.get_alert_dialog_confirmed()
+                    tokens: tokens
                     description: "This shadcn AlertDialog confirms destructive operations cleanly."
                     labels("Cancel", "Continue")
                 }
-                EuvDrawer(drawer_open, "Inspector Drawer".to_string(), drawer_body, tokens)
-                EuvSheet(sheet_open, "Quick Sheet".to_string(), sheet_body, tokens)
-                EuvToast(toast_visible, TOAST_TEXT.to_string(), EuvTone::Success, tokens)
-                EuvNotification(
-                    notif_visible,
-                    "Native Sync".to_string(),
-                    "All 7 targets active.".to_string(),
-                    tokens
-                ) {
+                EuvDrawer {
+                    open: drawer_open
+                    title: "Inspector Drawer".to_string()
+                    body: drawer_body
+                    tokens: tokens
+                }
+                EuvSheet {
+                    open: sheet_open
+                    title: "Quick Sheet".to_string()
+                    body: sheet_body
+                    tokens: tokens
+                }
+                EuvToast {
+                    visible: toast_visible
+                    message: TOAST_TEXT.to_string()
+                    tone: EuvTone::Success
+                    tokens: tokens
+                }
+                EuvNotification {
+                    visible: notif_visible
+                    title: "Native Sync".to_string()
+                    message: "All 7 targets active.".to_string()
+                    tokens: tokens
                     tone: EuvTone::Success
                 }
-                EuvLoading(state.get_loading_active(), "Syncing...".to_string(), tokens)
+                EuvLoading {
+                    active: state.get_loading_active()
+                    label: "Syncing...".to_string()
+                    tokens: tokens
+                }
             }
         }
     }
@@ -3143,13 +3702,20 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
     let m_http: WasmDynamicManager = wasm_mgr.clone();
     let s_http: Signal<String> = wasm_status_sig;
     view! {
-        EuvPage(DYNAMIC_TITLE.to_string(), DYNAMIC_SUBTITLE.to_string(), tokens) {
-            EuvCard("Scoped / Partial Dynamic WASM Execution".to_string(), tokens) {
+        EuvPage {
+            title: DYNAMIC_TITLE.to_string()
+            subtitle: DYNAMIC_SUBTITLE.to_string()
+            tokens: tokens
+            EuvCard {
+                title: "Scoped / Partial Dynamic WASM Execution".to_string()
+                tokens: tokens
                 subtitle: "Download genuine .wasm binaries into a single native slot with checksum/signature verification, offline cache, interactive euv_on_event & rollback"
                 column {
                     gap: SPACE_MD
-                    EuvActionRow() {
-                        EuvButton("Download Real HTTP .wasm".to_string(), tokens) {
+                    EuvActionRow {
+                        EuvButton {
+                            label: "Download Real HTTP .wasm".to_string()
+                            tokens: tokens
                             on_click: move |_: &UiEvent| {
                                 #[cfg(not(target_arch = "wasm32"))]
                                 {
@@ -3227,7 +3793,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 }
                             }
                         }
-                        EuvButton("Download Partial WASM v1".to_string(), tokens) {
+                        EuvButton {
+                            label: "Download Partial WASM v1".to_string()
+                            tokens: tokens
                             secondary()
                             on_click: move |_: &UiEvent| {
                                 let bytes: Vec<u8> = build_partial_widget_wasm(TITLE_WASM_PARTIAL_V1, 1, 0x2563EB);
@@ -3245,7 +3813,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 }
                             }
                         }
-                        EuvButton("Hot-Swap Partial WASM v2".to_string(), tokens) {
+                        EuvButton {
+                            label: "Hot-Swap Partial WASM v2".to_string()
+                            tokens: tokens
                             secondary()
                             on_click: move |_: &UiEvent| {
                                 let bytes: Vec<u8> = build_partial_widget_wasm("Hot-Swapped Partial WASM Widget v2", 2, 0x7C3AED);
@@ -3263,7 +3833,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 }
                             }
                         }
-                        EuvButton("Toggle Offline (Cache Hit)".to_string(), tokens) {
+                        EuvButton {
+                            label: "Toggle Offline (Cache Hit)".to_string()
+                            tokens: tokens
                             outline()
                             on_click: move |_: &UiEvent| {
                                 let next: bool = !wasm_offline_sig.get_untracked();
@@ -3276,7 +3848,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 });
                             }
                         }
-                        EuvButton("Rollback Partial".to_string(), tokens) {
+                        EuvButton {
+                            label: "Rollback Partial".to_string()
+                            tokens: tokens
                             outline()
                             on_click: move |_: &UiEvent| {
                                 match m_prb.rollback_partial(SLOT_WASM_WIDGET, "manual rollback") {
@@ -3285,7 +3859,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 }
                             }
                         }
-                        EuvButton("Unmount Slot".to_string(), tokens) {
+                        EuvButton {
+                            label: "Unmount Slot".to_string()
+                            tokens: tokens
                             ghost()
                             on_click: move |_: &UiEvent| {
                                 m_pun.unmount_partial(SLOT_WASM_WIDGET);
@@ -3331,12 +3907,16 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                     }
                 }
             }
-            EuvCard("Global / Full-App Dynamic WASM Takeover".to_string(), tokens) {
+            EuvCard {
+                title: "Global / Full-App Dynamic WASM Takeover".to_string()
+                tokens: tokens
                 subtitle: "Atomically replace the entire native app shell from a downloaded .wasm release with automatic Last-Known-Good (LKG) rollback on any fault"
                 column {
                     gap: SPACE_MD
-                    EuvActionRow() {
-                        EuvButton("Download Global WASM v1".to_string(), tokens) {
+                    EuvActionRow {
+                        EuvButton {
+                            label: "Download Global WASM v1".to_string()
+                            tokens: tokens
                             on_click: move |_: &UiEvent| {
                                 let bytes: Vec<u8> =
                                 build_global_app_wasm("Global Dynamic WASM App Shell v1", 1);
@@ -3360,7 +3940,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 }
                             }
                         }
-                        EuvButton("Upgrade Global WASM v2".to_string(), tokens) {
+                        EuvButton {
+                            label: "Upgrade Global WASM v2".to_string()
+                            tokens: tokens
                             secondary()
                             on_click: move |_: &UiEvent| {
                                 let bytes: Vec<u8> =
@@ -3385,7 +3967,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 }
                             }
                         }
-                        EuvButton("Faulty Global (Auto LKG Rollback)".to_string(), tokens) {
+                        EuvButton {
+                            label: "Faulty Global (Auto LKG Rollback)".to_string()
+                            tokens: tokens
                             destructive()
                             on_click: move |_: &UiEvent| {
                                 let req: WasmDownloadRequest =
@@ -3401,7 +3985,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 }
                             }
                         }
-                        EuvButton("Restore Native Shell".to_string(), tokens) {
+                        EuvButton {
+                            label: "Restore Native Shell".to_string()
+                            tokens: tokens
                             outline()
                             on_click: move |_: &UiEvent| {
                                 m_grb.restore_native_global();
@@ -3411,12 +3997,16 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                     }
                 }
             }
-            EuvCard("All-Case Security, Fault & Sandbox Verification Matrix".to_string(), tokens) {
+            EuvCard {
+                title: "All-Case Security, Fault & Sandbox Verification Matrix".to_string()
+                tokens: tokens
                 subtitle: "Verify every edge case live: auto-retry, offline cache, integrity rejection, ABI mismatch, infinite-loop fuel cutoff, trap isolation & stale cancel guard"
                 column {
                     gap: SPACE_MD
-                    EuvActionRow() {
-                        EuvButton("Timeout -> Auto Retry".to_string(), tokens) {
+                    EuvActionRow {
+                        EuvButton {
+                            label: "Timeout -> Auto Retry".to_string()
+                            tokens: tokens
                             outline()
                             sm()
                             on_click: move |_: &UiEvent| {
@@ -3427,7 +4017,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 }
                             }
                         }
-                        EuvButton("HTTP 500".to_string(), tokens) {
+                        EuvButton {
+                            label: "HTTP 500".to_string()
+                            tokens: tokens
                             outline()
                             sm()
                             on_click: move |_: &UiEvent| {
@@ -3436,7 +4028,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 let _: bool = s_f_500.set(res);
                             }
                         }
-                        EuvButton("Corrupted Magic".to_string(), tokens) {
+                        EuvButton {
+                            label: "Corrupted Magic".to_string()
+                            tokens: tokens
                             outline()
                             sm()
                             on_click: move |_: &UiEvent| {
@@ -3445,7 +4039,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 let _: bool = s_f_corrupt.set(res);
                             }
                         }
-                        EuvButton("Tampered Checksum".to_string(), tokens) {
+                        EuvButton {
+                            label: "Tampered Checksum".to_string()
+                            tokens: tokens
                             outline()
                             sm()
                             on_click: move |_: &UiEvent| {
@@ -3457,7 +4053,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 let _: bool = s_f_tamper.set(res);
                             }
                         }
-                        EuvButton("Invalid Signature".to_string(), tokens) {
+                        EuvButton {
+                            label: "Invalid Signature".to_string()
+                            tokens: tokens
                             outline()
                             sm()
                             on_click: move |_: &UiEvent| {
@@ -3468,7 +4066,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 let _: bool = s_f_sig.set(res);
                             }
                         }
-                        EuvButton("ABI Mismatch".to_string(), tokens) {
+                        EuvButton {
+                            label: "ABI Mismatch".to_string()
+                            tokens: tokens
                             outline()
                             sm()
                             on_click: move |_: &UiEvent| {
@@ -3477,7 +4077,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 let _: bool = s_f_abi.set(res);
                             }
                         }
-                        EuvButton("Missing Export".to_string(), tokens) {
+                        EuvButton {
+                            label: "Missing Export".to_string()
+                            tokens: tokens
                             outline()
                             sm()
                             on_click: move |_: &UiEvent| {
@@ -3486,7 +4088,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 let _: bool = s_f_exp.set(res);
                             }
                         }
-                        EuvButton("Infinite-Loop Fuel".to_string(), tokens) {
+                        EuvButton {
+                            label: "Infinite-Loop Fuel".to_string()
+                            tokens: tokens
                             outline()
                             sm()
                             on_click: move |_: &UiEvent| {
@@ -3495,7 +4099,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 let _: bool = s_f_fuel.set(res);
                             }
                         }
-                        EuvButton("Runtime Trap".to_string(), tokens) {
+                        EuvButton {
+                            label: "Runtime Trap".to_string()
+                            tokens: tokens
                             outline()
                             sm()
                             on_click: move |_: &UiEvent| {
@@ -3504,7 +4110,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 let _: bool = s_f_trap.set(res);
                             }
                         }
-                        EuvButton("Oversized Binary".to_string(), tokens) {
+                        EuvButton {
+                            label: "Oversized Binary".to_string()
+                            tokens: tokens
                             outline()
                             sm()
                             on_click: move |_: &UiEvent| {
@@ -3513,7 +4121,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 let _: bool = s_f_big.set(res);
                             }
                         }
-                        EuvButton("Cancel / Stale Guard".to_string(), tokens) {
+                        EuvButton {
+                            label: "Cancel / Stale Guard".to_string()
+                            tokens: tokens
                             outline()
                             sm()
                             on_click: move |_: &UiEvent| {
@@ -3530,12 +4140,16 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                     }
                 }
             }
-            EuvCard(DYNAMIC_COMP_CARD_TITLE.to_string(), tokens) {
+            EuvCard {
+                title: DYNAMIC_COMP_CARD_TITLE.to_string()
+                tokens: tokens
                 subtitle: DYNAMIC_COMP_CARD_SUB
                 column {
                     gap: SPACE_MD
-                    EuvActionRow() {
-                        EuvButton(BTN_INC_SIBLING.to_string(), tokens) {
+                    EuvActionRow {
+                        EuvButton {
+                            label: BTN_INC_SIBLING.to_string()
+                            tokens: tokens
                             outline()
                             on_click: move |_: &UiEvent| {
                                 let _: bool = sibling_counter.update(|v: &mut i32| *v += 1);
@@ -3548,8 +4162,10 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                         color: p.get_primary()
                         { move || format!("Sibling State Preserved: count={}", sibling_counter.get()) }
                     }
-                    EuvActionRow() {
-                        EuvButton(BTN_PUSH_BANNER_V1.to_string(), tokens) {
+                    EuvActionRow {
+                        EuvButton {
+                            label: BTN_PUSH_BANNER_V1.to_string()
+                            tokens: tokens
                             on_click: move |_: &UiEvent| {
                                 let next_v: u64 = hub_v1
                                 .component_version(SLOT_PROMO_BANNER)
@@ -3595,7 +4211,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 }
                             }
                         }
-                        EuvButton(BTN_PUSH_BANNER_V2.to_string(), tokens) {
+                        EuvButton {
+                            label: BTN_PUSH_BANNER_V2.to_string()
+                            tokens: tokens
                             secondary()
                             on_click: move |_: &UiEvent| {
                                 let next_v: u64 = hub_v2.component_version(SLOT_PROMO_BANNER).saturating_add(1).max(2);
@@ -3620,7 +4238,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                                     color: Color::hex(0xECFDF5)
                                                     { format!("Native Hot-Swapped Banner v{next_v} (Zero Restart)") }
                                                 }
-                                                EuvButton(BTN_CLAIM_OFFER.to_string(), tokens) {
+                                                EuvButton {
+                                                    label: BTN_CLAIM_OFFER.to_string()
+                                                    tokens: tokens
                                                     on_click: move |_: &UiEvent| {
                                                         hub_click.dispatch_action(DynamicActionEvent::new(
                                                             SLOT_PROMO_BANNER.to_string(),
@@ -3635,7 +4255,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 );
                             }
                         }
-                        EuvButton(BTN_ROLLBACK_BANNER.to_string(), tokens) {
+                        EuvButton {
+                            label: BTN_ROLLBACK_BANNER.to_string()
+                            tokens: tokens
                             outline()
                             on_click: move |_: &UiEvent| {
                                 let _: Result<u64, DynamicUpdateError> = hub_rb.rollback_component(SLOT_PROMO_BANNER);
@@ -3657,8 +4279,10 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                             }
                         }
                     }
-                    EuvActionRow() {
-                        EuvButton(BTN_PATCH_METRICS.to_string(), tokens) {
+                    EuvActionRow {
+                        EuvButton {
+                            label: BTN_PATCH_METRICS.to_string()
+                            tokens: tokens
                             on_click: move |_: &UiEvent| {
                                 let next_v: u64 = hub_m1.component_version(SLOT_METRICS_WIDGET).saturating_add(1);
                                 let mut card_spec: DynamicNodeSpec = DynamicNodeSpec::card(format!("Live Metrics Widget v{next_v}"))
@@ -3677,7 +4301,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 let _: Result<u64, DynamicUpdateError> = hub_m1.apply_component(upd);
                             }
                         }
-                        EuvButton(BTN_ROLLBACK_METRICS.to_string(), tokens) {
+                        EuvButton {
+                            label: BTN_ROLLBACK_METRICS.to_string()
+                            tokens: tokens
                             outline()
                             on_click: move |_: &UiEvent| {
                                 let _: Result<u64, DynamicUpdateError> =
@@ -3702,12 +4328,16 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                     }
                 }
             }
-            EuvCard(DYNAMIC_PAGE_CARD_TITLE.to_string(), tokens) {
+            EuvCard {
+                title: DYNAMIC_PAGE_CARD_TITLE.to_string()
+                tokens: tokens
                 subtitle: DYNAMIC_PAGE_CARD_SUB
                 column {
                     gap: SPACE_MD
-                    EuvActionRow() {
-                        EuvButton(BTN_UPDATE_PAGE_V1.to_string(), tokens) {
+                    EuvActionRow {
+                        EuvButton {
+                            label: BTN_UPDATE_PAGE_V1.to_string()
+                            tokens: tokens
                             on_click: move |_: &UiEvent| {
                                 let next_v: u64 = hub_p1.page_version(ROUTE_DYNAMIC_PANEL).saturating_add(1);
                                 let spec: DynamicNodeSpec = DynamicNodeSpec::card(format!(
@@ -3728,7 +4358,9 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 let _: Result<u64, DynamicUpdateError> = hub_p1.apply_page(upd);
                             }
                         }
-                        EuvButton(BTN_APPLY_BUNDLE.to_string(), tokens) {
+                        EuvButton {
+                            label: BTN_APPLY_BUNDLE.to_string()
+                            tokens: tokens
                             secondary()
                             on_click: move |_: &UiEvent| {
                                 let next_comp_v: u64 = hub_bundle
@@ -3770,13 +4402,17 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                                 }
                             }
                         }
-                        EuvButton(BTN_ROLLBACK_PAGE.to_string(), tokens) {
+                        EuvButton {
+                            label: BTN_ROLLBACK_PAGE.to_string()
+                            tokens: tokens
                             outline()
                             on_click: move |_: &UiEvent| {
                                 let _: Result<u64, DynamicUpdateError> = hub_prb.rollback_page(ROUTE_DYNAMIC_PANEL);
                             }
                         }
-                        EuvButton(BTN_INJECT_ROUTE.to_string(), tokens) {
+                        EuvButton {
+                            label: BTN_INJECT_ROUTE.to_string()
+                            tokens: tokens
                             secondary()
                             on_click: move |_: &UiEvent| {
                                 let next_v: u64 = hub_inject.page_version(ROUTE_PROMO_LIVE).saturating_add(1);
@@ -3866,31 +4502,63 @@ pub fn mount_media_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     let link_log: Signal<String> = state.get_media_html_link_log();
     let link_log_cb: Signal<String> = link_log;
     let photo_card: NodeId = view! {
-        EuvImage(ImageAsset::sample_photo("Hero Raster Photo (PNG/BMP/WebP)"), tokens) {
+        EuvImage {
+            asset: ImageAsset::sample_photo("Hero Raster Photo (PNG/BMP/WebP)")
+            tokens: tokens
             height: 148.0
         }
     };
     let svg_card: NodeId = view! {
-        EuvSvgView(SvgDocument::sample_svg(), "Vector SVG Badge".to_string(), tokens)
+        EuvSvgView {
+            document: SvgDocument::sample_svg()
+            label: "Vector SVG Badge".to_string()
+            tokens: tokens
+        }
     };
-    let gif_card: NodeId = view! { EuvGifPlayer(state.get_media_gif(), tokens) };
-    let live_card: NodeId = view! { EuvLivePhoto(state.get_media_live(), tokens) };
-    let video_card: NodeId = view! { EuvVideoPlayer(state.get_media_video(), tokens) };
-    let audio_card: NodeId = view! { EuvAudioPlayer(state.get_media_audio(), tokens) };
-    let pdf_card: NodeId = view! { EuvPdfViewer(state.get_media_pdf(), tokens) };
+    let gif_card: NodeId = view! {
+        EuvGifPlayer {
+            state: state.get_media_gif()
+            tokens: tokens
+        }
+    };
+    let live_card: NodeId = view! {
+        EuvLivePhoto {
+            state: state.get_media_live()
+            tokens: tokens
+        }
+    };
+    let video_card: NodeId = view! {
+        EuvVideoPlayer {
+            state: state.get_media_video()
+            tokens: tokens
+        }
+    };
+    let audio_card: NodeId = view! {
+        EuvAudioPlayer {
+            state: state.get_media_audio()
+            tokens: tokens
+        }
+    };
+    let pdf_card: NodeId = view! {
+        EuvPdfViewer {
+            state: state.get_media_pdf()
+            tokens: tokens
+        }
+    };
     let html_card: NodeId = view! {
-        EuvHtmlView(HtmlDocument::sample_html(), tokens) {
+        EuvHtmlView {
+            document: HtmlDocument::sample_html()
+            tokens: tokens
             on_link: move |href: String| {
                 let _: bool = link_log_cb.set_if_changed(format!("Opened native link: {href}"));
             }
         }
     };
     view! {
-        EuvPage(
-            "Full Cross-Platform Media Studio".to_string(),
-            "Pure-Rust aspect-preserving Image, SVG, animated GIF, LIVE Photo, Video, WAV Audio waveform, multi-page PDF, and sanitized zero-JS HTML5.".to_string(),
-            tokens
-        ) {
+        EuvPage {
+            title: "Full Cross-Platform Media Studio".to_string()
+            subtitle: "Pure-Rust aspect-preserving Image, SVG, animated GIF, LIVE Photo, Video, WAV Audio waveform, multi-page PDF, and sanitized zero-JS HTML5.".to_string()
+            tokens: tokens
             { mount_bento_pair(photo_card, svg_card) }
             { mount_bento_pair(gif_card, live_card) }
             { mount_bento_pair(video_card, audio_card) }

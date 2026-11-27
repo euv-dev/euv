@@ -120,7 +120,9 @@ impl EuvPagination {
                 flex_wrap: FlexWrap::Wrap
                 align: AlignItems::Center
                 gap: SPACE_SM
-                EuvButton(PAGE_PREV_LABEL.to_string(), tokens) {
+                EuvButton {
+                    label: PAGE_PREV_LABEL.to_string()
+                    tokens: tokens
                     outline()
                     sm()
                     on_click: move |_: &UiEvent| {
@@ -133,7 +135,9 @@ impl EuvPagination {
                     color: p.get_foreground()
                     { move || format!("{} / {total}", current.get()) }
                 }
-                EuvButton(PAGE_NEXT_LABEL.to_string(), tokens) {
+                EuvButton {
+                    label: PAGE_NEXT_LABEL.to_string()
+                    tokens: tokens
                     outline()
                     sm()
                     on_click: move |_: &UiEvent| {
@@ -248,6 +252,7 @@ impl EuvAccordion {
                         background: p.get_card()
                         border: (g.get_border_width(), p.get_border())
                         radius: g.get_radius_md()
+                        overflow: Overflow::Hidden
                         row {
                             width: Length::Percent(100.0)
                             padding: Edges::symmetric(SPACE_SM, SPACE_MD)
@@ -316,6 +321,7 @@ impl EuvToc {
                 background: p.get_muted()
                 border: (g.get_border_width(), p.get_border())
                 radius: g.get_radius_md()
+                overflow: Overflow::Hidden
                 text {
                     font_size: 12.0
                     font_weight: FontWeight::Bold

@@ -197,7 +197,9 @@ impl EuvNumberInput {
             row {
                 align: AlignItems::Center
                 gap: SPACE_SM
-                EuvButton(STEP_MINUS.to_string(), tokens) {
+                EuvButton {
+                    label: STEP_MINUS.to_string()
+                    tokens: tokens
                     outline()
                     sm()
                     on_click: move |_: &UiEvent| {
@@ -220,7 +222,9 @@ impl EuvNumberInput {
                         { move || sig.get().to_string() }
                     }
                 }
-                EuvButton(STEP_PLUS.to_string(), tokens) {
+                EuvButton {
+                    label: STEP_PLUS.to_string()
+                    tokens: tokens
                     outline()
                     sm()
                     on_click: move |_: &UiEvent| {
@@ -851,7 +855,9 @@ impl EuvTimePicker {
                         color: p.get_muted_foreground()
                         { TIME_HOUR_LABEL }
                     }
-                    EuvButton(STEP_MINUS.to_string(), tokens) {
+                    EuvButton {
+                        label: STEP_MINUS.to_string()
+                        tokens: tokens
                         outline()
                         sm()
                         on_click: move |_: &UiEvent| {
@@ -860,7 +866,9 @@ impl EuvTimePicker {
                             });
                         }
                     }
-                    EuvButton(STEP_PLUS.to_string(), tokens) {
+                    EuvButton {
+                        label: STEP_PLUS.to_string()
+                        tokens: tokens
                         outline()
                         sm()
                         on_click: move |_: &UiEvent| {
@@ -889,7 +897,9 @@ impl EuvTimePicker {
                             } }
                         }
                     }
-                    EuvButton(STEP_MINUS.to_string(), tokens) {
+                    EuvButton {
+                        label: STEP_MINUS.to_string()
+                        tokens: tokens
                         outline()
                         sm()
                         on_click: move |_: &UiEvent| {
@@ -898,7 +908,9 @@ impl EuvTimePicker {
                             });
                         }
                     }
-                    EuvButton(STEP_PLUS.to_string(), tokens) {
+                    EuvButton {
+                        label: STEP_PLUS.to_string()
+                        tokens: tokens
                         outline()
                         sm()
                         on_click: move |_: &UiEvent| {
@@ -918,7 +930,9 @@ impl EuvTimePicker {
                     width: Length::Percent(100.0)
                     gap: SPACE_XS
                     for (ph, pm) in TIME_PRESETS.iter().copied() {
-                        EuvButton(format!("{ph:02}:{pm:02}"), tokens) {
+                        EuvButton {
+                            label: format!("{ph:02}:{pm:02}")
+                            tokens: tokens
                             secondary()
                             sm()
                             on_click: move |_: &UiEvent| {
@@ -1030,9 +1044,15 @@ impl EuvTagInput {
                     column {
                         flex_grow: 1.0
                         min_width: Length::Px(80.0)
-                        EuvInput(draft, resolved_ph, tokens)
+                        EuvInput {
+                            value: draft
+                            placeholder: resolved_ph
+                            tokens: tokens
+                        }
                     }
-                    EuvButton(TAG_ADD_LABEL.to_string(), tokens) {
+                    EuvButton {
+                        label: TAG_ADD_LABEL.to_string()
+                        tokens: tokens
                         outline()
                         on_click: move |_: &UiEvent| {
                             let raw: String = draft.get_untracked().trim().to_string();

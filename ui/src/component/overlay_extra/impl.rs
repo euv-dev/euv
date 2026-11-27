@@ -341,6 +341,11 @@ impl EuvSheet {
         let drag_moved: Rc<Cell<bool>> = Rc::new(Cell::new(false));
         let mut panel: NodeId = NodeId::default();
         let mut grabber: NodeId = NodeId::default();
+        let sheet_r: f32 = g.get_radius_xl();
+        let mut sheet_panel_base: Style = Style::default().column();
+        sheet_panel_base
+            .get_mut_paint()
+            .set_radius(CornerRadius::new(sheet_r, sheet_r, 0.0, 0.0));
         let scrim: NodeId = view! {
             portal {
                 style: Style::default().column()
@@ -355,12 +360,12 @@ impl EuvSheet {
                 z_index: Z_INDEX_DRAWER
                 column {
                     node_ref: panel
+                    style: sheet_panel_base
                     width: Length::Percent(100.0)
                     height: Length::Px(300.0)
                     max_height: Length::Percent(90.0)
                     background: p.get_card()
                     border: (g.get_border_width(), p.get_border())
-                    radius: g.get_radius_xl()
                     shadow: g.get_shadow_lg()
                     overflow: Overflow::Hidden
                     row {
@@ -1184,7 +1189,10 @@ impl EuvLoading {
                 background: p.get_overlay()
                 stop_scroll_propagation: true
                 z_index: Z_INDEX_MODAL
-                EuvSpinner(32.0, tokens)
+                EuvSpinner {
+                    size: 32.0
+                    tokens: tokens
+                }
                 text {
                     font_size: 14.0
                     font_weight: FontWeight::Medium

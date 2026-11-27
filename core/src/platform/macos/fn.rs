@@ -248,6 +248,28 @@ pub(crate) fn objc_send_f64_0(receiver: *mut c_void, sel: *mut c_void) -> f64 {
     }
 }
 
+/// Sends a zero-argument Objective-C message returning `isize` (`NSInteger` on 64-bit Apple platforms).
+///
+/// # Arguments
+///
+/// - `*mut c_void` - Objective-C receiver.
+/// - `*mut c_void` - Objective-C selector.
+///
+/// # Returns
+///
+/// - `isize` - Returned signed integer scalar (`0` when receiver is null).
+pub(crate) fn objc_send_isize0(receiver: *mut c_void, sel: *mut c_void) -> isize {
+    if receiver.is_null() {
+        return 0;
+    }
+    // SAFETY: `objc_msgSend` matches the 64-bit Apple ABI returning `NSInteger`.
+    unsafe {
+        let func: unsafe extern "C" fn(*mut c_void, *mut c_void) -> isize =
+            transmute(objc_msgSend as *const ());
+        func(receiver, sel)
+    }
+}
+
 /// Sends a single pointer-argument Objective-C message returning a pointer.
 ///
 /// # Arguments
@@ -820,7 +842,50 @@ pub(crate) fn macos_window_backing_scale(ns_window: *mut c_void) -> f32 {
     macos_backing_scale_factor()
 }
 
-/// Installs a 60Hz `CFRunLoopTimer` on `kCFRunLoopCommonModes` so live window border dragging repaints continuously.
+/// Queries the native hardware refresh rate of a specific `NSWindow`'s screen (or main screen fallback).
+///
+/// # Arguments
+///
+/// - `*mut c_void` - Target `NSWindow*` pointer (may be null to query the main screen).
+///
+/// # Returns
+///
+/// - `f32` - Active display refresh rate in Hertz (`60.0` fallback).
+#[must_use]
+pub(crate) fn macos_window_refresh_rate_hz(ns_window: *mut c_void) -> f32 {
+    if !ns_window.is_null() {
+        let win_screen: *mut c_void = objc_send_ptr0(ns_window, objc_sel(OBJC_SEL_SCREEN));
+        if !win_screen.is_null() {
+            let hz: isize = objc_send_isize0(win_screen, objc_sel(OBJC_SEL_MAX_FPS));
+            if hz >= 24 {
+                return (hz as f32).clamp(24.0, 480.0);
+            }
+        }
+    }
+    macos_display_refresh_rate_hz()
+}
+
+/// Queries the macOS main display maximum refresh rate via `NSScreen.mainScreen.maximumFramesPerSecond`.
+///
+/// # Returns
+///
+/// - `f32` - Native display refresh rate in Hertz (e.g. `120.0`, `144.0`, `180.0`, or `60.0` fallback).
+#[must_use]
+pub fn macos_display_refresh_rate_hz() -> f32 {
+    let screen_cls: *mut c_void = objc_class(OBJC_CLS_NS_SCREEN);
+    let screen: *mut c_void = objc_send_ptr0(screen_cls, objc_sel(OBJC_SEL_MAIN_SCREEN));
+    if screen.is_null() {
+        return 60.0;
+    }
+    let hz: isize = objc_send_isize0(screen, objc_sel(OBJC_SEL_MAX_FPS));
+    if hz >= 24 {
+        (hz as f32).clamp(24.0, 480.0)
+    } else {
+        60.0
+    }
+}
+
+/// Installs a native-refresh-rate `CFRunLoopTimer` on `kCFRunLoopCommonModes` so live window border dragging repaints smoothly.
 ///
 /// # Arguments
 ///
@@ -841,11 +906,12 @@ pub(crate) fn macos_install_live_resize_timer(
         release: null(),
         copy_description: null(),
     };
+    let interval: f64 = 1.0 / (macos_display_refresh_rate_hz().clamp(60.0, 360.0) as f64);
     // SAFETY: CoreFoundation run-loop timer APIs called on the main AppKit thread.
     unsafe {
-        let fire_date: f64 = CFAbsoluteTimeGetCurrent() + 0.016;
+        let fire_date: f64 = CFAbsoluteTimeGetCurrent() + interval;
         let timer: *mut c_void =
-            CFRunLoopTimerCreate(null(), fire_date, 0.016, 0, 0, callout, &mut ctx);
+            CFRunLoopTimerCreate(null(), fire_date, interval, 0, 0, callout, &mut ctx);
         if !timer.is_null() {
             let rl: *mut c_void = CFRunLoopGetCurrent();
             if !rl.is_null() {

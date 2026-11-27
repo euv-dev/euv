@@ -42,7 +42,9 @@ Mandatory architectural, macro authoring, UI/layout, formatting, release, and do
       format!("Cached: {}", entries.len())
   };
   view! {
-      EuvButton(BTN_SAVE.to_string(), tokens) {
+      EuvButton {
+          label: BTN_SAVE
+          tokens: tokens
           on_click: on_save
       }
       text {
@@ -56,10 +58,11 @@ Mandatory architectural, macro authoring, UI/layout, formatting, release, and do
 - Every statement inside `style! { ... }` must sit on its own line **without** trailing semicolons `;`.
 - Placing two rules on the same line or adding trailing `;` is a compile-time error.
 
-### 2.3 IDE Go-to-Definition Support & Zero Macro-Emitted `use`
+### 2.3 Named Component Props, IDE Go-to-Definition & Zero Macro-Emitted `use`
 
 - Built-in `view!` tags (`view`, `row`, `column`, `col`, `grid`, `scroll`, `portal`, `fragment`, `text`, `input`, `image`, `canvas`, `slot`, `page_slot`) and properties resolve directly to zero-cost schemas in `euv::view_elements`; `style!` keys resolve to `euv::style_props`.
-- Custom component invocations preserve the type path span in constructor type position (`<#path>::new(...)`) and keep `::euv::Component::mount(...)` on `Span::call_site()`.
+- Custom components in `view!` MUST derive `Props` (implementing `ComponentProps`) and receive parameters exclusively as self-documenting named attributes inside `Component { prop: value }` blocks; positional `Component(...)` calls are rejected at compile time.
+- Custom component invocations preserve the type path span (`<#path as ::euv::ComponentProps>::init_props()`) and field spans on generated setters, keeping `::euv::Component::mount(...)` on `Span::call_site()`.
 - Proc-macro expansions MUST NEVER emit `use` statements inside generated blocks; use absolute `::crate::Item` paths and UFCS traits (`TextNodeContent`).
 
 ---

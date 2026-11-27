@@ -192,6 +192,12 @@ impl DisplayList {
                     Self::mix_hash(&mut hash, r.get_x().to_bits() as u64);
                     Self::mix_hash(&mut hash, r.get_y().to_bits() as u64);
                 }
+                DrawCommand::PushRoundedClip { rect, radius } => {
+                    Self::mix_hash(&mut hash, 14);
+                    Self::mix_hash(&mut hash, rect.get_x().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_y().to_bits() as u64);
+                    Self::mix_hash(&mut hash, radius.max_radius().to_bits() as u64);
+                }
                 DrawCommand::PopClip => {
                     Self::mix_hash(&mut hash, 12);
                 }
@@ -401,6 +407,17 @@ impl DisplayList {
                     Self::mix_hash(&mut hash, r.get_width().to_bits() as u64);
                     Self::mix_hash(&mut hash, r.get_height().to_bits() as u64);
                 }
+                DrawCommand::PushRoundedClip { rect, radius } => {
+                    Self::mix_hash(&mut hash, 14);
+                    Self::mix_hash(&mut hash, rect.get_x().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_y().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_width().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_height().to_bits() as u64);
+                    Self::mix_hash(&mut hash, radius.get_top_left().to_bits() as u64);
+                    Self::mix_hash(&mut hash, radius.get_top_right().to_bits() as u64);
+                    Self::mix_hash(&mut hash, radius.get_bottom_right().to_bits() as u64);
+                    Self::mix_hash(&mut hash, radius.get_bottom_left().to_bits() as u64);
+                }
                 DrawCommand::PopClip => {
                     Self::mix_hash(&mut hash, 12);
                 }
@@ -535,13 +552,13 @@ impl PaintPass {
         }
     }
 
-    /// Recursively emits commands for `node_id` and its z-sorted children.
+    /// Recursively emits commands for `node_id` and its z-sorted children with hierarchical transform and physical-pixel lockstep.
     ///
     /// # Arguments
     ///
     /// - `&SceneTree` - Scene tree reference.
     /// - `NodeId` - Node to paint.
-    /// - `(Point, f32)` - Accumulated ancestor scroll offset and opacity.
+    /// - `(Point, f32)` - Accumulated ancestor physical pixel displacement `(tx_phys - scroll_phys)` and opacity.
     /// - `Rect` - Active cull clip rectangle.
     /// - `Option<NodeId>` - Innermost hovered interactive node eligible for automatic hover tinting.
     /// - `Option<&mut Vec<(i32, usize, NodeId)>>` - Optional deferred top-layer portal queue (`None` when painting top layer).
@@ -549,13 +566,13 @@ impl PaintPass {
     fn emit_node(
         tree: &SceneTree,
         node_id: NodeId,
-        scroll_and_opacity: (Point, f32),
+        offset_and_opacity: (Point, f32),
         cull_rect: Rect,
         active_hover_target: Option<NodeId>,
         mut portals: Option<&mut Vec<(i32, usize, NodeId)>>,
         display_list: &mut DisplayList,
     ) {
-        let (scroll_offset, parent_opacity): (Point, f32) = scroll_and_opacity;
+        let (offset_phys, parent_opacity): (Point, f32) = offset_and_opacity;
         let Some(node) = tree.get_node(node_id) else {
             return;
         };
@@ -604,13 +621,29 @@ impl PaintPass {
         if opacity <= 0.0 {
             return;
         }
+        let scale: f32 = display_list.get_scale_factor().max(0.5);
+        let inv_scale: f32 = 1.0 / scale;
         let raw_bounds: Rect = node.get_layout_box().get_bounds();
         let transform: Transform2D = paint.get_transform();
+        let tx_phys: f32 = (transform.get_translate_x() * scale).round();
+        let ty_phys: f32 = (transform.get_translate_y() * scale).round();
+        let total_off_x: f32 = offset_phys.get_x() + tx_phys;
+        let total_off_y: f32 = offset_phys.get_y() + ty_phys;
+        let raw_x0: f32 = (raw_bounds.get_x() * scale).round();
+        let raw_y0: f32 = (raw_bounds.get_y() * scale).round();
+        let raw_x1: f32 = (raw_bounds.right() * scale).round();
+        let raw_y1: f32 = (raw_bounds.bottom() * scale).round();
+        let static_w_phys: f32 = (raw_x1 - raw_x0).max(0.0);
+        let static_h_phys: f32 = (raw_y1 - raw_y0).max(0.0);
+        let scaled_w_phys: f32 = (static_w_phys * transform.get_scale_x()).round().max(0.0);
+        let scaled_h_phys: f32 = (static_h_phys * transform.get_scale_y()).round().max(0.0);
+        let scale_dx_phys: f32 = ((static_w_phys - scaled_w_phys) * 0.5).round();
+        let scale_dy_phys: f32 = ((static_h_phys - scaled_h_phys) * 0.5).round();
         let bounds: Rect = Rect::new(
-            raw_bounds.get_x() - scroll_offset.get_x() + transform.get_translate_x(),
-            raw_bounds.get_y() - scroll_offset.get_y() + transform.get_translate_y(),
-            raw_bounds.get_width() * transform.get_scale_x(),
-            raw_bounds.get_height() * transform.get_scale_y(),
+            (raw_x0 + total_off_x + scale_dx_phys) * inv_scale,
+            (raw_y0 + total_off_y + scale_dy_phys) * inv_scale,
+            scaled_w_phys * inv_scale,
+            scaled_h_phys * inv_scale,
         );
         let clipped: bool = matches!(layout.get_overflow(), Overflow::Hidden | Overflow::Scroll);
         let next_cull: Rect = if clipped {
@@ -696,9 +729,11 @@ impl PaintPass {
                     let mut text_style: TextStyle = style.get_text();
                     text_style.set_color(text_style.get_color().multiply_alpha(opacity));
                     let content_b: Rect = node.get_layout_box().get_content_bounds();
+                    let cx0: f32 = (content_b.get_x() * scale).round();
+                    let cy0: f32 = (content_b.get_y() * scale).round();
                     let shifted_content: Rect = Rect::new(
-                        content_b.get_x() - scroll_offset.get_x() + transform.get_translate_x(),
-                        content_b.get_y() - scroll_offset.get_y() + transform.get_translate_y(),
+                        (cx0 + total_off_x) * inv_scale,
+                        (cy0 + total_off_y) * inv_scale,
                         content_b.get_width(),
                         content_b.get_height(),
                     );
@@ -721,9 +756,11 @@ impl PaintPass {
                         input_state.get_value().clone()
                     };
                     let content_b: Rect = node.get_layout_box().get_content_bounds();
+                    let cx0: f32 = (content_b.get_x() * scale).round();
+                    let cy0: f32 = (content_b.get_y() * scale).round();
                     let shifted_content: Rect = Rect::new(
-                        content_b.get_x() - scroll_offset.get_x() + transform.get_translate_x(),
-                        content_b.get_y() - scroll_offset.get_y() + transform.get_translate_y(),
+                        (cx0 + total_off_x) * inv_scale,
+                        (cy0 + total_off_y) * inv_scale,
                         content_b.get_width(),
                         content_b.get_height(),
                     );
@@ -733,8 +770,10 @@ impl PaintPass {
                         shifted_content
                     } else {
                         text_style.set_overflow(TextOverflow::Clip);
-                        let text_y: f32 = shifted_content.get_y()
-                            + ((shifted_content.get_height() - line_h) * 0.5).max(0.0);
+                        let v_off_phys: f32 =
+                            (((shifted_content.get_height() - line_h) * 0.5).max(0.0) * scale)
+                                .round();
+                        let text_y: f32 = (cy0 + total_off_y + v_off_phys) * inv_scale;
                         Rect::new(
                             shifted_content.get_x(),
                             text_y,
@@ -779,7 +818,36 @@ impl PaintPass {
                     if let Some(callback) = node.canvas_callback()
                         && let Ok(mut func) = callback.try_borrow_mut()
                     {
-                        display_list.push(DrawCommand::PushClip(bounds));
+                        let canvas_bw: f32 = paint.get_border().get_width();
+                        let canvas_clip_rect: Rect = if canvas_bw > 0.0 {
+                            Rect::new(
+                                bounds.get_x() + canvas_bw,
+                                bounds.get_y() + canvas_bw,
+                                (bounds.get_width() - canvas_bw * 2.0).max(0.0),
+                                (bounds.get_height() - canvas_bw * 2.0).max(0.0),
+                            )
+                        } else {
+                            bounds
+                        };
+                        let canvas_max_r: f32 = (bounds.get_width() * 0.5)
+                            .min(bounds.get_height() * 0.5)
+                            .max(0.0);
+                        let canvas_raw_r: CornerRadius = paint.get_radius();
+                        let canvas_inner_r: CornerRadius = CornerRadius::new(
+                            (canvas_raw_r.get_top_left().min(canvas_max_r) - canvas_bw).max(0.0),
+                            (canvas_raw_r.get_top_right().min(canvas_max_r) - canvas_bw).max(0.0),
+                            (canvas_raw_r.get_bottom_right().min(canvas_max_r) - canvas_bw)
+                                .max(0.0),
+                            (canvas_raw_r.get_bottom_left().min(canvas_max_r) - canvas_bw).max(0.0),
+                        );
+                        if canvas_inner_r.max_radius() > 0.25 {
+                            display_list.push(DrawCommand::PushRoundedClip {
+                                rect: canvas_clip_rect,
+                                radius: canvas_inner_r,
+                            });
+                        } else {
+                            display_list.push(DrawCommand::PushClip(canvas_clip_rect));
+                        }
                         func(bounds, display_list);
                         display_list.push(DrawCommand::PopClip);
                     }
@@ -799,16 +867,30 @@ impl PaintPass {
             } else {
                 bounds
             };
-            display_list.push(DrawCommand::PushClip(clip_rect));
+            let max_r: f32 = (bounds.get_width() * 0.5)
+                .min(bounds.get_height() * 0.5)
+                .max(0.0);
+            let raw_r: CornerRadius = paint.get_radius();
+            let inner_r: CornerRadius = CornerRadius::new(
+                (raw_r.get_top_left().min(max_r) - bw).max(0.0),
+                (raw_r.get_top_right().min(max_r) - bw).max(0.0),
+                (raw_r.get_bottom_right().min(max_r) - bw).max(0.0),
+                (raw_r.get_bottom_left().min(max_r) - bw).max(0.0),
+            );
+            if inner_r.max_radius() > 0.25 {
+                display_list.push(DrawCommand::PushRoundedClip {
+                    rect: clip_rect,
+                    radius: inner_r,
+                });
+            } else {
+                display_list.push(DrawCommand::PushClip(clip_rect));
+            }
         }
-        let scale: f32 = display_list.get_scale_factor().max(0.5);
         let raw_node_scroll: Point = node.get_layout_box().get_scroll_offset();
-        let snap_scroll_x: f32 = (raw_node_scroll.get_x() * scale).round() / scale;
-        let snap_scroll_y: f32 = (raw_node_scroll.get_y() * scale).round() / scale;
-        let child_scroll: Point = Point::new(
-            scroll_offset.get_x() + snap_scroll_x,
-            scroll_offset.get_y() + snap_scroll_y,
-        );
+        let scroll_x_phys: f32 = (raw_node_scroll.get_x() * scale).round();
+        let scroll_y_phys: f32 = (raw_node_scroll.get_y() * scale).round();
+        let child_offset_phys: Point =
+            Point::new(total_off_x - scroll_x_phys, total_off_y - scroll_y_phys);
         let raw_children: &[NodeId] = node.get_children().as_slice();
         let needs_z_sort: bool = raw_children.len() > 1
             && raw_children.iter().copied().any(|cid: NodeId| {
@@ -821,7 +903,7 @@ impl PaintPass {
                 Self::emit_node(
                     tree,
                     child_id,
-                    (child_scroll, opacity),
+                    (child_offset_phys, opacity),
                     next_cull,
                     active_hover_target,
                     portals.as_deref_mut(),
@@ -845,7 +927,7 @@ impl PaintPass {
                 Self::emit_node(
                     tree,
                     child_id,
-                    (child_scroll, opacity),
+                    (child_offset_phys, opacity),
                     next_cull,
                     active_hover_target,
                     portals.as_deref_mut(),
@@ -883,9 +965,20 @@ impl PaintPass {
                 let thumb_h: f32 = (track_h * ratio).clamp(min_thumb_h, track_h);
                 let scroll_frac: f32 = (scroll_y / max_scroll_y).clamp(0.0, 1.0);
                 let thumb_y: f32 = track_y + (track_h - thumb_h) * scroll_frac;
+                let track_x_snapped: f32 = (track_x * scale).round() * inv_scale;
+                let track_y_snapped: f32 = (track_y * scale).round() * inv_scale;
+                let track_w_snapped: f32 = (track_w * scale).round().max(1.0) * inv_scale;
+                let track_h_snapped: f32 = (track_h * scale).round().max(1.0) * inv_scale;
+                let thumb_y_snapped: f32 = (thumb_y * scale).round() * inv_scale;
+                let thumb_h_snapped: f32 = (thumb_h * scale).round().max(1.0) * inv_scale;
                 if hovered {
                     display_list.push(DrawCommand::FillRoundedRect {
-                        rect: Rect::new(track_x, track_y, track_w, track_h),
+                        rect: Rect::new(
+                            track_x_snapped,
+                            track_y_snapped,
+                            track_w_snapped,
+                            track_h_snapped,
+                        ),
                         color: Color::rgba(113, 113, 122, 24).multiply_alpha(opacity),
                         radius: CornerRadius::all(3.0),
                         border: Border::default(),
@@ -893,7 +986,12 @@ impl PaintPass {
                 }
                 let thumb_alpha: u8 = if hovered { 180 } else { 112 };
                 display_list.push(DrawCommand::FillRoundedRect {
-                    rect: Rect::new(track_x, thumb_y, track_w, thumb_h),
+                    rect: Rect::new(
+                        track_x_snapped,
+                        thumb_y_snapped,
+                        track_w_snapped,
+                        thumb_h_snapped,
+                    ),
                     color: Color::rgba(113, 113, 122, thumb_alpha).multiply_alpha(opacity),
                     radius: CornerRadius::all(track_w * 0.5),
                     border: Border::default(),

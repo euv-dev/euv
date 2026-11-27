@@ -126,14 +126,18 @@ impl EuvAlertDialog {
                         width: Length::Percent(100.0)
                         justify: JustifyContent::End
                         gap: SPACE_SM
-                        EuvButton(resolved_cancel, tokens) {
+                        EuvButton {
+                            label: resolved_cancel
+                            tokens: tokens
                             outline()
                             on_click: move |_: &UiEvent| {
                                 let _: bool = confirmed.set_if_changed(false);
                                 let _: bool = open.set_if_changed(false);
                             }
                         }
-                        EuvButton(resolved_confirm, tokens) {
+                        EuvButton {
+                            label: resolved_confirm
+                            tokens: tokens
                             destructive()
                             on_click: move |_: &UiEvent| {
                                 let _: bool = confirmed.set_if_changed(true);
@@ -219,10 +223,44 @@ impl EuvCollapsible {
         let open: Signal<bool> = self.get_open();
         let content: NodeId = self.get_content();
         let Self { title, .. } = self.clone();
+        let toggle_click = move |_: &UiEvent| {
+            let _: bool = open.update(|v: &mut bool| *v = !*v);
+        };
+        let toggle_label = move || -> String {
+            if open.get() {
+                COLLAPSIBLE_HIDE_LABEL.to_string()
+            } else {
+                COLLAPSIBLE_SHOW_LABEL.to_string()
+            }
+        };
+        let div_h: f32 = g.get_border_width().max(1.0);
+        let divider_style = move || -> Style {
+            let disp: Display = if open.get() {
+                Display::Flex
+            } else {
+                Display::None
+            };
+            Style::default()
+                .display(disp)
+                .width(Length::Percent(100.0))
+                .height(Length::Px(div_h))
+                .background(p.get_border())
+        };
+        let body_style = move || -> Style {
+            let disp: Display = if open.get() {
+                Display::Flex
+            } else {
+                Display::None
+            };
+            Style::default()
+                .column()
+                .display(disp)
+                .width(Length::Percent(100.0))
+                .padding(Edges::all(SPACE_MD))
+        };
         view! {
             column {
                 width: Length::Percent(100.0)
-                gap: SPACE_XS
                 background: p.get_card()
                 border: (g.get_border_width(), p.get_border())
                 radius: g.get_radius_md()
@@ -233,9 +271,7 @@ impl EuvCollapsible {
                     justify: JustifyContent::SpaceBetween
                     align: AlignItems::Center
                     cursor: CursorIcon::Pointer
-                    on_click: move |_: &UiEvent| {
-                        let _: bool = open.update(|v: &mut bool| *v = !*v);
-                    }
+                    on_click: toggle_click
                     text {
                         font_size: 13.0
                         font_weight: FontWeight::SemiBold
@@ -246,29 +282,14 @@ impl EuvCollapsible {
                         font_size: 12.0
                         font_weight: FontWeight::Medium
                         color: p.get_muted_foreground()
-                        { move || {
-                            if open.get() {
-                                COLLAPSIBLE_HIDE_LABEL.to_string()
-                            } else {
-                                COLLAPSIBLE_SHOW_LABEL.to_string()
-                            }
-                        } }
+                        { toggle_label }
                     }
                 }
+                view {
+                    bind_style: divider_style
+                }
                 column {
-                    bind_style: move || {
-                        let disp: Display = if open.get() {
-                            Display::Flex
-                        } else {
-                            Display::None
-                        };
-                        Style::default()
-                        .column()
-                        .display(disp)
-                        .width(Length::Percent(100.0))
-                        .padding(Edges::all(SPACE_MD))
-                        .border(g.get_border_width(), p.get_border())
-                    }
+                    bind_style: body_style
                     { content }
                 }
             }
@@ -480,7 +501,6 @@ impl EuvCommand {
         view! {
             column {
                 width: Length::Percent(100.0)
-                max_width: Length::Px(520.0)
                 padding: Edges::all(SPACE_SM)
                 gap: SPACE_SM
                 background: p.get_card()
@@ -488,7 +508,11 @@ impl EuvCommand {
                 radius: g.get_radius_lg()
                 overflow: Overflow::Hidden
                 shadow: g.get_shadow_md()
-                EuvInput(query, resolved_ph, tokens)
+                EuvInput {
+                    value: query
+                    placeholder: resolved_ph
+                    tokens: tokens
+                }
                 column {
                     width: Length::Percent(100.0)
                     gap: SPACE_XS
@@ -626,7 +650,9 @@ impl EuvHoverCard {
                     hover_leave.set(false);
                     let _: bool = open.set_if_changed(false);
                 }
-                EuvButton(trigger_label, tokens) {
+                EuvButton {
+                    label: trigger_label
+                    tokens: tokens
                     link()
                     sm()
                     on_click: move |_: &UiEvent| {
@@ -935,7 +961,9 @@ impl EuvCarousel {
                     justify: JustifyContent::SpaceBetween
                     align: AlignItems::Center
                     gap: SPACE_SM
-                    EuvButton(PAGE_PREV_LABEL.to_string(), tokens) {
+                    EuvButton {
+                        label: PAGE_PREV_LABEL.to_string()
+                        tokens: tokens
                         outline()
                         sm()
                         on_click: move |_: &UiEvent| {
@@ -957,7 +985,9 @@ impl EuvCarousel {
                             }
                         } }
                     }
-                    EuvButton(PAGE_NEXT_LABEL.to_string(), tokens) {
+                    EuvButton {
+                        label: PAGE_NEXT_LABEL.to_string()
+                        tokens: tokens
                         outline()
                         sm()
                         on_click: move |_: &UiEvent| {

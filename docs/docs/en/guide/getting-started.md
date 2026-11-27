@@ -53,7 +53,9 @@ pub fn run() -> Result<(), PlatformError> {
                     color: p.get_foreground()
                     { count_text }
                 }
-                EuvButton("Increment".to_string(), tokens) {
+                EuvButton {
+                    label: "Increment"
+                    tokens: tokens
                     on_click: on_increment
                 }
             }

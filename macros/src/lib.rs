@@ -9,13 +9,15 @@ mod component;
 mod diagnostic;
 mod entry;
 mod event;
+mod props;
 mod reactive;
 mod state;
 mod style;
 mod view;
 
 pub(crate) use {
-    component::*, diagnostic::*, entry::*, event::*, reactive::*, state::*, style::*, view::*,
+    component::*, diagnostic::*, entry::*, event::*, props::*, reactive::*, state::*, style::*,
+    view::*,
 };
 
 use std::{collections::HashSet, mem::take};
@@ -25,9 +27,10 @@ use {
     proc_macro2::Span,
     quote::{quote, quote_spanned},
     syn::{
-        Attribute, Error, Expr, ExprRange, FnArg, Ident, ImplItem, ImplItemFn, ItemImpl,
-        ItemStruct, LitStr, Meta, Pat, Path, PathSegment, RangeLimits, Result, Token, Type,
-        Visibility, braced, parenthesized,
+        Attribute, Data, DeriveInput, Error, Expr, ExprRange, Field, Fields, FnArg, Ident,
+        ImplGenerics, ImplItem, ImplItemFn, ItemImpl, ItemStruct, LitStr, Meta, Pat, Path,
+        PathArguments, PathSegment, RangeLimits, Result, Token, Type, TypeGenerics, Visibility,
+        WhereClause, braced, parenthesized,
         parse::{Parse, ParseBuffer, ParseStream},
         parse_macro_input,
         punctuated::Punctuated,
@@ -37,6 +40,30 @@ use {
 };
 
 /// Declarative zero-VDOM, zero-context UI construction macro managing `Context` automatically.
+///
+/// Component parameters must be passed as self-documenting named attributes inside `Component { prop: value }` blocks; positional `Component(...)` calls are rejected at compile time:
+///
+/// ```compile_fail
+/// use euv::*;
+///
+/// #[derive(Props)]
+/// struct DemoBtn {
+///     label: String,
+/// }
+///
+/// #[component]
+/// impl DemoBtn {
+///     fn render(&self) -> NodeId {
+///         view! { text { "ok" } }
+///     }
+/// }
+///
+/// fn invalid() -> NodeId {
+///     view! {
+///         DemoBtn("positional")
+///     }
+/// }
+/// ```
 ///
 /// # Arguments
 ///
@@ -254,4 +281,19 @@ pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args: ComponentAttrArgs = parse_macro_input!(attr as ComponentAttrArgs);
     let parsed: ItemImpl = parse_macro_input!(item as ItemImpl);
     expand_component_attr(args, parsed).into()
+}
+
+/// Derive macro implementing `ComponentProps` and span-preserving fluent named-prop setters for `view! { MyComp { prop: value } }`.
+///
+/// # Arguments
+///
+/// - `TokenStream` - Target struct definition tokens.
+///
+/// # Returns
+///
+/// - `TokenStream` - Generated `ComponentProps` and fluent setter implementations.
+#[proc_macro_derive(Props, attributes(prop))]
+pub fn derive_props(input: TokenStream) -> TokenStream {
+    let parsed: DeriveInput = parse_macro_input!(input as DeriveInput);
+    expand_props_derive(parsed).into()
 }

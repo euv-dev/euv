@@ -46,6 +46,9 @@ pub(crate) const SRCCOPY: u32 = 0x00CC_0020;
 /// Win32 `HALFTONE` high-quality stretch blit mode for GDI `SetStretchBltMode`.
 pub(crate) const STRETCH_HALFTONE: i32 = 4;
 
+/// Win32 GDI `GetDeviceCaps` index for vertical display refresh rate in Hertz (`VREFRESH`).
+pub(crate) const GDI_VREFRESH: i32 = 116;
+
 /// Win32 `PM_REMOVE` flag for `PeekMessageW`.
 pub(crate) const PM_REMOVE: u32 = 0x0001;
 

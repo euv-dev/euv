@@ -113,6 +113,13 @@ pub enum DrawCommand {
     },
     /// Pushes an axis-aligned clip rectangle onto the clip stack.
     PushClip(Rect),
+    /// Pushes a rounded-rectangle clip mask onto the clip stack, balanced by `PopClip`.
+    PushRoundedClip {
+        /// Clip rectangle bounds in logical pixels.
+        rect: Rect,
+        /// Corner radii in logical pixels.
+        radius: CornerRadius,
+    },
     /// Pops the top clip rectangle from the clip stack.
     PopClip,
 }

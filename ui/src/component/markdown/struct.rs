@@ -106,7 +106,7 @@ pub struct EuvMarkdownListItem {
 }
 
 /// VS Code `Eva Light Bold` / `Eva Dark Bold` syntax-highlighted native code block with header bar, line numbers, line highlighting, and animated copy action.
-#[derive(Clone, CustomDebug, Data, New)]
+#[derive(Clone, CustomDebug, Data, New, Props)]
 pub struct EuvCodeBlock {
     /// Source code text to display and highlight.
     pub(crate) code: String,
@@ -115,10 +115,12 @@ pub struct EuvCodeBlock {
     pub(crate) tokens: ThemeTokens,
     /// Optional language tag (e.g. `"rust"`, `"typescript"`, `"json"`, `"bash"`). Auto-detected when empty.
     #[new(skip)]
+    #[prop(custom)]
     pub(crate) language: String,
     /// Optional filename displayed in the header bar (e.g. `"src/main.rs"`).
     #[new(skip)]
     #[get(skip)]
+    #[prop(custom)]
     pub(crate) filename: Option<String>,
     /// Whether to display the left line-number gutter (`true` by default for multi-line blocks or via builder).
     #[new(skip)]
@@ -126,16 +128,18 @@ pub struct EuvCodeBlock {
     pub(crate) show_line_numbers: bool,
     /// Optional 1-based line numbers rendered with Eva line-highlight tint.
     #[new(skip)]
+    #[prop(custom)]
     pub(crate) highlight_lines: Vec<usize>,
     /// Optional callback invoked with the raw code when the user clicks Copy.
     #[new(skip)]
     #[debug(skip)]
     #[get(skip)]
+    #[prop(custom)]
     pub(crate) on_copy: Option<MarkdownStrCallback>,
 }
 
 /// Native Markdown heading component (`H1`–`H6`) with typographic scale and optional accent rule.
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvMarkdownHeading {
     /// Heading level (`1..=6`).
     #[get(type(copy))]
@@ -148,7 +152,7 @@ pub struct EuvMarkdownHeading {
 }
 
 /// Native Markdown inline code pill styled with exact VS Code Eva inline-code colors.
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvMarkdownInlineCode {
     /// Inline code snippet.
     pub(crate) code: String,
@@ -158,7 +162,7 @@ pub struct EuvMarkdownInlineCode {
 }
 
 /// Native Markdown rich inline paragraph supporting bold, italic, strikethrough, inline code, links, and `<kbd>` caps.
-#[derive(Clone, CustomDebug, Data, New)]
+#[derive(Clone, CustomDebug, Data, New, Props)]
 pub struct EuvMarkdownParagraph {
     /// Parsed inline spans to flow cleanly inside the paragraph.
     pub(crate) inlines: Vec<EuvMarkdownInline>,
@@ -169,11 +173,12 @@ pub struct EuvMarkdownParagraph {
     #[new(skip)]
     #[debug(skip)]
     #[get(skip)]
+    #[prop(custom)]
     pub(crate) on_link: Option<MarkdownStrCallback>,
 }
 
 /// Native Markdown blockquote and GitHub-flavored Alert callout (`NOTE`, `TIP`, `IMPORTANT`, `WARNING`, `CAUTION`).
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvMarkdownQuote {
     /// Semantic quote or alert variant.
     #[get(type(copy))]
@@ -186,7 +191,7 @@ pub struct EuvMarkdownQuote {
 }
 
 /// Native Markdown unordered, ordered, nested, and interactive GFM task-checklist component.
-#[derive(Clone, CustomDebug, Data, New)]
+#[derive(Clone, CustomDebug, Data, New, Props)]
 pub struct EuvMarkdownList {
     /// Whether list items render with ordinal numbering (`1.`, `2.`, ...).
     #[get(type(copy))]
@@ -200,11 +205,12 @@ pub struct EuvMarkdownList {
     #[new(skip)]
     #[debug(skip)]
     #[get(skip)]
+    #[prop(custom)]
     pub(crate) on_toggle_task: Option<MarkdownTaskCallback>,
 }
 
 /// Native GFM Markdown table with column alignment (`Left`, `Center`, `Right`), tinted header, and zebra striping.
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvMarkdownTable {
     /// Column header titles.
     pub(crate) headers: Vec<String>,
@@ -218,7 +224,7 @@ pub struct EuvMarkdownTable {
 }
 
 /// Native Markdown thematic horizontal divider (`---`).
-#[derive(Clone, Copy, Data, Debug, New)]
+#[derive(Clone, Copy, Data, Debug, New, Props)]
 pub struct EuvMarkdownDivider {
     /// Active theme tokens.
     #[get(type(copy))]
@@ -226,7 +232,7 @@ pub struct EuvMarkdownDivider {
 }
 
 /// Native Markdown framed image/figure card with alt caption and source pill.
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvMarkdownImage {
     /// Accessible alt / caption text.
     pub(crate) alt: String,
@@ -238,7 +244,7 @@ pub struct EuvMarkdownImage {
 }
 
 /// Native Markdown collapsible `<details><summary>` disclosure block with smooth expansion.
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvMarkdownDetails {
     /// Always-visible disclosure header.
     pub(crate) summary: String,
@@ -253,7 +259,7 @@ pub struct EuvMarkdownDetails {
 }
 
 /// Complete GitHub-Flavored Markdown native document renderer composing every Markdown component and Eva-themed `EuvCodeBlock`.
-#[derive(Clone, CustomDebug, Data, New)]
+#[derive(Clone, CustomDebug, Data, New, Props)]
 pub struct EuvMarkdown {
     /// Raw Markdown source text.
     pub(crate) source: String,
@@ -264,15 +270,18 @@ pub struct EuvMarkdown {
     #[new(skip)]
     #[debug(skip)]
     #[get(skip)]
+    #[prop(custom)]
     pub(crate) on_link: Option<MarkdownStrCallback>,
     /// Optional code-block copy handler receiving the copied code.
     #[new(skip)]
     #[debug(skip)]
     #[get(skip)]
+    #[prop(custom)]
     pub(crate) on_copy: Option<MarkdownStrCallback>,
     /// Optional interactive task-checkbox toggle handler receiving `(index, checked)`.
     #[new(skip)]
     #[debug(skip)]
     #[get(skip)]
+    #[prop(custom)]
     pub(crate) on_toggle_task: Option<MarkdownTaskCallback>,
 }

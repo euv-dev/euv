@@ -304,4 +304,25 @@ impl PlatformBackend for LinuxPlatform {
     fn system_theme(&self) -> ThemeMode {
         ThemeMode::Light
     }
+
+    /// Queries the native Linux display refresh rate via XRandR or `EUV_REFRESH_RATE_HZ`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Platform reference.
+    ///
+    /// # Returns
+    ///
+    /// - `f32` - Active display refresh rate in Hertz.
+    fn display_refresh_rate_hz(&self) -> f32 {
+        let (display, window): (*mut c_void, usize) = self
+            .get_windows()
+            .values()
+            .find(|rec: &&LinuxWindowRecord| !rec.get_is_wayland())
+            .map(|rec: &LinuxWindowRecord| {
+                (rec.get_display() as *mut c_void, rec.get_window() as usize)
+            })
+            .unwrap_or((null_mut(), 0));
+        linux_display_refresh_rate_hz(display, window)
+    }
 }

@@ -24,7 +24,7 @@ cat > "${BUILD_DIR}/Cargo.toml" <<EOF
 
 [package]
 name = "euv-ios-host"
-version = "0.42.0"
+version = "0.43.0"
 edition = "2024"
 
 [lib]
@@ -44,8 +44,8 @@ EOF
 cat > "${BUILD_DIR}/src/lib.rs" <<'EOF'
 use std::ffi::{CStr, CString, c_char};
 use euv::{
-    App, KeyCode, KeyEvent, Modifiers, NativeSystemFont, PlatformKind, PointerEvent, RenderMode,
-    SafeAreaInsets, WindowEvent, WindowId, register_native_action_bridge,
+    App, ImeEvent, KeyCode, KeyEvent, Modifiers, NativeSystemFont, PlatformKind, PointerEvent,
+    RenderMode, SafeAreaInsets, WindowEvent, WindowId, register_native_action_bridge,
 };
 use euv_example::{ShowcaseState, create_showcase_app_for_platform};
 
@@ -84,6 +84,7 @@ pub extern "C" fn euv_ios_create(
     phys_height: u32,
     scale: f32,
     is_ipad: i32,
+    refresh_hz: f32,
 ) -> *mut EuvIosHandle {
     register_native_action_bridge(ios_native_action_bridge);
     let platform: PlatformKind = if is_ipad != 0 {
@@ -97,12 +98,14 @@ pub extern "C" fn euv_ios_create(
     app.get_mut_renderer()
         .get_mut_software()
         .set_font_provider(NativeSystemFont::system());
+    let hz: f32 = refresh_hz.clamp(24.0, 480.0);
+    app.update_display_refresh_rate_hz(hz);
     let wid: WindowId = app.get_window_state().get_id();
     let pw: u32 = phys_width.max(200);
     let ph: u32 = phys_height.max(200);
     let s: f32 = scale.clamp(1.0, 4.5);
     app.set_exact_physical_viewport(pw, ph, s);
-    let _ = app.step_game_frame(1.0 / 60.0);
+    let _ = app.step_game_frame(1.0 / hz);
     let mut handle = Box::new(EuvIosHandle {
         app,
         _state: state,
@@ -115,6 +118,16 @@ pub extern "C" fn euv_ios_create(
         handle.height = fb.get_height();
     }
     Box::into_raw(handle)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_ime_disabled(handle: *mut EuvIosHandle) {
+    if handle.is_null() {
+        return;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    h.app
+        .dispatch_window_event(WindowEvent::Ime(h.wid, ImeEvent::Disabled));
 }
 
 #[unsafe(no_mangle)]
@@ -277,7 +290,7 @@ pub unsafe extern "C" fn euv_ios_step(
         return 0;
     }
     let h: &mut EuvIosHandle = unsafe { &mut *handle };
-    let Ok(stats) = h.app.step_game_frame(dt.clamp(1.0 / 240.0, 0.05)) else {
+    let Ok(stats) = h.app.step_game_frame(dt.clamp(1.0 / 480.0, 0.05)) else {
         return 0;
     };
     let changed: bool = stats.get_pixels_shaded() > 0 || h.width == 0;
@@ -307,7 +320,9 @@ cat > "${BUILD_DIR}/main.m" <<'EOF'
 #import <UserNotifications/UserNotifications.h>
 #include <stdint.h>
 
-@class EuvCanvasView;
+@interface EuvCanvasView : UIView <UIKeyInput>
+@property (nonatomic, assign) BOOL keyboardVisible;
+@end
 static __weak EuvCanvasView *gEuvActiveCanvasView = nil;
 
 int32_t euv_ios_invoke_native_action(const char *kind, const char *arg1, const char *arg2) {
@@ -317,9 +332,12 @@ int32_t euv_ios_invoke_native_action(const char *kind, const char *arg1, const c
     NSLog(@"[euv-native] ios action kind=%@ arg1=%@ arg2=%@", k, a1, a2);
     dispatch_async(dispatch_get_main_queue(), ^{
         if ([k isEqualToString:@"ime"]) {
-            UIView *v = (UIView *)gEuvActiveCanvasView;
+            EuvCanvasView *v = gEuvActiveCanvasView;
             if (v) {
                 if ([a1 isEqualToString:@"show"]) {
+                    if ([v isFirstResponder] && !v.keyboardVisible) {
+                        [v resignFirstResponder];
+                    }
                     [v becomeFirstResponder];
                 } else {
                     [v resignFirstResponder];
@@ -347,7 +365,8 @@ int32_t euv_ios_invoke_native_action(const char *kind, const char *arg1, const c
 }
 
 typedef struct EuvIosHandle EuvIosHandle;
-extern EuvIosHandle *euv_ios_create(uint32_t phys_width, uint32_t phys_height, float scale, int32_t is_ipad);
+extern EuvIosHandle *euv_ios_create(uint32_t phys_width, uint32_t phys_height, float scale, int32_t is_ipad, float refresh_hz);
+extern void euv_ios_ime_disabled(EuvIosHandle *handle);
 extern void euv_ios_resize(EuvIosHandle *handle, uint32_t phys_width, uint32_t phys_height, float scale);
 extern void euv_ios_set_safe_area(EuvIosHandle *handle, float top, float right, float bottom, float left);
 extern void euv_ios_touch_down(EuvIosHandle *handle, uint64_t pointer_id, float x, float y);
@@ -359,7 +378,7 @@ extern void euv_ios_text_input(EuvIosHandle *handle, const char *text);
 extern void euv_ios_key_down(EuvIosHandle *handle, int32_t key_tag);
 extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_ptr, uint32_t *out_w, uint32_t *out_h);
 
-@interface EuvCanvasView : UIView <UIKeyInput>
+@interface EuvCanvasView ()
 @property (nonatomic, assign) EuvIosHandle *handle;
 @property (nonatomic, strong) CADisplayLink *displayLink;
 @property (nonatomic, assign) CFTimeInterval lastTimestamp;
@@ -367,6 +386,7 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
 @property (nonatomic, assign) CGFloat lastLogicalW;
 @property (nonatomic, assign) CGFloat lastLogicalH;
 @property (nonatomic, assign) CGFloat lastScale;
+@property (nonatomic, assign) float targetRefreshHz;
 @property (nonatomic, assign) uint64_t renderedFrames;
 @property (nonatomic, assign) double accumRenderMs;
 @property (nonatomic, assign) double maxRenderMs;
@@ -375,31 +395,61 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
 
 @implementation EuvCanvasView
 
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)onKeyboardWillShow:(NSNotification *)note {
+    (void)note;
+    _keyboardVisible = YES;
+}
+
+- (void)onKeyboardDidHide:(NSNotification *)note {
+    (void)note;
+    _keyboardVisible = NO;
+    if (_handle) {
+        euv_ios_ime_disabled(_handle);
+    }
+}
+
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
         self.backgroundColor = [UIColor whiteColor];
         self.multipleTouchEnabled = YES;
         gEuvActiveCanvasView = self;
+        _keyboardVisible = NO;
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(onKeyboardWillShow:)
+                                                     name:UIKeyboardWillShowNotification
+                                                   object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(onKeyboardDidHide:)
+                                                     name:UIKeyboardDidHideNotification
+                                                   object:nil];
         _colorSpace = CGColorSpaceCreateDeviceRGB();
         CGFloat scale = fmin(4.5, UIScreen.mainScreen.scale);
         self.layer.contentsScale = scale;
         self.layer.magnificationFilter = kCAFilterNearest;
         self.layer.minificationFilter = kCAFilterLinear;
+        NSInteger maxHz = UIScreen.mainScreen.maximumFramesPerSecond;
+        if (maxHz < 60) maxHz = 120;
+        _targetRefreshHz = (float)maxHz;
         CGFloat w = frame.size.width > 0 ? frame.size.width : 393.0;
         CGFloat h = frame.size.height > 0 ? frame.size.height : 852.0;
         uint32_t physW = (uint32_t)llround(w * scale);
         uint32_t physH = (uint32_t)llround(h * scale);
         int32_t isIpad = (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) ? 1 : 0;
-        _handle = euv_ios_create(physW, physH, (float)scale, isIpad);
+        _handle = euv_ios_create(physW, physH, (float)scale, isIpad, _targetRefreshHz);
         if (@available(iOS 17.0, *)) {
             [self registerForTraitChanges:@[UITraitDisplayScale.class] withTarget:self action:@selector(syncViewportScaleAndBounds)];
         }
         [self syncSafeArea];
-        [self presentFrameWithDt:1.0f / 60.0f force:YES];
+        [self presentFrameWithDt:(1.0f / _targetRefreshHz) force:YES];
         _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(onDisplayLink:)];
         if (@available(iOS 15.0, *)) {
-            _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(60.0f, 120.0f, 120.0f);
+            float minHz = (_targetRefreshHz >= 120.0f) ? 80.0f : 60.0f;
+            _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(minHz, _targetRefreshHz, _targetRefreshHz);
         }
         [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
     }
@@ -479,14 +529,15 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
 
 - (void)onDisplayLink:(CADisplayLink *)link {
     CFTimeInterval now = link.timestamp;
-    float dt = (_lastTimestamp > 0.0) ? (float)(now - _lastTimestamp) : (1.0f / 60.0f);
+    float fallbackHz = _targetRefreshHz > 0.0f ? _targetRefreshHz : 60.0f;
+    float dt = (_lastTimestamp > 0.0) ? (float)(now - _lastTimestamp) : (1.0f / fallbackHz);
     _lastTimestamp = now;
     CGFloat curW = self.window && self.window.bounds.size.width > 0 ? self.window.bounds.size.width : self.bounds.size.width;
     CGFloat curH = self.window && self.window.bounds.size.height > 0 ? self.window.bounds.size.height : self.bounds.size.height;
     CGFloat rawScale = self.traitCollection.displayScale > 0
         ? self.traitCollection.displayScale
         : (self.window.screen.scale > 0 ? self.window.screen.scale : UIScreen.mainScreen.scale);
-    CGFloat curScale = fmin(4.0, rawScale);
+    CGFloat curScale = fmin(4.5, rawScale);
     if (fabs(curW - _lastLogicalW) > 0.5 || fabs(curH - _lastLogicalH) > 0.5 || fabs(curScale - _lastScale) > 0.01) {
         [self syncViewportScaleAndBounds];
         return;
@@ -516,7 +567,8 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
         _renderedFrames += 1;
         _accumRenderMs += renderMs;
         if (renderMs > _maxRenderMs) _maxRenderMs = renderMs;
-        if (renderMs > 16.67) _droppedFrames += 1;
+        double budgetMs = 1000.0 / (_targetRefreshHz > 0.0f ? _targetRefreshHz : 60.0f);
+        if (renderMs > budgetMs) _droppedFrames += 1;
         if (_renderedFrames % 60 == 0) {
             double avg = _accumRenderMs / 60.0;
             NSLog(@"[euv-fps] ios rendered=%llu avg=%.2fms max=%.2fms dropped=%llu res=%ux%u",
@@ -736,8 +788,9 @@ cat > "${BUILD_DIR}/Info.plist" <<'EOF'
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
     <key>CFBundleName</key><string>EuvShowcase</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.42.0</string>
-    <key>CFBundleVersion</key><string>4</string>
+    <key>CFBundleShortVersionString</key><string>0.43.0</string>
+    <key>CFBundleVersion</key><string>5</string>
+    <key>CADisableMinimumFrameDurationOnPhone</key><true/>
     <key>LSRequiresIPhoneOS</key><true/>
     <key>UIApplicationSceneManifest</key>
     <dict>

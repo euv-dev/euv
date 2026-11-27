@@ -56,6 +56,9 @@ pub struct Context {
     /// Reactive stream of recognized cross-platform gestures (`Tap`, `DoubleTap`, `LongPress`, `Swipe*`, `Pan`, `Pinch`).
     #[get(type(copy))]
     pub(crate) gesture: Signal<Option<GestureEvent>>,
+    /// Live horizontal touch-swipe drag displacement in logical pixels (`0.0` when idle) for interactive page-swipe feedback.
+    #[get(type(copy))]
+    pub(crate) swipe_drag_offset: Signal<f32>,
     /// Monotonic counter incremented on OS Back button / Escape / edge-back triggers for unified overlay & router stack dismissal.
     #[get(type(copy))]
     pub(crate) system_back: Signal<u64>,
@@ -67,6 +70,9 @@ pub struct Context {
     /// Smoothed live rendered frames-per-second telemetry signal.
     #[get(type(copy))]
     pub(crate) live_fps: Signal<f32>,
+    /// Native hardware display refresh rate in Hertz reported by the active OS/browser host.
+    #[get(type(copy))]
+    pub(crate) display_refresh_rate: Signal<f32>,
     /// Live snapshot of all currently active touch/pointer contacts `(pointer_id, position)` for multi-touch UIs.
     #[get(type(copy))]
     pub(crate) active_touches: Signal<Vec<(u64, Point)>>,

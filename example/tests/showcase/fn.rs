@@ -83,7 +83,7 @@ fn scroll_and_click_label(app: &mut App, label: &str) -> FrameStats {
         pt.get_x() >= 0.0,
         "expected clickable label `{label}` in laid-out scene"
     );
-    if pt.get_y() > 740.0 || pt.get_y() < 40.0 {
+    if pt.get_y() > 670.0 || pt.get_y() < 40.0 {
         let wid: WindowId = app.get_window_state().get_id();
         app.dispatch_window_event(WindowEvent::PointerMove(
             wid,
@@ -191,7 +191,7 @@ fn real_interactive_e2e_clicking_navigates_all_nine_routes_and_exercises_every_f
     assert!(state.get_pin_toggled().get_untracked());
     let _: FrameStats = click_label(&mut app, "Prefer Hardware GPU Pipeline");
     assert!(!state.get_hardware_accel().get_untracked());
-    let _: FrameStats = click_label(&mut app, "Enable deterministic frame telemetry");
+    let _: FrameStats = scroll_and_click_label(&mut app, "Enable deterministic frame telemetry");
     assert!(!state.get_agree_terms().get_untracked());
     let f_themes_0: FrameStats = open_nav_and_click(&mut app, "Themes (17)");
     assert_eq!(state.get_route().get_untracked(), ROUTE_THEMES);
@@ -230,12 +230,24 @@ fn real_interactive_e2e_clicking_navigates_all_nine_routes_and_exercises_every_f
     let _: FrameStats = click_label(&mut app, "Toggle Toast Banner");
     assert!(state.get_toast_visible().get_untracked());
     let _: FrameStats = click_label(&mut app, "Toggle Drawer");
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
     assert!(state.get_drawer_open().get_untracked());
     let _: FrameStats = click_label(&mut app, "Close Drawer");
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
     assert!(!state.get_drawer_open().get_untracked());
     let _: FrameStats = click_label(&mut app, "Toggle Sheet");
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
     assert!(state.get_sheet_open().get_untracked());
     let _: FrameStats = click_label(&mut app, "Close Sheet");
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
     assert!(!state.get_sheet_open().get_untracked());
     let _: FrameStats = click_label(&mut app, "Alert Dialog");
     assert!(state.get_alert_dialog_open().get_untracked());
@@ -413,6 +425,26 @@ fn instant_responsive_resize_adapts_shell_and_all_ten_pages_without_horizontal_o
                         if !node.get_alive()
                             || node.get_style().get_layout().get_display() == Display::None
                         {
+                            continue;
+                        }
+                        let mut clipped_by_scroll: bool = false;
+                        let mut anc: Option<NodeId> = node.parent_id();
+                        while let Some(pid) = anc {
+                            if let Some(pnode) = tree.get_node(pid) {
+                                let pb: Rect = pnode.get_layout_box().get_bounds();
+                                if pnode.get_style().get_layout().get_overflow() == Overflow::Scroll
+                                    && pb.get_width() > 0.0
+                                    && pb.right() <= (vw as f32) + 1.5
+                                {
+                                    clipped_by_scroll = true;
+                                    break;
+                                }
+                                anc = pnode.parent_id();
+                            } else {
+                                break;
+                            }
+                        }
+                        if clipped_by_scroll {
                             continue;
                         }
                         let b: Rect = node.get_layout_box().get_bounds();

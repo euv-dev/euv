@@ -24,6 +24,17 @@ pub(crate) struct BandTaskSlice {
     pub(crate) base_src_ptr: usize,
 }
 
+/// Active rounded-rectangle clip mask in physical pixels applied during software band rasterization.
+#[derive(Clone, Copy, Data, Debug, Default, PartialEq)]
+pub(crate) struct RoundedClipMask {
+    /// Physical clip rectangle bounds.
+    #[get(type(copy))]
+    pub(crate) rect: Rect,
+    /// Physical corner radii.
+    #[get(type(copy))]
+    pub(crate) radius: CornerRadius,
+}
+
 /// Shared read-only frame dispatch state consumed lock-free by persistent band workers during a single `render` call.
 #[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug)]
@@ -44,6 +55,10 @@ pub(crate) struct BandJob {
     pub(crate) layouts_ptr: usize,
     /// Length of the pre-measured `TextLayoutResult` slice.
     pub(crate) layouts_len: usize,
+    /// Base address of the per-frame active `RoundedClipMask` slice.
+    pub(crate) rounded_clips_ptr: usize,
+    /// Length of the per-frame active `RoundedClipMask` slice.
+    pub(crate) rounded_clips_len: usize,
     /// Base address of the shared read-only `GlyphAtlas`.
     pub(crate) atlas_ptr: usize,
     /// Active physical DPI scale factor.
@@ -106,6 +121,12 @@ pub(crate) struct PreppedCommand {
     /// Optional index into the per-frame pre-resolved `TextLayoutResult` slice (`u32::MAX` when unused).
     #[get(type(copy))]
     pub(crate) text_layout_idx: u32,
+    /// Start index into the per-frame `RoundedClipMask` slice (`0` when unused).
+    #[get(type(copy))]
+    pub(crate) rounded_clip_start: u32,
+    /// Count of active `RoundedClipMask` entries touching this command (`0` on fast path).
+    #[get(type(copy))]
+    pub(crate) rounded_clip_len: u16,
 }
 
 /// High-performance CPU tile and analytical-SDF software rasterizer with zero GPU dependencies.
@@ -129,6 +150,11 @@ pub struct SoftwareRenderer {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) clip_stack: Vec<Rect>,
+    /// Parallel stack of optional rounded-rectangle clip masks aligned 1:1 with `clip_stack`.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) rounded_clip_stack: Vec<Option<RoundedClipMask>>,
     /// Active anti-aliasing policy.
     #[get(type(copy))]
     pub(crate) antialiasing: AntialiasingMode,
@@ -147,6 +173,10 @@ pub struct SoftwareRenderer {
     #[get(pub(crate), type(copy))]
     #[set(pub(crate))]
     pub(crate) base_cache_hash: u64,
+    /// Base-layer command hash observed on the immediately preceding frame to avoid copying active scroll frames.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) prev_base_hash: u64,
     /// Saved RGBA8 pixels of the static base scene beneath active portals for fast overlay compositing.
     #[get(pub(crate))]
     #[get_mut(pub(crate))]

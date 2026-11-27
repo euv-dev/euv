@@ -282,6 +282,17 @@ unsafe extern "system" {
     ///
     /// - `i32` - Previous stretch mode or zero on failure.
     fn SetStretchBltMode(hdc: isize, mode: i32) -> i32;
+    /// Queries a device-specific capability such as vertical display refresh rate (`VREFRESH`).
+    ///
+    /// # Arguments
+    ///
+    /// - `isize` - Target device context `HDC`.
+    /// - `i32` - Capability index constant.
+    ///
+    /// # Returns
+    ///
+    /// - `i32` - Queried capability value.
+    fn GetDeviceCaps(hdc: isize, index: i32) -> i32;
     /// Copies pixel rows from a top-down DIB directly to a Win32 device context.
     ///
     /// # Arguments
@@ -318,6 +329,33 @@ unsafe extern "system" {
         usage: u32,
         rop: u32,
     ) -> i32;
+}
+
+/// Queries the native vertical display refresh rate via Win32 GDI `GetDeviceCaps(..., VREFRESH)`.
+///
+/// # Arguments
+///
+/// - `usize` - Target Win32 `HWND` (`0` queries the primary screen DC).
+///
+/// # Returns
+///
+/// - `f32` - Native monitor refresh rate in Hertz (`60.0` fallback).
+#[must_use]
+pub(crate) fn win32_display_refresh_rate_hz(hwnd: usize) -> f32 {
+    // SAFETY: Standard Win32 GDI device-context acquisition and release.
+    unsafe {
+        let hdc: isize = GetDC(hwnd as isize);
+        if hdc == 0 {
+            return 60.0;
+        }
+        let hz: i32 = GetDeviceCaps(hdc, GDI_VREFRESH);
+        let _: i32 = ReleaseDC(hwnd as isize, hdc);
+        if hz >= 24 {
+            (hz as f32).clamp(24.0, 480.0)
+        } else {
+            60.0
+        }
+    }
 }
 
 /// Encodes a Rust `&str` as null-terminated UTF-16 for Win32 `*W` APIs.

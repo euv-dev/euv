@@ -1,7 +1,7 @@
 use super::*;
 
 /// Adaptive cross-platform application shell (Desktop sidebar + top context bar, iPadOS rail, Mobile header + drawer).
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvAppShell {
     /// Application brand title shown in sidebar or mobile top bar.
     pub(crate) brand: String,
@@ -21,37 +21,45 @@ pub struct EuvAppShell {
     /// Optional action controls rendered on the right side of the persistent top header bar.
     #[new(skip)]
     #[get(skip)]
+    #[prop(custom)]
     pub(crate) top_bar_actions: Option<NodeId>,
     /// Optional compact inline actions rendered beside the mobile header Menu button.
     #[new(skip)]
     #[get(skip)]
+    #[prop(custom)]
     pub(crate) mobile_header_actions: Option<NodeId>,
     /// Optional footer widget rendered at the bottom of the navigation sidebar / mobile drawer.
     #[new(skip)]
     #[get(skip)]
+    #[prop(custom)]
     pub(crate) sidebar_footer: Option<NodeId>,
     /// Optional live breadcrumb / page context label rendered in the desktop top header bar.
     #[new(skip)]
     #[get(skip)]
+    #[prop(custom)]
     pub(crate) breadcrumb: Option<Signal<String>>,
     /// Optional persistent bottom navigation bar activating Twitter/X-style bottom-tab shell layout.
     #[new(skip)]
     #[get(skip)]
+    #[prop(custom)]
     pub(crate) bottom_nav: Option<NodeId>,
     /// Ordered route paths cycled directly by horizontal left/right swipes across the viewport.
     #[new(skip)]
+    #[prop(custom)]
     pub(crate) swipe_routes: Vec<String>,
     /// Whether the top navigation bar renders a live real-time FPS telemetry pill.
     #[new(skip)]
     #[get(type(copy))]
+    #[prop(custom)]
     pub(crate) show_fps: bool,
 }
 
 /// Hairline horizontal or vertical structural divider.
-#[derive(Clone, Copy, Data, Debug, New)]
+#[derive(Clone, Copy, Data, Debug, New, Props)]
 pub struct EuvDivider {
     /// True for vertical divider; false for horizontal.
     #[get(type(copy))]
+    #[prop(custom)]
     pub(crate) vertical: bool,
     /// Active theme tokens.
     #[get(type(copy))]
@@ -59,7 +67,7 @@ pub struct EuvDivider {
 }
 
 /// Zero-boilerplate standardized page wrapper combining `EuvHeader` and uniform vertical section spacing.
-#[derive(Clone, Data, Debug, New)]
+#[derive(Clone, Data, Debug, New, Props)]
 pub struct EuvPage {
     /// Page title text.
     pub(crate) title: String,
@@ -74,7 +82,7 @@ pub struct EuvPage {
 }
 
 /// Standardized wrapping horizontal action bar aligning buttons and controls on one center baseline.
-#[derive(Clone, Data, Debug, Default, New)]
+#[derive(Clone, Data, Debug, Default, New, Props)]
 pub struct EuvActionRow {
     /// Pre-mounted child controls inside the action row.
     #[new(skip)]
@@ -82,7 +90,7 @@ pub struct EuvActionRow {
 }
 
 /// Responsive 1/2/3-column KPI stat grid synchronized with the active viewport breakpoint.
-#[derive(Clone, Data, Debug, Default, New)]
+#[derive(Clone, Data, Debug, Default, New, Props)]
 pub struct EuvStatGrid {
     /// Pre-mounted stat card children.
     #[new(skip)]
