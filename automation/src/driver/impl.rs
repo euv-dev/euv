@@ -119,9 +119,7 @@ impl<'a> UiAutomator<'a> {
     ///
     /// - `Result<AiLayoutNode, AutomationError>` - First matching node or `NodeNotFound`.
     pub fn query(&self, selector: &UiSelector) -> Result<AiLayoutNode, AutomationError> {
-        self.query_all(selector)
-            .into_iter()
-            .next()
+        AiSchemaProtocol::query_first_direct(self.app_ref(), selector)
             .ok_or_else(|| AutomationError::NodeNotFound(format!("{selector:?}")))
     }
 
@@ -137,7 +135,7 @@ impl<'a> UiAutomator<'a> {
     /// - `bool` - Existence flag.
     #[must_use]
     pub fn exists(&self, selector: &UiSelector) -> bool {
-        !self.query_all(selector).is_empty()
+        AiSchemaProtocol::exists_direct(self.app_ref(), selector)
     }
 
     /// Waits up to `max_frames` ticks until `selector` becomes visible.

@@ -25,6 +25,7 @@ use std::{
     collections::HashMap,
     fmt::{self, Formatter},
     rc::Rc,
+    str::from_utf8,
 };
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 use std::{
