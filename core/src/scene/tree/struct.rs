@@ -29,6 +29,11 @@ pub struct SceneTree {
     #[get_mut(pub(crate))]
     #[set(skip)]
     pub(crate) portal_nodes: Vec<NodeId>,
+    /// Active native text selection state on a selectable `NodeKind::Text` node, if any.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) text_selection: Option<SelectionState>,
 }
 
 /// Shared handle wrapping a `SceneTree` so reactive `Effect` closures can patch nodes directly.

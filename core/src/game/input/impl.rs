@@ -23,18 +23,21 @@ impl InputState {
     pub fn ingest(&mut self, event: &WindowEvent) {
         match event {
             WindowEvent::KeyDown(_, key) => {
+                self.set_modifiers(key.get_modifiers());
                 let code: KeyCode = key.get_code();
                 if self.get_mut_keys_down().insert(code) {
                     let _: bool = self.get_mut_keys_just_pressed().insert(code);
                 }
             }
             WindowEvent::KeyUp(_, key) => {
+                self.set_modifiers(key.get_modifiers());
                 let code: KeyCode = key.get_code();
                 if self.get_mut_keys_down().remove(&code) {
                     let _: bool = self.get_mut_keys_just_released().insert(code);
                 }
             }
             WindowEvent::PointerMove(_, ptr) => {
+                self.set_modifiers(ptr.get_modifiers());
                 let prev: Point = self.get_pointer_position();
                 let next: Point = ptr.get_position();
                 let delta: Point = self.get_pointer_delta();
@@ -45,10 +48,12 @@ impl InputState {
                 self.set_pointer_position(next);
             }
             WindowEvent::PointerDown(_, ptr) => {
+                self.set_modifiers(ptr.get_modifiers());
                 self.set_pointer_position(ptr.get_position());
                 let _: bool = self.get_mut_buttons_down().insert(ptr.get_button());
             }
             WindowEvent::PointerUp(_, ptr) => {
+                self.set_modifiers(ptr.get_modifiers());
                 self.set_pointer_position(ptr.get_position());
                 let _: bool = self.get_mut_buttons_down().remove(&ptr.get_button());
             }
@@ -62,6 +67,7 @@ impl InputState {
             WindowEvent::Focused(_, false) => {
                 self.get_mut_keys_down().clear();
                 self.get_mut_buttons_down().clear();
+                self.set_modifiers(Modifiers::default());
             }
             _ => {}
         }

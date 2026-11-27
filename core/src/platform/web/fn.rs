@@ -35,6 +35,25 @@ pub fn web_device_pixel_ratio() -> f32 {
         .unwrap_or(1.0)
 }
 
+/// Writes `text` to the browser's `navigator.clipboard` API when available.
+///
+/// # Arguments
+///
+/// - `&str` - UTF-8 text string to copy.
+///
+/// # Returns
+///
+/// - `bool` - `true` when `navigator.clipboard.writeText` was dispatched.
+pub(crate) fn web_write_clipboard(text: &str) -> bool {
+    let Some(win) = window() else {
+        return false;
+    };
+    let nav: Navigator = win.navigator();
+    let clip: Clipboard = nav.clipboard();
+    let _: Promise = clip.write_text(text);
+    true
+}
+
 /// Creates and attaches an `HTMLCanvasElement` and its 2D context directly via `web-sys`.
 ///
 /// # Arguments

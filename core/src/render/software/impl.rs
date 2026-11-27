@@ -2,6 +2,7 @@ use super::*;
 
 /// Persistent work-stealing multi-core band pool methods for `BandWorkerPool`.
 #[cfg(not(target_arch = "wasm32"))]
+/// Inherent implementation of [`BandWorkerPool`].
 impl BandWorkerPool {
     /// Creates a persistent worker pool sized to the host CPU count (clamped to `1..=16` total threads including the caller).
     ///
@@ -361,6 +362,7 @@ impl BandWorkerPool {
 
 /// Clean shutdown and thread join when a `BandWorkerPool` instance is dropped.
 #[cfg(not(target_arch = "wasm32"))]
+/// Implements [`Drop`] for [`BandWorkerPool`].
 impl Drop for BandWorkerPool {
     /// Signals all background worker threads to exit and joins every handle.
     ///
@@ -2283,9 +2285,12 @@ impl SoftwareRenderer {
             };
         let caret_h_phys: f32 = (caret_height * scale).max(2.0);
         let caret_w_phys: f32 = (1.5 * scale).max(1.5);
-        let max_x: f32 =
-            (content_rect.right() * scale - caret_w_phys - 1.0).max(content_rect.get_x() * scale);
-        let caret_x_phys: f32 = (text_rect.get_x() * scale + last_w_phys + 1.5 * scale).min(max_x);
+        let min_x: f32 = content_rect.get_x() * scale;
+        let max_x: f32 = (content_rect.right() * scale - caret_w_phys - 1.0).max(min_x);
+        let trailing_gap_phys: f32 = if last_w_phys > 0.0 { 1.5 * scale } else { 0.0 };
+        let caret_x_phys: f32 = (text_rect.get_x() * scale + last_w_phys + trailing_gap_phys)
+            .min(max_x)
+            .max(min_x);
         let caret_y_phys: f32 = if multiline {
             let raw_y: f32 = content_rect.get_y() * scale
                 + (line_idx as f32) * line_h_phys

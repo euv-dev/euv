@@ -88,11 +88,11 @@ use {
 
 #[cfg(target_arch = "wasm32")]
 use {
-    js_sys::Object,
+    js_sys::{Object, Promise},
     wasm_bindgen::{Clamped, JsCast, JsValue},
     web_sys::{
-        CanvasRenderingContext2d, Document, DomRect, Element, HtmlCanvasElement, ImageData,
-        MediaQueryList, TextMetrics, WebGl2RenderingContext, WebGlProgram, WebGlShader, Window,
-        window,
+        CanvasRenderingContext2d, Clipboard, Document, DomRect, Element, HtmlCanvasElement,
+        ImageData, MediaQueryList, Navigator, TextMetrics, WebGl2RenderingContext, WebGlProgram,
+        WebGlShader, Window, window,
     },
 };

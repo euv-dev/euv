@@ -731,6 +731,42 @@ impl Style {
         self
     }
 
+    /// Enables or disables native text selection on this node and its descendant text subtree.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source style.
+    /// - `bool` - Whether native text selection is enabled (`true`) or explicitly disabled (`false`).
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated style.
+    #[must_use]
+    #[inline(always)]
+    pub fn selectable(mut self, selectable: bool) -> Self {
+        self.get_mut_text()
+            .set_selectable(selectable)
+            .set_selectable_explicit(true);
+        self
+    }
+
+    /// Sets the translucent highlight fill color used when rendering selected text ranges.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source style.
+    /// - `Color` - Selection highlight color.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated style.
+    #[must_use]
+    #[inline(always)]
+    pub fn selection_color(mut self, color: Color) -> Self {
+        self.get_mut_text().set_selection_color(Some(color));
+        self
+    }
+
     /// Configures whether scroll deltas stop at this node (`true`) or chain/penetrate to parent scrollables (`false`).
     ///
     /// # Arguments

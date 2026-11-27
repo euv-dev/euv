@@ -737,6 +737,28 @@ impl PaintPass {
                         content_b.get_width(),
                         content_b.get_height(),
                     );
+                    if let Some(sel) = tree.text_selection()
+                        && sel.get_node_id() == node_id
+                        && !sel.is_empty()
+                    {
+                        let sel_color: Color = tree
+                            .effective_selection_color(node_id)
+                            .multiply_alpha(opacity);
+                        let sel_rects: Vec<Rect> = compute_text_selection_rects(
+                            text.as_str(),
+                            text_style,
+                            shifted_content,
+                            sel.ordered_range(),
+                        );
+                        for sel_rect in sel_rects.into_iter() {
+                            display_list.push(DrawCommand::FillRoundedRect {
+                                rect: sel_rect,
+                                color: sel_color,
+                                radius: CornerRadius::all(2.0),
+                                border: Border::default(),
+                            });
+                        }
+                    }
                     display_list.push(DrawCommand::TextRun {
                         rect: shifted_content,
                         text: text.clone(),
@@ -745,7 +767,9 @@ impl PaintPass {
                 }
                 NodeKind::Input(input_state) => {
                     let mut text_style: TextStyle = style.get_text();
-                    let rendered_text: String = if input_state.get_value().is_empty() {
+                    let is_empty_value: bool = input_state.get_value().is_empty();
+                    let is_focused: bool = node.get_interaction().get_focused();
+                    let rendered_text: String = if is_empty_value {
                         text_style.set_color(text_style.get_color().multiply_alpha(opacity * 0.55));
                         input_state.get_placeholder().clone()
                     } else if input_state.get_password() {
@@ -781,16 +805,30 @@ impl PaintPass {
                             line_h,
                         )
                     };
+                    let run_rect: Rect =
+                        if is_empty_value && is_focused && !rendered_text.is_empty() {
+                            let clearance_phys: f32 =
+                                (PLACEHOLDER_FOCUSED_CARET_CLEARANCE_PX * scale).round();
+                            let clearance_logical: f32 = clearance_phys * inv_scale;
+                            Rect::new(
+                                text_rect.get_x() + clearance_logical,
+                                text_rect.get_y(),
+                                (text_rect.get_width() - clearance_logical).max(0.0),
+                                text_rect.get_height(),
+                            )
+                        } else {
+                            text_rect
+                        };
                     display_list.push(DrawCommand::PushClip(shifted_content));
                     display_list.push(DrawCommand::TextRun {
-                        rect: text_rect,
+                        rect: run_rect,
                         text: rendered_text.clone(),
                         style: text_style,
                     });
-                    if node.get_interaction().get_focused() && tree.get_caret_visible() {
+                    if is_focused && tree.get_caret_visible() {
                         let caret_h: f32 = (text_style.get_font_size() * 1.15)
                             .min(shifted_content.get_height().max(12.0));
-                        let caret_text: String = if input_state.get_value().is_empty() {
+                        let caret_text: String = if is_empty_value {
                             String::new()
                         } else {
                             rendered_text
@@ -945,6 +983,7 @@ impl PaintPass {
             let inner_y: f32 = bounds.get_y() + border_w;
             let inner_w: f32 = (bounds.get_width() - border_w * 2.0).max(1.0);
             let inner_h: f32 = (bounds.get_height() - border_w * 2.0).max(1.0);
+            let view_w: f32 = lbox.get_content_bounds().get_width().max(1.0);
             let view_h: f32 = lbox.get_content_bounds().get_height().max(1.0);
             let (scroll_y, total_h): (f32, f32) = match node.virtual_scroll_metrics() {
                 Some((vy, vh)) => (vy, vh),
@@ -953,13 +992,19 @@ impl PaintPass {
                     lbox.get_content_size().get_height(),
                 ),
             };
+            let scroll_x: f32 = lbox.get_scroll_offset().get_x();
+            let total_w: f32 = lbox.get_content_size().get_width();
             let max_scroll_y: f32 = (total_h - view_h).max(0.0);
-            if max_scroll_y > 1.0 {
+            let max_scroll_x: f32 = (total_w - view_w).max(0.0);
+            let has_v_bar: bool = max_scroll_y > 1.0;
+            let has_h_bar: bool = max_scroll_x > 1.0 && bounds.get_width() > 24.0;
+            let corner_inset: f32 = if has_v_bar && has_h_bar { 8.0 } else { 0.0 };
+            if has_v_bar {
                 let track_margin: f32 = 3.0;
                 let track_w: f32 = if hovered { 6.0 } else { 4.0 };
                 let track_x: f32 = (inner_x + inner_w - track_w - 2.0).max(inner_x);
                 let track_y: f32 = inner_y + track_margin;
-                let track_h: f32 = (inner_h - track_margin * 2.0).max(16.0);
+                let track_h: f32 = (inner_h - track_margin * 2.0 - corner_inset).max(16.0);
                 let ratio: f32 = (view_h / total_h.max(view_h)).clamp(0.0, 1.0);
                 let min_thumb_h: f32 = 20.0_f32.min(track_h);
                 let thumb_h: f32 = (track_h * ratio).clamp(min_thumb_h, track_h);
@@ -994,6 +1039,49 @@ impl PaintPass {
                     ),
                     color: Color::rgba(113, 113, 122, thumb_alpha).multiply_alpha(opacity),
                     radius: CornerRadius::all(track_w * 0.5),
+                    border: Border::default(),
+                });
+            }
+            if has_h_bar {
+                let track_margin: f32 = 3.0;
+                let track_h: f32 = if hovered { 6.0 } else { 4.0 };
+                let track_y: f32 = (inner_y + inner_h - track_h - 2.0).max(inner_y);
+                let track_x: f32 = inner_x + track_margin;
+                let track_w: f32 = (inner_w - track_margin * 2.0 - corner_inset).max(16.0);
+                let ratio: f32 = (view_w / total_w.max(view_w)).clamp(0.0, 1.0);
+                let min_thumb_w: f32 = 20.0_f32.min(track_w);
+                let thumb_w: f32 = (track_w * ratio).clamp(min_thumb_w, track_w);
+                let scroll_frac: f32 = (scroll_x / max_scroll_x).clamp(0.0, 1.0);
+                let thumb_x: f32 = track_x + (track_w - thumb_w) * scroll_frac;
+                let track_x_snapped: f32 = (track_x * scale).round() * inv_scale;
+                let track_y_snapped: f32 = (track_y * scale).round() * inv_scale;
+                let track_w_snapped: f32 = (track_w * scale).round().max(1.0) * inv_scale;
+                let track_h_snapped: f32 = (track_h * scale).round().max(1.0) * inv_scale;
+                let thumb_x_snapped: f32 = (thumb_x * scale).round() * inv_scale;
+                let thumb_w_snapped: f32 = (thumb_w * scale).round().max(1.0) * inv_scale;
+                if hovered {
+                    display_list.push(DrawCommand::FillRoundedRect {
+                        rect: Rect::new(
+                            track_x_snapped,
+                            track_y_snapped,
+                            track_w_snapped,
+                            track_h_snapped,
+                        ),
+                        color: Color::rgba(113, 113, 122, 24).multiply_alpha(opacity),
+                        radius: CornerRadius::all(3.0),
+                        border: Border::default(),
+                    });
+                }
+                let thumb_alpha: u8 = if hovered { 180 } else { 112 };
+                display_list.push(DrawCommand::FillRoundedRect {
+                    rect: Rect::new(
+                        thumb_x_snapped,
+                        track_y_snapped,
+                        thumb_w_snapped,
+                        track_h_snapped,
+                    ),
+                    color: Color::rgba(113, 113, 122, thumb_alpha).multiply_alpha(opacity),
+                    radius: CornerRadius::all(track_h * 0.5),
                     border: Border::default(),
                 });
             }

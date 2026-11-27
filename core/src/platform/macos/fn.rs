@@ -737,8 +737,14 @@ pub(crate) fn macos_pump_events(
                 NS_EVENT_SCROLL_WHEEL if inside_content => {
                     let is_precise: bool = objc_send_bool0(event, precise_scroll_sel);
                     let multiplier: f32 = if is_precise { 1.0 } else { 18.0 };
-                    let dx: f32 = -(objc_send_f64_0(event, scroll_x_sel) as f32) * multiplier;
-                    let dy: f32 = -(objc_send_f64_0(event, scroll_y_sel) as f32) * multiplier;
+                    let raw_dx: f32 = -(objc_send_f64_0(event, scroll_x_sel) as f32) * multiplier;
+                    let raw_dy: f32 = -(objc_send_f64_0(event, scroll_y_sel) as f32) * multiplier;
+                    let (dx, dy): (f32, f32) =
+                        if mods.get_shift() && raw_dx.abs() <= 0.01 && raw_dy.abs() > 0.01 {
+                            (raw_dy, 0.0)
+                        } else {
+                            (raw_dx, raw_dy)
+                        };
                     if let Some(WindowEvent::Scroll(prev_wid, prev_delta)) = out_events.last_mut()
                         && *prev_wid == wid
                     {
@@ -758,7 +764,21 @@ pub(crate) fn macos_pump_events(
                         // SAFETY: `UTF8String` returns a valid null-terminated UTF-8 string when non-null.
                         unsafe { CStr::from_ptr(utf8_ptr).to_str().unwrap_or("").to_string() }
                     };
-                    let key_code: KeyCode = macos_map_key_code(raw_key, &text);
+                    let key_text: String = if mods.get_meta() || mods.get_ctrl() {
+                        let unmod_ns: *mut c_void =
+                            objc_send_ptr0(event, objc_sel(OBJC_SEL_CHARS_IGNORING_MODS));
+                        let unmod_ptr: *const c_char =
+                            objc_send_ptr0(unmod_ns, utf8_sel).cast::<c_char>();
+                        if unmod_ptr.is_null() {
+                            text.clone()
+                        } else {
+                            // SAFETY: `UTF8String` returns a valid null-terminated UTF-8 string when non-null.
+                            unsafe { CStr::from_ptr(unmod_ptr).to_str().unwrap_or("").to_string() }
+                        }
+                    } else {
+                        text.clone()
+                    };
+                    let key_code: KeyCode = macos_map_key_code(raw_key, &key_text);
                     out_events.push(WindowEvent::KeyDown(
                         wid,
                         KeyEvent::new(key_code, mods, false),
@@ -769,6 +789,8 @@ pub(crate) fn macos_pump_events(
                         if !printable.is_empty() {
                             out_events.push(WindowEvent::TextInput(wid, printable));
                         }
+                        forward_to_appkit = false;
+                    } else if matches!(key_code, KeyCode::Character('c' | 'C' | 'a' | 'A')) {
                         forward_to_appkit = false;
                     }
                 }
@@ -820,6 +842,40 @@ pub(crate) fn macos_ns_string(text: &str) -> *mut c_void {
     let cls: *mut c_void = objc_class(OBJC_CLS_NS_STRING);
     let sel: *mut c_void = objc_sel(OBJC_SEL_STRING_WITH_UTF8);
     objc_send_ptr1(cls, sel, cstr.as_ptr().cast_mut().cast::<c_void>())
+}
+
+/// Writes `text` directly to the macOS general `NSPasteboard` as UTF-8 plain text.
+///
+/// # Arguments
+///
+/// - `&str` - UTF-8 string to place on the system pasteboard.
+///
+/// # Returns
+///
+/// - `bool` - `true` when `NSPasteboard.setString:forType:` succeeded.
+pub(crate) fn macos_write_pasteboard(text: &str) -> bool {
+    let pb_cls: *mut c_void = objc_class(OBJC_CLS_NS_PASTEBOARD);
+    let pb: *mut c_void = objc_send_ptr0(pb_cls, objc_sel(OBJC_SEL_GENERAL_PASTEBOARD));
+    if pb.is_null() {
+        return false;
+    }
+    let value_ns: *mut c_void = macos_ns_string(text);
+    let type_ns: *mut c_void = macos_ns_string(MACOS_PASTEBOARD_TYPE_UTF8);
+    if value_ns.is_null() || type_ns.is_null() {
+        return false;
+    }
+    let _: isize = objc_send_isize0(pb, objc_sel(OBJC_SEL_CLEAR_CONTENTS));
+    // SAFETY: `objc_msgSend` matches `BOOL (id, SEL, NSString*, NSPasteboardType)` ABI on macOS.
+    unsafe {
+        let func: unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void) -> i8 =
+            transmute(objc_msgSend as *const ());
+        func(
+            pb,
+            objc_sel(OBJC_SEL_SET_STRING_FOR_TYPE),
+            value_ns,
+            type_ns,
+        ) != 0
+    }
 }
 
 /// Queries the live backing scale factor for a specific `NSWindow` (or main screen fallback).

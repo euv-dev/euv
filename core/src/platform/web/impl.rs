@@ -361,6 +361,7 @@ impl PlatformBackend for WebPlatform {
     /// - `Result<(), PlatformError>` - Write status.
     fn write_clipboard(&mut self, text: &str) -> Result<(), PlatformError> {
         self.set_clipboard_cache(Some(text.to_string()));
+        let _: bool = write_system_clipboard(text);
         Ok(())
     }
 

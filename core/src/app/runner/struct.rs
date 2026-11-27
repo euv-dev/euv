@@ -87,9 +87,30 @@ pub struct App {
     /// Elapsed idle seconds since the last touch pan movement while a finger remains held down.
     #[get(type(copy))]
     pub(crate) touch_vel_idle_secs: f32,
-    /// Whether the active pointer press grabbed a right-edge scrollbar track for thumb dragging.
+    /// Whether the active pointer press grabbed a scrollbar track for thumb dragging.
     #[get(type(copy))]
     pub(crate) scrollbar_dragging: bool,
+    /// Active scrollbar thumb drag axis (`0` = none, `1` = vertical, `2` = horizontal).
+    #[get(type(copy))]
+    pub(crate) scrollbar_drag_axis: u8,
+    /// Active selectable `NodeKind::Text` node currently undergoing pointer drag selection.
+    #[get(skip)]
+    pub(crate) text_selecting_node: Option<NodeId>,
+    /// Starting character index anchored at pointer-down for drag text selection.
+    #[get(type(copy))]
+    pub(crate) text_select_anchor_char: usize,
+    /// Consecutive click count on the same selectable text node (`1` = caret, `2` = word, `3` = full node).
+    #[get(type(copy))]
+    pub(crate) text_click_count: u8,
+    /// Most recently clicked selectable text node for multi-click detection.
+    #[get(skip)]
+    pub(crate) text_last_click_node: Option<NodeId>,
+    /// Coordinates of the most recent click on a selectable text node.
+    #[get(skip)]
+    pub(crate) text_last_click_pos: Option<Point>,
+    /// Elapsed seconds since the most recent click on a selectable text node.
+    #[get(type(copy))]
+    pub(crate) text_last_click_age_secs: f32,
     /// Active multi-touch / pointer contact map keyed by `pointer_id` for pinch & swipe recognition.
     pub(crate) active_pointers: HashMap<u64, Point>,
     /// Device kind recorded per active `pointer_id` for deterministic touch vs mouse separation.

@@ -39,6 +39,10 @@ pub struct InputState {
     #[new(skip)]
     #[get(type(copy))]
     pub(crate) virtual_dash: bool,
+    /// Latest keyboard modifier flags reported by key or pointer events.
+    #[new(skip)]
+    #[get(type(copy))]
+    pub(crate) modifiers: Modifiers,
 }
 
 /// Declarative multi-key and pointer-button binding table mapping physical inputs to `GameAction`s.

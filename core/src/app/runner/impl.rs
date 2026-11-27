@@ -111,6 +111,13 @@ impl App {
             touch_vel_samples: Vec::with_capacity(16),
             touch_vel_idle_secs: 0.0,
             scrollbar_dragging: false,
+            scrollbar_drag_axis: SCROLLBAR_AXIS_NONE,
+            text_selecting_node: None,
+            text_select_anchor_char: 0,
+            text_click_count: 0,
+            text_last_click_node: None,
+            text_last_click_pos: None,
+            text_last_click_age_secs: 10.0,
             active_pointers: HashMap::new(),
             active_pointer_devices: HashMap::new(),
             gesture_origin: None,
@@ -227,6 +234,88 @@ impl App {
     #[must_use]
     pub fn last_frame_damage(&self) -> DamageRegion {
         self.get_last_frame_damage()
+    }
+
+    /// Reads the current plain-text clipboard content from the active platform backend.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Application reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<String>` - Current clipboard string if available.
+    #[must_use]
+    pub fn read_clipboard(&self) -> Option<String> {
+        let Self { platform, .. } = self;
+        platform.read_clipboard()
+    }
+
+    /// Writes `text` into the active platform backend clipboard.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable application.
+    /// - `&str` - UTF-8 string to place in the system clipboard.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<(), PlatformError>` - Clipboard write status.
+    pub fn write_clipboard(&mut self, text: &str) -> Result<(), PlatformError> {
+        let Self { platform, .. } = self;
+        platform.write_clipboard(text)
+    }
+
+    /// Copies the active scene text selection into the platform clipboard and returns the copied string.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable application.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<String>` - Copied UTF-8 selection, or `None` when nothing is selected.
+    pub fn copy_selection(&mut self) -> Option<String> {
+        let selected: String = self.get_scene().get_selected_text()?;
+        let _: Result<(), PlatformError> = self.write_clipboard(selected.as_str());
+        Some(selected)
+    }
+
+    /// Hit-tests `pos` in logical screen coordinates against a `NodeKind::Text` node to resolve its character index.
+    ///
+    /// # Arguments
+    ///
+    /// - `&SceneTree` - Retained scene tree.
+    /// - `NodeId` - Target text node handle.
+    /// - `Point` - Screen-space logical pointer coordinates.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Nearest character index in `0..=char_len`.
+    #[must_use]
+    fn hit_test_text_node_char(tree: &SceneTree, node_id: NodeId, pos: Point) -> usize {
+        let Some(node) = tree.get_node(node_id) else {
+            return 0;
+        };
+        let NodeKind::Text(content) = node.get_kind() else {
+            return 0;
+        };
+        let lbox: LayoutBox = node.get_layout_box();
+        let outer: Rect = lbox.get_bounds();
+        let content_rect: Rect = lbox.get_content_bounds();
+        let screen_outer: Rect = tree.node_screen_bounds(node_id).unwrap_or(outer);
+        let screen_content: Rect = Rect::new(
+            screen_outer.get_x() + (content_rect.get_x() - outer.get_x()),
+            screen_outer.get_y() + (content_rect.get_y() - outer.get_y()),
+            content_rect.get_width(),
+            content_rect.get_height(),
+        );
+        hit_test_text_char(
+            content.as_str(),
+            node.get_style().get_text(),
+            screen_content,
+            pos,
+        )
     }
 
     /// Synchronizes OS soft-keyboard / IME visibility with the currently focused `NodeKind::Input`.
@@ -1099,6 +1188,8 @@ impl App {
         self.get_mut_touch_vel_samples().clear();
         self.set_touch_vel_idle_secs(0.0);
         self.set_scrollbar_dragging(false);
+        self.set_scrollbar_drag_axis(SCROLLBAR_AXIS_NONE);
+        self.set_text_selecting_node(None);
         self.set_smooth_scroll_pending(Point::default());
         self.set_smooth_scroll_target(None);
         self.clear_pressed_node();
@@ -1144,6 +1235,8 @@ impl App {
             self.get_mut_touch_vel_samples().clear();
             self.set_touch_vel_idle_secs(0.0);
             self.set_scrollbar_dragging(false);
+            self.set_scrollbar_drag_axis(SCROLLBAR_AXIS_NONE);
+            self.set_text_selecting_node(None);
             self.clear_pressed_node();
         } else {
             self.sync_remaining_pointer_state();
@@ -1199,6 +1292,8 @@ impl App {
             self.get_mut_touch_vel_samples().clear();
             self.set_touch_vel_idle_secs(0.0);
             self.set_scrollbar_dragging(false);
+            self.set_scrollbar_drag_axis(SCROLLBAR_AXIS_NONE);
+            self.set_text_selecting_node(None);
             self.clear_pressed_node();
         } else {
             self.sync_remaining_pointer_state();
@@ -1690,6 +1785,8 @@ impl App {
     fn tick_gesture_timers(&mut self, dt_secs: f32) {
         let age: f32 = (self.get_last_tap_age_secs() + dt_secs).min(10.0);
         self.set_last_tap_age_secs(age);
+        let click_age: f32 = (self.get_text_last_click_age_secs() + dt_secs).min(10.0);
+        self.set_text_last_click_age_secs(click_age);
         let origin_opt: Option<Point> = {
             let Self { gesture_origin, .. } = self;
             *gesture_origin
@@ -1785,6 +1882,8 @@ impl App {
                 self.publish_active_touches();
                 if self.get_active_pointers().is_empty() {
                     self.set_scrollbar_dragging(false);
+                    self.set_scrollbar_drag_axis(SCROLLBAR_AXIS_NONE);
+                    self.set_text_selecting_node(None);
                     self.clear_pressed_node();
                 }
             }
@@ -1949,6 +2048,15 @@ impl App {
             }
             self.set_touch_drag_last(Some(pos));
         }
+        let drag_axis: u8 = self.get_scrollbar_drag_axis();
+        let text_sel_node: Option<NodeId> = {
+            let Self {
+                text_selecting_node,
+                ..
+            } = self;
+            *text_selecting_node
+        };
+        let text_sel_anchor: usize = self.get_text_select_anchor_char();
         let scene: SceneHandle = self.get_scene().clone();
         let (callbacks, next_cursor): (Vec<(UiEventHandler, UiEvent)>, CursorIcon) = scene
             .with_write(
@@ -1965,57 +2073,101 @@ impl App {
                         let screen_outer: Rect = tree
                             .node_screen_bounds(pressed_id)
                             .unwrap_or_else(|| lbox.get_bounds());
+                        let view_w: f32 = lbox.get_content_bounds().get_width().max(1.0);
                         let view_h: f32 = lbox.get_content_bounds().get_height().max(1.0);
+                        let inner_w: f32 = (screen_outer.get_width() - border_w * 2.0).max(1.0);
                         let inner_h: f32 = (screen_outer.get_height() - border_w * 2.0).max(1.0);
-                        let track_margin: f32 = 3.0;
-                        let track_y: f32 = screen_outer.get_y() + border_w + track_margin;
-                        let track_h: f32 = (inner_h - track_margin * 2.0).max(16.0);
-                        if let Some((cur_vy, total_h)) = node.virtual_scroll_metrics() {
-                            let max_y: f32 = (total_h - view_h).max(0.0);
-                            if max_y > 1.0 && track_h > 16.0 {
-                                let ratio: f32 = (view_h / total_h.max(view_h)).clamp(0.0, 1.0);
-                                let thumb_h: f32 =
-                                    (track_h * ratio).clamp(20.0_f32.min(track_h), track_h);
-                                let travel: f32 = (track_h - thumb_h).max(1.0);
-                                let frac: f32 = ((pos.get_y() - track_y - thumb_h * 0.5) / travel)
-                                    .clamp(0.0, 1.0);
-                                let delta_y: f32 = frac * max_y - cur_vy;
-                                if delta_y.abs() > 0.1
-                                    && let Some(h) = node
-                                        .get_handlers()
-                                        .handler_for(&UiEventKind::Scroll(Point::new(0.0, delta_y)))
-                                {
-                                    out.push((
-                                        h,
-                                        UiEvent::new(
-                                            pressed_id,
-                                            UiEventKind::Scroll(Point::new(0.0, delta_y)),
-                                        ),
-                                    ));
-                                }
-                            }
+                        let total_w: f32 = lbox.get_content_size().get_width();
+                        let max_x: f32 = (total_w - view_w).max(0.0);
+                        let total_h_ref: f32 = node
+                            .virtual_scroll_metrics()
+                            .map(|(_, vh): (f32, f32)| vh)
+                            .unwrap_or_else(|| lbox.get_content_size().get_height());
+                        let max_y_ref: f32 = (total_h_ref - view_h).max(0.0);
+                        let corner_inset: f32 = if max_y_ref > 1.0 && max_x > 1.0 {
+                            8.0
                         } else {
-                            let total_h: f32 = lbox.get_content_size().get_height();
-                            let max_y: f32 = (total_h - view_h).max(0.0);
-                            if max_y > 1.0 && track_h > 16.0 {
-                                let ratio: f32 = (view_h / total_h.max(view_h)).clamp(0.0, 1.0);
-                                let thumb_h: f32 =
-                                    (track_h * ratio).clamp(20.0_f32.min(track_h), track_h);
-                                let travel: f32 = (track_h - thumb_h).max(1.0);
-                                let frac: f32 = ((pos.get_y() - track_y - thumb_h * 0.5) / travel)
+                            0.0
+                        };
+                        let track_margin: f32 = 3.0;
+                        if drag_axis == SCROLLBAR_AXIS_HORIZONTAL {
+                            let track_x: f32 = screen_outer.get_x() + border_w + track_margin;
+                            let track_w: f32 =
+                                (inner_w - track_margin * 2.0 - corner_inset).max(16.0);
+                            if max_x > 1.0 && track_w > 16.0 {
+                                let ratio: f32 = (view_w / total_w.max(view_w)).clamp(0.0, 1.0);
+                                let thumb_w: f32 =
+                                    (track_w * ratio).clamp(20.0_f32.min(track_w), track_w);
+                                let travel: f32 = (track_w - thumb_w).max(1.0);
+                                let frac: f32 = ((pos.get_x() - track_x - thumb_w * 0.5) / travel)
                                     .clamp(0.0, 1.0);
                                 tree.set_scroll_offset(
                                     pressed_id,
-                                    Point::new(lbox.get_scroll_offset().get_x(), frac * max_y),
+                                    Point::new(frac * max_x, lbox.get_scroll_offset().get_y()),
                                 );
                             }
+                        } else {
+                            let track_y: f32 = screen_outer.get_y() + border_w + track_margin;
+                            let track_h: f32 =
+                                (inner_h - track_margin * 2.0 - corner_inset).max(16.0);
+                            if let Some((cur_vy, total_h)) = node.virtual_scroll_metrics() {
+                                let max_y: f32 = (total_h - view_h).max(0.0);
+                                if max_y > 1.0 && track_h > 16.0 {
+                                    let ratio: f32 = (view_h / total_h.max(view_h)).clamp(0.0, 1.0);
+                                    let thumb_h: f32 =
+                                        (track_h * ratio).clamp(20.0_f32.min(track_h), track_h);
+                                    let travel: f32 = (track_h - thumb_h).max(1.0);
+                                    let frac: f32 = ((pos.get_y() - track_y - thumb_h * 0.5)
+                                        / travel)
+                                        .clamp(0.0, 1.0);
+                                    let delta_y: f32 = frac * max_y - cur_vy;
+                                    if delta_y.abs() > 0.1
+                                        && let Some(h) = node.get_handlers().handler_for(
+                                            &UiEventKind::Scroll(Point::new(0.0, delta_y)),
+                                        )
+                                    {
+                                        out.push((
+                                            h,
+                                            UiEvent::new(
+                                                pressed_id,
+                                                UiEventKind::Scroll(Point::new(0.0, delta_y)),
+                                            ),
+                                        ));
+                                    }
+                                }
+                            } else {
+                                let total_h: f32 = lbox.get_content_size().get_height();
+                                let max_y: f32 = (total_h - view_h).max(0.0);
+                                if max_y > 1.0 && track_h > 16.0 {
+                                    let ratio: f32 = (view_h / total_h.max(view_h)).clamp(0.0, 1.0);
+                                    let thumb_h: f32 =
+                                        (track_h * ratio).clamp(20.0_f32.min(track_h), track_h);
+                                    let travel: f32 = (track_h - thumb_h).max(1.0);
+                                    let frac: f32 = ((pos.get_y() - track_y - thumb_h * 0.5)
+                                        / travel)
+                                        .clamp(0.0, 1.0);
+                                    tree.set_scroll_offset(
+                                        pressed_id,
+                                        Point::new(lbox.get_scroll_offset().get_x(), frac * max_y),
+                                    );
+                                }
+                            }
                         }
+                    }
+                    if let Some(sel_id) = text_sel_node {
+                        let focus_char: usize = Self::hit_test_text_node_char(tree, sel_id, pos);
+                        tree.set_text_selection(Some(SelectionState::new(
+                            sel_id,
+                            text_sel_anchor,
+                            focus_char,
+                        )));
                     }
                     let hit: Option<NodeId> = hit_test(tree, pos);
                     if !is_touch {
                         Self::sync_hover_chain(tree, hit, &mut out);
                     }
                     let mut resolved_cursor: CursorIcon = CursorIcon::Default;
+                    let mut has_selectable_text: bool = false;
                     for aid in Self::ancestor_chain(tree, hit).into_iter() {
                         if let Some(node) = tree.get_node(aid) {
                             if matches!(node.get_kind(), NodeKind::Input(_)) {
@@ -2027,7 +2179,15 @@ impl App {
                                 resolved_cursor = c;
                                 break;
                             }
+                            if matches!(node.get_kind(), NodeKind::Text(_))
+                                && tree.is_node_selectable(aid)
+                            {
+                                has_selectable_text = true;
+                            }
                         }
+                    }
+                    if resolved_cursor == CursorIcon::Default && has_selectable_text {
+                        resolved_cursor = CursorIcon::Text;
                     }
                     if let Some(pid) = pressed_opt
                         && let Some(node) = tree.get_node(pid)
@@ -2166,12 +2326,25 @@ impl App {
             self.set_scroll_velocity(Point::default());
             self.set_touch_scroll_target(None);
         }
+        let prev_click_node: Option<NodeId> = {
+            let Self {
+                text_last_click_node,
+                ..
+            } = self;
+            *text_last_click_node
+        };
+        let prev_click_pos: Option<Point> = {
+            let Self {
+                text_last_click_pos,
+                ..
+            } = self;
+            *text_last_click_pos
+        };
+        let prev_click_age: f32 = self.get_text_last_click_age_secs();
+        let prev_click_count: u8 = self.get_text_click_count();
         let scene: SceneHandle = self.get_scene().clone();
-        let (callbacks, grabbed_scrollbar, tapped_enabled_input): (
-            Vec<(UiEventHandler, UiEvent)>,
-            bool,
-            bool,
-        ) = scene.with_write(
+        let (callbacks, grabbed_scrollbar_axis, tapped_enabled_input, text_sel_started): PointerDownOutcome =
+            scene.with_write(
             |tree: &mut SceneTree| {
                 let hit: Option<NodeId> = hit_test(tree, pos);
                 let mut hover_out: Vec<(UiEventHandler, UiEvent)> = Vec::new();
@@ -2184,7 +2357,7 @@ impl App {
                     },
                     &mut hover_out,
                 );
-                let mut scrollbar_target: Option<NodeId> = None;
+                let mut scrollbar_target: Option<(NodeId, u8)> = None;
                 let mut sb_callbacks: Vec<(UiEventHandler, UiEvent)> = hover_out;
                 if ptr.get_device() != PointerDevice::Touch {
                     for aid in Self::ancestor_chain(tree, hit).into_iter() {
@@ -2198,8 +2371,12 @@ impl App {
                                 .node_screen_bounds(aid)
                                 .unwrap_or_else(|| lbox.get_bounds());
                             let inner_right: f32 = screen_outer.right() - border_w;
+                            let inner_bottom: f32 = screen_outer.bottom() - border_w;
+                            let inner_w: f32 =
+                                (screen_outer.get_width() - border_w * 2.0).max(1.0);
                             let inner_h: f32 =
                                 (screen_outer.get_height() - border_w * 2.0).max(1.0);
+                            let view_w: f32 = lbox.get_content_bounds().get_width().max(1.0);
                             let view_h: f32 = lbox.get_content_bounds().get_height().max(1.0);
                             let (cur_vy, total_h, is_virtual): (f32, f32, bool) =
                                 match node.virtual_scroll_metrics() {
@@ -2210,14 +2387,21 @@ impl App {
                                         false,
                                     ),
                                 };
+                            let total_w: f32 = lbox.get_content_size().get_width();
+                            let max_x: f32 = (total_w - view_w).max(0.0);
                             let max_y: f32 = (total_h - view_h).max(0.0);
-                            if max_y > 1.0
+                            let has_v_bar: bool = max_y > 1.0;
+                            let has_h_bar: bool = max_x > 1.0 && screen_outer.get_width() > 24.0;
+                            let corner_inset: f32 = if has_v_bar && has_h_bar { 8.0 } else { 0.0 };
+                            if has_v_bar
                                 && pos.get_x() >= inner_right - 14.0
                                 && pos.get_x() <= screen_outer.right()
+                                && (!has_h_bar || pos.get_y() < inner_bottom - 14.0)
                             {
                                 let track_margin: f32 = 3.0;
                                 let track_y: f32 = screen_outer.get_y() + border_w + track_margin;
-                                let track_h: f32 = (inner_h - track_margin * 2.0).max(16.0);
+                                let track_h: f32 =
+                                    (inner_h - track_margin * 2.0 - corner_inset).max(16.0);
                                 let ratio: f32 = (view_h / total_h.max(view_h)).clamp(0.0, 1.0);
                                 let thumb_h: f32 =
                                     (track_h * ratio).clamp(20.0_f32.min(track_h), track_h);
@@ -2244,15 +2428,36 @@ impl App {
                                         Point::new(lbox.get_scroll_offset().get_x(), frac * max_y),
                                     );
                                 }
-                                scrollbar_target = Some(aid);
+                                scrollbar_target = Some((aid, SCROLLBAR_AXIS_VERTICAL));
+                                break;
+                            }
+                            if has_h_bar
+                                && pos.get_y() >= inner_bottom - 14.0
+                                && pos.get_y() <= screen_outer.bottom()
+                            {
+                                let track_margin: f32 = 3.0;
+                                let track_x: f32 = screen_outer.get_x() + border_w + track_margin;
+                                let track_w: f32 =
+                                    (inner_w - track_margin * 2.0 - corner_inset).max(16.0);
+                                let ratio: f32 = (view_w / total_w.max(view_w)).clamp(0.0, 1.0);
+                                let thumb_w: f32 =
+                                    (track_w * ratio).clamp(20.0_f32.min(track_w), track_w);
+                                let travel: f32 = (track_w - thumb_w).max(1.0);
+                                let frac: f32 = ((pos.get_x() - track_x - thumb_w * 0.5) / travel)
+                                    .clamp(0.0, 1.0);
+                                tree.set_scroll_offset(
+                                    aid,
+                                    Point::new(frac * max_x, lbox.get_scroll_offset().get_y()),
+                                );
+                                scrollbar_target = Some((aid, SCROLLBAR_AXIS_HORIZONTAL));
                                 break;
                             }
                         }
                     }
                 }
-                if let Some(sb_id) = scrollbar_target {
+                if let Some((sb_id, sb_axis)) = scrollbar_target {
                     tree.get_mut_focus().set_pressed(Some(sb_id));
-                    return (sb_callbacks, true, false);
+                    return (sb_callbacks, sb_axis, false, None);
                 }
                 let mut focus_target: Option<NodeId> = None;
                 let mut press_target: Option<NodeId> = None;
@@ -2282,6 +2487,66 @@ impl App {
                         }
                     }
                 }
+                let mut started_sel: Option<StartedTextSelection> = None;
+                if ptr.get_button() == PointerButton::Primary
+                    && ptr.get_device() != PointerDevice::Touch
+                    && let Some(hit_id) = hit
+                    && tree.is_node_selectable(hit_id)
+                {
+                    let text_meta: Option<(String, bool)> =
+                        tree.get_node(hit_id).and_then(|n: &SceneNode| {
+                            if let NodeKind::Text(content) = n.get_kind() {
+                                Some((content.clone(), n.get_style().get_text().get_selectable()))
+                            } else {
+                                None
+                            }
+                        });
+                    if let Some((content, explicit_self)) = text_meta
+                        && (explicit_self || press_target.is_none())
+                    {
+                        let char_idx: usize = Self::hit_test_text_node_char(tree, hit_id, pos);
+                        let same_spot: bool = prev_click_node == Some(hit_id)
+                            && prev_click_age <= TEXT_MULTI_CLICK_MAX_SECS
+                            && prev_click_pos
+                                .map(|p: Point| {
+                                    (p.get_x() - pos.get_x()).hypot(p.get_y() - pos.get_y())
+                                        <= TEXT_MULTI_CLICK_MAX_DIST_DP
+                                })
+                                .unwrap_or(false);
+                        let click_count: u8 = if same_spot {
+                            if prev_click_count >= 3 {
+                                1
+                            } else {
+                                prev_click_count + 1
+                            }
+                        } else {
+                            1
+                        };
+                        if click_count == 1 {
+                            tree.set_text_selection(Some(SelectionState::new(
+                                hit_id, char_idx, char_idx,
+                            )));
+                            started_sel = Some((hit_id, char_idx, 1, true));
+                        } else if click_count == 2 {
+                            let (ws, we): (usize, usize) =
+                                word_bounds_at_char(content.as_str(), char_idx);
+                            tree.set_text_selection(Some(SelectionState::new(hit_id, ws, we)));
+                            started_sel = Some((hit_id, ws, 2, false));
+                        } else {
+                            let total_chars: usize = content.chars().count();
+                            tree.set_text_selection(Some(SelectionState::new(
+                                hit_id,
+                                0,
+                                total_chars,
+                            )));
+                            started_sel = Some((hit_id, 0, 3, false));
+                        }
+                    } else {
+                        tree.clear_text_selection();
+                    }
+                } else {
+                    tree.clear_text_selection();
+                }
                 let hit_enabled_input: bool = focus_target
                         .and_then(|fid: NodeId| tree.get_node(fid))
                         .map(|n: &SceneNode| {
@@ -2303,11 +2568,26 @@ impl App {
                     }
                     tree.mark_dirty(id, DIRTY_PAINT);
                 }
-                (out, false, hit_enabled_input)
+                (out, SCROLLBAR_AXIS_NONE, hit_enabled_input, started_sel)
             },
-            (Vec::new(), false, false),
+            (Vec::new(), SCROLLBAR_AXIS_NONE, false, None),
         );
-        self.set_scrollbar_dragging(grabbed_scrollbar);
+        self.set_scrollbar_dragging(grabbed_scrollbar_axis != SCROLLBAR_AXIS_NONE);
+        self.set_scrollbar_drag_axis(grabbed_scrollbar_axis);
+        if let Some((sel_id, anchor_char, clicks, drag_active)) = text_sel_started {
+            self.set_text_selecting_node(if drag_active { Some(sel_id) } else { None });
+            self.set_text_select_anchor_char(anchor_char);
+            self.set_text_click_count(clicks);
+            self.set_text_last_click_node(Some(sel_id));
+            self.set_text_last_click_pos(Some(pos));
+            self.set_text_last_click_age_secs(0.0);
+            self.set_gesture_suppressed(true);
+        } else {
+            self.set_text_selecting_node(None);
+            self.set_text_click_count(0);
+            self.set_text_last_click_node(None);
+            self.set_text_last_click_pos(None);
+        }
         if ptr.get_device() == PointerDevice::Touch {
             if !tapped_enabled_input {
                 self.sync_ime_focus();
@@ -2425,7 +2705,18 @@ impl App {
             self.set_scroll_velocity(Point::default());
             self.set_touch_scroll_target(None);
         }
-        let suppress_click: bool = was_touch_dragging || self.get_scrollbar_dragging();
+        let was_text_selecting: bool = {
+            let Self {
+                text_selecting_node,
+                ..
+            } = self;
+            text_selecting_node.is_some()
+        };
+        let selected_non_empty: bool = self.get_scene().get_selected_text().is_some();
+        let text_sel_active: bool = was_text_selecting || self.get_text_click_count() >= 2;
+        let suppress_click: bool = was_touch_dragging
+            || self.get_scrollbar_dragging()
+            || (text_sel_active && selected_non_empty);
         self.set_touch_drag_pointer_id(None);
         self.set_touch_drag_origin(None);
         self.set_touch_drag_last(None);
@@ -2436,6 +2727,8 @@ impl App {
         self.get_mut_touch_vel_samples().clear();
         self.set_touch_vel_idle_secs(0.0);
         self.set_scrollbar_dragging(false);
+        self.set_scrollbar_drag_axis(SCROLLBAR_AXIS_NONE);
+        self.set_text_selecting_node(None);
         let scene: SceneHandle = self.get_scene().clone();
         let (callbacks, tapped_focused_input): (Vec<(UiEventHandler, UiEvent)>, bool) = scene
             .with_write(
@@ -2518,7 +2811,15 @@ impl App {
     ///
     /// - `&Self` - Mutable app.
     /// - `Point` - Logical scroll delta `(dx, dy)`.
-    fn handle_scroll(&mut self, delta: Point) {
+    fn handle_scroll(&mut self, raw_delta: Point) {
+        let delta: Point = if self.get_input_state().get_modifiers().get_shift()
+            && raw_delta.get_x().abs() <= 0.01
+            && raw_delta.get_y().abs() > 0.01
+        {
+            Point::new(raw_delta.get_y(), 0.0)
+        } else {
+            raw_delta
+        };
         let mag: f32 = delta.get_x().hypot(delta.get_y());
         if self.platform_kind() == PlatformKind::Headless {
             self.set_smooth_scroll_pending(Point::default());
@@ -2572,11 +2873,11 @@ impl App {
         let (callbacks, moved): (Vec<(UiEventHandler, UiEvent)>, bool) = scene.with_write(
             |tree: &mut SceneTree| {
                 let mut cursor: Option<NodeId> = locked_target
-                    .filter(|id: &NodeId| tree.get_node(*id).is_some())
+                    .filter(|id: &NodeId| tree.get_node(*id).is_some() && tree.is_node_visible(*id))
                     .or_else(|| {
-                        tree.get_focus()
-                            .hovered_node()
-                            .filter(|id: &NodeId| tree.get_node(*id).is_some())
+                        tree.get_focus().hovered_node().filter(|id: &NodeId| {
+                            tree.get_node(*id).is_some() && tree.is_node_visible(*id)
+                        })
                     });
                 if cursor.is_none() {
                     let fresh: Option<NodeId> = hit_test(tree, pointer_pos);
@@ -2590,21 +2891,37 @@ impl App {
                         if node.get_alive()
                             && node.get_style().get_layout().get_overflow() == Overflow::Scroll
                         {
+                            let cand_id: NodeId = NodeId::new(idx as u32, node.get_generation());
+                            if !tree.is_node_visible(cand_id) {
+                                continue;
+                            }
                             let lbox: LayoutBox = node.get_layout_box();
                             let scrollable: bool = node.virtual_scroll_metrics().is_some()
                                 || lbox.get_content_size().get_height()
-                                    > lbox.get_content_bounds().get_height() + 1.0;
+                                    > lbox.get_content_bounds().get_height() + 1.0
+                                || lbox.get_content_size().get_width()
+                                    > lbox.get_content_bounds().get_width() + 1.0;
                             if scrollable {
-                                cursor = Some(NodeId::new(idx as u32, node.get_generation()));
+                                cursor = Some(cand_id);
                                 break;
                             }
                         }
                     }
                 }
                 let mut out: Vec<(UiEventHandler, UiEvent)> = Vec::new();
+                let mut rem_dx: f32 = delta.get_x();
+                let mut rem_dy: f32 = delta.get_y();
+                let mut any_moved: bool = false;
                 while let Some(id) = cursor {
-                    let next_parent: Option<NodeId> = match tree.get_node(id) {
+                    let (scroll_update, next_parent, blocks_scroll, virtual_stop): ScrollStepOutcome =
+                        match tree.get_node(id) {
                         Some(node) => {
+                            let blocks: bool =
+                                node.get_style().get_paint().get_stop_scroll_propagation()
+                                    || matches!(node.get_kind(), NodeKind::Portal)
+                                    || node.get_style().get_layout().get_position()
+                                        == Position::Fixed;
+                            let parent_id: Option<NodeId> = node.parent_id();
                             let is_scroll_box: bool =
                                 node.get_style().get_layout().get_overflow() == Overflow::Scroll;
                             if is_scroll_box {
@@ -2616,14 +2933,19 @@ impl App {
                                 let max_y: f32 = (lbox.get_content_size().get_height()
                                     - lbox.get_content_bounds().get_height())
                                 .max(0.0);
-                                let allow_x: bool =
-                                    max_x > 2.0 && delta.get_x().abs() > delta.get_y().abs() * 1.25;
+                                let allow_x: bool = max_x > 1.0
+                                    && rem_dx.abs() > 0.01
+                                    && (max_y <= 1.0 || rem_dx.abs() >= rem_dy.abs() * 0.25);
                                 let next_x: f32 = if allow_x {
-                                    (cur.get_x() + delta.get_x()).clamp(0.0, max_x)
+                                    (cur.get_x() + rem_dx).clamp(0.0, max_x)
                                 } else {
                                     cur.get_x().min(max_x)
                                 };
-                                let next_y: f32 = (cur.get_y() + delta.get_y()).clamp(0.0, max_y);
+                                let next_y: f32 = if max_y > 1.0 && rem_dy.abs() > 0.01 {
+                                    (cur.get_y() + rem_dy).clamp(0.0, max_y)
+                                } else {
+                                    cur.get_y().min(max_y)
+                                };
                                 let next: Point = Point::new(next_x, next_y);
                                 let is_virtual: bool = node.virtual_scroll_metrics().is_some();
                                 let virtual_moved: bool = if let Some((vy, total_h)) =
@@ -2631,39 +2953,56 @@ impl App {
                                 {
                                     let vmax: f32 =
                                         (total_h - lbox.get_content_bounds().get_height()).max(0.0);
-                                    let vnext: f32 = (vy + delta.get_y()).clamp(0.0, vmax);
+                                    let vnext: f32 = (vy + rem_dy).clamp(0.0, vmax);
                                     (vnext - vy).abs() > 0.01
                                 } else {
                                     false
                                 };
-                                if let Some(h) =
-                                    node.get_handlers().handler_for(&UiEventKind::Scroll(delta))
+                                let step_delta: Point = Point::new(rem_dx, rem_dy);
+                                if let Some(h) = node
+                                    .get_handlers()
+                                    .handler_for(&UiEventKind::Scroll(step_delta))
                                 {
-                                    out.push((h, UiEvent::new(id, UiEventKind::Scroll(delta))));
+                                    out.push((h, UiEvent::new(id, UiEventKind::Scroll(step_delta))));
                                 }
                                 if is_virtual {
-                                    return (out, virtual_moved);
+                                    (None, parent_id, blocks, Some(any_moved || virtual_moved))
+                                } else {
+                                    let consumed_x: f32 = next_x - cur.get_x();
+                                    let consumed_y: f32 = next_y - cur.get_y();
+                                    let upd: Option<(Point, f32, f32)> =
+                                        if consumed_x.abs() > 0.01 || consumed_y.abs() > 0.01 {
+                                            Some((next, consumed_x, consumed_y))
+                                        } else {
+                                            None
+                                        };
+                                    (upd, parent_id, blocks, None)
                                 }
-                                let did_move: bool = (next.get_x() - cur.get_x()).abs() > 0.01
-                                    || (next.get_y() - cur.get_y()).abs() > 0.01;
-                                if did_move {
-                                    tree.set_scroll_offset(id, next);
-                                    return (out, true);
-                                }
+                            } else {
+                                (None, parent_id, blocks, None)
                             }
-                            let blocks_scroll: bool =
-                                node.get_style().get_paint().get_stop_scroll_propagation()
-                                    || matches!(node.get_kind(), NodeKind::Portal)
-                                    || node.get_style().get_layout().get_position()
-                                        == Position::Fixed;
-                            if blocks_scroll {
-                                return (out, false);
-                            }
-                            node.parent_id()
                         }
-                        None => None,
+                        None => (None, None, false, None),
                     };
+                    if let Some(v_res) = virtual_stop {
+                        return (out, v_res);
+                    }
+                    if let Some((next, consumed_x, consumed_y)) = scroll_update {
+                        tree.set_scroll_offset(id, next);
+                        rem_dx -= consumed_x;
+                        rem_dy -= consumed_y;
+                        any_moved = true;
+                    }
+                    if rem_dx.abs() <= 0.01 && rem_dy.abs() <= 0.01 {
+                        return (out, true);
+                    }
+                    if blocks_scroll {
+                        return (out, any_moved);
+                    }
                     cursor = next_parent;
+                }
+                if any_moved {
+                    return (out, true);
                 }
                 for (idx, node) in tree.get_nodes().iter().enumerate() {
                     if !node.get_alive()
@@ -2677,15 +3016,25 @@ impl App {
                     }
                     let lbox: LayoutBox = node.get_layout_box();
                     let cur: Point = lbox.get_scroll_offset();
+                    let max_x: f32 = (lbox.get_content_size().get_width()
+                        - lbox.get_content_bounds().get_width())
+                    .max(0.0);
                     let max_y: f32 = (lbox.get_content_size().get_height()
                         - lbox.get_content_bounds().get_height())
                     .max(0.0);
-                    if max_y > 1.0 && delta.get_y().abs() > 0.01 {
-                        let next_y: f32 = (cur.get_y() + delta.get_y()).clamp(0.0, max_y);
-                        if (next_y - cur.get_y()).abs() > 0.01 {
-                            tree.set_scroll_offset(id, Point::new(cur.get_x(), next_y));
-                            return (out, true);
-                        }
+                    let next_x: f32 = if max_x > 1.0 && rem_dx.abs() > 0.01 {
+                        (cur.get_x() + rem_dx).clamp(0.0, max_x)
+                    } else {
+                        cur.get_x()
+                    };
+                    let next_y: f32 = if max_y > 1.0 && rem_dy.abs() > 0.01 {
+                        (cur.get_y() + rem_dy).clamp(0.0, max_y)
+                    } else {
+                        cur.get_y()
+                    };
+                    if (next_x - cur.get_x()).abs() > 0.01 || (next_y - cur.get_y()).abs() > 0.01 {
+                        tree.set_scroll_offset(id, Point::new(next_x, next_y));
+                        return (out, true);
                     }
                 }
                 (out, false)
@@ -2772,12 +3121,68 @@ impl App {
             },
             false,
         );
+        let cmd_or_ctrl: bool = key.get_modifiers().get_meta() || key.get_modifiers().get_ctrl();
+        if cmd_or_ctrl
+            && matches!(key.get_code(), KeyCode::Character('c' | 'C'))
+            && self.copy_selection().is_some()
+        {
+            return;
+        }
+        if !focused_is_input
+            && cmd_or_ctrl
+            && matches!(key.get_code(), KeyCode::Character('a' | 'A'))
+        {
+            let selected_all: bool = scene.with_write(
+                |tree: &mut SceneTree| {
+                    let target: Option<NodeId> = tree
+                        .text_selection()
+                        .map(|s: SelectionState| s.get_node_id())
+                        .or_else(|| {
+                            tree.get_focus().focused_node().filter(|id: &NodeId| {
+                                tree.get_node(*id)
+                                    .map(|n: &SceneNode| matches!(n.get_kind(), NodeKind::Text(_)))
+                                    .unwrap_or(false)
+                            })
+                        })
+                        .or_else(|| {
+                            tree.get_focus().hovered_node().filter(|id: &NodeId| {
+                                tree.get_node(*id)
+                                    .map(|n: &SceneNode| matches!(n.get_kind(), NodeKind::Text(_)))
+                                    .unwrap_or(false)
+                            })
+                        });
+                    target
+                        .map(|id: NodeId| tree.select_all_text(id))
+                        .unwrap_or(false)
+                },
+                false,
+            );
+            if selected_all {
+                return;
+            }
+        }
         if focused_is_input && matches!(key.get_code(), KeyCode::Back | KeyCode::Escape) {
             let blur_cbs: Vec<(UiEventHandler, UiEvent)> =
                 scene.with_write(|tree: &mut SceneTree| tree.update_focus(None), Vec::new());
             self.sync_ime_focus();
             Self::invoke_callbacks(blur_cbs);
             return;
+        }
+        if key.get_code() == KeyCode::Escape {
+            let cleared_selection: bool = scene.with_write(
+                |tree: &mut SceneTree| {
+                    if tree.text_selection().is_some() {
+                        tree.clear_text_selection();
+                        true
+                    } else {
+                        false
+                    }
+                },
+                false,
+            );
+            if cleared_selection {
+                return;
+            }
         }
         if matches!(key.get_code(), KeyCode::Back | KeyCode::Escape) {
             let _: bool = self

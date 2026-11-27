@@ -106,6 +106,12 @@ pub const fn text_align() {}
 /// Sets text overflow strategy (`TextOverflow::Wrap`, `TextOverflow::Clip`, `TextOverflow::Ellipsis`).
 pub const fn text_overflow() {}
 
+/// Enables or disables native text selection (`bool`, inherited by descendant text nodes unless overridden).
+pub const fn selectable() {}
+
+/// Sets the highlight fill color used for selected text ranges (`Color`).
+pub const fn selection_color() {}
+
 /// Sets subtree opacity multiplier in `[0.0, 1.0]` (`f32`).
 pub const fn opacity() {}
 

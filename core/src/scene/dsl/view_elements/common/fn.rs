@@ -121,6 +121,12 @@ pub const fn text_align() {}
 /// Sets text overflow strategy (`TextOverflow`).
 pub const fn text_overflow() {}
 
+/// Enables or disables native text selection (`bool`, inherited by descendant text nodes unless overridden).
+pub const fn selectable() {}
+
+/// Sets the highlight fill color used for selected text ranges (`Color`).
+pub const fn selection_color() {}
+
 /// Sets stacking order (`i32`).
 pub const fn z_index() {}
 

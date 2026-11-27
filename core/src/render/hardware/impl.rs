@@ -368,8 +368,12 @@ impl HardwareRenderer {
                         .map(TextLine::get_width)
                         .unwrap_or(0.0);
                     let line_idx: usize = meas.get_lines().len().saturating_sub(1);
-                    let caret_x: f32 =
-                        (text_rect.get_x() + last_w + 1.5).min(content_rect.right() - 2.0);
+                    let trailing_gap: f32 = if last_w > 0.0 { 1.5 } else { 0.0 };
+                    let min_x: f32 = content_rect.get_x();
+                    let max_x: f32 = (content_rect.right() - 2.0).max(min_x);
+                    let caret_x: f32 = (text_rect.get_x() + last_w + trailing_gap)
+                        .min(max_x)
+                        .max(min_x);
                     let caret_y: f32 = if *multiline {
                         (content_rect.get_y()
                             + (line_idx as f32) * meas.get_line_height_px()

@@ -163,6 +163,12 @@ pub(crate) const PROP_TEXT_ALIGN: &str = "text_align";
 /// Property keyword for text overflow strategy.
 pub(crate) const PROP_TEXT_OVERFLOW: &str = "text_overflow";
 
+/// Property keyword for enabling or disabling native text selection.
+pub(crate) const PROP_SELECTABLE: &str = "selectable";
+
+/// Property keyword for text selection highlight color.
+pub(crate) const PROP_SELECTION_COLOR: &str = "selection_color";
+
 /// Property keyword for z-index.
 pub(crate) const PROP_Z_INDEX: &str = "z_index";
 
@@ -335,6 +341,8 @@ pub(crate) const KNOWN_VIEW_PROPS: &[&str] = &[
     PROP_ITALIC,
     PROP_TEXT_ALIGN,
     PROP_TEXT_OVERFLOW,
+    PROP_SELECTABLE,
+    PROP_SELECTION_COLOR,
     PROP_Z_INDEX,
     PROP_OPACITY,
     PROP_COLUMNS,

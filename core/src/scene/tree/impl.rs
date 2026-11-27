@@ -22,6 +22,7 @@ impl Default for SceneTree {
             transitions: Vec::new(),
             caret_visible: true,
             portal_nodes: Vec::new(),
+            text_selection: None,
         }
     }
 }
@@ -390,7 +391,9 @@ impl SceneTree {
                 let mut mask: u16 = DIRTY_PAINT;
                 let prev_layout: LayoutStyle = prev.get_layout();
                 let next_layout: LayoutStyle = style.get_layout();
-                if prev_layout != next_layout || prev.get_text() != style.get_text() {
+                if prev_layout != next_layout
+                    || !prev.get_text().same_layout_metrics(&style.get_text())
+                {
                     mask |= DIRTY_LAYOUT | DIRTY_TEXT;
                 }
                 let is_portal_kind: bool = matches!(node.get_kind(), NodeKind::Portal);
@@ -1027,6 +1030,13 @@ impl SceneTree {
             if !self.portal_nodes().is_empty() {
                 self.sync_portal_registration(current, false);
             }
+            if self
+                .text_selection()
+                .map(|sel: SelectionState| sel.get_node_id())
+                == Some(current)
+            {
+                self.set_text_selection(None);
+            }
             self.get_mut_free_list().push(current.get_index());
             for child in children.into_iter() {
                 stack.push(child);
@@ -1082,6 +1092,163 @@ impl SceneTree {
             self.mark_dirty(new_id, DIRTY_PAINT);
         }
         callbacks
+    }
+
+    /// Resolves whether `id` allows interactive text selection, walking ancestors unless an explicit opt-out is encountered.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene tree reference.
+    /// - `NodeId` - Target scene node handle.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when `id` or an ancestor enables `selectable` without an intervening explicit `selectable(false)`.
+    #[must_use]
+    pub fn is_node_selectable(&self, id: NodeId) -> bool {
+        let mut cursor: Option<NodeId> = Some(id);
+        while let Some(cur) = cursor {
+            let Some(node) = self.get_node(cur) else {
+                return false;
+            };
+            let text_style: TextStyle = node.get_style().get_text();
+            if text_style.get_selectable() {
+                return true;
+            }
+            if text_style.get_selectable_explicit() {
+                return false;
+            }
+            cursor = node.parent_id();
+        }
+        false
+    }
+
+    /// Resolves the effective text selection highlight color for `id`, inheriting from ancestors or falling back to default tint.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene tree reference.
+    /// - `NodeId` - Target text node handle.
+    ///
+    /// # Returns
+    ///
+    /// - `Color` - Selection highlight fill color.
+    #[must_use]
+    pub fn effective_selection_color(&self, id: NodeId) -> Color {
+        let mut cursor: Option<NodeId> = Some(id);
+        while let Some(cur) = cursor {
+            let Some(node) = self.get_node(cur) else {
+                break;
+            };
+            if let Some(color) = node.get_style().get_text().selection_color() {
+                return color;
+            }
+            cursor = node.parent_id();
+        }
+        DEFAULT_TEXT_SELECTION_COLOR
+    }
+
+    /// Returns the active text selection state, if any.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene tree reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<SelectionState>` - Current selection state.
+    #[must_use]
+    pub fn text_selection(&self) -> Option<SelectionState> {
+        let Self { text_selection, .. } = self;
+        *text_selection
+    }
+
+    /// Updates the active text selection state and marks affected text nodes dirty for repaint.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable scene tree.
+    /// - `Option<SelectionState>` - Replacement selection state (`None` clears selection).
+    pub fn set_text_selection(&mut self, selection: Option<SelectionState>) {
+        let prev: Option<SelectionState> = self.text_selection();
+        if prev == selection {
+            return;
+        }
+        let Self { text_selection, .. } = self;
+        *text_selection = selection;
+        if let Some(old_sel) = prev {
+            self.mark_dirty(old_sel.get_node_id(), DIRTY_PAINT);
+        }
+        if let Some(new_sel) = selection {
+            self.mark_dirty(new_sel.get_node_id(), DIRTY_PAINT);
+        }
+    }
+
+    /// Clears any active text selection and repaints the previously selected node.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable scene tree.
+    pub fn clear_text_selection(&mut self) {
+        self.set_text_selection(None);
+    }
+
+    /// Returns the currently selected UTF-8 substring when a non-empty selection exists on a live text node.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene tree reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<String>` - Selected text string, or `None` when no text is selected.
+    #[must_use]
+    pub fn get_selected_text(&self) -> Option<String> {
+        let sel: SelectionState = self.text_selection()?;
+        if sel.is_empty() {
+            return None;
+        }
+        let node: &SceneNode = self.get_node(sel.get_node_id())?;
+        let NodeKind::Text(content) = node.get_kind() else {
+            return None;
+        };
+        let extracted: &str = sel.extract_from(content.as_str());
+        if extracted.is_empty() {
+            None
+        } else {
+            Some(extracted.to_string())
+        }
+    }
+
+    /// Selects the entire character range of selectable `NodeKind::Text` node `id`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable scene tree.
+    /// - `NodeId` - Target text node handle.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when `id` is a live selectable non-empty text node and selection was applied.
+    pub fn select_all_text(&mut self, id: NodeId) -> bool {
+        if !self.is_node_selectable(id) {
+            return false;
+        }
+        let char_len: Option<usize> = self.get_node(id).and_then(|node: &SceneNode| {
+            if let NodeKind::Text(content) = node.get_kind() {
+                Some(content.chars().count())
+            } else {
+                None
+            }
+        });
+        let Some(len) = char_len else {
+            return false;
+        };
+        if len == 0 {
+            return false;
+        }
+        self.set_text_selection(Some(SelectionState::new(id, 0, len)));
+        true
     }
 }
 
@@ -1353,6 +1520,29 @@ impl SceneHandle {
         self.with_read(SceneTree::has_active_transitions, false)
     }
 
+    /// Returns the currently selected text substring across the retained scene, if any.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene handle reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<String>` - Active selected UTF-8 text.
+    #[must_use]
+    pub fn get_selected_text(&self) -> Option<String> {
+        self.with_read(SceneTree::get_selected_text, None)
+    }
+
+    /// Clears any active text selection across the retained scene.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene handle reference.
+    pub fn clear_text_selection(&self) {
+        self.with_write(SceneTree::clear_text_selection, ());
+    }
+
     /// Executes `operation` with immutable access to the underlying `SceneTree`.
     ///
     /// # Arguments
@@ -1520,6 +1710,20 @@ impl Context {
     pub fn request_exit(&self) {
         let _: bool = self.get_exit_requested().set_if_changed(true);
         let _: bool = dispatch_native_action(NATIVE_ACTION_EXIT, "", "");
+    }
+
+    /// Copies `text` to the host OS or browser clipboard via native clipboard hooks.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Context reference.
+    /// - `&str` - UTF-8 text string to copy.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when a native or host clipboard bridge accepted `text`.
+    pub fn copy_to_clipboard(&self, text: &str) -> bool {
+        write_system_clipboard(text)
     }
 
     /// Creates a `View` node with the given style.

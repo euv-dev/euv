@@ -607,12 +607,14 @@ pub(crate) fn linux_x11_pump_events(
                         if let Some((wid, scale, _)) = linux_find_window(mot.window, windows) {
                             let pos: Point =
                                 Point::new((mot.x as f32) / scale, (mot.y as f32) / scale);
+                            let pressed_btn: f32 =
+                                if (mot.state & 0x0100) != 0 { 1.0 } else { 0.0 };
                             let ev: PointerEvent = PointerEvent::new(
                                 1,
                                 PointerDevice::Mouse,
                                 pos,
                                 PointerButton::Primary,
-                                0.0,
+                                pressed_btn,
                                 linux_x11_modifiers(mot.state),
                             );
                             out_events.push(WindowEvent::PointerMove(wid, ev));
@@ -623,8 +625,18 @@ pub(crate) fn linux_x11_pump_events(
                             *(&raw as *const X11EventRaw).cast::<X11KeyOrButtonEvent>();
                         if let Some((wid, scale, _)) = linux_find_window(btn.window, windows) {
                             if ev_type == X11_BUTTON_PRESS && (btn.detail == 4 || btn.detail == 5) {
-                                let dy: f32 = if btn.detail == 4 { -40.0 } else { 40.0 };
-                                out_events.push(WindowEvent::Scroll(wid, Point::new(0.0, dy)));
+                                let step: f32 = if btn.detail == 4 { -40.0 } else { 40.0 };
+                                let delta: Point = if (btn.state & X11_SHIFT_MASK) != 0 {
+                                    Point::new(step, 0.0)
+                                } else {
+                                    Point::new(0.0, step)
+                                };
+                                out_events.push(WindowEvent::Scroll(wid, delta));
+                            } else if ev_type == X11_BUTTON_PRESS
+                                && (btn.detail == 6 || btn.detail == 7)
+                            {
+                                let dx: f32 = if btn.detail == 6 { -40.0 } else { 40.0 };
+                                out_events.push(WindowEvent::Scroll(wid, Point::new(dx, 0.0)));
                             } else if btn.detail <= 3 {
                                 let button: PointerButton = match btn.detail {
                                     2 => PointerButton::Auxiliary,

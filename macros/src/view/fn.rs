@@ -1064,6 +1064,12 @@ fn expand_primitive_element(elem: &ViewElement) -> proc_macro2::TokenStream {
             PROP_TEXT_OVERFLOW => style_stmts.push(quote! {
                 __euv_style.get_mut_text().set_overflow(#val);
             }),
+            PROP_SELECTABLE => style_stmts.push(quote! {
+                __euv_style = __euv_style.selectable(#val);
+            }),
+            PROP_SELECTION_COLOR => style_stmts.push(quote! {
+                __euv_style = __euv_style.selection_color(#val);
+            }),
             PROP_Z_INDEX => style_stmts.push(quote! {
                 __euv_style.get_mut_layout().set_z_index(#val);
             }),

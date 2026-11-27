@@ -118,7 +118,11 @@ impl LayoutEngine {
                     hidden_node
                         .get_mut_layout_box()
                         .set_content_bounds(Rect::default());
-                    hidden_node.set_last_constraint(Some(space));
+                    if hid == node_id {
+                        hidden_node.set_last_constraint(Some(space));
+                    } else {
+                        hidden_node.set_last_constraint(None);
+                    }
                     hidden_node.get_mut_dirty().remove(DIRTY_LAYOUT_PASS_MASK);
                     self.get_mut_children_scratch()
                         .extend_from_slice(hidden_node.get_children().as_slice());
@@ -130,16 +134,20 @@ impl LayoutEngine {
         let border_w: f32 = paint_ref.get_border().get_width();
         let chrome_h: f32 = padding.horizontal() + border_w * 2.0;
         let chrome_v: f32 = padding.vertical() + border_w * 2.0;
-        let mut resolved_w: Option<f32> = layout_ref
+        let explicit_w: Option<f32> = layout_ref
             .get_width()
             .resolve(space.get_width(), space.get_viewport());
-        let mut resolved_h: Option<f32> = layout_ref
+        let explicit_h: Option<f32> = layout_ref
             .get_height()
             .resolve(space.get_height(), space.get_viewport());
-        if resolved_w.is_none() && space.get_stretch_width() {
+        let mut resolved_w: Option<f32> = explicit_w;
+        let mut resolved_h: Option<f32> = explicit_h;
+        let stretched_w: bool = resolved_w.is_none() && space.get_stretch_width();
+        let stretched_h: bool = resolved_h.is_none() && space.get_stretch_height();
+        if stretched_w {
             resolved_w = Some(space.get_width());
         }
-        if resolved_h.is_none() && space.get_stretch_height() {
+        if stretched_h {
             resolved_h = Some(space.get_height());
         }
         let min_w: f32 = layout_ref
@@ -153,11 +161,13 @@ impl LayoutEngine {
         let max_w: f32 = layout_ref
             .get_max_width()
             .resolve(space.get_width(), space.get_viewport())
-            .unwrap_or(f32::INFINITY);
+            .unwrap_or(f32::INFINITY)
+            .max(min_w);
         let max_h: f32 = layout_ref
             .get_max_height()
             .resolve(space.get_height(), space.get_viewport())
-            .unwrap_or(f32::INFINITY);
+            .unwrap_or(f32::INFINITY)
+            .max(min_h);
         let aspect_ratio: Option<f32> = layout_ref.aspect_ratio_value();
         if let Some(ratio) = aspect_ratio
             && ratio > 0.0
@@ -172,10 +182,16 @@ impl LayoutEngine {
                 resolved_w = Some(h.clamp(min_h, max_h) * ratio);
             }
         }
-        let inner_avail_w: f32 =
-            (resolved_w.unwrap_or(space.get_width()).min(max_w) - chrome_h).max(0.0);
-        let inner_avail_h: f32 =
-            (resolved_h.unwrap_or(space.get_height()).min(max_h) - chrome_v).max(0.0);
+        let avail_w_outer: f32 = resolved_w
+            .unwrap_or(space.get_width())
+            .max(min_w)
+            .min(max_w);
+        let avail_h_outer: f32 = resolved_h
+            .unwrap_or(space.get_height())
+            .max(min_h)
+            .min(max_h);
+        let inner_avail_w: f32 = (avail_w_outer - chrome_h).max(0.0);
+        let inner_avail_h: f32 = (avail_h_outer - chrome_v).max(0.0);
         let origin_x: f32 = space.get_origin_x();
         let origin_y: f32 = space.get_origin_y();
         let content_origin_x: f32 = origin_x + padding.get_left() + border_w;
@@ -221,6 +237,8 @@ impl LayoutEngine {
                 }
             }
         };
+        let node_overflow: Overflow = layout_ref.get_overflow();
+        let node_flex_grow: f32 = layout_ref.get_flex_grow();
         let content_size: Size = if let Some(size) = leaf_content_size {
             size
         } else if let Some((child_start, child_end)) = child_range {
@@ -238,8 +256,24 @@ impl LayoutEngine {
         } else {
             Size::default()
         };
-        let mut final_w: f32 = resolved_w.unwrap_or(content_size.get_width() + chrome_h);
-        let mut final_h: f32 = resolved_h.unwrap_or(content_size.get_height() + chrome_v);
+        let content_outer_w: f32 = content_size.get_width() + chrome_h;
+        let content_outer_h: f32 = content_size.get_height() + chrome_v;
+        let mut final_w: f32 = match (explicit_w, stretched_w) {
+            (Some(w), _) => w,
+            (None, true) => {
+                let base_w: f32 = resolved_w.unwrap_or(content_outer_w);
+                if node_overflow == Overflow::Visible
+                    && node_flex_grow <= 0.0
+                    && content_outer_w > base_w + 0.5
+                {
+                    content_outer_w
+                } else {
+                    base_w
+                }
+            }
+            (None, false) => content_outer_w,
+        };
+        let mut final_h: f32 = resolved_h.unwrap_or(content_outer_h);
         if let Some(ratio) = aspect_ratio
             && ratio > 0.0
         {

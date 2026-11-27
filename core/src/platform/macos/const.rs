@@ -16,6 +16,21 @@ pub(crate) const OBJC_CLS_CA_METAL_LAYER: &str = "CAMetalLayer\0";
 /// Objective-C class name for `NSCursor`.
 pub(crate) const OBJC_CLS_NS_CURSOR: &str = "NSCursor\0";
 
+/// Objective-C class name for `NSPasteboard`.
+pub(crate) const OBJC_CLS_NS_PASTEBOARD: &str = "NSPasteboard\0";
+
+/// Objective-C selector for `generalPasteboard` on `NSPasteboard`.
+pub(crate) const OBJC_SEL_GENERAL_PASTEBOARD: &str = "generalPasteboard\0";
+
+/// Objective-C selector for `clearContents` on `NSPasteboard`.
+pub(crate) const OBJC_SEL_CLEAR_CONTENTS: &str = "clearContents\0";
+
+/// Objective-C selector for `setString:forType:` on `NSPasteboard`.
+pub(crate) const OBJC_SEL_SET_STRING_FOR_TYPE: &str = "setString:forType:\0";
+
+/// UTI string identifier for UTF-8 plain text on macOS `NSPasteboard`.
+pub(crate) const MACOS_PASTEBOARD_TYPE_UTF8: &str = "public.utf8-plain-text";
+
 /// Objective-C selector for `arrowCursor`.
 pub(crate) const OBJC_SEL_ARROW_CURSOR: &str = "arrowCursor\0";
 

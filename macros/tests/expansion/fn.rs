@@ -590,3 +590,44 @@ fn inline_style_event_global_local_state_and_component_macros_work_end_to_end() 
     let stats: FrameStats = app.step_frame().unwrap();
     assert_ne!(stats.get_frame_hash(), 0);
 }
+
+#[test]
+fn selectable_and_selection_color_work_in_style_and_view_macros() {
+    reset_reactive_runtime();
+    let tint: Color = Color::rgba(37, 99, 235, 96);
+    let styled: Style = style! {
+        selectable: true
+        selection_color: tint
+    };
+    assert!(styled.get_text().get_selectable());
+    assert_eq!(styled.get_text().selection_color(), Some(tint));
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(320, 200).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let captured_txt: Rc<Cell<NodeId>> = Rc::new(Cell::new(NodeId::default()));
+    let cap_c: Rc<Cell<NodeId>> = captured_txt.clone();
+    let _: NodeId = app.mount(move || {
+        let mut txt_id: NodeId = NodeId::default();
+        let root: NodeId = view! {
+            column {
+                selectable: true
+                selection_color: tint
+                text {
+                    node_ref: txt_id
+                    color: TEST_FG
+                    "Selectable Macro Text"
+                }
+            }
+        };
+        cap_c.set(txt_id);
+        root
+    });
+    let _: FrameStats = app.step_frame().unwrap();
+    let target: NodeId = captured_txt.get();
+    let is_sel: bool = app
+        .get_scene()
+        .with_read(|tree: &SceneTree| tree.is_node_selectable(target), false);
+    assert!(is_sel);
+}
