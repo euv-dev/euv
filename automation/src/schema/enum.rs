@@ -1,5 +1,15 @@
 use super::*;
 
+/// Layout measurement status reported per node in AI Schema v2 so hidden or unmounted nodes never report fabricated geometry.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub enum AiLayoutState {
+    /// Node participated in layout and holds valid computed geometry.
+    #[default]
+    Measured,
+    /// Node is hidden (`Display::None`), unmounted, or unlaid-out without valid geometry.
+    Unmeasured,
+}
+
 /// Categories of layout or visual defects automatically detected for AI diagnostics.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum AiAnomalyKind {
@@ -28,7 +38,7 @@ pub enum AiGestureKind {
     LongPress,
 }
 
-/// Interactive UI action executable remotely through the AI Schema v1 protocol.
+/// Interactive UI action executable remotely through the AI Schema v1/v2 protocol.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "kind")]
 pub enum AiAction {
@@ -169,20 +179,28 @@ pub enum AiAction {
     },
 }
 
-/// Structured AI Schema v1 request envelope accepted by `AiSchemaProtocol::handle`.
+/// Structured AI Schema v1/v2 request envelope accepted by `AiSchemaProtocol::handle`.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "op")]
 pub enum AiSchemaRequest {
-    /// Returns the formal JSON Schema specification for `euv.ai.schema.v1`.
+    /// Returns the formal JSON Schema specification for `euv.ai.schema.v1` / `euv.ai.schema.v2`.
     DescribeSchema,
-    /// Captures a complete runtime, layout, performance, reactive, A11y, game, and anomaly snapshot.
+    /// Captures a complete v1 runtime, layout, performance, reactive, A11y, game, and anomaly snapshot.
     Snapshot {
         /// When `true`, includes the full recursive `layout_tree`.
         include_layout_tree: bool,
     },
+    /// Captures a same-frame AI Schema v2 diagnostic bundle pairing `frame_id`, `scene_revision`, snapshot, and optional RGBA hash.
+    SnapshotV2 {
+        /// When `true`, includes the full recursive `layout_tree`.
+        include_layout_tree: bool,
+        /// When `true`, computes deterministic FNV-1a RGBA digest from the matching frame's CPU framebuffer.
+        #[serde(default)]
+        include_rgba_hash: bool,
+    },
     /// Returns the compiled semantic accessibility tree (`Vec<AiA11yNode>`).
     AccessibilityTree,
-    /// Queries all visible nodes matching `selector` and returns their screen bounds and metadata.
+    /// Queries all visible nodes matching `selector` directly over `SceneTree` and returns their screen bounds and metadata.
     QueryNodes {
         /// Declarative UI locator.
         selector: UiSelector,
@@ -203,5 +221,16 @@ pub enum AiSchemaRequest {
     RunTestScript {
         /// Automation script payload.
         script: UiTestScript,
+    },
+    /// Executes a versioned `euv.ui-e2e.v1` flow and returns an `euv.ui-e2e.result.v1` verdict report.
+    RunE2eFlow {
+        /// Versioned UI E2E flow specification.
+        flow: Box<UiE2eFlowV1>,
+        /// Optional execution run identifier.
+        #[serde(default)]
+        run_id: String,
+        /// Optional build tag recorded into the verdict report.
+        #[serde(default)]
+        app_build: String,
     },
 }

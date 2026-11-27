@@ -100,6 +100,34 @@ impl UiSelector {
         Self::ByKind(kind_name.to_string())
     }
 
+    /// Creates an author-declared `test_id` selector.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - Target test identifier (e.g. `"login.submit"`).
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - `UiSelector::ByTestId` variant.
+    #[must_use]
+    pub fn test_id(id: &str) -> Self {
+        Self::ByTestId(id.to_string())
+    }
+
+    /// Creates a stable semantic key selector.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - Target stable semantic key.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - `UiSelector::ByStableKey` variant.
+    #[must_use]
+    pub fn stable_key(key: &str) -> Self {
+        Self::ByStableKey(key.to_string())
+    }
+
     /// Wraps this selector to select only its `index`-th match.
     ///
     /// # Arguments
@@ -161,6 +189,8 @@ impl UiSelector {
             Self::ByRole(role_name) => node.get_role().eq_ignore_ascii_case(role_name),
             Self::ByKind(kind_name) => node.get_kind().eq_ignore_ascii_case(kind_name),
             Self::ByNodeIndex(idx) => node.get_node_index() == *idx,
+            Self::ByTestId(expected) => node.test_id_value() == Some(expected.as_str()),
+            Self::ByStableKey(expected) => node.stable_key_value() == Some(expected.as_str()),
             Self::Interactive => node.get_interactive(),
             Self::Nth { inner, .. } => inner.matches_node(node),
             Self::All(preds) => preds.iter().all(|p: &UiSelector| p.matches_node(node)),

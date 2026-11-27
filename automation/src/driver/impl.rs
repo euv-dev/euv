@@ -68,7 +68,7 @@ impl<'a> UiAutomator<'a> {
             .map_err(|err: PlatformError| AutomationError::RuntimeError(err.to_string()))
     }
 
-    /// Queries all currently visible layout nodes matching `selector`.
+    /// Queries all currently visible layout nodes matching `selector` directly over `SceneTree` without building a full snapshot.
     ///
     /// # Arguments
     ///
@@ -80,10 +80,32 @@ impl<'a> UiAutomator<'a> {
     /// - `Vec<AiLayoutNode>` - Matching inspected nodes.
     #[must_use]
     pub fn query_all(&self, selector: &UiSelector) -> Vec<AiLayoutNode> {
-        let snap: AiRuntimeSnapshot = AiSchemaProtocol::snapshot(self.app_ref(), true);
-        snap.root_layout_node()
-            .map(|r: &AiLayoutNode| r.find_matches(selector))
-            .unwrap_or_default()
+        AiSchemaProtocol::query_nodes_direct(self.app_ref(), selector)
+    }
+
+    /// Captures a deterministic same-frame AI Schema v2 diagnostic bundle `(frame_id, scene_revision, snapshot, optional_rgba_fnv1a)`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Automator reference.
+    /// - `bool` - Whether to include the full recursive `layout_tree`.
+    /// - `bool` - Whether to compute a deterministic FNV-1a digest of the matching frame's RGBA8 framebuffer.
+    ///
+    /// # Returns
+    ///
+    /// - `AiSameFrameCapture` - Synchronized same-frame diagnostic capture.
+    #[must_use]
+    pub fn capture_same_frame(
+        &self,
+        include_layout_tree: bool,
+        include_rgba_hash: bool,
+    ) -> AiSameFrameCapture {
+        AiSchemaProtocol::capture_same_frame(
+            self.app_ref(),
+            include_layout_tree,
+            include_rgba_hash,
+            None,
+        )
     }
 
     /// Queries the first visible layout node matching `selector`.
@@ -266,10 +288,20 @@ impl<'a> UiAutomator<'a> {
     /// - `Result<FrameStats, AutomationError>` - Rendered frame telemetry.
     pub fn clear_input(&mut self, selector: &UiSelector) -> Result<FrameStats, AutomationError> {
         let target: AiLayoutNode = self.query(selector)?;
-        let char_count: usize = target
-            .input_value()
-            .map(|v: &str| v.chars().count())
-            .unwrap_or(0);
+        let node_id: NodeId = NodeId::new(target.get_node_index(), target.get_generation());
+        let char_count: usize = self.app_ref().get_scene().with_read(
+            |tree: &SceneTree| match tree.get_node(node_id).map(SceneNode::get_kind) {
+                Some(NodeKind::Input(inp)) => inp.get_value().chars().count(),
+                _ => target
+                    .input_value()
+                    .map(|v: &str| v.chars().count())
+                    .unwrap_or(0),
+            },
+            target
+                .input_value()
+                .map(|v: &str| v.chars().count())
+                .unwrap_or(0),
+        );
         let _: FrameStats = self.click(selector)?;
         let Self { app } = self;
         let wid: WindowId = app.get_window_state().get_id();

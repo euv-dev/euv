@@ -67,7 +67,7 @@ impl AiRect {
     }
 }
 
-/// Optional text/value/placeholder accessors and flattening helpers for `AiLayoutNode`.
+/// Optional text/value/placeholder/identity accessors and flattening helpers for `AiLayoutNode`.
 impl AiLayoutNode {
     /// Returns the static text content if this node is a `Text` node.
     ///
@@ -142,6 +142,36 @@ impl AiLayoutNode {
     pub fn a11y_hint_value(&self) -> Option<&str> {
         let Self { a11y_hint, .. } = self;
         a11y_hint.as_deref()
+    }
+
+    /// Returns the resolved arena-independent `stable_key` if available.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Inspected layout node reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<&str>` - Stable semantic key slice when present.
+    #[must_use]
+    pub fn stable_key_value(&self) -> Option<&str> {
+        let Self { stable_key, .. } = self;
+        stable_key.as_deref()
+    }
+
+    /// Returns the author-declared `test_id` if available.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Inspected layout node reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<&str>` - Author test identifier slice when present.
+    #[must_use]
+    pub fn test_id_value(&self) -> Option<&str> {
+        let Self { test_id, .. } = self;
+        test_id.as_deref()
     }
 
     /// Collects all visible nodes matching `selector` in pre-order traversal.
@@ -244,6 +274,24 @@ impl AiRuntimeSnapshot {
     pub fn game_stats_value(&self) -> Option<&Value> {
         let Self { game_stats, .. } = self;
         game_stats.as_ref()
+    }
+}
+
+/// Optional RGBA FNV-1a digest accessor for `AiSameFrameCapture`.
+impl AiSameFrameCapture {
+    /// Returns the deterministic FNV-1a RGBA framebuffer hash if captured on this frame boundary.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Same-frame capture reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<u64>` - Framebuffer RGBA FNV-1a digest when available.
+    #[must_use]
+    pub fn rgba_fnv1a_value(&self) -> Option<u64> {
+        let Self { rgba_fnv1a, .. } = self;
+        *rgba_fnv1a
     }
 }
 
@@ -515,6 +563,20 @@ impl AiSchemaResponse {
         Self::new(AI_SCHEMA_PROTOCOL_VERSION.to_string(), true, None, data)
     }
 
+    /// Builds a successful AI Schema v2 `AiSchemaResponse` wrapping `data`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Value` - Structured JSON payload.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Success v2 response envelope.
+    #[must_use]
+    pub fn success_v2(data: Value) -> Self {
+        Self::new(AI_SCHEMA_V2_PROTOCOL_VERSION.to_string(), true, None, data)
+    }
+
     /// Builds a failed `AiSchemaResponse` carrying `message`.
     ///
     /// # Arguments
@@ -534,6 +596,28 @@ impl AiSchemaResponse {
         )
     }
 
+    /// Builds a failed `AiSchemaResponse` carrying both a stable error `code` and diagnostic `message`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - Stable machine-readable error code (e.g. `"BACKPRESSURE"`).
+    /// - `String` - Human-readable diagnostic message.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Structured error response envelope.
+    #[must_use]
+    pub fn failure_with_code(code: &str, message: String) -> Self {
+        let mut resp: Self = Self::new(
+            AI_SCHEMA_V2_PROTOCOL_VERSION.to_string(),
+            false,
+            Some(message),
+            Value::Null,
+        );
+        resp.set_code(Some(code.to_string()));
+        resp
+    }
+
     /// Returns the optional error message when `ok` is `false`.
     ///
     /// # Arguments
@@ -548,9 +632,24 @@ impl AiSchemaResponse {
         let Self { error, .. } = self;
         error.as_deref()
     }
+
+    /// Returns the optional machine-readable error code when present.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Response reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<&str>` - Error code slice.
+    #[must_use]
+    pub fn code_value(&self) -> Option<&str> {
+        let Self { code, .. } = self;
+        code.as_deref()
+    }
 }
 
-/// Runtime snapshot capture, anomaly detection, and JSON-RPC request dispatch for `AiSchemaProtocol`.
+/// Runtime snapshot capture, direct scene query, privacy redaction, anomaly detection, and JSON-RPC request dispatch for `AiSchemaProtocol`.
 impl AiSchemaProtocol {
     /// Formats a `Color` as an `#RRGGBBAA` hex string.
     ///
@@ -570,6 +669,129 @@ impl AiSchemaProtocol {
             color.get_b(),
             color.get_a()
         )
+    }
+
+    /// Returns `true` when `identifier` contains a sensitive keyword indicating secret, password, or token data.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - Candidate key, test identifier, label, or placeholder string.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - Whether the identifier denotes sensitive data.
+    #[must_use]
+    pub(crate) fn is_sensitive_identifier(identifier: &str) -> bool {
+        let lower: String = identifier.to_ascii_lowercase();
+        SENSITIVE_KEY_TOKENS
+            .iter()
+            .any(|kw: &&str| lower.contains(*kw))
+    }
+
+    /// Extracts `(stable_key, test_id)` from optional explicit node key and `A11yProps`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Option<&str>` - Optional reconciliation key stored on the `SceneNode`.
+    /// - `Option<&A11yProps>` - Optional explicit accessibility metadata.
+    ///
+    /// # Returns
+    ///
+    /// - `(Option<String>, Option<String>)` - Resolved `(stable_key, test_id)`.
+    #[must_use]
+    fn resolve_node_identity(
+        raw_key: Option<&str>,
+        a11y_opt: Option<&A11yProps>,
+    ) -> (Option<String>, Option<String>) {
+        let clean_key: Option<&str> = raw_key.map(str::trim).filter(|s: &&str| !s.is_empty());
+        let hint_str: Option<&str> = a11y_opt
+            .map(|a: &A11yProps| a.get_hint().trim())
+            .filter(|s: &&str| !s.is_empty());
+        let hint_test_id: Option<&str> = hint_str.and_then(|h: &str| {
+            h.strip_prefix(TEST_ID_HINT_PREFIX)
+                .map(str::trim)
+                .filter(|s: &&str| !s.is_empty())
+        });
+        let hint_key: Option<&str> = hint_str.and_then(|h: &str| {
+            h.strip_prefix(KEY_HINT_PREFIX)
+                .map(str::trim)
+                .filter(|s: &&str| !s.is_empty())
+        });
+        let key_as_test_id: Option<&str> = clean_key.map(|k: &str| {
+            k.strip_prefix(TEST_ID_HINT_PREFIX)
+                .map(str::trim)
+                .filter(|s: &&str| !s.is_empty())
+                .unwrap_or(k)
+        });
+        let test_id: Option<String> = hint_test_id.or(key_as_test_id).map(str::to_string);
+        let a11y_label: Option<&str> = a11y_opt
+            .map(|a: &A11yProps| a.get_label().trim())
+            .filter(|s: &&str| !s.is_empty());
+        let stable_key: Option<String> = clean_key
+            .or(hint_key)
+            .or(hint_test_id)
+            .or(a11y_label)
+            .map(str::to_string);
+        (stable_key, test_id)
+    }
+
+    /// Collects non-empty reconciliation keys from all live scene nodes into an index map.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut SceneTree` - Retained scene tree.
+    ///
+    /// # Returns
+    ///
+    /// - `HashMap<u32, String>` - Mapping from `node_index` to non-empty node key.
+    #[must_use]
+    fn collect_live_node_keys(tree: &mut SceneTree) -> HashMap<u32, String> {
+        let mut keys: HashMap<u32, String> = HashMap::new();
+        let nodes: &mut Vec<SceneNode> = tree.get_mut_nodes();
+        for (idx, node) in nodes.iter_mut().enumerate() {
+            if !node.get_alive() {
+                continue;
+            }
+            if let Some(k) = node.get_mut_key().as_deref()
+                && !k.trim().is_empty()
+            {
+                let _: Option<String> = keys.insert(idx as u32, k.to_string());
+            }
+        }
+        keys
+    }
+
+    /// Determines whether `node` holds sensitive/secret content that must be redacted in snapshots and queries.
+    ///
+    /// # Arguments
+    ///
+    /// - `&SceneNode` - Candidate scene node.
+    /// - `Option<&str>` - Optional explicit `SceneNode` reconciliation key.
+    /// - `Option<&str>` - Optional resolved `test_id`.
+    /// - `Option<&str>` - Optional explicit accessibility label.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when the node's text or input value must be masked with `[REDACTED]`.
+    #[must_use]
+    fn is_sensitive_node(
+        node: &SceneNode,
+        raw_key: Option<&str>,
+        test_id: Option<&str>,
+        a11y_label: Option<&str>,
+    ) -> bool {
+        let key_sensitive: bool = raw_key.is_some_and(Self::is_sensitive_identifier)
+            || test_id.is_some_and(Self::is_sensitive_identifier);
+        match node.get_kind() {
+            NodeKind::Input(inp) => {
+                inp.get_password()
+                    || key_sensitive
+                    || a11y_label.is_some_and(Self::is_sensitive_identifier)
+                    || Self::is_sensitive_identifier(inp.get_placeholder())
+            }
+            NodeKind::Text(_) => key_sensitive,
+            _ => false,
+        }
     }
 
     /// Infers a semantic AI role label from explicit `A11yProps` or fallback `SceneNode` heuristics.
@@ -614,7 +836,30 @@ impl AiSchemaProtocol {
         fallback.to_string()
     }
 
-    /// Exports the full compiled semantic accessibility tree from `app`.
+    /// Returns the static node kind label for `node`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&SceneNode` - Retained scene node.
+    ///
+    /// # Returns
+    ///
+    /// - `&'static str` - Node kind label.
+    #[must_use]
+    fn node_kind_label(node: &SceneNode) -> &'static str {
+        match node.get_kind() {
+            NodeKind::View => KIND_VIEW,
+            NodeKind::Text(_) => KIND_TEXT,
+            NodeKind::Input(_) => KIND_INPUT,
+            NodeKind::Image(_) => KIND_IMAGE,
+            NodeKind::ScrollView => KIND_SCROLL_VIEW,
+            NodeKind::Canvas => KIND_CANVAS,
+            NodeKind::Portal => KIND_PORTAL,
+            NodeKind::Fragment => KIND_FRAGMENT,
+        }
+    }
+
+    /// Exports the full compiled semantic accessibility tree from `app` with sensitive values redacted.
     ///
     /// # Arguments
     ///
@@ -625,22 +870,62 @@ impl AiSchemaProtocol {
     /// - `Vec<AiA11yNode>` - Flattened preorder list of serializable A11y nodes.
     #[must_use]
     pub fn accessibility_tree(app: &App) -> Vec<AiA11yNode> {
+        let sensitive_nodes: HashMap<u32, bool> = app.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                let keys: HashMap<u32, String> = Self::collect_live_node_keys(tree);
+                let mut map: HashMap<u32, bool> = HashMap::new();
+                for (idx, node) in tree.get_nodes().iter().enumerate() {
+                    if !node.get_alive() {
+                        continue;
+                    }
+                    let u_idx: u32 = idx as u32;
+                    let raw_key: Option<&str> = keys.get(&u_idx).map(String::as_str);
+                    let a11y_opt: Option<A11yProps> = node.a11y_props();
+                    let (_, test_id): (Option<String>, Option<String>) =
+                        Self::resolve_node_identity(raw_key, a11y_opt.as_ref());
+                    let a11y_label: Option<&str> = a11y_opt
+                        .as_ref()
+                        .map(|a: &A11yProps| a.get_label().as_str())
+                        .filter(|s: &&str| !s.is_empty());
+                    if Self::is_sensitive_node(node, raw_key, test_id.as_deref(), a11y_label) {
+                        let is_text: bool = matches!(node.get_kind(), NodeKind::Text(_));
+                        let _: Option<bool> = map.insert(u_idx, is_text);
+                    }
+                }
+                map
+            },
+            HashMap::new(),
+        );
         let a11y: A11yTree = app.a11y_tree();
         a11y.get_nodes()
             .iter()
             .map(|n: &A11yNode| {
                 let props: &A11yProps = n.get_props();
+                let node_idx: u32 = n.get_id().get_index();
+                let sensitive_kind: Option<bool> = sensitive_nodes.get(&node_idx).copied();
+                let safe_label: String =
+                    if sensitive_kind == Some(true) && !props.get_label().is_empty() {
+                        AI_SCHEMA_REDACTED_VALUE.to_string()
+                    } else {
+                        props.get_label().clone()
+                    };
+                let safe_value: String =
+                    if sensitive_kind.is_some() && !props.get_value().is_empty() {
+                        AI_SCHEMA_REDACTED_VALUE.to_string()
+                    } else {
+                        props.get_value().clone()
+                    };
                 let child_indices: Vec<u32> = n
                     .get_children()
                     .iter()
                     .map(|cid: &NodeId| cid.get_index())
                     .collect();
                 AiA11yNode {
-                    node_index: n.get_id().get_index(),
+                    node_index: node_idx,
                     role: format!("{:?}", props.get_role()),
-                    label: props.get_label().clone(),
+                    label: safe_label,
                     hint: props.get_hint().clone(),
-                    value: props.get_value().clone(),
+                    value: safe_value,
                     checked: props.checked_state(),
                     disabled: props.get_disabled(),
                     focused: n.get_focused(),
@@ -652,23 +937,29 @@ impl AiSchemaProtocol {
             .collect()
     }
 
-    /// Recursively compiles `node_id` into an `AiLayoutNode` preserving scroll-adjusted screen coordinates.
+    /// Compiles a single `SceneNode` into an `AiLayoutNode` with optional recursive child compilation.
     ///
     /// # Arguments
     ///
     /// - `&SceneTree` - Retained scene tree.
-    /// - `NodeId` - Current node handle.
+    /// - `&HashMap<u32, String>` - Pre-collected reconciliation key lookup map.
+    /// - `NodeId` - Target node handle.
     /// - `Point` - Accumulated ancestor scroll offset.
     /// - `bool` - Whether all ancestors are visible.
+    /// - `bool` - Whether to recursively compile child `AiLayoutNode`s.
+    /// - `&mut usize` - Running counter of redacted sensitive nodes.
     ///
     /// # Returns
     ///
-    /// - `Option<AiLayoutNode>` - Serialized layout node if alive.
-    fn build_layout_node(
+    /// - `Option<AiLayoutNode>` - Compiled layout node if alive.
+    fn build_layout_node_inner(
         tree: &SceneTree,
+        keys: &HashMap<u32, String>,
         node_id: NodeId,
         scroll_offset: Point,
         ancestor_visible: bool,
+        include_children: bool,
+        redacted_count: &mut usize,
     ) -> Option<AiLayoutNode> {
         let node: &SceneNode = tree.get_node(node_id)?;
         let style: Style = node.get_style();
@@ -683,20 +974,36 @@ impl AiSchemaProtocol {
             scroll_offset
         };
         let raw_b: Rect = node.get_layout_box().get_bounds();
-        let screen_b: Rect = Rect::new(
-            raw_b.get_x() - eff_scroll.get_x(),
-            raw_b.get_y() - eff_scroll.get_y(),
-            raw_b.get_width(),
-            raw_b.get_height(),
-        );
+        let self_displayed: bool = ancestor_visible && layout.get_display() != Display::None;
+        let layout_state: AiLayoutState = if !self_displayed
+            || (raw_b.get_width() <= 0.0
+                && raw_b.get_height() <= 0.0
+                && node.get_dirty().intersects(DIRTY_LAYOUT))
+        {
+            AiLayoutState::Unmeasured
+        } else {
+            AiLayoutState::Measured
+        };
+        let (eff_raw_b, screen_b): (Rect, Rect) = if layout_state == AiLayoutState::Unmeasured {
+            (Rect::default(), Rect::default())
+        } else {
+            (
+                raw_b,
+                Rect::new(
+                    raw_b.get_x() - eff_scroll.get_x(),
+                    raw_b.get_y() - eff_scroll.get_y(),
+                    raw_b.get_width(),
+                    raw_b.get_height(),
+                ),
+            )
+        };
         let lbox: LayoutBox = node.get_layout_box();
         let max_scroll_x: f32 =
             (lbox.get_content_size().get_width() - lbox.get_content_bounds().get_width()).max(0.0);
         let max_scroll_y: f32 = (lbox.get_content_size().get_height()
             - lbox.get_content_bounds().get_height())
         .max(0.0);
-        let self_visible: bool =
-            ancestor_visible && layout.get_display() != Display::None && paint.get_opacity() > 0.0;
+        let self_visible: bool = self_displayed && paint.get_opacity() > 0.0;
         let visible: bool =
             self_visible && screen_b.get_width() > 0.0 && screen_b.get_height() > 0.0;
         let interactive: bool = paint.get_cursor() == CursorIcon::Pointer
@@ -715,6 +1022,11 @@ impl AiSchemaProtocol {
             .as_ref()
             .map(|a: &A11yProps| a.get_hint().clone())
             .filter(|s: &String| !s.is_empty());
+        let raw_key: Option<&str> = keys.get(&node_id.get_index()).map(String::as_str);
+        let (stable_key, test_id): (Option<String>, Option<String>) =
+            Self::resolve_node_identity(raw_key, a11y_opt.as_ref());
+        let sensitive: bool =
+            Self::is_sensitive_node(node, raw_key, test_id.as_deref(), a11y_label.as_deref());
         let input_disabled: bool = match node.get_kind() {
             NodeKind::Input(inp) => inp.get_disabled(),
             _ => false,
@@ -724,6 +1036,7 @@ impl AiSchemaProtocol {
                 .as_ref()
                 .map(A11yProps::get_disabled)
                 .unwrap_or(false);
+        let mut was_redacted: bool = false;
         let (kind_str, text, placeholder, value): (
             &'static str,
             Option<String>,
@@ -731,29 +1044,67 @@ impl AiSchemaProtocol {
             Option<String>,
         ) = match node.get_kind() {
             NodeKind::View => (KIND_VIEW, None, None, None),
-            NodeKind::Text(t) => (KIND_TEXT, Some(t.clone()), None, None),
-            NodeKind::Input(inp) => (
-                KIND_INPUT,
-                None,
-                Some(inp.get_placeholder().clone()),
-                Some(inp.get_value().clone()),
-            ),
+            NodeKind::Text(t) => {
+                if sensitive && !t.is_empty() {
+                    was_redacted = true;
+                    (
+                        KIND_TEXT,
+                        Some(AI_SCHEMA_REDACTED_VALUE.to_string()),
+                        None,
+                        None,
+                    )
+                } else {
+                    (KIND_TEXT, Some(t.clone()), None, None)
+                }
+            }
+            NodeKind::Input(inp) => {
+                let safe_val: String = if sensitive && !inp.get_value().is_empty() {
+                    was_redacted = true;
+                    AI_SCHEMA_REDACTED_VALUE.to_string()
+                } else {
+                    inp.get_value().clone()
+                };
+                if sensitive {
+                    was_redacted = true;
+                }
+                (
+                    KIND_INPUT,
+                    None,
+                    Some(inp.get_placeholder().clone()),
+                    Some(safe_val),
+                )
+            }
             NodeKind::Image(_) => (KIND_IMAGE, None, None, None),
             NodeKind::ScrollView => (KIND_SCROLL_VIEW, None, None, None),
             NodeKind::Canvas => (KIND_CANVAS, None, None, None),
             NodeKind::Portal => (KIND_PORTAL, None, None, None),
             NodeKind::Fragment => (KIND_FRAGMENT, None, None, None),
         };
+        if was_redacted {
+            *redacted_count = redacted_count.saturating_add(1);
+        }
         let child_scroll: Point = Point::new(
             eff_scroll.get_x() + lbox.get_scroll_offset().get_x(),
             eff_scroll.get_y() + lbox.get_scroll_offset().get_y(),
         );
-        let mut children: Vec<AiLayoutNode> = Vec::with_capacity(node.get_children().len());
-        for child_id in node.get_children().iter().copied() {
-            if let Some(child_node) =
-                Self::build_layout_node(tree, child_id, child_scroll, self_visible)
-            {
-                children.push(child_node);
+        let mut children: Vec<AiLayoutNode> = if include_children {
+            Vec::with_capacity(node.get_children().len())
+        } else {
+            Vec::new()
+        };
+        if include_children {
+            for child_id in node.get_children().iter().copied() {
+                if let Some(child_node) = Self::build_layout_node_inner(
+                    tree,
+                    keys,
+                    child_id,
+                    child_scroll,
+                    self_visible,
+                    true,
+                    redacted_count,
+                ) {
+                    children.push(child_node);
+                }
             }
         }
         let style_summary: AiStyleSummary = AiStyleSummary {
@@ -776,6 +1127,10 @@ impl AiSchemaProtocol {
             generation: node_id.get_generation(),
             kind: kind_str.to_string(),
             role: Self::infer_role(node),
+            layout_state,
+            stable_key,
+            test_id,
+            redacted: was_redacted,
             a11y_label,
             a11y_hint,
             disabled,
@@ -783,7 +1138,7 @@ impl AiSchemaProtocol {
             placeholder,
             value,
             screen_bounds: AiRect::from_rect(screen_b),
-            layout_bounds: AiRect::from_rect(raw_b),
+            layout_bounds: AiRect::from_rect(eff_raw_b),
             content_size: AiRect::new(
                 0.0,
                 0.0,
@@ -802,6 +1157,403 @@ impl AiSchemaProtocol {
             style: style_summary,
             children,
         })
+    }
+
+    /// Evaluates whether a raw `SceneNode` matches `selector` without allocating an `AiLayoutNode`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&UiSelector` - Semantic selector to test.
+    /// - `&SceneNode` - Live retained scene node.
+    /// - `NodeId` - Handle of `node`.
+    /// - `Option<&str>` - Optional explicit node reconciliation key.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when the raw scene node matches `selector`.
+    #[must_use]
+    fn matches_scene_node(
+        selector: &UiSelector,
+        node: &SceneNode,
+        node_id: NodeId,
+        raw_key: Option<&str>,
+    ) -> bool {
+        let a11y_opt: Option<A11yProps> = node.a11y_props();
+        let a11y_label: Option<&str> = a11y_opt
+            .as_ref()
+            .map(|a: &A11yProps| a.get_label().as_str())
+            .filter(|s: &&str| !s.is_empty());
+        let (stable_key, test_id): (Option<String>, Option<String>) =
+            Self::resolve_node_identity(raw_key, a11y_opt.as_ref());
+        let sensitive: bool =
+            Self::is_sensitive_node(node, raw_key, test_id.as_deref(), a11y_label);
+        match selector {
+            UiSelector::ByText(expected) => match node.get_kind() {
+                NodeKind::Text(t) => {
+                    if sensitive && !t.is_empty() {
+                        expected.as_str() == AI_SCHEMA_REDACTED_VALUE
+                    } else {
+                        t == expected
+                    }
+                }
+                NodeKind::Input(inp) => {
+                    if sensitive && !inp.get_value().is_empty() {
+                        expected.as_str() == AI_SCHEMA_REDACTED_VALUE
+                    } else {
+                        inp.get_value() == expected
+                    }
+                }
+                _ => false,
+            },
+            UiSelector::ByTextContains(sub) => {
+                let text_match: bool = match node.get_kind() {
+                    NodeKind::Text(t) => {
+                        if sensitive && !t.is_empty() {
+                            AI_SCHEMA_REDACTED_VALUE.contains(sub.as_str())
+                        } else {
+                            t.contains(sub.as_str())
+                        }
+                    }
+                    NodeKind::Input(inp) => {
+                        let val_match: bool = if sensitive && !inp.get_value().is_empty() {
+                            AI_SCHEMA_REDACTED_VALUE.contains(sub.as_str())
+                        } else {
+                            inp.get_value().contains(sub.as_str())
+                        };
+                        val_match || inp.get_placeholder().contains(sub.as_str())
+                    }
+                    _ => false,
+                };
+                text_match
+                    || a11y_label
+                        .map(|lbl: &str| lbl.contains(sub.as_str()))
+                        .unwrap_or(false)
+            }
+            UiSelector::ByPlaceholder(expected) => match node.get_kind() {
+                NodeKind::Input(inp) => inp.get_placeholder() == expected,
+                _ => false,
+            },
+            UiSelector::ByInputValue(expected) => match node.get_kind() {
+                NodeKind::Input(inp) => {
+                    if sensitive && !inp.get_value().is_empty() {
+                        expected.as_str() == AI_SCHEMA_REDACTED_VALUE
+                    } else {
+                        inp.get_value() == expected
+                    }
+                }
+                _ => false,
+            },
+            UiSelector::ByA11yLabel(expected) => a11y_label
+                .map(|lbl: &str| lbl.eq_ignore_ascii_case(expected))
+                .unwrap_or(false),
+            UiSelector::ByRole(role_name) => Self::infer_role(node).eq_ignore_ascii_case(role_name),
+            UiSelector::ByKind(kind_name) => {
+                Self::node_kind_label(node).eq_ignore_ascii_case(kind_name)
+            }
+            UiSelector::ByNodeIndex(idx) => node_id.get_index() == *idx,
+            UiSelector::ByTestId(expected) => test_id.as_deref() == Some(expected.as_str()),
+            UiSelector::ByStableKey(expected) => stable_key.as_deref() == Some(expected.as_str()),
+            UiSelector::Interactive => {
+                let paint: PaintStyle = node.style_ref().get_paint();
+                paint.get_cursor() == CursorIcon::Pointer
+                    || node.get_interaction().get_focusable()
+                    || matches!(node.get_kind(), NodeKind::Input(_))
+                    || node
+                        .get_handlers()
+                        .handler_for(&UiEventKind::Click(Point::default()))
+                        .is_some()
+            }
+            UiSelector::Nth { inner, .. } => {
+                Self::matches_scene_node(inner, node, node_id, raw_key)
+            }
+            UiSelector::All(preds) => preds
+                .iter()
+                .all(|p: &UiSelector| Self::matches_scene_node(p, node, node_id, raw_key)),
+        }
+    }
+
+    /// Recursively traverses `SceneTree` directly and constructs `AiLayoutNode` only for matching visible nodes.
+    ///
+    /// # Arguments
+    ///
+    /// - `&SceneTree` - Retained scene tree.
+    /// - `&HashMap<u32, String>` - Pre-collected reconciliation key map.
+    /// - `&UiSelector` - Semantic selector to match.
+    /// - `NodeId` - Current node handle.
+    /// - `Point` - Accumulated ancestor scroll offset.
+    /// - `bool` - Whether all ancestors are visible.
+    /// - `&mut Vec<AiLayoutNode>` - Output matched node buffer.
+    fn collect_direct_scene_matches(
+        tree: &SceneTree,
+        keys: &HashMap<u32, String>,
+        selector: &UiSelector,
+        node_id: NodeId,
+        scroll_offset: Point,
+        ancestor_visible: bool,
+        out: &mut Vec<AiLayoutNode>,
+    ) {
+        if let UiSelector::Nth { index, .. } = selector
+            && out.len() > *index
+        {
+            return;
+        }
+        let Some(node) = tree.get_node(node_id) else {
+            return;
+        };
+        let style: &Style = node.style_ref();
+        let layout: LayoutStyle = style.get_layout();
+        let paint: PaintStyle = style.get_paint();
+        let self_visible: bool =
+            ancestor_visible && layout.get_display() != Display::None && paint.get_opacity() > 0.0;
+        if !self_visible {
+            return;
+        }
+        let is_top_layer: bool =
+            matches!(node.get_kind(), NodeKind::Portal) || layout.get_position() == Position::Fixed;
+        let eff_scroll: Point = if is_top_layer {
+            Point::new(0.0, 0.0)
+        } else {
+            scroll_offset
+        };
+        let raw_b: Rect = node.get_layout_box().get_bounds();
+        let visible: bool = raw_b.get_width() > 0.0 && raw_b.get_height() > 0.0;
+        let raw_key: Option<&str> = keys.get(&node_id.get_index()).map(String::as_str);
+        if visible && Self::matches_scene_node(selector, node, node_id, raw_key) {
+            let mut dummy_redacted: usize = 0;
+            if let Some(matched) = Self::build_layout_node_inner(
+                tree,
+                keys,
+                node_id,
+                eff_scroll,
+                ancestor_visible,
+                true,
+                &mut dummy_redacted,
+            ) {
+                out.push(matched);
+            }
+            if let UiSelector::Nth { index, .. } = selector
+                && out.len() > *index
+            {
+                return;
+            }
+        }
+        let lbox: LayoutBox = node.get_layout_box();
+        let child_scroll: Point = Point::new(
+            eff_scroll.get_x() + lbox.get_scroll_offset().get_x(),
+            eff_scroll.get_y() + lbox.get_scroll_offset().get_y(),
+        );
+        for child_id in node.get_children().iter().copied() {
+            Self::collect_direct_scene_matches(
+                tree,
+                keys,
+                selector,
+                child_id,
+                child_scroll,
+                self_visible,
+                out,
+            );
+        }
+    }
+
+    /// Queries all visible nodes matching `selector` directly over `SceneTree` without building a full `AiRuntimeSnapshot`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&App` - Active application runtime.
+    /// - `&UiSelector` - Semantic UI selector.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<AiLayoutNode>` - Matching inspected nodes honoring `UiSelector::Nth` and privacy redaction.
+    #[must_use]
+    pub fn query_nodes_direct(app: &App, selector: &UiSelector) -> Vec<AiLayoutNode> {
+        let mut all: Vec<AiLayoutNode> = app.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                let keys: HashMap<u32, String> = Self::collect_live_node_keys(tree);
+                let mut matches: Vec<AiLayoutNode> = Vec::new();
+                Self::collect_direct_scene_matches(
+                    tree,
+                    &keys,
+                    selector,
+                    tree.get_root(),
+                    Point::new(0.0, 0.0),
+                    true,
+                    &mut matches,
+                );
+                matches
+            },
+            Vec::new(),
+        );
+        if let UiSelector::Nth { index, .. } = selector {
+            return all.drain(..).nth(*index).into_iter().collect();
+        }
+        all
+    }
+
+    /// Scans `SceneTree` directly for layout anomalies without allocating an `AiLayoutNode` tree.
+    ///
+    /// # Arguments
+    ///
+    /// - `&SceneTree` - Retained scene tree.
+    /// - `NodeId` - Current node handle.
+    /// - `Point` - Accumulated ancestor scroll offset.
+    /// - `f32` - Active logical viewport width.
+    /// - `bool` - Whether all ancestors are displayed with non-zero opacity.
+    /// - `bool` - Whether an in-bounds `Overflow::Scroll` ancestor clips horizontal overflow.
+    /// - `&mut Vec<AiLayoutAnomaly>` - Output anomaly list.
+    fn detect_anomalies_direct(
+        tree: &SceneTree,
+        node_id: NodeId,
+        scroll_offset: Point,
+        viewport_w: f32,
+        ancestor_displayed: bool,
+        ancestor_scroll_clipped: bool,
+        out: &mut Vec<AiLayoutAnomaly>,
+    ) {
+        let Some(node) = tree.get_node(node_id) else {
+            return;
+        };
+        let style: &Style = node.style_ref();
+        let layout: LayoutStyle = style.get_layout();
+        let paint: PaintStyle = style.get_paint();
+        let displayed: bool = ancestor_displayed
+            && layout.get_display() != Display::None
+            && paint.get_opacity() > 0.0;
+        let is_top_layer: bool =
+            matches!(node.get_kind(), NodeKind::Portal) || layout.get_position() == Position::Fixed;
+        let eff_scroll: Point = if is_top_layer {
+            Point::new(0.0, 0.0)
+        } else {
+            scroll_offset
+        };
+        let raw_b: Rect = node.get_layout_box().get_bounds();
+        let b: AiRect = AiRect::new(
+            raw_b.get_x() - eff_scroll.get_x(),
+            raw_b.get_y() - eff_scroll.get_y(),
+            raw_b.get_width(),
+            raw_b.get_height(),
+        );
+        let visible: bool = displayed && b.get_width() > 0.0 && b.get_height() > 0.0;
+        let kind_str: &'static str = Self::node_kind_label(node);
+        if visible && !ancestor_scroll_clipped && b.right() > viewport_w + 2.0 {
+            out.push(AiLayoutAnomaly::new(
+                AiAnomalyKind::HorizontalOverflow,
+                node_id.get_index(),
+                format!(
+                    "Node #{} ({}) overflows viewport right edge ({:.1} > {:.1})",
+                    node_id.get_index(),
+                    kind_str,
+                    b.right(),
+                    viewport_w
+                ),
+                b,
+            ));
+        }
+        if visible && !ancestor_scroll_clipped && b.get_x() < -2.0 {
+            out.push(AiLayoutAnomaly::new(
+                AiAnomalyKind::NegativeBounds,
+                node_id.get_index(),
+                format!(
+                    "Node #{} ({}) extends past viewport left edge (x={:.1})",
+                    node_id.get_index(),
+                    kind_str,
+                    b.get_x()
+                ),
+                b,
+            ));
+        }
+        let is_content_node: bool = match node.get_kind() {
+            NodeKind::Input(_) | NodeKind::Canvas | NodeKind::Image(_) => true,
+            NodeKind::Text(t) => !t.trim().is_empty(),
+            _ => false,
+        };
+        if displayed && is_content_node && (b.get_width() <= 0.0 || b.get_height() <= 0.0) {
+            out.push(AiLayoutAnomaly::new(
+                AiAnomalyKind::ZeroSizeVisible,
+                node_id.get_index(),
+                format!(
+                    "Displayed {} node #{} collapsed to {:.1}x{:.1}px",
+                    kind_str,
+                    node_id.get_index(),
+                    b.get_width(),
+                    b.get_height()
+                ),
+                b,
+            ));
+        }
+        let lbox: LayoutBox = node.get_layout_box();
+        let child_scroll: Point = Point::new(
+            eff_scroll.get_x() + lbox.get_scroll_offset().get_x(),
+            eff_scroll.get_y() + lbox.get_scroll_offset().get_y(),
+        );
+        let mut text_children: Vec<(u32, AiRect)> = Vec::new();
+        for child_id in node.get_children().iter().copied() {
+            if let Some(child) = tree.get_node(child_id)
+                && matches!(child.get_kind(), NodeKind::Text(_))
+            {
+                let cstyle: &Style = child.style_ref();
+                let cdisp: bool = displayed
+                    && cstyle.get_layout().get_display() != Display::None
+                    && cstyle.get_paint().get_opacity() > 0.0;
+                if cdisp {
+                    let cb_raw: Rect = child.get_layout_box().get_bounds();
+                    let c_top: bool = cstyle.get_layout().get_position() == Position::Fixed;
+                    let cs: Point = if c_top {
+                        Point::new(0.0, 0.0)
+                    } else {
+                        child_scroll
+                    };
+                    let cb: AiRect = AiRect::new(
+                        cb_raw.get_x() - cs.get_x(),
+                        cb_raw.get_y() - cs.get_y(),
+                        cb_raw.get_width(),
+                        cb_raw.get_height(),
+                    );
+                    if cb.get_width() > 0.0 && cb.get_height() > 0.0 {
+                        text_children.push((child_id.get_index(), cb));
+                    }
+                }
+            }
+        }
+        for i in 0..text_children.len() {
+            let (idx_a, a): (u32, AiRect) = text_children[i];
+            for &(idx_c, c) in text_children.iter().skip(i + 1) {
+                let ix0: f32 = a.get_x().max(c.get_x());
+                let iy0: f32 = a.get_y().max(c.get_y());
+                let ix1: f32 = a.right().min(c.right());
+                let iy1: f32 = a.bottom().min(c.bottom());
+                if (ix1 - ix0) > 2.0 && (iy1 - iy0) > 2.0 {
+                    out.push(AiLayoutAnomaly::new(
+                        AiAnomalyKind::TextOverlap,
+                        idx_c,
+                        format!(
+                            "Sibling text nodes #{} and #{} overlap by {:.1}x{:.1}px",
+                            idx_a,
+                            idx_c,
+                            ix1 - ix0,
+                            iy1 - iy0
+                        ),
+                        c,
+                    ));
+                }
+            }
+        }
+        let next_scroll_clipped: bool = ancestor_scroll_clipped
+            || (layout.get_overflow() == Overflow::Scroll
+                && b.get_width() > 0.0
+                && b.right() <= viewport_w + 2.0
+                && b.get_x() >= -2.0);
+        for child_id in node.get_children().iter().copied() {
+            Self::detect_anomalies_direct(
+                tree,
+                child_id,
+                child_scroll,
+                viewport_w,
+                displayed,
+                next_scroll_clipped,
+                out,
+            );
+        }
     }
 
     /// Scans `node` recursively to detect viewport overflow, negative bounds, zero-size visible content, and sibling text overlaps.
@@ -912,37 +1664,24 @@ impl AiSchemaProtocol {
         }
     }
 
-    /// Captures a complete `AiRuntimeSnapshot` from a live `App` without custom host hooks.
-    ///
-    /// # Arguments
-    ///
-    /// - `&App` - Active application runtime.
-    /// - `bool` - Whether to include the full recursive `layout_tree`.
-    ///
-    /// # Returns
-    ///
-    /// - `AiRuntimeSnapshot` - Complete serializable runtime & layout snapshot.
-    #[must_use]
-    pub fn snapshot(app: &App, include_layout_tree: bool) -> AiRuntimeSnapshot {
-        Self::snapshot_with_hooks(app, include_layout_tree, None)
-    }
-
-    /// Captures a complete `AiRuntimeSnapshot` enriched with optional host `AiAppHooks` telemetry.
+    /// Captures a snapshot using an explicit schema version tag (`euv.ai.schema.v1` or `euv.ai.schema.v2`).
     ///
     /// # Arguments
     ///
     /// - `&App` - Active application runtime.
     /// - `bool` - Whether to include the full recursive `layout_tree`.
     /// - `Option<&AiAppHooks>` - Optional host route/theme/game telemetry hooks.
+    /// - `&str` - Schema version string (`AI_SCHEMA_PROTOCOL_VERSION` or `AI_SCHEMA_V2_PROTOCOL_VERSION`).
     ///
     /// # Returns
     ///
-    /// - `AiRuntimeSnapshot` - Complete serializable runtime, reactive, A11y, game, & layout snapshot.
+    /// - `AiRuntimeSnapshot` - Complete serializable runtime & layout snapshot.
     #[must_use]
-    pub fn snapshot_with_hooks(
+    fn snapshot_versioned(
         app: &App,
         include_layout_tree: bool,
         hooks: Option<&AiAppHooks>,
+        schema_ver: &str,
     ) -> AiRuntimeSnapshot {
         let ws: WindowState = app.get_window_state();
         let stats: FrameStats = app.get_renderer().get_last_stats();
@@ -963,32 +1702,57 @@ impl AiSchemaProtocol {
             active_scheme,
             focused: ws.get_focused(),
         };
-        let (live_count, rev, focus_mgr, root_tree): (
+        let (live_count, rev, focus_mgr, root_tree, redacted_count, direct_anomalies): (
             usize,
             u64,
             FocusManager,
             Option<AiLayoutNode>,
-        ) = app.get_scene().with_read(
-            |tree: &SceneTree| {
-                let root_node: Option<AiLayoutNode> =
-                    Self::build_layout_node(tree, tree.get_root(), Point::new(0.0, 0.0), true);
+            usize,
+            Vec<AiLayoutAnomaly>,
+        ) = app.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                let mut redacted: usize = 0;
+                let mut anomalies: Vec<AiLayoutAnomaly> = Vec::new();
+                let root_node: Option<AiLayoutNode> = if include_layout_tree {
+                    let keys: HashMap<u32, String> = Self::collect_live_node_keys(tree);
+                    Self::build_layout_node_inner(
+                        tree,
+                        &keys,
+                        tree.get_root(),
+                        Point::new(0.0, 0.0),
+                        true,
+                        true,
+                        &mut redacted,
+                    )
+                } else {
+                    Self::detect_anomalies_direct(
+                        tree,
+                        tree.get_root(),
+                        Point::new(0.0, 0.0),
+                        ws.get_logical_width(),
+                        true,
+                        false,
+                        &mut anomalies,
+                    );
+                    None
+                };
                 (
                     tree.live_node_count(),
                     tree.get_revision(),
                     tree.get_focus(),
                     root_node,
+                    redacted,
+                    anomalies,
                 )
             },
-            (0, 0, FocusManager::default(), None),
+            (0, 0, FocusManager::default(), None, 0, Vec::new()),
         );
         let measured_fps: f32 = app.get_context().get_live_fps().get_untracked();
-        let frame_time_ms: f32 = if measured_fps > 0.1 {
-            (1000.0 / measured_fps * 100.0).round() * 0.01
-        } else {
-            (app.get_frame_clock().get_delta_secs() * 1000.0 * 100.0).round() * 0.01
-        };
+        let frame_time_ms: f32 =
+            (app.get_frame_clock().get_delta_secs() * 1000.0 * 100.0).round() * 0.01;
+        let frame_id: u64 = stats.get_frame_index();
         let perf_info: AiPerfInfo = AiPerfInfo {
-            frame_index: stats.get_frame_index(),
+            frame_index: frame_id,
             active_mode: format!("{:?}", stats.get_active_mode()),
             active_backend: format!("{:?}", stats.get_active_backend()),
             measured_fps,
@@ -1037,7 +1801,7 @@ impl AiSchemaProtocol {
             protocols,
             a11y_nodes.len(),
         );
-        let mut anomalies: Vec<AiLayoutAnomaly> = Vec::new();
+        let mut anomalies: Vec<AiLayoutAnomaly> = direct_anomalies;
         if let Some(root_ref) = root_tree.as_ref() {
             Self::detect_anomalies(
                 root_ref,
@@ -1048,7 +1812,11 @@ impl AiSchemaProtocol {
             );
         }
         AiRuntimeSnapshot {
-            protocol_version: AI_SCHEMA_PROTOCOL_VERSION.to_string(),
+            protocol_version: schema_ver.to_string(),
+            schema_version: schema_ver.to_string(),
+            frame_id,
+            scene_revision: rev,
+            redacted_field_count: redacted_count,
             window: win_info,
             performance: perf_info,
             reactive: reactive_info,
@@ -1056,12 +1824,125 @@ impl AiSchemaProtocol {
             runtime: runtime_meta,
             game_stats,
             accessibility_tree: a11y_nodes,
-            layout_tree: if include_layout_tree { root_tree } else { None },
+            layout_tree: root_tree,
             anomalies,
         }
     }
 
-    /// Executes a live hit test at logical coordinates `(x, y)` and returns the leaf + ancestor chain.
+    /// Captures a complete v1 `AiRuntimeSnapshot` from a live `App` without custom host hooks.
+    ///
+    /// # Arguments
+    ///
+    /// - `&App` - Active application runtime.
+    /// - `bool` - Whether to include the full recursive `layout_tree`.
+    ///
+    /// # Returns
+    ///
+    /// - `AiRuntimeSnapshot` - Complete serializable runtime & layout snapshot.
+    #[must_use]
+    pub fn snapshot(app: &App, include_layout_tree: bool) -> AiRuntimeSnapshot {
+        Self::snapshot_with_hooks(app, include_layout_tree, None)
+    }
+
+    /// Captures a complete v1 `AiRuntimeSnapshot` enriched with optional host `AiAppHooks` telemetry.
+    ///
+    /// # Arguments
+    ///
+    /// - `&App` - Active application runtime.
+    /// - `bool` - Whether to include the full recursive `layout_tree`.
+    /// - `Option<&AiAppHooks>` - Optional host route/theme/game telemetry hooks.
+    ///
+    /// # Returns
+    ///
+    /// - `AiRuntimeSnapshot` - Complete serializable runtime, reactive, A11y, game, & layout snapshot.
+    #[must_use]
+    pub fn snapshot_with_hooks(
+        app: &App,
+        include_layout_tree: bool,
+        hooks: Option<&AiAppHooks>,
+    ) -> AiRuntimeSnapshot {
+        Self::snapshot_versioned(app, include_layout_tree, hooks, AI_SCHEMA_PROTOCOL_VERSION)
+    }
+
+    /// Captures a complete AI Schema v2 (`euv.ai.schema.v2`) runtime & layout snapshot.
+    ///
+    /// # Arguments
+    ///
+    /// - `&App` - Active application runtime.
+    /// - `bool` - Whether to include the full recursive `layout_tree`.
+    /// - `Option<&AiAppHooks>` - Optional host route/theme/game telemetry hooks.
+    ///
+    /// # Returns
+    ///
+    /// - `AiRuntimeSnapshot` - Complete v2 runtime snapshot with `frame_id`, `scene_revision`, `layout_state`, and redaction counts.
+    #[must_use]
+    pub fn snapshot_v2(
+        app: &App,
+        include_layout_tree: bool,
+        hooks: Option<&AiAppHooks>,
+    ) -> AiRuntimeSnapshot {
+        Self::snapshot_versioned(
+            app,
+            include_layout_tree,
+            hooks,
+            AI_SCHEMA_V2_PROTOCOL_VERSION,
+        )
+    }
+
+    /// Captures a deterministic same-frame AI Schema v2 diagnostic bundle pairing `(frame_id, scene_revision, snapshot, optional_rgba_fnv1a)`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&App` - Active application runtime.
+    /// - `bool` - Whether to include the full recursive `layout_tree`.
+    /// - `bool` - Whether to compute an FNV-1a digest of the matching frame's CPU RGBA8 framebuffer.
+    /// - `Option<&AiAppHooks>` - Optional host route/theme/game telemetry hooks.
+    ///
+    /// # Returns
+    ///
+    /// - `AiSameFrameCapture` - Synchronized same-frame snapshot and optional pixel digest.
+    #[must_use]
+    pub fn capture_same_frame(
+        app: &App,
+        include_layout_tree: bool,
+        include_rgba_hash: bool,
+        hooks: Option<&AiAppHooks>,
+    ) -> AiSameFrameCapture {
+        let last_rendered_rev: u64 = app.get_last_rendered_revision();
+        let snapshot: AiRuntimeSnapshot = Self::snapshot_v2(app, include_layout_tree, hooks);
+        let frame_id: u64 = snapshot.get_frame_id();
+        let scene_revision: u64 = snapshot.get_scene_revision();
+        let (rgba_fnv1a, capture_source): (Option<u64>, &'static str) = if include_rgba_hash {
+            match app.get_renderer().framebuffer() {
+                Some(fb) => {
+                    let source: &'static str = match app.get_renderer().get_active_mode() {
+                        RenderMode::Software => CAPTURE_SOURCE_SOFTWARE,
+                        RenderMode::Hybrid => CAPTURE_SOURCE_HYBRID,
+                        RenderMode::Hardware | RenderMode::Auto => CAPTURE_SOURCE_HARDWARE,
+                    };
+                    (Some(fb.fnv1a_hash()), source)
+                }
+                None => (None, CAPTURE_SOURCE_NONE),
+            }
+        } else {
+            (None, CAPTURE_SOURCE_NONE)
+        };
+        let synced: bool = if include_rgba_hash {
+            rgba_fnv1a.is_some() && last_rendered_rev == scene_revision && frame_id > 0
+        } else {
+            true
+        };
+        AiSameFrameCapture {
+            frame_id,
+            scene_revision,
+            snapshot,
+            rgba_fnv1a,
+            capture_source: capture_source.to_string(),
+            synced,
+        }
+    }
+
+    /// Executes a live hit test at logical coordinates `(x, y)` and returns the leaf + ancestor chain with sensitive content redacted.
     ///
     /// # Arguments
     ///
@@ -1074,8 +1955,8 @@ impl AiSchemaProtocol {
     /// - `AiHitTestResult` - Hit node metadata and ancestor chain.
     #[must_use]
     pub fn hit_test_at(app: &App, x: f32, y: f32) -> AiHitTestResult {
-        app.get_scene().with_read(
-            |tree: &SceneTree| {
+        app.get_scene().with_write(
+            |tree: &mut SceneTree| {
                 let hit: Option<NodeId> = hit_test(tree, Point::new(x, y));
                 let mut ancestors: Vec<u32> = Vec::new();
                 let mut cursor: Option<NodeId> = hit;
@@ -1083,12 +1964,40 @@ impl AiSchemaProtocol {
                     ancestors.push(nid.get_index());
                     cursor = tree.get_node(nid).and_then(SceneNode::parent_id);
                 }
+                let raw_key: Option<String> = hit
+                    .and_then(|nid: NodeId| tree.get_node_mut(nid))
+                    .and_then(|node: &mut SceneNode| node.get_mut_key().clone());
                 let (role, text): (Option<String>, Option<String>) =
                     match hit.and_then(|nid: NodeId| tree.get_node(nid)) {
                         Some(node) => {
+                            let a11y_opt: Option<A11yProps> = node.a11y_props();
+                            let a11y_label: Option<&str> = a11y_opt
+                                .as_ref()
+                                .map(|a: &A11yProps| a.get_label().as_str())
+                                .filter(|s: &&str| !s.is_empty());
+                            let (_, test_id): (Option<String>, Option<String>) =
+                                Self::resolve_node_identity(raw_key.as_deref(), a11y_opt.as_ref());
+                            let sensitive: bool = Self::is_sensitive_node(
+                                node,
+                                raw_key.as_deref(),
+                                test_id.as_deref(),
+                                a11y_label,
+                            );
                             let txt: Option<String> = match node.get_kind() {
-                                NodeKind::Text(t) => Some(t.clone()),
-                                NodeKind::Input(i) => Some(i.get_value().clone()),
+                                NodeKind::Text(t) => {
+                                    if sensitive && !t.is_empty() {
+                                        Some(AI_SCHEMA_REDACTED_VALUE.to_string())
+                                    } else {
+                                        Some(t.clone())
+                                    }
+                                }
+                                NodeKind::Input(i) => {
+                                    if sensitive && !i.get_value().is_empty() {
+                                        Some(AI_SCHEMA_REDACTED_VALUE.to_string())
+                                    } else {
+                                        Some(i.get_value().clone())
+                                    }
+                                }
                                 _ => None,
                             };
                             (Some(Self::infer_role(node)), txt)
@@ -1106,7 +2015,7 @@ impl AiSchemaProtocol {
     /// # Arguments
     ///
     /// - `&mut App` - Mutable application runtime.
-    /// - `AiSchemaRequest` - AI Schema v1 command.
+    /// - `AiSchemaRequest` - AI Schema v1/v2 command.
     ///
     /// # Returns
     ///
@@ -1120,7 +2029,7 @@ impl AiSchemaProtocol {
     /// # Arguments
     ///
     /// - `&mut App` - Mutable application runtime.
-    /// - `AiSchemaRequest` - AI Schema v1 command.
+    /// - `AiSchemaRequest` - AI Schema v1/v2 command.
     /// - `Option<&AiAppHooks>` - Optional host route/theme/game control hooks.
     ///
     /// # Returns
@@ -1146,6 +2055,17 @@ impl AiSchemaProtocol {
                     Err(err) => AiSchemaResponse::failure(err.to_string()),
                 }
             }
+            AiSchemaRequest::SnapshotV2 {
+                include_layout_tree,
+                include_rgba_hash,
+            } => {
+                let capture: AiSameFrameCapture =
+                    Self::capture_same_frame(app, include_layout_tree, include_rgba_hash, hooks);
+                match to_value(capture) {
+                    Ok(v) => AiSchemaResponse::success_v2(v),
+                    Err(err) => AiSchemaResponse::failure(err.to_string()),
+                }
+            }
             AiSchemaRequest::AccessibilityTree => {
                 let nodes: Vec<AiA11yNode> = Self::accessibility_tree(app);
                 match to_value(nodes) {
@@ -1154,11 +2074,7 @@ impl AiSchemaProtocol {
                 }
             }
             AiSchemaRequest::QueryNodes { selector } => {
-                let snap: AiRuntimeSnapshot = Self::snapshot_with_hooks(app, true, hooks);
-                let matches: Vec<AiLayoutNode> = snap
-                    .root_layout_node()
-                    .map(|r: &AiLayoutNode| r.find_matches(&selector))
-                    .unwrap_or_default();
+                let matches: Vec<AiLayoutNode> = Self::query_nodes_direct(app, &selector);
                 match to_value(matches) {
                     Ok(v) => AiSchemaResponse::success(v),
                     Err(err) => AiSchemaResponse::failure(err.to_string()),
@@ -1255,7 +2171,7 @@ impl AiSchemaProtocol {
                         None => {
                             if let Some(m) = mode.as_deref() {
                                 let wid: WindowId = app.get_window_state().get_id();
-                                let parsed: ThemeMode = if m.eq_ignore_ascii_case("Dark") {
+                                let parsed: ThemeMode = if m.eq_ignore_ascii_case(THEME_MODE_DARK) {
                                     ThemeMode::Dark
                                 } else {
                                     ThemeMode::Light
@@ -1289,7 +2205,7 @@ impl AiSchemaProtocol {
                                     && let Some(obj) = v.as_object_mut()
                                 {
                                     let _: Option<Value> =
-                                        obj.insert("control_result".to_string(), extra);
+                                        obj.insert(CONTROL_RESULT_FIELD.to_string(), extra);
                                 }
                                 AiSchemaResponse::success(v)
                             }
@@ -1304,6 +2220,28 @@ impl AiSchemaProtocol {
                 let report: UiTestReport = auto.run_script(&script);
                 match to_value(report) {
                     Ok(v) => AiSchemaResponse::success(v),
+                    Err(err) => AiSchemaResponse::failure(err.to_string()),
+                }
+            }
+            AiSchemaRequest::RunE2eFlow {
+                flow,
+                run_id,
+                app_build,
+            } => {
+                let eff_run_id: &str = if run_id.trim().is_empty() {
+                    DEFAULT_E2E_RUN_ID
+                } else {
+                    run_id.as_str()
+                };
+                let eff_build: &str = if app_build.trim().is_empty() {
+                    DEFAULT_E2E_APP_BUILD
+                } else {
+                    app_build.as_str()
+                };
+                let replayer: UiE2eReplayer = UiE2eReplayer::for_build(eff_build);
+                let result: UiE2eResultV1 = replayer.replay_once(app, &flow, eff_run_id);
+                match to_value(result) {
+                    Ok(v) => AiSchemaResponse::success_v2(v),
                     Err(err) => AiSchemaResponse::failure(err.to_string()),
                 }
             }

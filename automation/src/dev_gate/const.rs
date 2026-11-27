@@ -1,5 +1,11 @@
-/// Default localhost address for the dev-only AI Schema v1 HTTP/JSON inspector server.
+/// Default localhost address for the dev-only AI Schema HTTP/JSON inspector server.
 pub const DEV_AI_INSPECTOR_ADDR: &str = "127.0.0.1:4174";
+/// Default fixed bounded control queue capacity between the async network worker and UI thread.
+pub const DEV_BRIDGE_QUEUE_CAPACITY: usize = 16;
+/// Structured backpressure error code emitted with HTTP `429 Too Many Requests` when the bounded control queue is saturated.
+pub const DEV_BRIDGE_ERR_BACKPRESSURE: &str = "BACKPRESSURE";
+/// Default UI-thread frame budget in microseconds for `DevAutomationBridge::poll`.
+pub const DEV_BRIDGE_DEFAULT_BUDGET_US: u64 = 2_000;
 
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 pub(crate) const HTTP_METHOD_OPTIONS: &str = "OPTIONS";
@@ -11,6 +17,8 @@ pub(crate) const HTTP_PATH_AI_SCHEMA: &str = "/ai/schema";
 pub(crate) const HTTP_PATH_SNAPSHOT: &str = "/snapshot";
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 pub(crate) const HTTP_PATH_AI_SNAPSHOT: &str = "/ai/snapshot";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_PATH_AI_SNAPSHOT_V2: &str = "/ai/snapshot/v2";
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 pub(crate) const HTTP_PATH_AI_A11Y: &str = "/ai/a11y";
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
@@ -24,14 +32,54 @@ pub(crate) const HTTP_PATH_AI_ACTION: &str = "/ai/action";
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 pub(crate) const HTTP_PATH_AI_SCRIPT: &str = "/ai/script";
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_PATH_AI_E2E: &str = "/ai/e2e";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 pub(crate) const HTTP_HEADER_CONTENT_LENGTH: &str = "content-length";
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 pub(crate) const HTTP_HEADER_SEP_BYTES: &[u8] = b"\r\n\r\n";
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_STATUS_OK: &str = "200 OK";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_STATUS_BAD_REQUEST: &str = "400 Bad Request";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_STATUS_TOO_MANY_REQUESTS: &str = "429 Too Many Requests";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_STATUS_SERVICE_UNAVAILABLE: &str = "503 Service Unavailable";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_STATUS_GATEWAY_TIMEOUT: &str = "504 Gateway Timeout";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 pub(crate) const HTTP_MAX_BODY_BYTES: usize = 2 * 1024 * 1024;
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_MAX_CONCURRENT_SOCKETS: usize = 64;
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_READ_TIMEOUT_MS: u64 = 500;
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_UI_REPLY_TIMEOUT_MS: u64 = 5_000;
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_WRITE_TIMEOUT_MS: u64 = 250;
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const BRIDGE_WORKER_NAME: &str = "euv-dev-bridge";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const BRIDGE_IDLE_SLEEP_US: u64 = 250;
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 pub(crate) const HTTP_OPTIONS_RESPONSE: &str = "HTTP/1.1 204 No Content\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 pub(crate) const ERR_INVALID_ACTION_JSON: &str = "Invalid AI action JSON";
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 pub(crate) const ERR_INVALID_SCRIPT_JSON: &str = "Invalid AI test script JSON";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const ERR_INVALID_E2E_JSON: &str = "Invalid UI E2E flow JSON";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const ERR_QUEUE_SATURATED: &str = "Dev automation control queue is saturated";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const ERR_BRIDGE_SHUTDOWN: &str = "Dev automation bridge is shutting down";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const ERR_UI_TIMEOUT: &str = "UI thread did not respond within timeout";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const ERR_CODE_INVALID_JSON: &str = "INVALID_JSON";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const ERR_CODE_BRIDGE_SHUTDOWN: &str = "BRIDGE_SHUTDOWN";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HEALTH_STATUS_OK: &str = "ok";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const ERR_CODE_UI_TIMEOUT: &str = "UI_TIMEOUT";

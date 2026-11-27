@@ -86,6 +86,35 @@ fn mount_test_app() -> (App, Signal<i32>, Signal<String>) {
     (app, count, typed)
 }
 
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+fn send_http_and_poll(
+    addr: &str,
+    request_bytes: Vec<u8>,
+    bridge: &mut DevAutomationBridge,
+    app: &mut App,
+) -> String {
+    let target: String = addr.to_string();
+    let done: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    let done_bg: Arc<AtomicBool> = Arc::clone(&done);
+    let client_handle: JoinHandle<String> = thread::spawn(move || {
+        let mut client: TcpStream = TcpStream::connect(&target).unwrap();
+        client
+            .set_read_timeout(Some(Duration::from_secs(3)))
+            .unwrap();
+        client.write_all(&request_bytes).unwrap();
+        let mut buf: String = String::new();
+        let _: usize = client.read_to_string(&mut buf).unwrap();
+        done_bg.store(true, Ordering::Release);
+        buf
+    });
+    let deadline: Instant = Instant::now() + Duration::from_secs(3);
+    while !done.load(Ordering::Acquire) && Instant::now() < deadline {
+        let _: usize = bridge.poll_budgeted(app, 2_000);
+        sleep(Duration::from_micros(200));
+    }
+    client_handle.join().unwrap()
+}
+
 #[test]
 fn ui_automator_queries_clicks_hovers_types_resizes_and_runs_scripts() {
     let (mut app, count, typed): (App, Signal<i32>, Signal<String>) = mount_test_app();
@@ -171,22 +200,27 @@ fn dev_automation_bridge_serves_ai_schema_over_loopback_when_debug_assertions_en
     #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
     {
         let addr: String = bridge.bound_address().unwrap().to_string();
-        let mut client: TcpStream = TcpStream::connect(&addr).unwrap();
-        client
-            .write_all(b"GET /schema HTTP/1.1\r\nHost: localhost\r\n\r\n")
-            .unwrap();
-        assert_eq!(bridge.poll(&mut app), 1);
-        let mut buf: String = String::new();
-        let _: usize = client.read_to_string(&mut buf).unwrap();
+        let buf: String = send_http_and_poll(
+            &addr,
+            b"GET /schema HTTP/1.1\r\nHost: localhost\r\n\r\n".to_vec(),
+            &mut bridge,
+            &mut app,
+        );
         assert!(buf.contains(AI_SCHEMA_PROTOCOL_VERSION));
-        let mut opt_client: TcpStream = TcpStream::connect(&addr).unwrap();
-        opt_client
-            .write_all(b"OPTIONS /ai/action HTTP/1.1\r\nHost: localhost\r\n\r\n")
-            .unwrap();
-        assert_eq!(bridge.poll(&mut app), 1);
-        let mut opt_buf: String = String::new();
-        let _: usize = opt_client.read_to_string(&mut opt_buf).unwrap();
+        let opt_buf: String = send_http_and_poll(
+            &addr,
+            b"OPTIONS /ai/action HTTP/1.1\r\nHost: localhost\r\n\r\n".to_vec(),
+            &mut bridge,
+            &mut app,
+        );
         assert!(opt_buf.contains("204 No Content"));
+        let health_buf: String = send_http_and_poll(
+            &addr,
+            b"GET /ai/health HTTP/1.1\r\nHost: localhost\r\n\r\n".to_vec(),
+            &mut bridge,
+            &mut app,
+        );
+        assert!(health_buf.contains(AI_SCHEMA_V2_PROTOCOL_VERSION));
         let action_json: &str =
             r#"{"kind":"Click","selector":{"type":"ByA11yLabel","value":"Increment Action"}}"#;
         let post_req: String = format!(
@@ -194,26 +228,245 @@ fn dev_automation_bridge_serves_ai_schema_over_loopback_when_debug_assertions_en
             action_json.len(),
             action_json
         );
-        let mut act_client: TcpStream = TcpStream::connect(&addr).unwrap();
-        act_client.write_all(post_req.as_bytes()).unwrap();
-        assert_eq!(bridge.poll(&mut app), 1);
-        let mut act_buf: String = String::new();
-        let _: usize = act_client.read_to_string(&mut act_buf).unwrap();
+        let act_buf: String =
+            send_http_and_poll(&addr, post_req.into_bytes(), &mut bridge, &mut app);
         assert!(act_buf.contains(r#""ok":true"#));
-        let mut a11y_client: TcpStream = TcpStream::connect(&addr).unwrap();
-        a11y_client
-            .write_all(b"GET /ai/a11y HTTP/1.1\r\nHost: localhost\r\n\r\n")
-            .unwrap();
-        assert_eq!(bridge.poll(&mut app), 1);
-        let mut a11y_buf: String = String::new();
-        let _: usize = a11y_client.read_to_string(&mut a11y_buf).unwrap();
+        let a11y_buf: String = send_http_and_poll(
+            &addr,
+            b"GET /ai/a11y HTTP/1.1\r\nHost: localhost\r\n\r\n".to_vec(),
+            &mut bridge,
+            &mut app,
+        );
         assert!(a11y_buf.contains("Increment Action"));
+        let v2_buf: String = send_http_and_poll(
+            &addr,
+            b"GET /ai/snapshot/v2 HTTP/1.1\r\nHost: localhost\r\n\r\n".to_vec(),
+            &mut bridge,
+            &mut app,
+        );
+        assert!(v2_buf.contains(AI_SCHEMA_V2_PROTOCOL_VERSION));
+        assert!(bridge.requests_served() >= 5);
     }
     #[cfg(not(all(debug_assertions, not(target_arch = "wasm32"))))]
     {
         assert!(bridge.bound_address().is_none());
         assert_eq!(bridge.poll(&mut app), 0);
     }
+}
+
+#[test]
+fn dev_automation_bridge_non_blocking_latency_and_backpressure_work() {
+    let (mut app, _, _): (App, Signal<i32>, Signal<String>) = mount_test_app();
+    #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+    {
+        let mut bridge: DevAutomationBridge =
+            DevAutomationBridge::start_with_capacity("127.0.0.1:0", 2);
+        assert_eq!(bridge.queue_capacity(), 2);
+        let addr: String = bridge.bound_address().unwrap().to_string();
+        let mut latencies_us: Vec<u128> = Vec::with_capacity(200);
+        for _ in 0..200usize {
+            let started: Instant = Instant::now();
+            let served: usize = bridge.poll_budgeted(&mut app, 500);
+            let elapsed: u128 = started.elapsed().as_micros();
+            assert_eq!(served, 0);
+            latencies_us.push(elapsed);
+        }
+        latencies_us.sort();
+        let p99_us: u128 = latencies_us[197];
+        assert!(p99_us < 500, "expected UI poll p99 < 500us, got {p99_us}us");
+        let mut handles: Vec<JoinHandle<String>> = Vec::with_capacity(8);
+        for _ in 0..8usize {
+            let target: String = addr.clone();
+            handles.push(thread::spawn(move || {
+                let mut stream: TcpStream = TcpStream::connect(&target).unwrap();
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(3)))
+                    .unwrap();
+                stream
+                    .write_all(b"GET /schema HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                    .unwrap();
+                let mut reply: String = String::new();
+                let _: usize = stream.read_to_string(&mut reply).unwrap();
+                reply
+            }));
+        }
+        let sat_deadline: Instant = Instant::now() + Duration::from_secs(2);
+        while bridge.backpressure_rejected() == 0 && Instant::now() < sat_deadline {
+            sleep(Duration::from_millis(1));
+        }
+        assert!(bridge.backpressure_rejected() >= 1);
+        let drain_deadline: Instant = Instant::now() + Duration::from_secs(3);
+        while bridge.requests_served() + bridge.backpressure_rejected() < 8
+            && Instant::now() < drain_deadline
+        {
+            let _: usize = bridge.poll_budgeted(&mut app, 2_000);
+            sleep(Duration::from_micros(250));
+        }
+        let mut ok_count: usize = 0;
+        let mut rejected_count: usize = 0;
+        for handle in handles.into_iter() {
+            let reply: String = handle.join().unwrap();
+            if reply.contains("429 Too Many Requests")
+                && reply.contains(DEV_BRIDGE_ERR_BACKPRESSURE)
+            {
+                rejected_count += 1;
+            } else if reply.contains("200 OK") {
+                ok_count += 1;
+            }
+        }
+        assert!(rejected_count >= 1);
+        assert!(ok_count >= 2);
+        assert_eq!(ok_count + rejected_count, 8);
+    }
+    #[cfg(not(all(debug_assertions, not(target_arch = "wasm32"))))]
+    {
+        let mut bridge: DevAutomationBridge = DevAutomationBridge::start("127.0.0.1:0");
+        assert_eq!(bridge.poll_budgeted(&mut app, 500), 0);
+    }
+}
+
+#[test]
+fn ai_schema_v2_direct_query_parity_same_frame_layout_state_and_redaction() {
+    reset_reactive_runtime();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(640, 480).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let status_holder: Rc<RefCell<Option<NodeId>>> = Rc::new(RefCell::new(None));
+    let status_holder_mount: Rc<RefCell<Option<NodeId>>> = Rc::clone(&status_holder);
+    let _: NodeId = app.mount(move || {
+        let mut ctx: Context = current_context();
+        let root: NodeId = ctx.view(
+            Style::default()
+                .column()
+                .width(Length::Percent(100.0))
+                .height(Length::Percent(100.0))
+                .padding(Edges::all(16.0))
+                .gap(8.0),
+        );
+        let title: NodeId = ctx.text(
+            "Account Settings".to_string(),
+            Style::default().font_size(16.0),
+        );
+        let mut title_a11y: A11yProps =
+            A11yProps::new(A11yRole::Heading, "Settings Title".to_string());
+        title_a11y.set_hint("test_id:settings.heading".to_string());
+        ctx.set_a11y(title, title_a11y);
+        let pwd: NodeId = ctx.input(
+            InputNodeState::new(
+                "SuperSecret99".to_string(),
+                "Password".to_string(),
+                13,
+                true,
+                false,
+                false,
+            ),
+            Style::default()
+                .width(Length::Px(220.0))
+                .height(Length::Px(32.0)),
+        );
+        let token_text: NodeId = ctx.text("ghp_live_token_abc".to_string(), Style::default());
+        let hidden_panel: NodeId = ctx.view(Style::default().display(Display::None));
+        let hidden_text: NodeId = ctx.text("Hidden Detail".to_string(), Style::default());
+        ctx.append(hidden_panel, hidden_text);
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                if let Some(pnode) = tree.get_node_mut(pwd) {
+                    let _: &mut SceneNode = pnode.set_key(Some("login.password".to_string()));
+                }
+                if let Some(tnode) = tree.get_node_mut(token_text) {
+                    let _: &mut SceneNode = tnode.set_key(Some("auth.api_token".to_string()));
+                }
+                if let Some(hnode) = tree.get_node_mut(hidden_panel) {
+                    let _: &mut SceneNode = hnode.set_key(Some("panel.hidden".to_string()));
+                }
+            },
+            (),
+        );
+        *status_holder_mount.borrow_mut() = Some(title);
+        ctx.append(root, title);
+        ctx.append(root, pwd);
+        ctx.append(root, token_text);
+        ctx.append(root, hidden_panel);
+        root
+    });
+    let _: FrameStats = app.step_frame().unwrap();
+    let capture: AiSameFrameCapture = AiSchemaProtocol::capture_same_frame(&app, true, true, None);
+    assert!(capture.get_synced());
+    assert!(capture.rgba_fnv1a_value().is_some());
+    assert_eq!(
+        capture.get_snapshot().get_schema_version(),
+        AI_SCHEMA_V2_PROTOCOL_VERSION
+    );
+    assert_eq!(
+        capture.get_frame_id(),
+        capture.get_snapshot().get_frame_id()
+    );
+    assert_eq!(
+        capture.get_frame_id(),
+        capture.get_snapshot().get_performance().get_frame_index()
+    );
+    assert_eq!(
+        capture.get_scene_revision(),
+        capture.get_snapshot().get_scene_revision()
+    );
+    assert!(capture.get_snapshot().get_redacted_field_count() >= 2);
+    let snap_json: String = to_string(capture.get_snapshot()).unwrap();
+    assert!(!snap_json.contains("SuperSecret99"));
+    assert!(!snap_json.contains("ghp_live_token_abc"));
+    assert!(snap_json.contains(AI_SCHEMA_REDACTED_VALUE));
+    let root_node: &AiLayoutNode = capture.get_snapshot().root_layout_node().unwrap();
+    let mut stack: Vec<&AiLayoutNode> = vec![root_node];
+    let mut hidden_matches: Vec<&AiLayoutNode> = Vec::new();
+    while let Some(cur) = stack.pop() {
+        if cur.test_id_value() == Some("panel.hidden") {
+            hidden_matches.push(cur);
+        }
+        for child in cur.get_children().iter() {
+            stack.push(child);
+        }
+    }
+    assert_eq!(hidden_matches.len(), 1);
+    assert_eq!(
+        hidden_matches[0].get_layout_state(),
+        AiLayoutState::Unmeasured
+    );
+    assert_eq!(hidden_matches[0].get_screen_bounds().get_width(), 0.0);
+    let selectors: Vec<UiSelector> = vec![
+        UiSelector::test_id("settings.heading"),
+        UiSelector::stable_key("login.password"),
+        UiSelector::test_id("auth.api_token"),
+        UiSelector::placeholder("Password"),
+        UiSelector::role("Heading"),
+        UiSelector::Interactive,
+        UiSelector::kind("Text").nth(0),
+    ];
+    let mut auto: UiAutomator<'_> = UiAutomator::new(&mut app);
+    for sel in selectors.iter() {
+        let direct: Vec<AiLayoutNode> = auto.query_all(sel);
+        let from_snap: Vec<AiLayoutNode> = root_node.find_matches(sel);
+        assert_eq!(direct, from_snap);
+    }
+    let pwd_matches: Vec<AiLayoutNode> = auto.query_all(&UiSelector::test_id("login.password"));
+    assert_eq!(pwd_matches.len(), 1);
+    assert!(pwd_matches[0].get_redacted());
+    assert_eq!(pwd_matches[0].input_value(), Some(AI_SCHEMA_REDACTED_VALUE));
+    let _: FrameStats = auto
+        .clear_input(&UiSelector::test_id("login.password"))
+        .unwrap();
+    let cleared: Vec<AiLayoutNode> = auto.query_all(&UiSelector::test_id("login.password"));
+    assert_eq!(cleared[0].input_value(), Some(""));
+    let title_id: NodeId = status_holder.borrow().unwrap();
+    app.get_scene().with_write(
+        |tree: &mut SceneTree| {
+            tree.set_text(title_id, "Mutated Unrendered".to_string());
+        },
+        (),
+    );
+    let unsynced: AiSameFrameCapture =
+        AiSchemaProtocol::capture_same_frame(&app, false, true, None);
+    assert!(!unsynced.get_synced());
 }
 
 #[test]
