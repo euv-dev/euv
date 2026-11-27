@@ -509,6 +509,7 @@ impl ThemeTokens {
     /// # Returns
     ///
     /// - `Style` - Compiled card box style.
+    #[inline(always)]
     #[must_use]
     pub fn card_style(&self) -> Style {
         let p: ThemePalette = self.get_palette();

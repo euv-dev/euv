@@ -1238,7 +1238,7 @@ impl EuvHtmlView {
         let tokens: ThemeTokens = self.get_tokens();
         let Self {
             document, on_link, ..
-        } = self.clone();
+        } = self;
         view! {
             column {
                 width: Length::Percent(100.0)

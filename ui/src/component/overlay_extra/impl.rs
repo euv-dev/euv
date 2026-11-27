@@ -1105,7 +1105,9 @@ impl EuvNotification {
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let (accent, _): (Color, Color) = self.get_tone().colors(p);
         let visible: Signal<bool> = self.get_visible();
-        let Self { title, message, .. } = self.clone();
+        let Self { title, message, .. } = self;
+        let title_owned: String = title.clone();
+        let message_owned: String = message.clone();
         let init_vis: bool = visible.get_untracked();
         let card: NodeId = view! {
             portal {
@@ -1124,17 +1126,17 @@ impl EuvNotification {
                 overflow: Overflow::Hidden
                 z_index: Z_INDEX_TOAST
                 role: A11yRole::Alert
-                a11y_label: title.clone()
+                a11y_label: title_owned.clone()
                 text {
                     font_size: 14.0
                     font_weight: FontWeight::Bold
                     color: p.get_card_foreground()
-                    { title }
+                    { title_owned }
                 }
                 text {
                     font_size: 12.0
                     color: p.get_muted_foreground()
-                    { message }
+                    { message_owned }
                 }
             }
         };
@@ -1206,7 +1208,8 @@ impl EuvLoading {
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let active: Signal<bool> = self.get_active();
-        let Self { label, .. } = self.clone();
+        let Self { label, .. } = self;
+        let label_owned: String = label.clone();
         let init_active: bool = active.get_untracked();
         let portal: NodeId = view! {
             portal {
@@ -1230,7 +1233,7 @@ impl EuvLoading {
                     font_size: 14.0
                     font_weight: FontWeight::Medium
                     color: p.get_foreground()
-                    { label }
+                    { label_owned }
                 }
             }
         };
@@ -1254,26 +1257,30 @@ impl EuvLoading {
                     handle.with_write(
                         |tree: &mut SceneTree| {
                             if let Some(n) = tree.get_node_mut(portal) {
-                                let mut st: Style = n.get_style();
-                                st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
-                                n.set_style(st);
+                                n.get_mut_style()
+                                    .get_mut_paint()
+                                    .set_pointer_events(PointerEvents::Auto);
                             }
+                            tree.start_transition(NodeTransition::fade(
+                                portal, 0.0, 1.0, 0.18, false,
+                            ));
                         },
                         (),
                     );
-                    handle.start_transition(NodeTransition::fade(portal, 0.0, 1.0, 0.18, false));
                 } else {
                     handle.with_write(
                         |tree: &mut SceneTree| {
                             if let Some(n) = tree.get_node_mut(portal) {
-                                let mut st: Style = n.get_style();
-                                st.get_mut_paint().set_pointer_events(PointerEvents::None);
-                                n.set_style(st);
+                                n.get_mut_style()
+                                    .get_mut_paint()
+                                    .set_pointer_events(PointerEvents::None);
                             }
+                            tree.start_transition(NodeTransition::fade(
+                                portal, 1.0, 0.0, 0.18, true,
+                            ));
                         },
                         (),
                     );
-                    handle.start_transition(NodeTransition::fade(portal, 1.0, 0.0, 0.18, true));
                 }
             })
         });

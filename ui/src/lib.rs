@@ -20,7 +20,7 @@ use std::{
     cell::{Cell, Ref, RefCell, RefMut},
     cmp::Ordering,
     collections::{HashMap, VecDeque},
-    f32::consts::{FRAC_PI_2, PI, TAU},
+    f32::consts::{FRAC_1_SQRT_2, FRAC_PI_2, PI, TAU},
     mem::{replace, take},
     rc::Rc,
 };

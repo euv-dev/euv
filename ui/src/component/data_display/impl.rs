@@ -301,29 +301,27 @@ impl EuvSpinner {
     fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
         let sz: f32 = self.get_size();
+        let primary: Color = p.get_primary();
+        let paint_spinner = move |bounds: Rect, dl: &mut DisplayList| {
+            let cx: f32 = bounds.get_x() + bounds.get_width() * 0.5;
+            let cy: f32 = bounds.get_y() + bounds.get_height() * 0.5;
+            let outer_r: f32 = (bounds.get_width().min(bounds.get_height()) * 0.42).max(4.0);
+            let inner_r: f32 = outer_r * 0.56;
+            let stroke_w: f32 = (outer_r * 0.24).clamp(1.6, 3.2);
+            for &(cos_a, sin_a, alpha) in SPINNER_SPOKES.iter() {
+                dl.push(DrawCommand::Line {
+                    from: Point::new(cx + cos_a * inner_r, cy + sin_a * inner_r),
+                    to: Point::new(cx + cos_a * outer_r, cy + sin_a * outer_r),
+                    color: primary.multiply_alpha(alpha),
+                    width: stroke_w,
+                });
+            }
+        };
         view! {
             canvas {
                 width: Length::Px(sz)
                 height: Length::Px(sz)
-                painter: move |bounds: Rect, dl: &mut DisplayList| {
-                    let cx: f32 = bounds.get_x() + bounds.get_width() * 0.5;
-                    let cy: f32 = bounds.get_y() + bounds.get_height() * 0.5;
-                    let outer_r: f32 = (bounds.get_width().min(bounds.get_height()) * 0.42).max(4.0);
-                    let inner_r: f32 = outer_r * 0.56;
-                    let stroke_w: f32 = (outer_r * 0.24).clamp(1.6, 3.2);
-                    let spokes: usize = 8;
-                    for i in 0..spokes {
-                        let angle: f32 = (i as f32) * (TAU / (spokes as f32));
-                        let (sin_a, cos_a): (f32, f32) = angle.sin_cos();
-                        let alpha: f32 = 0.22 + 0.78 * ((i + 1) as f32 / (spokes as f32));
-                        dl.push(DrawCommand::Line {
-                            from: Point::new(cx + cos_a * inner_r, cy + sin_a * inner_r),
-                            to: Point::new(cx + cos_a * outer_r, cy + sin_a * outer_r),
-                            color: p.get_primary().multiply_alpha(alpha),
-                            width: stroke_w,
-                        });
-                    }
-                }
+                painter: paint_spinner
             }
         }
     }

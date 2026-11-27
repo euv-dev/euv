@@ -22,4 +22,6 @@ pub use {
     shadcn_complete::*, shadcn_extra::*, surface::*,
 };
 
+pub(crate) use shadcn_complete::contains_ascii_ignore_case;
+
 use super::*;

@@ -101,9 +101,26 @@ impl EuvMermaid {
             let _: bool = fs_open.set_if_changed(true);
         };
         let diag_inline: Rc<MermaidDiagram> = Rc::clone(&diagram);
+        let inline_cache: RefCell<Option<(Rect, ThemeTokens, Vec<DrawCommand>)>> =
+            RefCell::new(None);
         let paint_inline = move |bounds: Rect, dl: &mut DisplayList| {
             let live_tok: ThemeTokens = live_tokens_untracked(tokens);
-            draw_mermaid_diagram(&diag_inline, bounds, dl, live_tok);
+            if let Ok(guard) = inline_cache.try_borrow()
+                && let Some((cached_bounds, cached_tok, cached_cmds)) = guard.as_ref()
+                && *cached_bounds == bounds
+                && *cached_tok == live_tok
+            {
+                dl.get_mut_commands()
+                    .extend_from_slice(cached_cmds.as_slice());
+                return;
+            }
+            let mut scratch: DisplayList = DisplayList::default();
+            draw_mermaid_diagram(&diag_inline, bounds, &mut scratch, live_tok);
+            let cmds: Vec<DrawCommand> = take(scratch.get_mut_commands());
+            dl.get_mut_commands().extend_from_slice(cmds.as_slice());
+            if let Ok(mut guard) = inline_cache.try_borrow_mut() {
+                *guard = Some((bounds, live_tok, cmds));
+            }
         };
         let paint_fs_icon = move |bounds: Rect, dl: &mut DisplayList| {
             let live_eva: CodeThemePalette =
@@ -124,9 +141,26 @@ impl EuvMermaid {
             let live_g: ThemeGeometry = live_tok.get_geometry();
             let live_eva: CodeThemePalette = CodeThemePalette::resolve(live_tok.get_mode());
             let diag_modal: Rc<MermaidDiagram> = Rc::clone(&diag_fs);
+            let modal_cache: RefCell<Option<(Rect, ThemeTokens, Vec<DrawCommand>)>> =
+                RefCell::new(None);
             let paint_modal = move |bounds: Rect, dl: &mut DisplayList| {
                 let cur_tok: ThemeTokens = live_tokens_untracked(tokens);
-                draw_mermaid_diagram(&diag_modal, bounds, dl, cur_tok);
+                if let Ok(guard) = modal_cache.try_borrow()
+                    && let Some((cached_bounds, cached_tok, cached_cmds)) = guard.as_ref()
+                    && *cached_bounds == bounds
+                    && *cached_tok == cur_tok
+                {
+                    dl.get_mut_commands()
+                        .extend_from_slice(cached_cmds.as_slice());
+                    return;
+                }
+                let mut scratch: DisplayList = DisplayList::default();
+                draw_mermaid_diagram(&diag_modal, bounds, &mut scratch, cur_tok);
+                let cmds: Vec<DrawCommand> = take(scratch.get_mut_commands());
+                dl.get_mut_commands().extend_from_slice(cmds.as_slice());
+                if let Ok(mut guard) = modal_cache.try_borrow_mut() {
+                    *guard = Some((bounds, cur_tok, cmds));
+                }
             };
             let modal_src: Rc<str> = Rc::clone(&fs_src_copy);
             let modal_cb: Option<MarkdownStrCallback> = fs_cb_copy.clone();
