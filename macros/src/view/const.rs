@@ -450,6 +450,9 @@ pub(crate) const IDENT_NODE: &str = "__euv_node";
 /// Generated internal identifier for slot fallback root container.
 pub(crate) const IDENT_FB_ROOT: &str = "__euv_fb_root";
 
+/// Generated internal identifier for batched dynamic child node vector.
+pub(crate) const IDENT_BATCH: &str = "__euv_batch";
+
 /// Error message when an element tag has neither `{ ... }` body nor `(args...)`.
 pub(crate) const ERR_EXPECTED_BODY_OR_ARGS: &str =
     "expected `{ ... }` body after element or component tag";
