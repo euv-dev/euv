@@ -1,5 +1,6 @@
 mod button;
 mod card;
+mod chart;
 mod data_display;
 mod display;
 mod form;
@@ -17,7 +18,7 @@ mod shadcn_extra;
 mod surface;
 
 pub use {
-    button::*, card::*, data_display::*, display::*, form::*, form_extra::*, layout::*,
+    button::*, card::*, chart::*, data_display::*, display::*, form::*, form_extra::*, layout::*,
     markdown::*, media::*, mermaid::*, nav_extra::*, navigation::*, overlay::*, overlay_extra::*,
     shadcn_complete::*, shadcn_extra::*, surface::*,
 };
