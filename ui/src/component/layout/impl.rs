@@ -1192,31 +1192,41 @@ impl EuvAppShell {
             if let Some(theme_state) = theme {
                 let applied_shell_tokens: Rc<Cell<ThemeTokens>> = Rc::new(Cell::new(tokens));
                 let handle_theme: SceneHandle = handle.clone();
-                let exclude_node: Option<NodeId> = if has_managed_outlet {
-                    Some(main_content)
-                } else {
-                    None
-                };
+                let mut excluded_nodes: Vec<NodeId> = Vec::with_capacity(2);
+                if has_managed_outlet {
+                    excluded_nodes.push(main_content);
+                }
+                if has_bottom_nav {
+                    excluded_nodes.push(bottom_bar_host);
+                }
                 let _: Effect = Effect::new(move || {
                     let next_tok: ThemeTokens = theme_state.get_tokens().get();
                     let prev_tok: ThemeTokens = applied_shell_tokens.replace(next_tok);
                     if prev_tok == next_tok {
                         return;
                     }
-                    let next_dock_r: f32 = next_tok.get_geometry().get_radius_lg().clamp(6.0, 14.0);
+                    let next_p: ThemePalette = next_tok.get_palette();
+                    let next_g: ThemeGeometry = next_tok.get_geometry();
+                    let next_dock_r: f32 = next_g.get_radius_lg().clamp(6.0, 14.0);
                     handle_theme.with_write(
                         |tree: &mut SceneTree| {
-                            remap_subtree_theme_excluding(
+                            remap_subtree_theme_excluding_nodes(
                                 tree,
                                 root,
-                                exclude_node,
+                                &excluded_nodes,
                                 prev_tok,
                                 next_tok,
                             );
                             if has_bottom_nav && let Some(bn) = tree.get_node_mut(bottom_bar_host) {
                                 let mut bst: Style = bn.get_style();
                                 bst.get_mut_paint()
-                                    .set_radius(CornerRadius::all(next_dock_r));
+                                    .set_background(Some(next_p.get_card().with_alpha(244)))
+                                    .set_border(Border::new(
+                                        next_g.get_border_width(),
+                                        next_p.get_border(),
+                                    ))
+                                    .set_radius(CornerRadius::all(next_dock_r))
+                                    .set_shadow(Some(next_g.get_shadow_lg()));
                                 bn.set_style(bst);
                                 tree.mark_dirty(bottom_bar_host, DIRTY_PAINT);
                             }

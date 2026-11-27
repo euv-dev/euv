@@ -843,7 +843,12 @@ impl EuvMarkdownHeading {
         } = self;
         let is_selectable: bool = selectable.unwrap_or(true);
         let show_rule: bool = lvl <= 2;
-        let text_str: &str = text.as_str();
+        let expanded_heading: Option<String> = if text.contains(':') {
+            Some(expand_emoji_shortcodes(text.as_str()))
+        } else {
+            None
+        };
+        let text_str: &str = expanded_heading.as_deref().unwrap_or(text.as_str());
         view! {
             column {
                 width: Length::Percent(100.0)
@@ -1012,6 +1017,7 @@ impl EuvMarkdownMath {
                     justify: JustifyContent::End
                     selectable: false
                     row {
+                        flex_shrink: 0.0
                         padding: Edges::symmetric(2.0, 6.0)
                         radius: g.get_radius_sm()
                         background: eva.get_background()
@@ -1020,6 +1026,7 @@ impl EuvMarkdownMath {
                             font_size: 9.5
                             font_weight: FontWeight::Bold
                             color: eva.get_keyword()
+                            text_overflow: TextOverflow::Clip
                             { MD_MATH_BADGE }
                         }
                     }
@@ -2165,6 +2172,26 @@ impl EuvMarkdownDefList {
             .iter()
             .map(|entry: &EuvMarkdownDefItem| {
                 let term: &str = entry.get_term().as_str();
+                let term_node: NodeId = if !has_inline_markdown_trigger(term) {
+                    view! {
+                        text {
+                            width: Length::Percent(100.0)
+                            font_size: 14.0
+                            font_weight: FontWeight::Bold
+                            color: p.get_foreground()
+                            selectable: is_selectable
+                            { term }
+                        }
+                    }
+                } else {
+                    let mut term_para: EuvMarkdownParagraph =
+                        EuvMarkdownParagraph::new(parse_markdown_inlines(term), tokens)
+                            .selectable(is_selectable);
+                    if let Some(cb) = on_link.clone() {
+                        term_para.set_on_link(Some(cb));
+                    }
+                    term_para.mount()
+                };
                 let def_nodes: Vec<NodeId> = entry
                     .get_definitions()
                     .iter()
@@ -2190,14 +2217,7 @@ impl EuvMarkdownDefList {
                     column {
                         width: Length::Percent(100.0)
                         gap: 3.0
-                        text {
-                            width: Length::Percent(100.0)
-                            font_size: 14.0
-                            font_weight: FontWeight::Bold
-                            color: p.get_foreground()
-                            selectable: is_selectable
-                            { term }
-                        }
+                        { term_node }
                         row {
                             width: Length::Percent(100.0)
                             padding: Edges::new(0.0, 0.0, 0.0, SPACE_SM)

@@ -1518,6 +1518,33 @@ fn render_mermaid_svg_html(source: &str, out: &mut String) {
     out.push_str(MERMAID_CARD_CLOSE);
 }
 
+/// Runs 3-color DFS from `u` to collect acyclic forward edges for static Mermaid SVG layout.
+///
+/// # Arguments
+///
+/// - `usize` - Current node index.
+/// - `&[Vec<usize>]` - Directed adjacency lists.
+/// - `&mut [u8]` - Visitation state (`0` unvisited, `1` active stack, `2` done).
+/// - `&mut Vec<(usize, usize)>` - Collected DAG edges.
+fn dfs_svg_dag_edges(
+    u: usize,
+    adj: &[Vec<usize>],
+    state: &mut [u8],
+    dag_edges: &mut Vec<(usize, usize)>,
+) {
+    state[u] = 1;
+    for &v in adj[u].iter() {
+        if u == v || state[v] == 1 {
+            continue;
+        }
+        dag_edges.push((u, v));
+        if state[v] == 0 {
+            dfs_svg_dag_edges(v, adj, state, dag_edges);
+        }
+    }
+    state[u] = 2;
+}
+
 /// Renders a Mermaid flowchart or state machine AST as a themed inline SVG.
 ///
 /// # Arguments
@@ -1533,23 +1560,60 @@ fn render_mermaid_flow_svg(fc: &MermaidFlowchart, out: &mut String) {
     for (idx, node) in fc.get_nodes().iter().enumerate() {
         let _: Option<usize> = id_map.insert(node.get_id().as_str(), idx);
     }
+    let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
+    let mut in_deg: Vec<usize> = vec![0; n];
+    for edge in fc.get_edges().iter() {
+        if let (Some(&u), Some(&v)) = (
+            id_map.get(edge.get_from().as_str()),
+            id_map.get(edge.get_to().as_str()),
+        ) && u != v
+        {
+            adj[u].push(v);
+            in_deg[v] += 1;
+        }
+    }
+    let mut visit_state: Vec<u8> = vec![0; n];
+    let mut dag_edges: Vec<(usize, usize)> = Vec::with_capacity(fc.get_edges().len());
+    for (idx, node) in fc.get_nodes().iter().enumerate() {
+        if node.get_shape() == MermaidNodeShape::StateStart && visit_state[idx] == 0 {
+            dfs_svg_dag_edges(idx, &adj, &mut visit_state, &mut dag_edges);
+        }
+    }
+    for (idx, node) in fc.get_nodes().iter().enumerate() {
+        if in_deg[idx] == 0
+            && node.get_shape() != MermaidNodeShape::StateEnd
+            && visit_state[idx] == 0
+        {
+            dfs_svg_dag_edges(idx, &adj, &mut visit_state, &mut dag_edges);
+        }
+    }
+    for idx in 0..n {
+        if visit_state[idx] == 0 {
+            dfs_svg_dag_edges(idx, &adj, &mut visit_state, &mut dag_edges);
+        }
+    }
     let mut layers: Vec<usize> = vec![0; n];
     for _ in 0..n {
         let mut changed: bool = false;
-        for edge in fc.get_edges().iter() {
-            if let (Some(&u), Some(&v)) = (
-                id_map.get(edge.get_from().as_str()),
-                id_map.get(edge.get_to().as_str()),
-            ) && u != v
-                && layers[v] <= layers[u]
-                && layers[u] + 1 < n
-            {
+        for &(u, v) in dag_edges.iter() {
+            if layers[v] <= layers[u] && layers[u] + 1 < n {
                 layers[v] = layers[u] + 1;
                 changed = true;
             }
         }
         if !changed {
             break;
+        }
+    }
+    for edge in fc.get_edges().iter() {
+        if let (Some(&u), Some(&v)) = (
+            id_map.get(edge.get_from().as_str()),
+            id_map.get(edge.get_to().as_str()),
+        ) && u != v
+            && fc.get_nodes()[v].get_shape() == MermaidNodeShape::StateEnd
+            && layers[v] <= layers[u]
+        {
+            layers[v] = layers[u] + 1;
         }
     }
     let max_layer: usize = layers.iter().copied().max().unwrap_or(0);

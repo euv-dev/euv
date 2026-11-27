@@ -612,6 +612,43 @@ pub fn resolve_emoji_shortcode(code: &str) -> Option<&'static str> {
         .map(|idx: usize| MD_EMOJI_TABLE[idx].1)
 }
 
+/// Replaces recognized `:shortcode:` tokens inside `raw` with their Unicode emoji glyphs.
+///
+/// # Arguments
+///
+/// - `&str` - Source heading or plain text line.
+///
+/// # Returns
+///
+/// - `String` - Text with known emoji shortcodes expanded.
+#[must_use]
+pub(crate) fn expand_emoji_shortcodes(raw: &str) -> String {
+    let bytes: &[u8] = raw.as_bytes();
+    let len: usize = bytes.len();
+    let mut out: String = String::with_capacity(len);
+    let mut i: usize = 0;
+    while i < len {
+        if bytes[i] == b':' {
+            let rest: &str = &raw[i + 1..];
+            if let Some(close_rel) = rest.find(':') {
+                let code: &str = &rest[..close_rel];
+                if let Some(emoji) = resolve_emoji_shortcode(code) {
+                    out.push_str(emoji);
+                    i += 1 + close_rel + 1;
+                    continue;
+                }
+            }
+        }
+        if let Some(ch) = raw[i..].chars().next() {
+            out.push(ch);
+            i += ch.len_utf8();
+        } else {
+            break;
+        }
+    }
+    out
+}
+
 /// Maps a single ASCII character to its Unicode superscript equivalent when available.
 ///
 /// # Arguments

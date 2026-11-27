@@ -889,6 +889,104 @@ fn parse_mermaid_gantt(lines: &[&str]) -> MermaidGanttChart {
     chart
 }
 
+/// Runs 3-color DFS from `u` to collect acyclic forward edges while discarding cycle back-edges.
+///
+/// # Arguments
+///
+/// - `usize` - Current node index.
+/// - `&[Vec<usize>]` - Directed adjacency lists.
+/// - `&mut [u8]` - Visitation state (`0` unvisited, `1` active on DFS stack, `2` finished).
+/// - `&mut Vec<(usize, usize)>` - Collected DAG edges.
+fn dfs_collect_dag_edges(
+    u: usize,
+    adj: &[Vec<usize>],
+    state: &mut [u8],
+    dag_edges: &mut Vec<(usize, usize)>,
+) {
+    state[u] = 1;
+    for &v in adj[u].iter() {
+        if u == v || state[v] == 1 {
+            continue;
+        }
+        dag_edges.push((u, v));
+        if state[v] == 0 {
+            dfs_collect_dag_edges(v, adj, state, dag_edges);
+        }
+    }
+    state[u] = 2;
+}
+
+/// Computes cycle-safe topological layer indices for flowchart and state diagram nodes.
+///
+/// # Arguments
+///
+/// - `&MermaidFlowchart` - Parsed flowchart or state graph.
+/// - `&HashMap<&str, usize>` - Node id to index lookup map.
+///
+/// # Returns
+///
+/// - `Vec<usize>` - Zero-based layer index per node.
+fn compute_flowchart_dag_layers(
+    fc: &MermaidFlowchart,
+    id_map: &HashMap<&str, usize>,
+) -> Vec<usize> {
+    let n: usize = fc.get_nodes().len();
+    let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
+    let mut in_deg: Vec<usize> = vec![0; n];
+    for edge in fc.get_edges().iter() {
+        if let (Some(&u), Some(&v)) = (
+            id_map.get(edge.get_from().as_str()),
+            id_map.get(edge.get_to().as_str()),
+        ) && u != v
+        {
+            adj[u].push(v);
+            in_deg[v] += 1;
+        }
+    }
+    let mut state: Vec<u8> = vec![0; n];
+    let mut dag_edges: Vec<(usize, usize)> = Vec::with_capacity(fc.get_edges().len());
+    for (idx, node) in fc.get_nodes().iter().enumerate() {
+        if node.get_shape() == MermaidNodeShape::StateStart && state[idx] == 0 {
+            dfs_collect_dag_edges(idx, &adj, &mut state, &mut dag_edges);
+        }
+    }
+    for (idx, node) in fc.get_nodes().iter().enumerate() {
+        if in_deg[idx] == 0 && node.get_shape() != MermaidNodeShape::StateEnd && state[idx] == 0 {
+            dfs_collect_dag_edges(idx, &adj, &mut state, &mut dag_edges);
+        }
+    }
+    for idx in 0..n {
+        if state[idx] == 0 {
+            dfs_collect_dag_edges(idx, &adj, &mut state, &mut dag_edges);
+        }
+    }
+    let mut layers: Vec<usize> = vec![0; n];
+    for _ in 0..n {
+        let mut changed: bool = false;
+        for &(u, v) in dag_edges.iter() {
+            if layers[v] <= layers[u] && layers[u] + 1 < n {
+                layers[v] = layers[u] + 1;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    for edge in fc.get_edges().iter() {
+        if let (Some(&u), Some(&v)) = (
+            id_map.get(edge.get_from().as_str()),
+            id_map.get(edge.get_to().as_str()),
+        ) && u != v
+            && fc.get_nodes()[v].get_shape() == MermaidNodeShape::StateEnd
+            && layers[v] <= layers[u]
+        {
+            layers[v] = layers[u] + 1;
+        }
+    }
+    layers
+}
+
 /// Computes topological layer assignments and per-node rectangles for a flowchart or state diagram.
 ///
 /// # Arguments
@@ -907,25 +1005,7 @@ fn layout_flowchart_nodes(fc: &MermaidFlowchart) -> (Vec<Rect>, Size) {
     for (idx, node) in fc.get_nodes().iter().enumerate() {
         let _: Option<usize> = id_map.insert(node.get_id().as_str(), idx);
     }
-    let mut layers: Vec<usize> = vec![0; n];
-    for _ in 0..n {
-        let mut changed: bool = false;
-        for edge in fc.get_edges().iter() {
-            if let (Some(&u), Some(&v)) = (
-                id_map.get(edge.get_from().as_str()),
-                id_map.get(edge.get_to().as_str()),
-            ) && u != v
-                && layers[v] <= layers[u]
-                && layers[u] + 1 < n
-            {
-                layers[v] = layers[u] + 1;
-                changed = true;
-            }
-        }
-        if !changed {
-            break;
-        }
-    }
+    let layers: Vec<usize> = compute_flowchart_dag_layers(fc, &id_map);
     let max_layer: usize = layers.iter().copied().max().unwrap_or(0);
     let mut buckets: Vec<Vec<usize>> = vec![Vec::new(); max_layer + 1];
     for (idx, &lay) in layers.iter().enumerate() {
@@ -961,8 +1041,40 @@ fn layout_flowchart_nodes(fc: &MermaidFlowchart) -> (Vec<Rect>, Size) {
             }
         })
         .collect();
+    let has_labels: bool = fc
+        .get_edges()
+        .iter()
+        .any(|edge: &MermaidFlowEdge| !edge.get_label().is_empty());
+    let mut bidir_label_w: f32 = 0.0;
+    for edge in fc.get_edges().iter() {
+        if let (Some(&u), Some(&v)) = (
+            id_map.get(edge.get_from().as_str()),
+            id_map.get(edge.get_to().as_str()),
+        ) && u != v
+            && fc.get_edges().iter().any(|other: &MermaidFlowEdge| {
+                id_map.get(other.get_from().as_str()) == Some(&v)
+                    && id_map.get(other.get_to().as_str()) == Some(&u)
+            })
+        {
+            let lbl_w: f32 = ((edge.get_label().chars().count() as f32) * 6.8 + 14.0).max(34.0);
+            bidir_label_w = bidir_label_w.max(lbl_w);
+        }
+    }
     let pad: f32 = 34.0;
-    let main_gap: f32 = if horiz { 56.0 } else { 48.0 };
+    let cross_pad: f32 = if !horiz && bidir_label_w > 0.0 {
+        (bidir_label_w + 36.0).max(pad)
+    } else if horiz && bidir_label_w > 0.0 {
+        56.0
+    } else {
+        pad
+    };
+    let main_gap: f32 = if has_labels {
+        if horiz { 76.0 } else { 64.0 }
+    } else if horiz {
+        56.0
+    } else {
+        48.0
+    };
     let cross_gap: f32 = 28.0;
     let layer_count: usize = buckets.len();
     let mut layer_main_dim: Vec<f32> = vec![0.0; layer_count];
@@ -1000,7 +1112,7 @@ fn layout_flowchart_nodes(fc: &MermaidFlowchart) -> (Vec<Rect>, Size) {
         let items: &[usize] = &buckets[l_idx];
         let band_main: f32 = layer_main_dim[l_idx];
         let band_cross: f32 = layer_cross_span[l_idx];
-        let mut cross_cursor: f32 = pad + (total_cross - band_cross) * 0.5;
+        let mut cross_cursor: f32 = cross_pad + (total_cross - band_cross) * 0.5;
         for &ni in items.iter() {
             let (nw, nh): (f32, f32) = node_sizes[ni];
             let r: Rect = if horiz {
@@ -1021,11 +1133,11 @@ fn layout_flowchart_nodes(fc: &MermaidFlowchart) -> (Vec<Rect>, Size) {
     let (w, h): (f32, f32) = if horiz {
         (
             (total_main + pad * 2.0).max(360.0),
-            (total_cross + pad * 2.0).max(160.0),
+            (total_cross + cross_pad * 2.0).max(160.0),
         )
     } else {
         (
-            (total_cross + pad * 2.0).max(360.0),
+            (total_cross + cross_pad * 2.0).max(360.0),
             (total_main + pad * 2.0).max(160.0),
         )
     };
@@ -1138,7 +1250,30 @@ fn draw_flowchart(
         };
         let ra: Rect = rects[u];
         let rb: Rect = rects[v];
-        let (p0, p1): (Point, Point) = compute_rect_anchor_points(ra, rb, horiz);
+        let is_bidir: bool = u != v
+            && fc.get_edges().iter().any(|other: &MermaidFlowEdge| {
+                id_map.get(other.get_from().as_str()) == Some(&v)
+                    && id_map.get(other.get_to().as_str()) == Some(&u)
+            });
+        let bidir_sign: f32 = if u < v { -1.0 } else { 1.0 };
+        let (raw_p0, raw_p1): (Point, Point) = compute_rect_anchor_points(ra, rb, horiz);
+        let (p0, p1): (Point, Point) = if is_bidir {
+            if horiz {
+                let dy: f32 = bidir_sign * 14.0;
+                (
+                    Point::new(raw_p0.get_x(), raw_p0.get_y() + dy),
+                    Point::new(raw_p1.get_x(), raw_p1.get_y() + dy),
+                )
+            } else {
+                let dx: f32 = bidir_sign * 24.0;
+                (
+                    Point::new(raw_p0.get_x() + dx, raw_p0.get_y()),
+                    Point::new(raw_p1.get_x() + dx, raw_p1.get_y()),
+                )
+            }
+        } else {
+            (raw_p0, raw_p1)
+        };
         let stroke_w: f32 = if edge.get_style() == MermaidEdgeStyle::Thick {
             2.8
         } else {
@@ -1151,7 +1286,26 @@ fn draw_flowchart(
             let mx: f32 = (p0.get_x() + p1.get_x()) * 0.5;
             let my: f32 = (p0.get_y() + p1.get_y()) * 0.5;
             let lbl_w: f32 = ((edge.get_label().chars().count() as f32) * 6.8 + 14.0).max(34.0);
-            let pill: Rect = Rect::new(mx - lbl_w * 0.5, my - 10.0, lbl_w, 20.0);
+            let (pill_x, pill_y): (f32, f32) = if is_bidir {
+                if horiz {
+                    let py: f32 = if bidir_sign < 0.0 {
+                        my - 24.0
+                    } else {
+                        my + 4.0
+                    };
+                    (mx - lbl_w * 0.5, py)
+                } else {
+                    let px: f32 = if bidir_sign < 0.0 {
+                        mx - lbl_w - 8.0
+                    } else {
+                        mx + 8.0
+                    };
+                    (px, my - 10.0)
+                }
+            } else {
+                (mx - lbl_w * 0.5, my - 10.0)
+            };
+            let pill: Rect = Rect::new(pill_x, pill_y, lbl_w, 20.0);
             dl.push(DrawCommand::FillRoundedRect {
                 rect: pill,
                 color: eva.get_header_bg(),

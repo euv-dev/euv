@@ -192,6 +192,26 @@ pub fn remap_subtree_theme_excluding(
     old_tokens: ThemeTokens,
     new_tokens: ThemeTokens,
 ) {
+    let excluded: &[NodeId] = exclude.as_slice();
+    remap_subtree_theme_excluding_nodes(tree, root, excluded, old_tokens, new_tokens);
+}
+
+/// Remaps colors, borders, radii, and shadows in-place across the scene subtree rooted at `root`, skipping every descendant root listed in `excluded`.
+///
+/// # Arguments
+///
+/// - `&mut SceneTree` - Active retained scene tree.
+/// - `NodeId` - Root node handle of the subtree to restyle in-place.
+/// - `&[NodeId]` - Descendant root handles excluded from traversal.
+/// - `ThemeTokens` - Previously applied theme tokens.
+/// - `ThemeTokens` - Newly active theme tokens.
+pub(crate) fn remap_subtree_theme_excluding_nodes(
+    tree: &mut SceneTree,
+    root: NodeId,
+    excluded: &[NodeId],
+    old_tokens: ThemeTokens,
+    new_tokens: ThemeTokens,
+) {
     if old_tokens == new_tokens {
         return;
     }
@@ -283,7 +303,7 @@ pub fn remap_subtree_theme_excluding(
     ];
     let mut stack: Vec<NodeId> = vec![root];
     while let Some(nid) = stack.pop() {
-        if exclude == Some(nid) {
+        if excluded.contains(&nid) {
             continue;
         }
         let children: Vec<NodeId> = match tree.get_node(nid) {

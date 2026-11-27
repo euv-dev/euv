@@ -2321,6 +2321,206 @@ fn bottom_nav_uses_disciplined_radii_and_slides_active_indicator() {
     assert!(end_tx.abs() <= 0.5);
 }
 
+#[test]
+fn bottom_nav_active_label_stays_contrasting_after_route_switch_and_dark_toggle() {
+    reset_reactive_runtime();
+    let theme: UiThemeState = UiThemeState::new(DesignScheme::Shadcn, ThemeMode::Light);
+    provide_theme(theme.clone());
+    let init_tokens: ThemeTokens = untracked(|| theme.get_tokens().get());
+    let route: Signal<String> = Signal::new("/".to_string());
+    let theme_shell: UiThemeState = theme.clone();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(1280, 800).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(move || {
+        let nav: NodeId = view! {
+            EuvSidebarNav {
+                items: vec![
+                    EuvNavItem::new("/".to_string(), "Home".to_string()),
+                    EuvNavItem::new("/markdown".to_string(), "Docs".to_string()),
+                ]
+                active_route: route
+                tokens: init_tokens
+            }
+        };
+        let bottom: NodeId = view! {
+            EuvBottomNav {
+                items: vec![
+                    EuvNavItem::new("/".to_string(), "Home".to_string()),
+                    EuvNavItem::new("/markdown".to_string(), "Docs".to_string()),
+                ]
+                active_route: route
+                tokens: init_tokens
+            }
+        };
+        let body: NodeId = view! {
+            column {
+                width: Length::Percent(100.0)
+                text { "Theme Switch Body" }
+            }
+        };
+        view! {
+            EuvAppShell {
+                brand: "ThemeDock".to_string()
+                sidebar: nav
+                main_content: body
+                tokens: init_tokens
+                theme: theme_shell
+                route: route
+                bottom_nav: bottom
+            }
+        }
+    });
+    let _: FrameStats = app.step_frame().unwrap();
+    let _: bool = route.set_if_changed("/markdown".to_string());
+    let _: FrameStats = app.step_frame().unwrap();
+    let _: bool = route.set_if_changed("/".to_string());
+    let _: FrameStats = app.step_frame().unwrap();
+    let _: bool = theme.get_mode().set_if_changed(ThemeMode::Dark);
+    let _: FrameStats = app.step_frame().unwrap();
+    let dark_tokens: ThemeTokens = untracked(|| theme.get_tokens().get());
+    let expected_dark_fg: Color = dark_tokens.get_palette().get_primary_foreground();
+    let expected_dark_dock_bg: Color = dark_tokens.get_palette().get_card().with_alpha(244);
+    let (home_color, dock_bg): (Option<Color>, Option<Color>) = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let mut h_col: Option<Color> = None;
+            let mut d_bg: Option<Color> = None;
+            for n in tree.get_nodes().iter() {
+                if !n.get_alive() {
+                    continue;
+                }
+                let lay: LayoutStyle = n.get_style().get_layout();
+                let b: Rect = n.get_layout_box().get_bounds();
+                if lay.get_position() == Position::Fixed
+                    && lay.get_z_index() == Z_INDEX_CHROME
+                    && (b.get_height() - 60.0).abs() < 1.0
+                {
+                    d_bg = n.get_style().get_paint().background_color();
+                }
+                if matches!(n.get_kind(), NodeKind::Text(t) if t == "Home")
+                    && (n.get_style().get_text().get_font_size() - 10.5).abs() < 0.2
+                {
+                    h_col = Some(n.get_style().get_text().get_color());
+                }
+            }
+            (h_col, d_bg)
+        },
+        (None, None),
+    );
+    assert_eq!(home_color, Some(expected_dark_fg));
+    assert_eq!(dock_bg, Some(expected_dark_dock_bg));
+    clear_provided_theme();
+}
+
+#[test]
+fn mermaid_state_cycle_and_markdown_heading_emoji_and_def_list_render_cleanly() {
+    reset_reactive_runtime();
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
+    let state_src: &str = "stateDiagram-v2\n    [*] --> Active\n    Active --> Frozen : Leave Route\n    Frozen --> Active : Resume Coalesced\n    Frozen --> [*] : Destroy\n";
+    let md_src: &str = "# Markdown Studio :rocket:\n\n`PageRetention::Freeze`\n: Suspends inactive routes cleanly.\n\n$$x = 1$$\n";
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(800, 900).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(move || {
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                gap: SPACE_MD
+                EuvMermaid {
+                    source: state_src.to_string()
+                    tokens: tokens
+                }
+                EuvMarkdown {
+                    source: md_src.to_string()
+                    tokens: tokens
+                }
+            }
+        }
+    });
+    let _: FrameStats = app.step_frame().unwrap();
+    let (
+        mermaid_cb,
+        mermaid_bounds,
+        has_rocket_h1,
+        has_literal_rocket,
+        has_clean_term,
+        has_literal_tick,
+    ): (Option<CanvasDrawCallback>, Rect, bool, bool, bool, bool) = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let mut cb_opt: Option<CanvasDrawCallback> = None;
+            let mut cb_rect: Rect = Rect::default();
+            let mut rocket_ok: bool = false;
+            let mut lit_rocket: bool = false;
+            let mut clean_term: bool = false;
+            let mut lit_tick: bool = false;
+            for n in tree.get_nodes().iter() {
+                if !n.get_alive() {
+                    continue;
+                }
+                if matches!(n.get_kind(), NodeKind::Canvas)
+                    && n.get_layout_box().get_bounds().get_height() >= 120.0
+                    && cb_opt.is_none()
+                {
+                    cb_opt = n.canvas_callback();
+                    cb_rect = n.get_layout_box().get_bounds();
+                }
+                if let NodeKind::Text(t) = n.get_kind() {
+                    if t.contains("Markdown Studio 🚀") {
+                        rocket_ok = true;
+                    }
+                    if t.contains(":rocket:") {
+                        lit_rocket = true;
+                    }
+                    if t == "PageRetention::Freeze" {
+                        clean_term = true;
+                    }
+                    if t.contains("`PageRetention::Freeze`") {
+                        lit_tick = true;
+                    }
+                }
+            }
+            (cb_opt, cb_rect, rocket_ok, lit_rocket, clean_term, lit_tick)
+        },
+        (None, Rect::default(), false, false, false, false),
+    );
+    assert!(has_rocket_h1);
+    assert!(!has_literal_rocket);
+    assert!(has_clean_term);
+    assert!(!has_literal_tick);
+    let paint_cb: CanvasDrawCallback = mermaid_cb.expect("mermaid canvas painter must exist");
+    let mut dl: DisplayList = DisplayList::default();
+    (paint_cb.borrow_mut())(mermaid_bounds, &mut dl);
+    let mut active_r: Option<Rect> = None;
+    let mut frozen_r: Option<Rect> = None;
+    let mut leave_r: Option<Rect> = None;
+    let mut resume_r: Option<Rect> = None;
+    let mut destroy_r: Option<Rect> = None;
+    for cmd in dl.get_commands().iter() {
+        if let DrawCommand::TextRun { text, rect, .. } = cmd {
+            match text.as_str() {
+                "Active" => active_r = Some(*rect),
+                "Frozen" => frozen_r = Some(*rect),
+                "Leave Route" => leave_r = Some(*rect),
+                "Resume Coalesced" => resume_r = Some(*rect),
+                "Destroy" => destroy_r = Some(*rect),
+                _ => {}
+            }
+        }
+    }
+    let a: Rect = active_r.expect("Active label must be drawn");
+    let f: Rect = frozen_r.expect("Frozen label must be drawn");
+    let l: Rect = leave_r.expect("Leave Route label must be drawn");
+    let r: Rect = resume_r.expect("Resume Coalesced label must be drawn");
+    let d: Rect = destroy_r.expect("Destroy label must be drawn");
+    assert!(a.get_y() < f.get_y());
+    assert!(d.get_y() > f.bottom() - 2.0);
+    assert!(l.right() <= r.get_x() || r.right() <= l.get_x());
+}
+
 #[derive(Clone, Debug, New)]
 struct AppearTrackedPage {
     label: String,
