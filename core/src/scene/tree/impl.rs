@@ -25,6 +25,7 @@ impl Default for SceneTree {
             portal_nodes: Vec::new(),
             dirty_paint_nodes: Vec::new(),
             full_damage_pending: true,
+            full_damage_overflow: false,
             text_selection: None,
         }
     }
@@ -1050,6 +1051,7 @@ impl SceneTree {
         {
             if self.get_dirty_paint_nodes().len() >= DIRTY_PAINT_FULL_THRESHOLD {
                 self.set_full_damage_pending(true);
+                self.set_full_damage_overflow(true);
                 self.get_mut_dirty_paint_nodes().clear();
             } else {
                 self.get_mut_dirty_paint_nodes().push(id);
@@ -1212,6 +1214,21 @@ impl SceneTree {
             }
         }
         DamageRegion::full()
+    }
+
+    /// Consumes and returns whether the most recent dirty-paint accumulation overflowed `DIRTY_PAINT_FULL_THRESHOLD`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable scene tree.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` if dirty paint nodes overflowed into full damage.
+    pub(crate) fn take_full_damage_overflow(&mut self) -> bool {
+        let was_overflow: bool = self.get_full_damage_overflow();
+        self.set_full_damage_overflow(false);
+        was_overflow
     }
 
     /// Recursively detaches and recycles `id`, returning all owned `Scope`s and `Lifecycle` observers for borrow-safe finalization.
@@ -1990,6 +2007,8 @@ impl Context {
             dynamic_hub: DynamicUpdateHub::new(),
             fps_limit: Signal::new(None),
             live_fps: Signal::new(60.0),
+            present_fps: Signal::new(0.0),
+            is_idle: Signal::new(true),
             display_refresh_rate: Signal::new(60.0),
             active_touches: Signal::new(Vec::new()),
             exit_requested: Signal::new(false),

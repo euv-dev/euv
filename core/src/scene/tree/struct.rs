@@ -44,6 +44,11 @@ pub struct SceneTree {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) full_damage_pending: bool,
+    /// Flag raised when `dirty_paint_nodes` exceeded `DIRTY_PAINT_FULL_THRESHOLD` since the last collection.
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) full_damage_overflow: bool,
     /// Active native text selection state on a selectable `NodeKind::Text` node, if any.
     #[get(skip)]
     #[get_mut(skip)]
@@ -95,6 +100,12 @@ pub struct Context {
     /// Smoothed live rendered frames-per-second telemetry signal.
     #[get(type(copy))]
     pub(crate) live_fps: Signal<f32>,
+    /// Idle-aware active presented frames-per-second signal (`0.0` while idle).
+    #[get(type(copy))]
+    pub(crate) present_fps: Signal<f32>,
+    /// Reactive flag indicating whether the frame loop is currently idle (`true` when skipping clean frames).
+    #[get(type(copy))]
+    pub(crate) is_idle: Signal<bool>,
     /// Native hardware display refresh rate in Hertz reported by the active OS/browser host.
     #[get(type(copy))]
     pub(crate) display_refresh_rate: Signal<f32>,

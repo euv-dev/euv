@@ -15,6 +15,28 @@ impl Default for AppConfig {
     }
 }
 
+/// Helper aggregation methods for `FramePhaseMetrics`.
+impl FramePhaseMetrics {
+    /// Returns the total summed duration across all recorded frame phases in microseconds.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Frame phase metrics reference.
+    ///
+    /// # Returns
+    ///
+    /// - `u64` - Sum of all recorded phase durations in microseconds.
+    #[must_use]
+    pub fn total_us(&self) -> u64 {
+        self.get_input_us()
+            .saturating_add(self.get_reactive_us())
+            .saturating_add(self.get_layout_us())
+            .saturating_add(self.get_paint_list_us())
+            .saturating_add(self.get_raster_us())
+            .saturating_add(self.get_present_us())
+    }
+}
+
 /// Core lifecycle, event dispatch, and frame rendering pipeline for `App`.
 impl App {
     /// Creates an `App` bound to the active native OS/Web platform backend.
@@ -151,7 +173,227 @@ impl App {
             display_refresh_rate_hz: native_hz,
             was_animating: false,
             system_event_normalizer: SystemEventNormalizer::new(),
+            telemetry_enabled: false,
+            last_frame_telemetry: FrameTelemetry::default(),
+            pending_full_redraw_reason: FullRedrawReason::FirstFrame,
+            last_rendered_viewport: Size::default(),
+            last_rendered_scale: 0.0,
+            active_present_fps: 0.0,
+            idle_secs_since_present: 0.0,
+            is_idle_frame: true,
         })
+    }
+
+    /// Enables or disables opt-in per-phase microsecond timing instrumentation inside `step_frame`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable application.
+    /// - `bool` - `true` to capture microsecond phase timings; `false` for zero-syscall default execution.
+    pub fn set_telemetry_enabled(&mut self, enabled: bool) {
+        self.set_telemetry_enabled_flag(enabled);
+    }
+
+    /// Internal setter helper updating `telemetry_enabled`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable application.
+    /// - `bool` - Target enabled state.
+    fn set_telemetry_enabled_flag(&mut self, enabled: bool) {
+        let Self {
+            telemetry_enabled, ..
+        } = self;
+        *telemetry_enabled = enabled;
+    }
+
+    /// Returns whether opt-in per-phase microsecond telemetry timing is currently enabled.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Application reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when per-phase microsecond timing is active.
+    #[must_use]
+    pub fn is_telemetry_enabled(&self) -> bool {
+        self.get_telemetry_enabled()
+    }
+
+    /// Returns the most recently recorded unified `FrameTelemetry` snapshot.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Application reference.
+    ///
+    /// # Returns
+    ///
+    /// - `FrameTelemetry` - Last frame phase timings, damage ratio, redraw cause, and idle-aware FPS.
+    #[must_use]
+    pub fn last_frame_telemetry(&self) -> FrameTelemetry {
+        self.get_last_frame_telemetry()
+    }
+
+    /// Returns the effective target frame cadence in Hertz considering both display refresh rate and `fps_limit`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Application reference.
+    ///
+    /// # Returns
+    ///
+    /// - `f32` - Effective target refresh cadence in Hertz.
+    #[must_use]
+    pub fn target_hz(&self) -> f32 {
+        let native_hz: f32 = self.get_display_refresh_rate_hz().clamp(24.0, 480.0);
+        match self.fps_limit() {
+            Some(cap) => (cap.max(1) as f32).min(native_hz),
+            None => native_hz,
+        }
+    }
+
+    /// Returns the active presented frames-per-second rate (`0.0` while idle).
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Application reference.
+    ///
+    /// # Returns
+    ///
+    /// - `f32` - Active presented frames per second.
+    #[must_use]
+    pub fn present_fps(&self) -> f32 {
+        self.get_active_present_fps()
+    }
+
+    /// Returns `true` when the most recent `step_frame` call skipped rendering because the scene was clean and idle.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Application reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - Whether the application is currently idle.
+    #[must_use]
+    pub fn is_idle(&self) -> bool {
+        self.get_is_idle_frame()
+    }
+
+    /// Queues full-viewport damage alongside its diagnostic `FullRedrawReason`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable application.
+    /// - `FullRedrawReason` - Diagnostic cause for the full redraw.
+    fn set_pending_full_damage(&mut self, reason: FullRedrawReason) {
+        self.set_pending_damage(DamageRegion::full());
+        if self.get_last_rendered_revision() == 0 {
+            self.set_pending_full_redraw_reason(FullRedrawReason::FirstFrame);
+        } else if self.get_pending_full_redraw_reason() == FullRedrawReason::None
+            || matches!(
+                reason,
+                FullRedrawReason::Resize | FullRedrawReason::DpiChange
+            )
+        {
+            self.set_pending_full_redraw_reason(reason);
+        }
+    }
+
+    /// Captures a starting phase timestamp when telemetry timing is enabled.
+    ///
+    /// # Arguments
+    ///
+    /// - `bool` - Whether telemetry timing is enabled.
+    ///
+    /// # Returns
+    ///
+    /// - `PhaseMark` - Active timestamp marker or `None`.
+    #[cfg(not(target_arch = "wasm32"))]
+    #[inline(always)]
+    fn phase_start(enabled: bool) -> PhaseMark {
+        if enabled { Some(Instant::now()) } else { None }
+    }
+
+    /// Captures a no-op starting phase timestamp on WASM targets.
+    ///
+    /// # Arguments
+    ///
+    /// - `bool` - Unused telemetry toggle on WASM.
+    ///
+    /// # Returns
+    ///
+    /// - `PhaseMark` - Always `None` on WASM.
+    #[cfg(target_arch = "wasm32")]
+    #[inline(always)]
+    fn phase_start(_enabled: bool) -> PhaseMark {
+        None
+    }
+
+    /// Measures elapsed microseconds since `mark` and advances `mark` to `Instant::now()`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut PhaseMark` - Mutable phase marker.
+    ///
+    /// # Returns
+    ///
+    /// - `u64` - Elapsed microseconds, or `0` when timing is disabled.
+    #[cfg(not(target_arch = "wasm32"))]
+    #[inline(always)]
+    fn phase_lap_us(mark: &mut PhaseMark) -> u64 {
+        if let Some(prev) = *mark {
+            let now: Instant = Instant::now();
+            let us: u64 = now.duration_since(prev).as_micros() as u64;
+            *mark = Some(now);
+            us
+        } else {
+            0
+        }
+    }
+
+    /// Returns `0` microseconds on WASM targets without invoking `Instant::now()`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut PhaseMark` - Unused phase marker.
+    ///
+    /// # Returns
+    ///
+    /// - `u64` - Always `0` on WASM.
+    #[cfg(target_arch = "wasm32")]
+    #[inline(always)]
+    fn phase_lap_us(_mark: &mut PhaseMark) -> u64 {
+        0
+    }
+
+    /// Computes the fraction of physical viewport area covered by `damage` in `[0.0, 1.0]`.
+    ///
+    /// # Arguments
+    ///
+    /// - `DamageRegion` - Resolved damage region for the frame.
+    /// - `u32` - Physical surface width in pixels.
+    /// - `u32` - Physical surface height in pixels.
+    ///
+    /// # Returns
+    ///
+    /// - `f32` - Dirty area ratio in `[0.0, 1.0]`.
+    #[must_use]
+    fn compute_dirty_area_ratio(damage: DamageRegion, phys_w: u32, phys_h: u32) -> f32 {
+        if damage.get_full_damage() {
+            return 1.0;
+        }
+        let total_area: f32 = (phys_w as f32) * (phys_h as f32);
+        if total_area <= 0.0 {
+            return 0.0;
+        }
+        let (rects, count): ([Rect; 8], usize) = damage.normalized_rects(phys_w, phys_h);
+        let mut dirty_area: f32 = 0.0;
+        for rect in rects.iter().take(count) {
+            dirty_area += rect.get_width().max(0.0) * rect.get_height().max(0.0);
+        }
+        (dirty_area / total_area).clamp(0.0, 1.0)
     }
 
     /// Returns the detected native hardware display refresh rate in Hertz (`120.0`, `144.0`, `180.0`, etc.).
@@ -366,7 +608,7 @@ impl App {
                 SystemEvent::SafeAreaChanged(insets) => {
                     self.get_mut_window_state().set_safe_area(*insets);
                     let _: bool = self.get_context().get_safe_area().set_if_changed(*insets);
-                    self.set_pending_damage(DamageRegion::full());
+                    self.set_pending_full_damage(FullRedrawReason::Forced);
                 }
                 SystemEvent::OrientationChanged(orient) => {
                     let _: bool = self.get_context().get_orientation().set_if_changed(*orient);
@@ -374,7 +616,7 @@ impl App {
                 SystemEvent::ThemeChanged(mode) => {
                     self.get_mut_window_state().set_system_theme(*mode);
                     let _: bool = self.get_context().get_theme_mode().set_if_changed(*mode);
-                    self.set_pending_damage(DamageRegion::full());
+                    self.set_pending_full_damage(FullRedrawReason::Forced);
                 }
                 SystemEvent::LocaleChanged(locale) => {
                     let _: bool = self
@@ -440,7 +682,7 @@ impl App {
                     self.set_running(false);
                 }
                 SystemEvent::Appear | SystemEvent::Foreground => {
-                    self.set_pending_damage(DamageRegion::full());
+                    self.set_pending_full_damage(FullRedrawReason::Forced);
                 }
                 SystemEvent::MemoryWarning(_) | SystemEvent::ClipboardChanged => {}
             }
@@ -699,7 +941,7 @@ impl App {
         let root: NodeId = scene.with_read(SceneTree::get_root, NodeId::default());
         scene.replace_children_safe(root, vec![root_child]);
         scene.activate_subtree(root_child);
-        self.set_pending_damage(DamageRegion::full());
+        self.set_pending_full_damage(FullRedrawReason::Forced);
         root_child
     }
 
@@ -780,7 +1022,7 @@ impl App {
         let id: WindowId = self.get_window_state().get_id();
         self.get_mut_command_queue()
             .push(WindowCommand::SetRenderMode(id, mode));
-        self.set_pending_damage(DamageRegion::full());
+        self.set_pending_full_damage(FullRedrawReason::Forced);
     }
 
     /// Queues a `WindowCommand` for immediate dispatch on the next frame tick.
@@ -807,6 +1049,8 @@ impl App {
         } else {
             1.0
         };
+        let prev_scale: f32 = self.get_window_state().get_scale_factor();
+        let dpi_changed: bool = (prev_scale - safe_scale).abs() > 0.001;
         let pw: u32 = phys_w.max(1);
         let ph: u32 = phys_h.max(1);
         let lw: f32 = ((pw as f32) / safe_scale).max(1.0);
@@ -834,7 +1078,11 @@ impl App {
             },
             (),
         );
-        self.set_pending_damage(DamageRegion::full());
+        self.set_pending_full_damage(if dpi_changed {
+            FullRedrawReason::DpiChange
+        } else {
+            FullRedrawReason::Resize
+        });
         self.dispatch_system_event(SystemEvent::Resize {
             width: lw,
             height: lh,
@@ -876,6 +1124,8 @@ impl App {
                 if let Some((pw, ph)) = exact_plat {
                     self.set_exact_physical_viewport(pw, ph, safe_scale);
                 } else {
+                    let prev_scale: f32 = self.get_window_state().get_scale_factor();
+                    let dpi_changed: bool = (prev_scale - safe_scale).abs() > 0.001;
                     self.get_mut_window_state()
                         .set_logical_width(width.max(1) as f32);
                     self.get_mut_window_state()
@@ -903,7 +1153,11 @@ impl App {
                         },
                         (),
                     );
-                    self.set_pending_damage(DamageRegion::full());
+                    self.set_pending_full_damage(if dpi_changed {
+                        FullRedrawReason::DpiChange
+                    } else {
+                        FullRedrawReason::Resize
+                    });
                 }
                 let ws: WindowState = self.get_window_state();
                 self.dispatch_system_event(SystemEvent::Resize {
@@ -971,7 +1225,7 @@ impl App {
                 }
             },
             WindowEvent::RedrawRequested(_) => {
-                self.set_pending_damage(DamageRegion::full());
+                self.set_pending_full_damage(FullRedrawReason::Forced);
             }
             WindowEvent::DeepLink(link) => {
                 let uri: String = link.get_raw_url().clone();
@@ -1002,6 +1256,8 @@ impl App {
     ///
     /// - `Result<FrameStats, PlatformError>` - Performance and pixel telemetry for this frame.
     pub fn step_frame(&mut self) -> Result<FrameStats, PlatformError> {
+        let telemetry_on: bool = self.get_telemetry_enabled();
+        let mut phase_mark: PhaseMark = Self::phase_start(telemetry_on);
         if !self.get_command_queue().is_empty() {
             let commands: Vec<WindowCommand> = self.get_mut_command_queue().drain();
             for cmd in commands.into_iter() {
@@ -1018,6 +1274,7 @@ impl App {
                 self.dispatch_window_event(ev);
             }
         }
+        let input_us: u64 = Self::phase_lap_us(&mut phase_mark);
         flush_effects();
         let raw_dt: f32 = self.get_frame_clock().get_delta_secs();
         let native_hz: f32 = self.get_display_refresh_rate_hz().clamp(24.0, 480.0);
@@ -1026,6 +1283,7 @@ impl App {
         } else {
             1.0 / native_hz
         };
+        let target_hz: f32 = self.target_hz();
         if let Some(fps_cap) = self.fps_limit() {
             let min_dt: f32 = 1.0 / (fps_cap.max(1) as f32);
             let accum: f32 = self.get_fps_budget_accum() + anim_dt;
@@ -1034,7 +1292,30 @@ impl App {
                 && !self.get_pending_damage().get_full_damage()
             {
                 self.set_fps_budget_accum(accum);
-                return Ok(self.get_mut_renderer().record_skipped_frame());
+                let reactive_us: u64 = Self::phase_lap_us(&mut phase_mark);
+                let skipped: FrameStats = self.get_mut_renderer().record_skipped_frame();
+                self.set_is_idle_frame(true);
+                let _: bool = self.get_context().get_is_idle().set_if_changed(true);
+                self.set_last_frame_telemetry(FrameTelemetry {
+                    frame_id: skipped.get_frame_index(),
+                    phases: FramePhaseMetrics {
+                        input_us,
+                        reactive_us,
+                        layout_us: 0,
+                        paint_list_us: 0,
+                        raster_us: 0,
+                        present_us: 0,
+                    },
+                    dirty_area_ratio: 0.0,
+                    full_redraw_reason: FullRedrawReason::None,
+                    target_hz,
+                    present_fps: self.get_active_present_fps(),
+                    is_idle: true,
+                    layout_nodes: 0,
+                    draw_commands: 0,
+                    pixels_shaded: 0,
+                });
+                return Ok(skipped);
             }
             self.set_fps_budget_accum(0.0);
         } else if self.get_fps_budget_accum() != 0.0 {
@@ -1190,14 +1471,43 @@ impl App {
         let scale: f32 = self.get_window_state().get_scale_factor();
         let clear: Color = self.get_config().get_clear_color();
         let mut damage: DamageRegion = self.get_pending_damage();
-        let (scene_rev, tree_damage, has_transitions_after): (u64, DamageRegion, bool) = {
+        let mut full_reason: FullRedrawReason = self.get_pending_full_redraw_reason();
+        let prev_rev: u64 = self.get_last_rendered_revision();
+        if prev_rev == 0 {
+            damage = DamageRegion::full();
+            full_reason = FullRedrawReason::FirstFrame;
+        } else if self.get_last_rendered_scale() > 0.0 {
+            let prev_vp: Size = self.get_last_rendered_viewport();
+            let scale_changed: bool = (scale - self.get_last_rendered_scale()).abs() > 0.001;
+            let width_changed: bool = (viewport.get_width() - prev_vp.get_width()).abs() > 0.5;
+            let height_changed: bool = (viewport.get_height() - prev_vp.get_height()).abs() > 0.5;
+            if scale_changed {
+                damage = DamageRegion::full();
+                full_reason = FullRedrawReason::DpiChange;
+            } else if width_changed || height_changed {
+                damage = DamageRegion::full();
+                full_reason = FullRedrawReason::Resize;
+            }
+        }
+        let (scene_rev, tree_damage, has_transitions_after, tree_overflow): (
+            u64,
+            DamageRegion,
+            bool,
+            bool,
+        ) = {
             let Self { scene, .. } = self;
             scene.with_write(
                 |tree: &mut SceneTree| {
+                    let overflowed: bool = tree.take_full_damage_overflow();
                     let d: DamageRegion = tree.collect_paint_damage(scale);
-                    (tree.get_revision(), d, tree.has_active_transitions())
+                    (
+                        tree.get_revision(),
+                        d,
+                        tree.has_active_transitions(),
+                        overflowed,
+                    )
                 },
-                (0, DamageRegion::full(), false),
+                (0, DamageRegion::full(), false, false),
             )
         };
         let vel_after: Point = self.get_scroll_velocity();
@@ -1207,13 +1517,23 @@ impl App {
         let active_scroll_after: bool = vel_moving_after || smooth_moving_after;
         let active_anim_after: bool = has_active_game || has_transitions_after;
         self.set_was_animating(active_anim_after || active_scroll_after);
-        if tree_damage.get_full_damage() || scene_rev != self.get_last_rendered_revision() {
+        if tree_damage.get_full_damage() || scene_rev != prev_rev {
             if tree_damage.get_full_damage() {
                 damage = DamageRegion::full();
+                if full_reason == FullRedrawReason::None {
+                    full_reason = if tree_overflow {
+                        FullRedrawReason::DamageOverflow
+                    } else {
+                        FullRedrawReason::LayoutFallback
+                    };
+                }
             } else if let Some(rect) = tree_damage.bounds_rect() {
                 damage.add_rect(rect);
             } else if damage.resolve(1, 1).is_none() {
                 damage = DamageRegion::full();
+                if full_reason == FullRedrawReason::None {
+                    full_reason = FullRedrawReason::Forced;
+                }
             }
         } else if let Some(rect) = tree_damage.bounds_rect() {
             damage.add_rect(rect);
@@ -1238,7 +1558,38 @@ impl App {
         let phys_h: u32 = ((viewport.get_height() * scale).round() as u32).max(1);
         let damage_rect_opt: Option<Rect> = damage.resolve(phys_w, phys_h);
         if damage_rect_opt.is_none() {
-            return Ok(self.get_mut_renderer().record_skipped_frame());
+            let reactive_us: u64 = Self::phase_lap_us(&mut phase_mark);
+            let skipped: FrameStats = self.get_mut_renderer().record_skipped_frame();
+            let idle_secs: f32 = self.get_idle_secs_since_present() + anim_dt;
+            self.set_idle_secs_since_present(idle_secs);
+            self.set_is_idle_frame(true);
+            let _: bool = self.get_context().get_is_idle().set_if_changed(true);
+            if idle_secs >= 0.35 || self.get_fps_accum_frames() == 0 {
+                self.set_fps_accum_secs(0.0);
+                self.set_fps_accum_frames(0);
+                self.set_active_present_fps(0.0);
+                let _: bool = self.get_context().get_present_fps().set_if_changed(0.0);
+            }
+            self.set_last_frame_telemetry(FrameTelemetry {
+                frame_id: skipped.get_frame_index(),
+                phases: FramePhaseMetrics {
+                    input_us,
+                    reactive_us,
+                    layout_us: 0,
+                    paint_list_us: 0,
+                    raster_us: 0,
+                    present_us: 0,
+                },
+                dirty_area_ratio: 0.0,
+                full_redraw_reason: FullRedrawReason::None,
+                target_hz,
+                present_fps: self.get_active_present_fps(),
+                is_idle: true,
+                layout_nodes: 0,
+                draw_commands: 0,
+                pixels_shaded: 0,
+            });
+            return Ok(skipped);
         }
         let animated_or_game: bool = anim_ticked || has_active_game;
         let portal_dirty: bool = !visible_portals.is_empty()
@@ -1260,14 +1611,22 @@ impl App {
                         false
                     }
                 });
-        if portal_dirty
-            || !self
-                .get_renderer()
-                .get_config()
-                .get_dirty_rect_optimization()
+        if portal_dirty {
+            damage = DamageRegion::full();
+            if full_reason == FullRedrawReason::None {
+                full_reason = FullRedrawReason::PortalBackdrop;
+            }
+        } else if !self
+            .get_renderer()
+            .get_config()
+            .get_dirty_rect_optimization()
         {
             damage = DamageRegion::full();
+            if full_reason == FullRedrawReason::None {
+                full_reason = FullRedrawReason::Forced;
+            }
         }
+        let reactive_us: u64 = Self::phase_lap_us(&mut phase_mark);
         let layout_stats: LayoutStats = {
             let Self {
                 scene,
@@ -1279,8 +1638,15 @@ impl App {
                 LayoutStats::default(),
             )
         };
+        let layout_us: u64 = Self::phase_lap_us(&mut phase_mark);
         if layout_stats.get_nodes_computed() > 0 {
             damage = DamageRegion::full();
+            if full_reason == FullRedrawReason::None {
+                full_reason = FullRedrawReason::LayoutFallback;
+            }
+        }
+        if !damage.get_full_damage() {
+            full_reason = FullRedrawReason::None;
         }
         let frame_stats: FrameStats = {
             let Self {
@@ -1293,6 +1659,7 @@ impl App {
                 Ok(FrameStats::default()),
             )?
         };
+        let raster_us: u64 = Self::phase_lap_us(&mut phase_mark);
         let window_id: WindowId = self.get_window_state().get_id();
         {
             let Self {
@@ -1302,23 +1669,59 @@ impl App {
                 platform.present_framebuffer_region(window_id, fb, damage)?;
             }
         }
+        let present_us: u64 = Self::phase_lap_us(&mut phase_mark);
         self.set_last_frame_damage(damage);
         self.set_last_rendered_revision(scene_rev);
+        self.set_last_rendered_viewport(viewport);
+        self.set_last_rendered_scale(scale);
         self.set_pending_damage(DamageRegion::default());
+        self.set_pending_full_redraw_reason(FullRedrawReason::None);
+        self.set_idle_secs_since_present(0.0);
+        self.set_is_idle_frame(false);
+        let _: bool = self.get_context().get_is_idle().set_if_changed(false);
         let next_fps_secs: f32 = self.get_fps_accum_secs() + anim_dt;
         let next_fps_frames: u32 = self.get_fps_accum_frames().saturating_add(1);
         if next_fps_secs >= 0.35 {
             let measured: f32 = ((next_fps_frames as f32) / next_fps_secs).clamp(1.0, 999.0);
-            let _: bool = self
-                .get_context()
-                .get_live_fps()
-                .set_if_changed((measured * 2.0).round() * 0.5);
+            let rounded: f32 = (measured * 2.0).round() * 0.5;
+            self.set_active_present_fps(rounded);
+            let _: bool = self.get_context().get_present_fps().set_if_changed(rounded);
+            let _: bool = self.get_context().get_live_fps().set_if_changed(rounded);
             self.set_fps_accum_secs(0.0);
             self.set_fps_accum_frames(0);
         } else {
             self.set_fps_accum_secs(next_fps_secs);
             self.set_fps_accum_frames(next_fps_frames);
+            if self.get_active_present_fps() <= 0.0 {
+                let instant_fps: f32 =
+                    (((1.0 / anim_dt).clamp(1.0, 999.0) * 2.0).round() * 0.5).min(target_hz);
+                self.set_active_present_fps(instant_fps);
+                let _: bool = self
+                    .get_context()
+                    .get_present_fps()
+                    .set_if_changed(instant_fps);
+            }
         }
+        let dirty_area_ratio: f32 = Self::compute_dirty_area_ratio(damage, phys_w, phys_h);
+        self.set_last_frame_telemetry(FrameTelemetry {
+            frame_id: frame_stats.get_frame_index(),
+            phases: FramePhaseMetrics {
+                input_us,
+                reactive_us,
+                layout_us,
+                paint_list_us: 0,
+                raster_us,
+                present_us,
+            },
+            dirty_area_ratio,
+            full_redraw_reason: full_reason,
+            target_hz,
+            present_fps: self.get_active_present_fps(),
+            is_idle: false,
+            layout_nodes: frame_stats.get_layout_nodes(),
+            draw_commands: frame_stats.get_draw_commands(),
+            pixels_shaded: frame_stats.get_pixels_shaded(),
+        });
         Ok(frame_stats)
     }
 

@@ -10,6 +10,64 @@ pub struct AppConfig {
     pub(crate) clear_color: Color,
 }
 
+/// Opt-in per-phase microsecond breakdown for a single `App::step_frame` execution.
+#[derive(Clone, Copy, Data, Debug, Default, Eq, Hash, PartialEq)]
+pub struct FramePhaseMetrics {
+    /// Window command flushing, event polling, and input dispatch duration in microseconds.
+    #[get(type(copy))]
+    pub(crate) input_us: u64,
+    /// Reactive effect flushing, animation/gesture/scroll ticking, and damage collection duration in microseconds.
+    #[get(type(copy))]
+    pub(crate) reactive_us: u64,
+    /// `LayoutEngine::compute` pass duration in microseconds.
+    #[get(type(copy))]
+    pub(crate) layout_us: u64,
+    /// Display-list compilation duration in microseconds when timed separately (`0` when combined into `raster_us`).
+    #[get(type(copy))]
+    pub(crate) paint_list_us: u64,
+    /// Unified render pass (`Renderer::render_frame`) duration in microseconds.
+    #[get(type(copy))]
+    pub(crate) raster_us: u64,
+    /// Native surface / framebuffer region presentation duration in microseconds.
+    #[get(type(copy))]
+    pub(crate) present_us: u64,
+}
+
+/// Unified per-frame diagnostic telemetry covering phase timings, damage ratio, redraw cause, and idle-aware FPS.
+#[derive(Clone, Copy, Data, Debug, Default, PartialEq)]
+pub struct FrameTelemetry {
+    /// Monotonic frame identifier matching `FrameStats::get_frame_index()`.
+    #[get(type(copy))]
+    pub(crate) frame_id: u64,
+    /// Microsecond breakdown across pipeline phases (zeroed when telemetry timing is disabled).
+    #[get(type(copy))]
+    pub(crate) phases: FramePhaseMetrics,
+    /// Fraction of physical viewport area rasterized (`0.0` when idle, `(0.0..=1.0]` when rendered).
+    #[get(type(copy))]
+    pub(crate) dirty_area_ratio: f32,
+    /// Diagnostic reason when the frame promoted to full-viewport redraw (`FullRedrawReason::None` for partial or idle).
+    #[get(type(copy))]
+    pub(crate) full_redraw_reason: FullRedrawReason,
+    /// Effective target cadence in Hertz (`min(fps_limit, display_refresh_rate_hz)` or `display_refresh_rate_hz`).
+    #[get(type(copy))]
+    pub(crate) target_hz: f32,
+    /// Active presented frames per second (`0.0` while idle, smoothed active present cadence while rendering).
+    #[get(type(copy))]
+    pub(crate) present_fps: f32,
+    /// Whether this frame skipped rendering because the scene was clean or rate-capped.
+    #[get(type(copy))]
+    pub(crate) is_idle: bool,
+    /// Number of scene nodes recomputed during layout.
+    #[get(type(copy))]
+    pub(crate) layout_nodes: usize,
+    /// Number of display-list draw commands executed.
+    #[get(type(copy))]
+    pub(crate) draw_commands: usize,
+    /// Number of physical pixels shaded.
+    #[get(type(copy))]
+    pub(crate) pixels_shaded: usize,
+}
+
 /// Unified cross-platform application runtime orchestrating platform events, reactivity, layout, and rendering.
 #[derive(CustomDebug, Data)]
 pub struct App {
@@ -189,6 +247,31 @@ pub struct App {
     pub(crate) was_animating: bool,
     /// Cross-platform lifecycle and system event normalizer deduplicating OS notifications.
     pub(crate) system_event_normalizer: SystemEventNormalizer,
+    /// Opt-in flag enabling per-phase microsecond timing instrumentation inside `step_frame` (zero syscall overhead when `false`).
+    #[get(type(copy))]
+    #[set(skip)]
+    pub(crate) telemetry_enabled: bool,
+    /// Most recently recorded `FrameTelemetry` snapshot.
+    #[get(type(copy))]
+    pub(crate) last_frame_telemetry: FrameTelemetry,
+    /// Pending diagnostic reason associated with `pending_damage` when full-viewport damage was queued before `step_frame`.
+    #[get(type(copy))]
+    pub(crate) pending_full_redraw_reason: FullRedrawReason,
+    /// Logical viewport size rasterized during the most recent rendered frame.
+    #[get(type(copy))]
+    pub(crate) last_rendered_viewport: Size,
+    /// Display DPI scale factor rasterized during the most recent rendered frame.
+    #[get(type(copy))]
+    pub(crate) last_rendered_scale: f32,
+    /// Active presented frames-per-second rate (`0.0` once idle beyond the sampling window).
+    #[get(type(copy))]
+    pub(crate) active_present_fps: f32,
+    /// Continuous idle seconds elapsed since the most recent rendered frame.
+    #[get(type(copy))]
+    pub(crate) idle_secs_since_present: f32,
+    /// Whether the most recent `step_frame` call skipped rendering due to a clean idle scene.
+    #[get(type(copy))]
+    pub(crate) is_idle_frame: bool,
 }
 
 /// Fused single-borrow pre-tick snapshot collected at the start of `App::step_frame`.
