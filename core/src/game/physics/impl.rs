@@ -84,7 +84,7 @@ impl RaycastQuery2D {
     }
 }
 
-/// Broad-phase spatial hashing, narrow-phase contact resolution, and raycasting for `PhysicsWorld2D`.
+/// Broad-phase flat spatial grid, narrow-phase contact resolution, and raycasting for `PhysicsWorld2D`.
 impl PhysicsWorld2D {
     /// Creates a `PhysicsWorld2D` configured with `config`.
     ///
@@ -99,13 +99,151 @@ impl PhysicsWorld2D {
     pub fn with_config(config: PhysicsConfig) -> Self {
         Self {
             config,
-            grid: HashMap::with_capacity(128),
-            seen_pairs: HashSet::with_capacity(256),
+            body_bounds: Vec::with_capacity(256),
+            cell_counts: Vec::with_capacity(256),
+            cell_offsets: Vec::with_capacity(256),
+            cell_cursors: Vec::with_capacity(256),
+            cell_items: Vec::with_capacity(512),
+            active_cells: Vec::with_capacity(128),
+            sparse_table: Vec::new(),
+            sparse_nodes: Vec::new(),
+            sparse_active: Vec::new(),
+            sparse_bucket_scratch: Vec::new(),
             last_stats: PhysicsStepStats::default(),
         }
     }
 
-    /// Integrates velocities/positions, resolves spatial-hash collisions and arena bounds, and returns contact events.
+    /// Packs `(cx, cy)` integer coordinates into a unique 64-bit hash key reserving `u64::MAX` for empty slots.
+    ///
+    /// # Arguments
+    ///
+    /// - `i32` - Grid cell X coordinate.
+    /// - `i32` - Grid cell Y coordinate.
+    ///
+    /// # Returns
+    ///
+    /// - `u64` - Unique cell key in `0..u64::MAX`.
+    #[inline(always)]
+    #[must_use]
+    fn pack_cell_key(cx: i32, cy: i32) -> u64 {
+        let raw: u64 = ((cx as u32 as u64) << 32) | (cy as u32 as u64);
+        if raw == u64::MAX { u64::MAX - 1 } else { raw }
+    }
+
+    /// Evaluates narrow-phase contact and applies Baumgarte separation and impulse response for one deduplicated entity pair.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut [EntityRecord]` - Mutable ECS entity slice.
+    /// - `usize` - First entity arena index.
+    /// - `usize` - Second entity arena index.
+    /// - `f32` - Baumgarte positional correction factor.
+    /// - `&mut Vec<CollisionEvent>` - Output contact event buffer.
+    #[inline]
+    fn resolve_pair(
+        entities: &mut [EntityRecord],
+        ia: usize,
+        ib: usize,
+        pos_corr: f32,
+        events: &mut Vec<CollisionEvent>,
+    ) {
+        let (id_a, pos_a, vel_a, body_a, col_a): (
+            EntityId,
+            Point,
+            Velocity2D,
+            RigidBody2D,
+            Collider2D,
+        ) = {
+            let ent: &EntityRecord = &entities[ia];
+            let Some(col) = ent.collider_component() else {
+                return;
+            };
+            (
+                ent.get_id(),
+                ent.get_transform().get_position(),
+                ent.get_velocity(),
+                ent.body_component()
+                    .unwrap_or_else(|| RigidBody2D::static_body(0.5)),
+                col,
+            )
+        };
+        let (id_b, pos_b, vel_b, body_b, col_b): (
+            EntityId,
+            Point,
+            Velocity2D,
+            RigidBody2D,
+            Collider2D,
+        ) = {
+            let ent: &EntityRecord = &entities[ib];
+            let Some(col) = ent.collider_component() else {
+                return;
+            };
+            (
+                ent.get_id(),
+                ent.get_transform().get_position(),
+                ent.get_velocity(),
+                ent.body_component()
+                    .unwrap_or_else(|| RigidBody2D::static_body(0.5)),
+                col,
+            )
+        };
+        let Some((normal, penetration)) =
+            Self::narrow_phase(pos_a, col_a.get_shape(), pos_b, col_b.get_shape())
+        else {
+            return;
+        };
+        let is_trigger: bool = col_a.get_is_trigger() || col_b.get_is_trigger();
+        events.push(CollisionEvent::new(
+            id_a,
+            id_b,
+            normal,
+            penetration,
+            is_trigger,
+        ));
+        if is_trigger {
+            return;
+        }
+        let inv_a: f32 = body_a.get_inv_mass();
+        let inv_b: f32 = body_b.get_inv_mass();
+        let inv_sum: f32 = inv_a + inv_b;
+        if inv_sum <= 0.0 {
+            return;
+        }
+        let corr_mag: f32 = (penetration / inv_sum) * pos_corr;
+        let nx_n: f32 = normal.get_x();
+        let ny_n: f32 = normal.get_y();
+        let corr_x: f32 = nx_n * corr_mag;
+        let corr_y: f32 = ny_n * corr_mag;
+        let next_pos_a: Point = Point::new(
+            pos_a.get_x() - corr_x * inv_a,
+            pos_a.get_y() - corr_y * inv_a,
+        );
+        let next_pos_b: Point = Point::new(
+            pos_b.get_x() + corr_x * inv_b,
+            pos_b.get_y() + corr_y * inv_b,
+        );
+        let rvx: f32 = vel_b.get_vx() - vel_a.get_vx();
+        let rvy: f32 = vel_b.get_vy() - vel_a.get_vy();
+        let vel_along_normal: f32 = rvx * nx_n + rvy * ny_n;
+        let mut next_vel_a: Velocity2D = vel_a;
+        let mut next_vel_b: Velocity2D = vel_b;
+        if vel_along_normal < 0.0 {
+            let e: f32 = body_a.get_restitution().min(body_b.get_restitution());
+            let j: f32 = -(1.0 + e) * vel_along_normal / inv_sum;
+            let imp_x: f32 = j * nx_n;
+            let imp_y: f32 = j * ny_n;
+            next_vel_a.set_vx(vel_a.get_vx() - imp_x * inv_a);
+            next_vel_a.set_vy(vel_a.get_vy() - imp_y * inv_a);
+            next_vel_b.set_vx(vel_b.get_vx() + imp_x * inv_b);
+            next_vel_b.set_vy(vel_b.get_vy() + imp_y * inv_b);
+        }
+        entities[ia].get_mut_transform().set_position(next_pos_a);
+        entities[ia].set_velocity(next_vel_a);
+        entities[ib].get_mut_transform().set_position(next_pos_b);
+        entities[ib].set_velocity(next_vel_b);
+    }
+
+    /// Integrates velocities/positions, resolves flat spatial-grid collisions and arena bounds with zero per-step grid allocations, and returns contact events.
     ///
     /// # Arguments
     ///
@@ -118,21 +256,36 @@ impl PhysicsWorld2D {
     /// - `Vec<CollisionEvent>` - All solid and trigger contacts detected this step.
     pub fn step(&mut self, world: &mut GameWorld, dt_secs: f32) -> Vec<CollisionEvent> {
         let cfg: PhysicsConfig = self.get_config();
-        let gx: f32 = cfg.get_gravity().get_x();
-        let gy: f32 = cfg.get_gravity().get_y();
+        let gx_dt: f32 = cfg.get_gravity().get_x() * dt_secs;
+        let gy_dt: f32 = cfg.get_gravity().get_y() * dt_secs;
+        let pos_corr: f32 = cfg.get_position_correction();
         let inv_cell: f32 = 1.0 / cfg.get_cell_size().max(8.0);
         let arena_opt: Option<Rect> = {
             let PhysicsConfig { arena_bounds, .. } = cfg;
             arena_bounds
         };
+        let Self {
+            body_bounds,
+            cell_counts,
+            cell_offsets,
+            cell_cursors,
+            cell_items,
+            active_cells,
+            sparse_table,
+            sparse_nodes,
+            sparse_active,
+            sparse_bucket_scratch,
+            ..
+        } = self;
+        body_bounds.clear();
         let mut integrated: usize = 0;
-        for bucket in self.get_mut_grid().values_mut() {
-            bucket.clear();
-        }
-        self.get_mut_seen_pairs().clear();
-        let entity_len: usize = world.get_entities().len();
-        for idx in 0..entity_len {
-            let ent: &mut EntityRecord = &mut world.get_mut_entities()[idx];
+        let mut grid_min_cx: i32 = i32::MAX;
+        let mut grid_max_cx: i32 = i32::MIN;
+        let mut grid_min_cy: i32 = i32::MAX;
+        let mut grid_max_cy: i32 = i32::MIN;
+        let mut total_cell_refs: usize = 0;
+        let entities: &mut [EntityRecord] = world.get_mut_entities().as_mut_slice();
+        for (idx, ent) in entities.iter_mut().enumerate() {
             if !ent.get_alive() {
                 continue;
             }
@@ -156,8 +309,8 @@ impl PhysicsWorld2D {
                         let mut vel: Velocity2D = ent.get_velocity();
                         let g_scale: f32 = body.get_gravity_scale();
                         let damp: f32 = (1.0 - body.get_linear_drag() * dt_secs).clamp(0.0, 1.0);
-                        vel.set_vx((vel.get_vx() + gx * g_scale * dt_secs) * damp);
-                        vel.set_vy((vel.get_vy() + gy * g_scale * dt_secs) * damp);
+                        vel.set_vx((vel.get_vx() + gx_dt * g_scale) * damp);
+                        vel.set_vy((vel.get_vy() + gy_dt * g_scale) * damp);
                         let pos: Point = ent.get_transform().get_position();
                         let mut nx: f32 = pos.get_x() + vel.get_vx() * dt_secs;
                         let mut ny: f32 = pos.get_y() + vel.get_vy() * dt_secs;
@@ -206,135 +359,203 @@ impl PhysicsWorld2D {
                 let max_cx: i32 = (aabb.right() * inv_cell).floor() as i32;
                 let min_cy: i32 = (aabb.get_y() * inv_cell).floor() as i32;
                 let max_cy: i32 = (aabb.bottom() * inv_cell).floor() as i32;
-                for cy in min_cy..=max_cy {
-                    for cx in min_cx..=max_cx {
-                        self.get_mut_grid().entry((cx, cy)).or_default().push(idx);
-                    }
-                }
+                grid_min_cx = grid_min_cx.min(min_cx);
+                grid_max_cx = grid_max_cx.max(max_cx);
+                grid_min_cy = grid_min_cy.min(min_cy);
+                grid_max_cy = grid_max_cy.max(max_cy);
+                let span_x: usize = ((max_cx as i64) - (min_cx as i64) + 1).max(1) as usize;
+                let span_y: usize = ((max_cy as i64) - (min_cy as i64) + 1).max(1) as usize;
+                total_cell_refs = total_cell_refs.saturating_add(span_x.saturating_mul(span_y));
+                body_bounds.push(BodyGridBounds {
+                    entity_idx: idx as u32,
+                    min_cx,
+                    max_cx,
+                    min_cy,
+                    max_cy,
+                    layer: col.get_layer(),
+                    mask: col.get_mask(),
+                });
             }
         }
-        let mut candidate_pairs: Vec<(usize, usize)> = Vec::new();
-        {
-            let Self {
-                grid, seen_pairs, ..
-            } = self;
-            for bucket in grid.values() {
-                let n: usize = bucket.len();
-                for i in 0..n {
-                    let a: usize = bucket[i];
-                    for &b in &bucket[(i + 1)..] {
-                        let pair: (usize, usize) = if a < b { (a, b) } else { (b, a) };
-                        if seen_pairs.insert(pair) {
-                            candidate_pairs.push(pair);
+        let mut broad_count: usize = 0;
+        let mut events: Vec<CollisionEvent> = Vec::new();
+        if body_bounds.len() >= 2 {
+            let span_x_i64: i64 = (grid_max_cx as i64) - (grid_min_cx as i64) + 1;
+            let span_y_i64: i64 = (grid_max_cy as i64) - (grid_min_cy as i64) + 1;
+            let use_dense: bool = span_x_i64 > 0
+                && span_y_i64 > 0
+                && span_x_i64 <= FLAT_GRID_MAX_AXIS
+                && span_y_i64 <= FLAT_GRID_MAX_AXIS
+                && ((span_x_i64 * span_y_i64) as usize) <= FLAT_GRID_MAX_CELLS;
+            if use_dense {
+                let grid_w: usize = span_x_i64 as usize;
+                let grid_h: usize = span_y_i64 as usize;
+                let grid_cells: usize = grid_w * grid_h;
+                cell_counts.resize(grid_cells, 0);
+                cell_counts.fill(0);
+                for b in body_bounds.iter() {
+                    let rx0: usize = (b.min_cx - grid_min_cx) as usize;
+                    let rx1: usize = (b.max_cx - grid_min_cx) as usize;
+                    let ry0: usize = (b.min_cy - grid_min_cy) as usize;
+                    let ry1: usize = (b.max_cy - grid_min_cy) as usize;
+                    for ry in ry0..=ry1 {
+                        let row_off: usize = ry * grid_w;
+                        for rx in rx0..=rx1 {
+                            cell_counts[row_off + rx] += 1;
+                        }
+                    }
+                }
+                cell_offsets.resize(grid_cells, 0);
+                cell_cursors.resize(grid_cells, 0);
+                active_cells.clear();
+                let mut running: u32 = 0;
+                for ry in 0..grid_h {
+                    let cy: i32 = grid_min_cy + (ry as i32);
+                    let row_off: usize = ry * grid_w;
+                    for rx in 0..grid_w {
+                        let cidx: usize = row_off + rx;
+                        let cnt: u32 = cell_counts[cidx];
+                        cell_offsets[cidx] = running;
+                        cell_cursors[cidx] = running;
+                        running += cnt;
+                        if cnt >= 2 {
+                            active_cells.push((cidx, grid_min_cx + (rx as i32), cy));
+                        }
+                    }
+                }
+                cell_items.resize(running as usize, 0);
+                for (slot_idx, b) in body_bounds.iter().enumerate() {
+                    let slot_u32: u32 = slot_idx as u32;
+                    let rx0: usize = (b.min_cx - grid_min_cx) as usize;
+                    let rx1: usize = (b.max_cx - grid_min_cx) as usize;
+                    let ry0: usize = (b.min_cy - grid_min_cy) as usize;
+                    let ry1: usize = (b.max_cy - grid_min_cy) as usize;
+                    for ry in ry0..=ry1 {
+                        let row_off: usize = ry * grid_w;
+                        for rx in rx0..=rx1 {
+                            let cidx: usize = row_off + rx;
+                            let dst: usize = cell_cursors[cidx] as usize;
+                            cell_items[dst] = slot_u32;
+                            cell_cursors[cidx] = (dst + 1) as u32;
+                        }
+                    }
+                }
+                for &(cidx, cx, cy) in active_cells.iter() {
+                    let start: usize = cell_offsets[cidx] as usize;
+                    let end: usize = cell_cursors[cidx] as usize;
+                    let bucket: &[u32] = &cell_items[start..end];
+                    let n: usize = bucket.len();
+                    for i in 0..n {
+                        let ba: BodyGridBounds = body_bounds[bucket[i] as usize];
+                        for &sb_u32 in &bucket[(i + 1)..] {
+                            let bb: BodyGridBounds = body_bounds[sb_u32 as usize];
+                            if ba.min_cx.max(bb.min_cx) == cx && ba.min_cy.max(bb.min_cy) == cy {
+                                broad_count += 1;
+                                if (ba.layer & bb.mask) != 0 && (bb.layer & ba.mask) != 0 {
+                                    Self::resolve_pair(
+                                        entities,
+                                        ba.entity_idx as usize,
+                                        bb.entity_idx as usize,
+                                        pos_corr,
+                                        &mut events,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                let needed_cap: usize = (total_cell_refs.saturating_mul(2).max(64))
+                    .next_power_of_two()
+                    .max(64);
+                let empty_cell: SparseGridCell = SparseGridCell {
+                    key: u64::MAX,
+                    cx: 0,
+                    cy: 0,
+                    head: u32::MAX,
+                    count: 0,
+                };
+                if sparse_table.len() < needed_cap {
+                    sparse_table.resize(needed_cap, empty_cell);
+                }
+                let cap: usize = sparse_table.len();
+                let mask: usize = cap - 1;
+                sparse_table.fill(empty_cell);
+                sparse_nodes.clear();
+                sparse_active.clear();
+                for (slot_idx, b) in body_bounds.iter().enumerate() {
+                    let slot_u32: u32 = slot_idx as u32;
+                    for cy in b.min_cy..=b.max_cy {
+                        for cx in b.min_cx..=b.max_cx {
+                            let key: u64 = Self::pack_cell_key(cx, cy);
+                            let mut h: usize =
+                                (key.wrapping_mul(SPARSE_GRID_HASH_MULT) >> 32) as usize & mask;
+                            loop {
+                                let cell: &mut SparseGridCell = &mut sparse_table[h];
+                                if cell.key == u64::MAX {
+                                    cell.key = key;
+                                    cell.cx = cx;
+                                    cell.cy = cy;
+                                    let node_idx: u32 = sparse_nodes.len() as u32;
+                                    sparse_nodes.push(SparseGridNode {
+                                        body_slot: slot_u32,
+                                        next: u32::MAX,
+                                    });
+                                    cell.head = node_idx;
+                                    cell.count = 1;
+                                    break;
+                                } else if cell.key == key {
+                                    let prev_head: u32 = cell.head;
+                                    let node_idx: u32 = sparse_nodes.len() as u32;
+                                    sparse_nodes.push(SparseGridNode {
+                                        body_slot: slot_u32,
+                                        next: prev_head,
+                                    });
+                                    cell.head = node_idx;
+                                    cell.count += 1;
+                                    if cell.count == 2 {
+                                        sparse_active.push(h);
+                                    }
+                                    break;
+                                }
+                                h = (h + 1) & mask;
+                            }
+                        }
+                    }
+                }
+                for &table_idx in sparse_active.iter() {
+                    let cell: SparseGridCell = sparse_table[table_idx];
+                    sparse_bucket_scratch.clear();
+                    let mut cur: u32 = cell.head;
+                    while cur != u32::MAX {
+                        let node: SparseGridNode = sparse_nodes[cur as usize];
+                        sparse_bucket_scratch.push(node.body_slot);
+                        cur = node.next;
+                    }
+                    sparse_bucket_scratch.reverse();
+                    let n: usize = sparse_bucket_scratch.len();
+                    for i in 0..n {
+                        let ba: BodyGridBounds = body_bounds[sparse_bucket_scratch[i] as usize];
+                        for &sb_u32 in &sparse_bucket_scratch[(i + 1)..] {
+                            let bb: BodyGridBounds = body_bounds[sb_u32 as usize];
+                            if ba.min_cx.max(bb.min_cx) == cell.cx
+                                && ba.min_cy.max(bb.min_cy) == cell.cy
+                            {
+                                broad_count += 1;
+                                if (ba.layer & bb.mask) != 0 && (bb.layer & ba.mask) != 0 {
+                                    Self::resolve_pair(
+                                        entities,
+                                        ba.entity_idx as usize,
+                                        bb.entity_idx as usize,
+                                        pos_corr,
+                                        &mut events,
+                                    );
+                                }
+                            }
                         }
                     }
                 }
             }
-        }
-        let broad_count: usize = candidate_pairs.len();
-        let mut events: Vec<CollisionEvent> = Vec::new();
-        for (ia, ib) in candidate_pairs.into_iter() {
-            let (id_a, pos_a, vel_a, body_a, col_a): (
-                EntityId,
-                Point,
-                Velocity2D,
-                RigidBody2D,
-                Collider2D,
-            ) = {
-                let ent: &EntityRecord = &world.get_entities()[ia];
-                let Some(col) = ent.collider_component() else {
-                    continue;
-                };
-                (
-                    ent.get_id(),
-                    ent.get_transform().get_position(),
-                    ent.get_velocity(),
-                    ent.body_component()
-                        .unwrap_or_else(|| RigidBody2D::static_body(0.5)),
-                    col,
-                )
-            };
-            let (id_b, pos_b, vel_b, body_b, col_b): (
-                EntityId,
-                Point,
-                Velocity2D,
-                RigidBody2D,
-                Collider2D,
-            ) = {
-                let ent: &EntityRecord = &world.get_entities()[ib];
-                let Some(col) = ent.collider_component() else {
-                    continue;
-                };
-                (
-                    ent.get_id(),
-                    ent.get_transform().get_position(),
-                    ent.get_velocity(),
-                    ent.body_component()
-                        .unwrap_or_else(|| RigidBody2D::static_body(0.5)),
-                    col,
-                )
-            };
-            if (col_a.get_layer() & col_b.get_mask()) == 0
-                || (col_b.get_layer() & col_a.get_mask()) == 0
-            {
-                continue;
-            }
-            let Some((normal, penetration)) =
-                Self::narrow_phase(pos_a, col_a.get_shape(), pos_b, col_b.get_shape())
-            else {
-                continue;
-            };
-            let is_trigger: bool = col_a.get_is_trigger() || col_b.get_is_trigger();
-            events.push(CollisionEvent::new(
-                id_a,
-                id_b,
-                normal,
-                penetration,
-                is_trigger,
-            ));
-            if is_trigger {
-                continue;
-            }
-            let inv_a: f32 = body_a.get_inv_mass();
-            let inv_b: f32 = body_b.get_inv_mass();
-            let inv_sum: f32 = inv_a + inv_b;
-            if inv_sum <= 0.0 {
-                continue;
-            }
-            let corr_mag: f32 = (penetration / inv_sum) * cfg.get_position_correction();
-            let corr_x: f32 = normal.get_x() * corr_mag;
-            let corr_y: f32 = normal.get_y() * corr_mag;
-            let next_pos_a: Point = Point::new(
-                pos_a.get_x() - corr_x * inv_a,
-                pos_a.get_y() - corr_y * inv_a,
-            );
-            let next_pos_b: Point = Point::new(
-                pos_b.get_x() + corr_x * inv_b,
-                pos_b.get_y() + corr_y * inv_b,
-            );
-            let rvx: f32 = vel_b.get_vx() - vel_a.get_vx();
-            let rvy: f32 = vel_b.get_vy() - vel_a.get_vy();
-            let vel_along_normal: f32 = rvx * normal.get_x() + rvy * normal.get_y();
-            let mut next_vel_a: Velocity2D = vel_a;
-            let mut next_vel_b: Velocity2D = vel_b;
-            if vel_along_normal < 0.0 {
-                let e: f32 = body_a.get_restitution().min(body_b.get_restitution());
-                let j: f32 = -(1.0 + e) * vel_along_normal / inv_sum;
-                let imp_x: f32 = j * normal.get_x();
-                let imp_y: f32 = j * normal.get_y();
-                next_vel_a.set_vx(vel_a.get_vx() - imp_x * inv_a);
-                next_vel_a.set_vy(vel_a.get_vy() - imp_y * inv_a);
-                next_vel_b.set_vx(vel_b.get_vx() + imp_x * inv_b);
-                next_vel_b.set_vy(vel_b.get_vy() + imp_y * inv_b);
-            }
-            world.get_mut_entities()[ia]
-                .get_mut_transform()
-                .set_position(next_pos_a);
-            world.get_mut_entities()[ia].set_velocity(next_vel_a);
-            world.get_mut_entities()[ib]
-                .get_mut_transform()
-                .set_position(next_pos_b);
-            world.get_mut_entities()[ib].set_velocity(next_vel_b);
         }
         self.set_last_stats(PhysicsStepStats::new(integrated, broad_count, events.len()));
         events
@@ -460,7 +681,8 @@ impl PhysicsWorld2D {
                 if dist <= 1e-5 {
                     Some((Point::new(1.0, 0.0), r_sum))
                 } else {
-                    Some((Point::new(dx / dist, dy / dist), r_sum - dist))
+                    let inv_dist: f32 = 1.0 / dist;
+                    Some((Point::new(dx * inv_dist, dy * inv_dist), r_sum - dist))
                 }
             }
             (
