@@ -75,6 +75,7 @@ pub(crate) struct BvhGeomTri {
 }
 
 /// 4-wide Structure-of-Arrays leaf triangle packet enabling auto-vectorized 4-lane Möller–Trumbore ray tests.
+#[repr(C, align(16))]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct BvhTri4 {
     /// Four triangle `v0.x` coordinates.
@@ -99,13 +100,14 @@ pub(crate) struct BvhTri4 {
     pub(crate) tri_indices: [u32; 4],
 }
 
-/// L1-cache-aligned 32-byte DFS pre-order BVH node (2 nodes per 64-byte cache line; left child is `idx + 1`).
+/// Cache-line-paired 32-byte BVH node storing sibling pairs `(2k, 2k + 1)` together in one 64-byte cache line.
+#[repr(C, align(32))]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct BvhFlatNode {
     /// Minimum AABB corner `(x, y, z)`.
     pub(crate) min: [f32; 3],
-    /// Right child node index when `tri_count == 0`, or first `BvhTri4` packet index when `tri_count > 0`.
-    pub(crate) right_or_first: u32,
+    /// Even index of the contiguous child pair `(first_child, first_child + 1)` when `tri_count == 0`, or first `BvhTri4` packet index when `tri_count > 0`.
+    pub(crate) child_or_first: u32,
     /// Maximum AABB corner `(x, y, z)`.
     pub(crate) max: [f32; 3],
     /// Leaf `BvhTri4` packet count (`0` for interior nodes).

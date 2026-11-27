@@ -14,11 +14,7 @@ impl GlyphAtlas {
     #[inline(always)]
     #[must_use]
     pub(crate) fn pack_glyph_key(key: GlyphKey) -> u64 {
-        (key.get_codepoint() as u64)
-            | ((key.get_size_tenths() as u64) << 21)
-            | (u64::from(key.get_bold()) << 37)
-            | (u64::from(key.get_monospace()) << 38)
-            | (u64::from(key.get_italic()) << 39)
+        key.pack_u64()
     }
 
     /// Computes a fast single-multiply avalanche hash for a packed 40-bit `GlyphKey`.
