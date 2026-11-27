@@ -272,6 +272,7 @@ pub fn sdf_coverage(distance: f32, aa: AntialiasingMode) -> f32 {
 /// # Returns
 ///
 /// - `(f32, f32)` - Tuple `(outer_coverage, inner_fill_coverage)` in `[0.0, 1.0]`.
+#[inline(always)]
 #[must_use]
 pub fn rounded_box_supersampled_coverage(
     px: f32,
@@ -282,36 +283,57 @@ pub fn rounded_box_supersampled_coverage(
     border_w: f32,
 ) -> (f32, f32) {
     let grid: [f32; 4] = [-0.375, -0.125, 0.125, 0.375];
+    let outer_r: f32 = corner_r.min(half_w).min(half_h).max(0.0);
+    let outer_cx: f32 = half_w - outer_r;
+    let outer_cy: f32 = half_h - outer_r;
+    let outer_r2: f32 = outer_r * outer_r;
     let has_border: bool = border_w > 0.0;
+    if !has_border {
+        let mut outer_hits: u32 = 0;
+        for (row_idx, &oy) in grid.iter().enumerate() {
+            let jx: f32 = if row_idx & 1 == 0 { -0.0625 } else { 0.0625 };
+            let base_x: f32 = px + jx;
+            let base_y: f32 = py + oy;
+            for (col_idx, &ox) in grid.iter().enumerate() {
+                let jy: f32 = if col_idx & 1 == 0 { 0.0625 } else { -0.0625 };
+                let qx: f32 = ((base_x + ox).abs() - outer_cx).max(0.0);
+                let qy: f32 = ((base_y + jy).abs() - outer_cy).max(0.0);
+                outer_hits += u32::from(qx * qx + qy * qy <= outer_r2);
+            }
+        }
+        let cov: f32 = (outer_hits as f32) * 0.0625;
+        return (cov, cov);
+    }
     let inner_hw: f32 = (half_w - border_w).max(0.0);
     let inner_hh: f32 = (half_h - border_w).max(0.0);
-    let inner_r: f32 = (corner_r - border_w).max(0.0);
-    let mut outer_hits: f32 = 0.0;
-    let mut inner_hits: f32 = 0.0;
+    let has_inner: bool = inner_hw > 0.0 && inner_hh > 0.0;
+    let inner_r: f32 = (corner_r - border_w).min(inner_hw).min(inner_hh).max(0.0);
+    let inner_cx: f32 = inner_hw - inner_r;
+    let inner_cy: f32 = inner_hh - inner_r;
+    let inner_r2: f32 = inner_r * inner_r;
+    let mut outer_hits: u32 = 0;
+    let mut inner_hits: u32 = 0;
     for (row_idx, &oy) in grid.iter().enumerate() {
-        let jx: f32 = if row_idx % 2 == 0 { -0.0625 } else { 0.0625 };
-        let sy: f32 = py + oy;
+        let jx: f32 = if row_idx & 1 == 0 { -0.0625 } else { 0.0625 };
+        let base_x: f32 = px + jx;
+        let base_y: f32 = py + oy;
         for (col_idx, &ox) in grid.iter().enumerate() {
-            let jy: f32 = if col_idx % 2 == 0 { 0.0625 } else { -0.0625 };
-            let sx: f32 = px + ox + jx;
-            let sample_y: f32 = sy + jy;
-            let d_out: f32 = rounded_box_sdf(sx, sample_y, half_w, half_h, corner_r);
-            if d_out <= 0.0 {
-                outer_hits += 1.0;
-                if has_border {
-                    if inner_hw > 0.0
-                        && inner_hh > 0.0
-                        && rounded_box_sdf(sx, sample_y, inner_hw, inner_hh, inner_r) <= 0.0
-                    {
-                        inner_hits += 1.0;
-                    }
-                } else {
-                    inner_hits += 1.0;
+            let jy: f32 = if col_idx & 1 == 0 { 0.0625 } else { -0.0625 };
+            let abs_x: f32 = (base_x + ox).abs();
+            let abs_y: f32 = (base_y + jy).abs();
+            let qx: f32 = (abs_x - outer_cx).max(0.0);
+            let qy: f32 = (abs_y - outer_cy).max(0.0);
+            if qx * qx + qy * qy <= outer_r2 {
+                outer_hits += 1;
+                if has_inner {
+                    let iqx: f32 = (abs_x - inner_cx).max(0.0);
+                    let iqy: f32 = (abs_y - inner_cy).max(0.0);
+                    inner_hits += u32::from(iqx * iqx + iqy * iqy <= inner_r2);
                 }
             }
         }
     }
-    (outer_hits * 0.0625, inner_hits * 0.0625)
+    ((outer_hits as f32) * 0.0625, (inner_hits as f32) * 0.0625)
 }
 
 /// Evaluates 4x4 rotated-grid supersampled coverage for a filled circle at pixel `(dx, dy)` relative to center.
@@ -629,15 +651,36 @@ pub(crate) fn rounded_clip_coverage(
     if corner_r <= 0.0 {
         return 1.0;
     }
-    let dist: f32 = rounded_box_sdf(px, py, half_w, half_h, corner_r);
-    if dist <= -1.0 {
-        return 1.0;
-    }
-    if dist >= 1.0 {
-        return 0.0;
-    }
-    if aa == AntialiasingMode::None {
-        return if dist <= 0.0 { 1.0 } else { 0.0 };
+    let qx: f32 = px.abs() - (half_w - corner_r);
+    let qy: f32 = py.abs() - (half_h - corner_r);
+    if qx <= 0.0 || qy <= 0.0 {
+        let dist: f32 = qx.max(qy) - corner_r;
+        if dist <= -1.0 {
+            return 1.0;
+        }
+        if dist >= 1.0 {
+            return 0.0;
+        }
+        if aa == AntialiasingMode::None {
+            return if dist <= 0.0 { 1.0 } else { 0.0 };
+        }
+    } else {
+        let d_sq: f32 = qx * qx + qy * qy;
+        let r_in: f32 = corner_r - 1.0;
+        if r_in >= 0.0 && d_sq <= r_in * r_in {
+            return 1.0;
+        }
+        let r_out: f32 = corner_r + 1.0;
+        if d_sq >= r_out * r_out {
+            return 0.0;
+        }
+        if aa == AntialiasingMode::None {
+            return if d_sq <= corner_r * corner_r {
+                1.0
+            } else {
+                0.0
+            };
+        }
     }
     let (cov, _): (f32, f32) =
         rounded_box_supersampled_coverage(px, py, half_w, half_h, corner_r, 0.0);
