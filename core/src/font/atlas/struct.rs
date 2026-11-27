@@ -12,11 +12,11 @@ pub(crate) struct AsciiGlyphStyleTable {
 /// Memoized glyph rasterization cache shared across frames with O(1) slot indexing and ASCII direct tables.
 #[derive(Clone, Data, Debug, Default)]
 pub struct GlyphAtlas {
-    /// Cached glyph arena slot indices keyed by quantized `GlyphKey`.
+    /// Open-addressed power-of-two lookup table packing `(slot << 40) | packed_key` (`u64::MAX` when empty).
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) glyph_indices: HashMap<GlyphKey, u32>,
+    pub(crate) glyph_index: Vec<u64>,
     /// Contiguous flat arena of `(GlyphKey, RasterizedGlyph)` pairs indexed directly by `u32` slot.
     #[get(pub(crate))]
     #[get_mut(pub(crate))]

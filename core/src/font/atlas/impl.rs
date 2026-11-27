@@ -2,6 +2,114 @@ use super::*;
 
 /// Caching lookup operations for `GlyphAtlas`.
 impl GlyphAtlas {
+    /// Losslessly packs all fields of `GlyphKey` into the low 40 bits of a `u64`.
+    ///
+    /// # Arguments
+    ///
+    /// - `GlyphKey` - Quantized glyph lookup key.
+    ///
+    /// # Returns
+    ///
+    /// - `u64` - Bijective 40-bit key representation (`0..2^40`).
+    #[inline(always)]
+    #[must_use]
+    pub(crate) fn pack_glyph_key(key: GlyphKey) -> u64 {
+        (key.get_codepoint() as u64)
+            | ((key.get_size_tenths() as u64) << 21)
+            | (u64::from(key.get_bold()) << 37)
+            | (u64::from(key.get_monospace()) << 38)
+            | (u64::from(key.get_italic()) << 39)
+    }
+
+    /// Computes a fast single-multiply avalanche hash for a packed 40-bit `GlyphKey`.
+    ///
+    /// # Arguments
+    ///
+    /// - `u64` - Lossless 40-bit packed glyph key.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Mixed hash value suitable for power-of-two bitmasking.
+    #[inline(always)]
+    #[must_use]
+    fn hash_packed_key(packed: u64) -> usize {
+        let mixed: u64 = packed.wrapping_mul(GLYPH_INDEX_HASH_MULT);
+        (mixed ^ (mixed >> 32)) as usize
+    }
+
+    /// Probes the open-addressed `glyph_index` slice for `packed_key`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&[u64]` - Power-of-two open-addressed index table.
+    /// - `u64` - Lossless 40-bit packed glyph key.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<u32>` - Cached arena slot index when present.
+    #[inline(always)]
+    #[must_use]
+    fn lookup_index(glyph_index: &[u64], packed_key: u64) -> Option<u32> {
+        let cap: usize = glyph_index.len();
+        if cap == 0 {
+            return None;
+        }
+        let mask: usize = cap - 1;
+        let mut idx: usize = Self::hash_packed_key(packed_key) & mask;
+        loop {
+            let entry: u64 = glyph_index[idx];
+            if entry == GLYPH_INDEX_EMPTY {
+                return None;
+            }
+            if (entry & GLYPH_INDEX_KEY_MASK) == packed_key {
+                return Some((entry >> GLYPH_INDEX_SLOT_SHIFT) as u32);
+            }
+            idx = (idx + 1) & mask;
+        }
+    }
+
+    /// Inserts `(packed_key, slot)` into the open-addressed `glyph_index` table, doubling capacity at 75% load.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut Vec<u64>` - Open-addressed index table storage.
+    /// - `usize` - Current total entry count including the newly inserted glyph.
+    /// - `u64` - Lossless 40-bit packed glyph key.
+    /// - `u32` - Arena slot index into `entries`.
+    fn insert_index(glyph_index: &mut Vec<u64>, entry_count: usize, packed_key: u64, slot: u32) {
+        let cap: usize = glyph_index.len();
+        if cap == 0 {
+            glyph_index.resize(GLYPH_INDEX_INIT_CAP, GLYPH_INDEX_EMPTY);
+        } else if entry_count * 4 > cap * 3 {
+            let new_cap: usize = cap * 2;
+            let new_mask: usize = new_cap - 1;
+            let mut grown: Vec<u64> = vec![GLYPH_INDEX_EMPTY; new_cap];
+            for old_entry in glyph_index.iter().copied() {
+                if old_entry == GLYPH_INDEX_EMPTY {
+                    continue;
+                }
+                let old_key: u64 = old_entry & GLYPH_INDEX_KEY_MASK;
+                let mut idx: usize = Self::hash_packed_key(old_key) & new_mask;
+                while grown[idx] != GLYPH_INDEX_EMPTY {
+                    idx = (idx + 1) & new_mask;
+                }
+                grown[idx] = old_entry;
+            }
+            *glyph_index = grown;
+        }
+        let mask: usize = glyph_index.len() - 1;
+        let packed_entry: u64 = packed_key | ((slot as u64) << GLYPH_INDEX_SLOT_SHIFT);
+        let mut idx: usize = Self::hash_packed_key(packed_key) & mask;
+        loop {
+            let existing: u64 = glyph_index[idx];
+            if existing == GLYPH_INDEX_EMPTY || (existing & GLYPH_INDEX_KEY_MASK) == packed_key {
+                glyph_index[idx] = packed_entry;
+                return;
+            }
+            idx = (idx + 1) & mask;
+        }
+    }
+
     /// Packs quantized glyph style attributes into a compact 32-bit signature for ASCII table matching.
     ///
     /// # Arguments
@@ -63,7 +171,7 @@ impl GlyphAtlas {
         idx
     }
 
-    /// Resolves an ASCII byte directly through `ascii_tables[table_idx]` with zero HashMap probing on hits.
+    /// Resolves an ASCII byte directly through `ascii_tables[table_idx]` with zero hash probing on hits.
     ///
     /// # Arguments
     ///
@@ -113,6 +221,7 @@ impl GlyphAtlas {
     /// # Returns
     ///
     /// - `u32` - Direct slot index into `entries`.
+    #[inline]
     pub(crate) fn get_or_rasterize_slot(&mut self, key: GlyphKey) -> u32 {
         let code: u32 = key.get_codepoint() as u32;
         let style_sig: u32 = Self::pack_style_sig(
@@ -122,7 +231,7 @@ impl GlyphAtlas {
             key.get_italic(),
         );
         let Self {
-            glyph_indices,
+            glyph_index,
             entries,
             ascii_tables,
             revision,
@@ -138,7 +247,8 @@ impl GlyphAtlas {
                 }
             }
         }
-        if let Some(&slot) = glyph_indices.get(&key) {
+        let packed_key: u64 = Self::pack_glyph_key(key);
+        if let Some(slot) = Self::lookup_index(glyph_index, packed_key) {
             if code < 128 {
                 for table in ascii_tables.iter_mut() {
                     if table.style_sig == style_sig {
@@ -150,9 +260,12 @@ impl GlyphAtlas {
             return slot;
         }
         let glyph: RasterizedGlyph = rasterize_glyph(key);
+        if entries.is_empty() {
+            entries.reserve(GLYPH_ENTRIES_INIT_CAP);
+        }
         let slot: u32 = entries.len() as u32;
         entries.push((key, glyph));
-        glyph_indices.insert(key, slot);
+        Self::insert_index(glyph_index, entries.len(), packed_key, slot);
         if code < 128 {
             let mut updated: bool = false;
             for table in ascii_tables.iter_mut() {
@@ -183,6 +296,7 @@ impl GlyphAtlas {
     /// # Returns
     ///
     /// - `u32` - Direct slot index into `entries`.
+    #[inline]
     pub(crate) fn get_or_rasterize_slot_with(
         &mut self,
         key: GlyphKey,
@@ -196,21 +310,36 @@ impl GlyphAtlas {
             key.get_italic(),
         );
         let Self {
-            glyph_indices,
+            glyph_index,
             entries,
             ascii_tables,
             revision,
         } = self;
-        if let Some(&slot) = glyph_indices.get(&key) {
+        if code < 128 && !ascii_tables.is_empty() {
+            for table in ascii_tables.iter() {
+                if table.style_sig == style_sig {
+                    let cached: u32 = table.slots[code as usize];
+                    if cached != u32::MAX {
+                        return cached;
+                    }
+                    break;
+                }
+            }
+        }
+        let packed_key: u64 = Self::pack_glyph_key(key);
+        if let Some(slot) = Self::lookup_index(glyph_index, packed_key) {
             return slot;
         }
         let glyph: RasterizedGlyph = provider
             .rasterize(key)
             .unwrap_or_else(|| rasterize_glyph(key));
+        if entries.is_empty() {
+            entries.reserve(GLYPH_ENTRIES_INIT_CAP);
+        }
         let slot: u32 = entries.len() as u32;
         entries.push((key, glyph));
-        glyph_indices.insert(key, slot);
-        if code < 128 {
+        Self::insert_index(glyph_index, entries.len(), packed_key, slot);
+        if code < 128 && !ascii_tables.is_empty() {
             for table in ascii_tables.iter_mut() {
                 if table.style_sig == style_sig {
                     table.slots[code as usize] = slot;
@@ -249,6 +378,7 @@ impl GlyphAtlas {
     /// # Returns
     ///
     /// - `&RasterizedGlyph` - Cached coverage bitmap and pixel metrics.
+    #[inline]
     pub fn get_or_rasterize(&mut self, key: GlyphKey) -> &RasterizedGlyph {
         let slot: u32 = self.get_or_rasterize_slot(key);
         self.glyph_by_slot(slot)
@@ -293,6 +423,7 @@ impl GlyphAtlas {
     /// # Returns
     ///
     /// - `&RasterizedGlyph` - Cached coverage bitmap and pixel metrics.
+    #[inline]
     pub fn get_or_rasterize_with(
         &mut self,
         key: GlyphKey,
@@ -300,6 +431,52 @@ impl GlyphAtlas {
     ) -> &RasterizedGlyph {
         let slot: u32 = self.get_or_rasterize_slot_with(key, provider);
         self.glyph_by_slot(slot)
+    }
+
+    /// Blits one glyph's 8-bit coverage bitmap into a white-RGB RGBA8 atlas slice at `(rx, ry)`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&RasterizedGlyph` - Source coverage bitmap.
+    /// - `&mut [u8]` - Destination RGBA8 atlas pixel buffer.
+    /// - `usize` - Atlas width in pixels.
+    /// - `u32` - Destination X pixel offset.
+    /// - `u32` - Destination Y pixel offset.
+    #[inline]
+    fn blit_glyph_to_rgba(
+        glyph: &RasterizedGlyph,
+        pixels: &mut [u8],
+        atlas_w: usize,
+        rx: u32,
+        ry: u32,
+    ) {
+        let gw: usize = glyph.get_width() as usize;
+        let gh: usize = glyph.get_height() as usize;
+        let cov: &[u8] = glyph.get_coverage().as_slice();
+        let row_stride: usize = atlas_w * 4;
+        let mut src_off: usize = 0;
+        let mut dst_off: usize = ((ry as usize) * atlas_w + (rx as usize)) * 4;
+        for _ in 0..gh {
+            let src_row: &[u8] = &cov[src_off..src_off + gw];
+            let dst_row: &mut [u8] = &mut pixels[dst_off..dst_off + gw * 4];
+            let (src_quads, src_rem): (&[[u8; 4]], &[u8]) = src_row.as_chunks::<4>();
+            let (dst_quads, dst_rem): (&mut [[u8; 16]], &mut [u8]) = dst_row.as_chunks_mut::<16>();
+            for (a4, dst16) in src_quads.iter().zip(dst_quads.iter_mut()) {
+                *dst16 = [
+                    255, 255, 255, a4[0], 255, 255, 255, a4[1], 255, 255, 255, a4[2], 255, 255,
+                    255, a4[3],
+                ];
+            }
+            for (alpha, dst4) in src_rem
+                .iter()
+                .copied()
+                .zip(dst_rem.as_chunks_mut::<4>().0.iter_mut())
+            {
+                *dst4 = [255, 255, 255, alpha];
+            }
+            src_off += gw;
+            dst_off += row_stride;
+        }
     }
 
     /// Shelf-packs all cached glyphs into a single GPU-uploadable RGBA8 texture atlas.
@@ -313,16 +490,40 @@ impl GlyphAtlas {
     /// - `PackedGlyphAtlas` - Packed RGBA8 texture, per-glyph UV rects, and revision tag.
     #[must_use]
     pub fn pack_rgba_atlas(&self) -> PackedGlyphAtlas {
-        let atlas_w: u32 = ATLAS_DEFAULT_WIDTH;
         let entries: &[(GlyphKey, RasterizedGlyph)] = self.get_entries().as_slice();
         let glyph_count: usize = entries.len();
+        let mut total_row_w: u32 = 1;
+        let mut max_glyph_w: u32 = 0;
+        for (_, glyph) in entries.iter() {
+            let gw: u32 = glyph.get_width();
+            total_row_w = total_row_w.saturating_add(gw.saturating_add(1));
+            if gw > max_glyph_w {
+                max_glyph_w = gw;
+            }
+        }
+        let min_needed_w: u32 = max_glyph_w.saturating_add(2).max(ATLAS_MIN_DIM);
+        let atlas_w: u32 = if total_row_w <= ATLAS_DEFAULT_WIDTH {
+            total_row_w
+                .max(ATLAS_MIN_DIM)
+                .next_power_of_two()
+                .min(ATLAS_DEFAULT_WIDTH)
+        } else {
+            ATLAS_DEFAULT_WIDTH.max(min_needed_w.next_power_of_two())
+        };
         let mut cursor_x: u32 = 1;
         let mut cursor_y: u32 = 1;
         let mut shelf_h: u32 = 0;
         let mut regions: HashMap<GlyphKey, (u32, u32, u32, u32)> =
             HashMap::with_capacity(glyph_count);
-        let mut placements: Vec<(&RasterizedGlyph, u32, u32)> = Vec::with_capacity(glyph_count);
-        for (key, glyph) in entries.iter() {
+        let use_stack: bool = glyph_count <= ATLAS_STACK_PLACEMENTS;
+        let mut stack_placements: [(usize, u32, u32); ATLAS_STACK_PLACEMENTS] =
+            [(0, 0, 0); ATLAS_STACK_PLACEMENTS];
+        let mut heap_placements: Vec<(usize, u32, u32)> = if use_stack {
+            Vec::new()
+        } else {
+            Vec::with_capacity(glyph_count)
+        };
+        for (idx, (key, glyph)) in entries.iter().enumerate() {
             let gw: u32 = glyph.get_width();
             let gh: u32 = glyph.get_height();
             if cursor_x + gw + 1 > atlas_w {
@@ -330,30 +531,26 @@ impl GlyphAtlas {
                 cursor_y += shelf_h + 1;
                 shelf_h = 0;
             }
-            regions.insert(*key, (cursor_x, cursor_y, gw, gh));
-            placements.push((glyph, cursor_x, cursor_y));
+            let _: Option<(u32, u32, u32, u32)> =
+                regions.insert(*key, (cursor_x, cursor_y, gw, gh));
+            if use_stack {
+                stack_placements[idx] = (idx, cursor_x, cursor_y);
+            } else {
+                heap_placements.push((idx, cursor_x, cursor_y));
+            }
             cursor_x += gw + 1;
             shelf_h = shelf_h.max(gh);
         }
-        let atlas_h: u32 = (cursor_y + shelf_h + 1).max(16);
+        let atlas_h: u32 = (cursor_y + shelf_h + 1).max(ATLAS_MIN_DIM);
         let atlas_w_usize: usize = atlas_w as usize;
         let mut pixels: Vec<u8> = vec![0; atlas_w_usize * (atlas_h as usize) * 4];
-        for (glyph, rx, ry) in placements.into_iter() {
-            let gw: usize = glyph.get_width() as usize;
-            let gh: usize = glyph.get_height() as usize;
-            let cov: &[u8] = glyph.get_coverage().as_slice();
-            for py in 0..gh {
-                let src_row: &[u8] = &cov[py * gw..(py + 1) * gw];
-                let dst_start: usize = (((ry as usize) + py) * atlas_w_usize + (rx as usize)) * 4;
-                let dst_row: &mut [u8] = &mut pixels[dst_start..dst_start + gw * 4];
-                for (alpha, dst_px) in src_row
-                    .iter()
-                    .copied()
-                    .zip(dst_row.as_chunks_mut::<4>().0.iter_mut())
-                {
-                    *dst_px = [255, 255, 255, alpha];
-                }
-            }
+        let placements: &[(usize, u32, u32)] = if use_stack {
+            &stack_placements[..glyph_count]
+        } else {
+            heap_placements.as_slice()
+        };
+        for &(entry_idx, rx, ry) in placements.iter() {
+            Self::blit_glyph_to_rgba(&entries[entry_idx].1, &mut pixels, atlas_w_usize, rx, ry);
         }
         PackedGlyphAtlas::new(atlas_w, atlas_h, pixels, regions, self.get_revision())
     }
@@ -365,12 +562,12 @@ impl GlyphAtlas {
     /// - `&Self` - Mutable reference to the glyph atlas.
     pub fn clear(&mut self) {
         let Self {
-            glyph_indices,
+            glyph_index,
             entries,
             ascii_tables,
             revision,
         } = self;
-        glyph_indices.clear();
+        glyph_index.fill(GLYPH_INDEX_EMPTY);
         entries.clear();
         ascii_tables.clear();
         *revision = revision.wrapping_add(1);
