@@ -105,3 +105,79 @@ fn round_zero_contracts_behave_as_specified() {
     scope.dispose();
     assert!(!sig.has_subscribers());
 }
+
+#[test]
+fn stress_matrix_reports_tail_percentiles_ab_parity_and_json() {
+    let (ab_entry, ab_summary): (StressMatrixEntry, PartialDamageAbSummary) =
+        stress_partial_single_row_update_ab(6);
+    assert_eq!(
+        ab_entry.get_name().as_str(),
+        "stress_partial_single_row_update_ab"
+    );
+    assert!(
+        ab_summary.get_bit_exact_parity(),
+        "partial layout damage must match full redraw bit-exact: {}",
+        ab_summary.get_detail()
+    );
+    assert_eq!(ab_summary.get_verified_steps(), 6);
+    assert_eq!(
+        ab_summary
+            .get_candidate_partial_damage()
+            .get_full_redraw_count(),
+        0
+    );
+    assert!(
+        ab_summary
+            .get_candidate_partial_damage()
+            .get_mean_dirty_area_ratio()
+            < ab_summary
+                .get_baseline_full_redraw()
+                .get_mean_dirty_area_ratio()
+    );
+    let vlist_entry: StressMatrixEntry = stress_virtual_list_scroll_tail(6);
+    assert_eq!(vlist_entry.get_latency().get_iterations(), 6);
+    assert!(vlist_entry.get_latency().get_p50_us() > 0.0);
+    let resize_entry: StressMatrixEntry = stress_window_resize_reflow(6);
+    assert_eq!(resize_entry.get_latency().get_iterations(), 6);
+    assert!(
+        resize_entry.get_detail().contains("stale_bounds=0"),
+        "expected zero stale bounds during resize bursts: {}",
+        resize_entry.get_detail()
+    );
+    let term_entry: StressMatrixEntry = stress_terminal_tui_diff(10);
+    assert_eq!(term_entry.get_latency().get_iterations(), 10);
+    assert!(
+        term_entry.get_detail().contains("idle_bytes=0"),
+        "expected zero idle bytes on TUI flush: {}",
+        term_entry.get_detail()
+    );
+    assert!(
+        term_entry.get_detail().contains("idle_ok=10/10"),
+        "expected 10/10 idle TUI frames: {}",
+        term_entry.get_detail()
+    );
+    let report: StressMatrixReport = StressMatrixReport::new(
+        vec![ab_entry, vlist_entry, resize_entry, term_entry],
+        Some(ab_summary),
+    );
+    let json: String = stress_matrix_to_json(&report);
+    for expected in [
+        "stress_partial_single_row_update_ab",
+        "stress_virtual_list_scroll_tail",
+        "stress_window_resize_reflow",
+        "stress_terminal_tui_diff",
+        "p50_us",
+        "p95_us",
+        "p99_us",
+        "over_6_94ms_count",
+        "over_16_67ms_count",
+        "bit_exact_parity",
+    ] {
+        assert!(json.contains(expected), "missing JSON key {expected}");
+    }
+    let text: String = format_stress_matrix_report(&report);
+    assert!(text.contains("A/B Partial-Layout Damage Parity"));
+    let filtered: StressMatrixReport = run_filtered_stress_matrix(Some("stress_terminal_tui_diff"));
+    assert_eq!(filtered.get_entries().len(), 1);
+    assert!(filtered.partial_damage_ab().is_none());
+}
