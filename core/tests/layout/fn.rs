@@ -782,3 +782,75 @@ fn nested_bidirectional_scroll_container_scrolls_both_axes_and_chains_leftover_t
         "horizontal touch drag must scroll inner_sc: before={after_hbar_drag_x} after={after_touch_x}"
     );
 }
+
+#[test]
+fn text_measurer_wrap_tolerates_float_rounding_and_chrome_round_trips() {
+    let measurer: DeterministicTextMeasurer = DeterministicTextMeasurer;
+    let badge_style: TextStyle = *TextStyle::default()
+        .set_font_size(11.0)
+        .set_weight(FontWeight::Bold);
+    let math_unconstrained: TextLayoutResult = measurer.measure("MATH", badge_style, None);
+    let math_w: f32 = math_unconstrained.get_size().get_width();
+    let math_chrome_rt: f32 = (math_w + 16.0) - 16.0;
+    let math_minus_ulp: f32 = f32::from_bits(math_w.to_bits().saturating_sub(2));
+    for width_sample in [math_w, math_chrome_rt, math_minus_ulp, math_w - 0.01] {
+        let re: TextLayoutResult = measurer.measure("MATH", badge_style, Some(width_sample));
+        assert_eq!(re.get_lines().len(), 1);
+        assert_eq!(re.get_lines()[0].get_text().as_str(), "MATH");
+    }
+    let body_style: TextStyle = *TextStyle::default().set_font_size(14.0);
+    let samples: [&str; 3] = [
+        "Avoid calling blocking synchronous I/O inside Legacy",
+        "Render native GFM alerts, checklists, tables, and",
+        "Trailing spaces must round-trip cleanly   ",
+    ];
+    for sample in samples {
+        let base: TextLayoutResult = measurer.measure(sample, body_style, None);
+        let base_w: f32 = base.get_size().get_width();
+        let wrapped_single: TextLayoutResult = measurer.measure(sample, body_style, Some(1000.0));
+        let stripped_w: f32 = wrapped_single.get_size().get_width();
+        let chrome_rt: f32 = (stripped_w + 28.0) - 28.0;
+        let minus_ulp: f32 = f32::from_bits(stripped_w.to_bits().saturating_sub(4));
+        for width_sample in [base_w, stripped_w, chrome_rt, minus_ulp, stripped_w - 0.01] {
+            let re: TextLayoutResult = measurer.measure(sample, body_style, Some(width_sample));
+            assert_eq!(re.get_lines().len(), 1);
+            assert_eq!(re.get_lines()[0].get_text().as_str(), sample.trim_end());
+        }
+    }
+    let paragraph: &str = "Deterministic layout pass strips trailing spaces before line breaks and keeps Legacy intact";
+    let pass1: TextLayoutResult = measurer.measure(paragraph, body_style, Some(220.0));
+    assert!(pass1.get_lines().len() >= 2);
+    let pass1_w: f32 = pass1.get_size().get_width();
+    let pass1_chrome_rt: f32 = (pass1_w + 32.0) - 32.0;
+    for width_sample in [pass1_w, pass1_chrome_rt, pass1_w - 0.01] {
+        let pass2: TextLayoutResult = measurer.measure(paragraph, body_style, Some(width_sample));
+        assert_eq!(pass2.get_lines().len(), pass1.get_lines().len());
+        for (a, b) in pass1.get_lines().iter().zip(pass2.get_lines().iter()) {
+            assert_eq!(a.get_text(), b.get_text());
+        }
+    }
+    let mut tree: SceneTree = SceneTree::default();
+    let root: NodeId = tree.get_root();
+    let badge: NodeId =
+        tree.create_view(Style::default().row().padding(Edges::symmetric(2.0, 8.0)));
+    let badge_txt: NodeId = tree.create_text(
+        "MATH".to_string(),
+        Style::default()
+            .font_size(11.0)
+            .font_weight(FontWeight::Bold),
+    );
+    tree.append_child(badge, badge_txt);
+    tree.append_child(root, badge);
+    let mut engine: LayoutEngine = LayoutEngine::default();
+    let _: LayoutStats = engine.compute(&mut tree, Size::new(400.0, 200.0));
+    let txt_bounds: Rect = tree
+        .get_node(badge_txt)
+        .unwrap()
+        .get_layout_box()
+        .get_bounds();
+    let render_pass: TextLayoutResult =
+        measurer.measure("MATH", badge_style, Some(txt_bounds.get_width()));
+    assert_eq!(render_pass.get_lines().len(), 1);
+    assert_eq!(render_pass.get_lines()[0].get_text().as_str(), "MATH");
+    assert!((render_pass.get_size().get_height() - txt_bounds.get_height()).abs() < 0.01);
+}
