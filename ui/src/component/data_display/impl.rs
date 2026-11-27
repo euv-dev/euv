@@ -456,21 +456,21 @@ impl EuvTree {
     ///
     /// # Arguments
     ///
-    /// - `&mut Context` - Active build context.
     /// - `&[EuvTreeNode]` - Sibling tree nodes.
     /// - `usize` - Current indentation depth.
     /// - `(ThemePalette, ThemeGeometry)` - Active theme palette and geometry.
     /// - `Option<Signal<Option<String>>>` - Optional active selection signal.
+    /// - `&mut Vec<(NodeId, String)>` - Collector of `(row_node, label)` pairs for O(1) selector binding.
     ///
     /// # Returns
     ///
     /// - `Vec<NodeId>` - Mounted sibling tree nodes ready for spread attachment.
     fn build_branch(
-        ctx: &mut Context,
         nodes: &[EuvTreeNode],
         depth: usize,
         theme: (ThemePalette, ThemeGeometry),
         selected: Option<Signal<Option<String>>>,
+        bound_rows: &mut Vec<(NodeId, String)>,
     ) -> Vec<NodeId> {
         let (palette, geom): (ThemePalette, ThemeGeometry) = theme;
         let mut out: Vec<NodeId> = Vec::with_capacity(nodes.len() * 2);
@@ -478,79 +478,79 @@ impl EuvTree {
             let has_children: bool = !node.get_children().is_empty();
             let expanded: Signal<bool> = Signal::new(true);
             let indent: f32 = (depth as f32) * 16.0;
-            let label_str: String = node.get_label().clone();
-            let lbl_for_txt: String = label_str.clone();
-            let lbl_click: String = label_str.clone();
+            let label_str: &str = node.get_label().as_str();
+            let lbl_click: String = node.get_label().clone();
+            let on_row_click = move |_: &UiEvent| {
+                if has_children {
+                    let _: bool = expanded.update(|v: &mut bool| *v = !*v);
+                }
+                if let Some(sel_sig) = selected {
+                    let _: bool = sel_sig.set_if_changed(Some(lbl_click.clone()));
+                }
+            };
+            let label_node: NodeId = if has_children {
+                let lbl_for_txt: String = node.get_label().clone();
+                let branch_label = move || -> String {
+                    let pfx: &str = if expanded.get() {
+                        TREE_EXPAND_PREFIX
+                    } else {
+                        TREE_COLLAPSED_PREFIX
+                    };
+                    format!("{pfx}{lbl_for_txt}")
+                };
+                view! {
+                    text {
+                        font_size: 13.0
+                        font_weight: FontWeight::Medium
+                        color: palette.get_foreground()
+                        { branch_label }
+                    }
+                }
+            } else {
+                let leaf_label: String = format!("{TREE_LEAF_PREFIX}{label_str}");
+                view! {
+                    text {
+                        font_size: 13.0
+                        color: palette.get_foreground()
+                        { leaf_label }
+                    }
+                }
+            };
             let row: NodeId = view! {
                 row {
                     width: Length::Percent(100.0)
                     padding: Edges::new(SPACE_XS, SPACE_SM, SPACE_XS, SPACE_SM + indent)
                     radius: geom.get_radius_sm()
+                    background: COLOR_TRANSPARENT
                     cursor: CursorIcon::Pointer
-                    on_click: move |_: &UiEvent| {
-                        if has_children {
-                            let _: bool = expanded.update(|v: &mut bool| *v = !*v);
-                        }
-                        if let Some(sel_sig) = selected {
-                            let _: bool = sel_sig.set_if_changed(Some(lbl_click.clone()));
-                        }
-                    }
-                    if has_children {
-                        text {
-                            font_size: 13.0
-                            font_weight: FontWeight::Medium
-                            color: palette.get_foreground()
-                            { move || {
-                                let pfx: &str = if expanded.get() {
-                                    TREE_EXPAND_PREFIX
-                                } else {
-                                    TREE_COLLAPSED_PREFIX
-                                };
-                                format!("{pfx}{lbl_for_txt}")
-                            } }
-                        }
-                    } else {
-                        text {
-                            font_size: 13.0
-                            color: palette.get_foreground()
-                            { format!("{TREE_LEAF_PREFIX}{label_str}") }
-                        }
-                    }
+                    on_click: on_row_click
+                    { label_node }
                 }
             };
-            if let Some(sel_sig) = selected {
-                let lbl_cmp: String = node.get_label().clone();
-                ctx.bind_style(row, move || {
-                    let is_sel: bool = sel_sig.get().as_deref() == Some(lbl_cmp.as_str());
-                    Style::default()
-                        .row()
-                        .width(Length::Percent(100.0))
-                        .padding(Edges::new(SPACE_XS, SPACE_SM, SPACE_XS, SPACE_SM + indent))
-                        .radius(geom.get_radius_sm())
-                        .background(if is_sel {
-                            palette.get_accent()
-                        } else {
-                            COLOR_TRANSPARENT
-                        })
-                        .cursor(CursorIcon::Pointer)
-                });
+            if selected.is_some() {
+                bound_rows.push((row, node.get_label().clone()));
             }
             out.push(row);
             if has_children {
                 let child_nodes: Vec<NodeId> =
-                    Self::build_branch(ctx, node.get_children(), depth + 1, theme, selected);
+                    Self::build_branch(node.get_children(), depth + 1, theme, selected, bound_rows);
+                let mut branch_base: Style = Style::default();
+                branch_base
+                    .get_mut_layout()
+                    .set_flex_direction(FlexDirection::Column)
+                    .set_width(Length::Percent(100.0));
+                let branch_style = move || -> Style {
+                    let mut st: Style = branch_base;
+                    st.get_mut_layout().set_display(if expanded.get() {
+                        Display::Flex
+                    } else {
+                        Display::None
+                    });
+                    st
+                };
                 let branch_box: NodeId = view! {
                     column {
-                        bind_style: move || {
-                            Style::default()
-                            .column()
-                            .display(if expanded.get() {
-                                Display::Flex
-                                } else {
-                                    Display::None
-                            })
-                            .width(Length::Percent(100.0))
-                        }
+                        bind_style: branch_style
                         ..child_nodes
                     }
                 };
@@ -575,15 +575,16 @@ impl EuvTree {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
-        let mut ctx: Context = current_context();
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
         let Self {
             roots, selected, ..
         } = self;
-        let branch_nodes: Vec<NodeId> = Self::build_branch(&mut ctx, roots, 0, (p, g), *selected);
-        view! {
+        let mut bound_rows: Vec<(NodeId, String)> = Vec::new();
+        let branch_nodes: Vec<NodeId> =
+            Self::build_branch(roots, 0, (p, g), *selected, &mut bound_rows);
+        let root: NodeId = view! {
             column {
                 width: Length::Percent(100.0)
                 padding: Edges::all(SPACE_SM)
@@ -593,6 +594,58 @@ impl EuvTree {
                 overflow: Overflow::Hidden
                 ..branch_nodes
             }
+        };
+        if let Some(sel_sig) = *selected
+            && !bound_rows.is_empty()
+        {
+            let ctx: Context = current_context();
+            let scene: SceneHandle = ctx.get_scene().clone();
+            let accent_col: Color = p.get_accent();
+            let (tree_scope, _): (Scope, ()) = Scope::run(|_: Scope| {
+                let sel: Rc<Selector<Option<String>>> =
+                    Rc::new(Selector::new(move || sel_sig.get()));
+                let sel_cleanup: Rc<Selector<Option<String>>> = Rc::clone(&sel);
+                on_cleanup(move || {
+                    sel_cleanup.dispose();
+                });
+                for (row_node, lbl_cmp) in bound_rows.into_iter() {
+                    let sel_row: Rc<Selector<Option<String>>> = Rc::clone(&sel);
+                    let scene_row: SceneHandle = scene.clone();
+                    let mut prev_sel: bool = false;
+                    let mut has_synced: bool = false;
+                    let _: Effect = Effect::new(move || {
+                        let is_sel: bool = sel_row.is_selected(Some(lbl_cmp.clone()));
+                        if has_synced && is_sel == prev_sel {
+                            return;
+                        }
+                        prev_sel = is_sel;
+                        has_synced = true;
+                        let bg: Color = if is_sel {
+                            accent_col
+                        } else {
+                            COLOR_TRANSPARENT
+                        };
+                        scene_row.with_write(
+                            |tree: &mut SceneTree| {
+                                if let Some(node) = tree.get_node_mut(row_node) {
+                                    let mut st: Style = node.get_style();
+                                    st.get_mut_paint().set_background(Some(bg));
+                                    node.set_style(st);
+                                }
+                                tree.mark_dirty(row_node, DIRTY_PAINT);
+                            },
+                            (),
+                        );
+                    });
+                }
+            });
+            ctx.get_scene().with_write(
+                |tree: &mut SceneTree| {
+                    tree.attach_scope(root, tree_scope);
+                },
+                (),
+            );
         }
+        root
     }
 }
