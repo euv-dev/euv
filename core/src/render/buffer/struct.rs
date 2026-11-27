@@ -26,7 +26,7 @@ pub struct PixelBand<'a> {
     pub(crate) pixels: &'a mut [u8],
 }
 
-/// Dirty bounding region tracking damaged screen areas between frames.
+/// Dirty bounding region tracking damaged screen areas between frames using zero-allocation inline stack storage.
 #[derive(Clone, Copy, Data, Debug, Default, PartialEq)]
 pub struct DamageRegion {
     /// Whether the entire surface must be redrawn.
@@ -35,4 +35,14 @@ pub struct DamageRegion {
     /// Accumulated dirty bounding box in physical pixels.
     #[get(skip)]
     pub(crate) rect: Option<Rect>,
+    /// Normalized non-overlapping stack-allocated damage rectangles (`0..rect_count` active).
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) rects: [Rect; 8],
+    /// Number of active normalized rectangles stored in `rects` (`0..=8`).
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) rect_count: u8,
 }

@@ -939,6 +939,26 @@ impl SoftwareRenderer {
         None
     }
 
+    /// Computes the clamped integer physical pixel area covered by `rect` within `(phys_w, phys_h)`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Rect` - Physical rectangle to measure.
+    /// - `u32` - Surface physical width.
+    /// - `u32` - Surface physical height.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Clamped integer pixel count.
+    #[must_use]
+    fn rect_pixel_area(rect: Rect, phys_w: u32, phys_h: u32) -> usize {
+        let x0: u32 = (rect.get_x().floor().max(0.0) as u32).min(phys_w);
+        let y0: u32 = (rect.get_y().floor().max(0.0) as u32).min(phys_h);
+        let x1: u32 = (rect.right().ceil().max(0.0) as u32).clamp(x0, phys_w);
+        let y1: u32 = (rect.bottom().ceil().max(0.0) as u32).clamp(y0, phys_h);
+        ((x1 - x0) as usize).saturating_mul((y1 - y0) as usize)
+    }
+
     /// Rasterizes `display_list` into the internal `Framebuffer` clipped to `damage` using multi-core parallel horizontal bands and dirty-rect scoped portal backdrop caching.
     ///
     /// # Arguments
@@ -969,16 +989,66 @@ impl SoftwareRenderer {
         } else {
             damage
         };
-        let Some(root_clip) = effective_damage.resolve(phys_w, phys_h) else {
+        let (norm_rects, norm_count): ([Rect; 8], usize) =
+            effective_damage.normalized_rects(phys_w, phys_h);
+        if norm_count == 0 {
             return (0, 0);
-        };
+        }
         let tile_sz: u32 = self.get_tile_size().max(16);
-        let tiles_x: usize = ((root_clip.get_width().ceil() as u32).div_ceil(tile_sz)) as usize;
-        let tiles_y: usize = ((root_clip.get_height().ceil() as u32).div_ceil(tile_sz)) as usize;
-        let tiles_updated: usize = tiles_x.saturating_mul(tiles_y);
         let commands: &[DrawCommand] = display_list.get_commands().as_slice();
         let split: usize = display_list.get_portal_split_index().min(commands.len());
         let has_portals: bool = split > 0 && split < commands.len();
+        if norm_count > 1 {
+            let mut sum_area: usize = 0;
+            for sub in norm_rects.iter().take(norm_count) {
+                sum_area = sum_area.saturating_add(Self::rect_pixel_area(*sub, phys_w, phys_h));
+            }
+            let union_area: usize = effective_damage
+                .resolve(phys_w, phys_h)
+                .map_or(0, |u: Rect| Self::rect_pixel_area(u, phys_w, phys_h));
+            if sum_area.saturating_mul(4) < union_area.saturating_mul(3) {
+                if !has_portals {
+                    self.set_base_cache_hash(0);
+                    self.set_prev_base_hash(0);
+                }
+                self.set_prev_portal_bounds(None);
+                self.set_prev_portal_scrim(None);
+                let mut total_tiles: usize = 0;
+                let mut total_shaded: usize = 0;
+                for sub_clip in norm_rects.iter().take(norm_count).copied() {
+                    let tx: usize =
+                        ((sub_clip.get_width().ceil() as u32).div_ceil(tile_sz)) as usize;
+                    let ty: usize =
+                        ((sub_clip.get_height().ceil() as u32).div_ceil(tile_sz)) as usize;
+                    total_tiles = total_tiles.saturating_add(tx.saturating_mul(ty));
+                    self.prepare_frame_range(
+                        display_list,
+                        (0, commands.len()),
+                        sub_clip,
+                        (phys_w, phys_h, scale),
+                    );
+                    let shaded: usize = self.execute_prepared_bands(
+                        commands,
+                        sub_clip,
+                        (phys_w, phys_h, scale),
+                        (false, None, 0),
+                    );
+                    total_shaded = total_shaded.saturating_add(shaded);
+                }
+                return (total_tiles, total_shaded);
+            }
+        }
+        let root_clip: Rect = if norm_count == 1 {
+            norm_rects[0]
+        } else {
+            let Some(resolved) = effective_damage.resolve(phys_w, phys_h) else {
+                return (0, 0);
+            };
+            resolved
+        };
+        let tiles_x: usize = ((root_clip.get_width().ceil() as u32).div_ceil(tile_sz)) as usize;
+        let tiles_y: usize = ((root_clip.get_height().ceil() as u32).div_ceil(tile_sz)) as usize;
+        let tiles_updated: usize = tiles_x.saturating_mul(tiles_y);
         let is_full_frame: bool = root_clip.get_x() <= 0.0
             && root_clip.get_y() <= 0.0
             && root_clip.get_width() >= (phys_w as f32)
@@ -1013,45 +1083,41 @@ impl SoftwareRenderer {
                 self.set_prev_portal_scrim(cur_scrim);
                 self.set_prev_portal_bounds(cur_fg_bounds);
                 let prepped_start: usize = usize::from(cur_scrim.is_some());
-                let (dirty_clip, has_work): (Rect, bool) = if cur_scrim == prev_scrim {
-                    let mut union_rect: Option<Rect> = None;
+                let (portal_rects, portal_count): ([Rect; 8], usize) = if cur_scrim == prev_scrim {
+                    let mut portal_damage: DamageRegion = DamageRegion::default();
                     if let Some(prev_r) = prev_bounds {
-                        expand_opt_rect(&mut union_rect, prev_r);
+                        portal_damage.add_rect(prev_r);
                     }
                     if let Some(cur_r) = cur_fg_bounds {
-                        expand_opt_rect(&mut union_rect, cur_r);
+                        portal_damage.add_rect(cur_r);
                     }
-                    if let Some(r) = union_rect.and_then(|u: Rect| u.intersect(root_clip)) {
-                        (r, true)
-                    } else {
-                        (Rect::default(), false)
-                    }
+                    portal_damage.normalized_rects(phys_w, phys_h)
                 } else {
-                    (root_clip, true)
+                    let mut full_arr: [Rect; 8] = [Rect::default(); 8];
+                    full_arr[0] = root_clip;
+                    (full_arr, 1)
                 };
-                if !has_work {
+                if portal_count == 0 {
                     return (tiles_updated, 1);
                 }
-                let scrim_shaded: usize = if cur_scrim.is_some() {
-                    let sx0: u32 = (dirty_clip.get_x().floor().max(0.0) as u32).min(phys_w);
-                    let sy0: u32 = (dirty_clip.get_y().floor().max(0.0) as u32).min(phys_h);
-                    let sx1: u32 = (dirty_clip.right().ceil().max(0.0) as u32).min(phys_w);
-                    let sy1: u32 = (dirty_clip.bottom().ceil().max(0.0) as u32).min(phys_h);
-                    ((sx1.saturating_sub(sx0)) as usize)
-                        .saturating_mul((sy1.saturating_sub(sy0)) as usize)
-                } else {
-                    0
-                };
-                let band_shaded: usize = self.execute_prepared_bands(
-                    commands,
-                    dirty_clip,
-                    (phys_w, phys_h, scale),
-                    (true, cur_scrim, prepped_start),
-                );
-                return (
-                    tiles_updated,
-                    scrim_shaded.saturating_add(band_shaded).max(1),
-                );
+                let mut total_portal_shaded: usize = 0;
+                for dirty_clip in portal_rects.iter().take(portal_count).copied() {
+                    let scrim_shaded: usize = if cur_scrim.is_some() {
+                        Self::rect_pixel_area(dirty_clip, phys_w, phys_h)
+                    } else {
+                        0
+                    };
+                    let band_shaded: usize = self.execute_prepared_bands(
+                        commands,
+                        dirty_clip,
+                        (phys_w, phys_h, scale),
+                        (true, cur_scrim, prepped_start),
+                    );
+                    total_portal_shaded = total_portal_shaded
+                        .saturating_add(scrim_shaded)
+                        .saturating_add(band_shaded);
+                }
+                return (tiles_updated, total_portal_shaded.max(1));
             }
             self.prepare_frame_range(display_list, (0, split), root_clip, (phys_w, phys_h, scale));
             let base_shaded: usize = self.execute_prepared_bands(
@@ -1127,7 +1193,7 @@ impl SoftwareRenderer {
         (tiles_updated, pixels_shaded)
     }
 
-    /// Executes prepared scratch buffers across horizontal bands with optional dirty-rect backdrop restore and fused scrim LUT.
+    /// Executes prepared scratch buffers across horizontal bands with optional dirty-rect backdrop restore, small-damage single-thread fast path, and fused scrim LUT.
     ///
     /// # Arguments
     ///
@@ -1159,7 +1225,6 @@ impl SoftwareRenderer {
         if clip_w == 0 || clip_h == 0 {
             return 0;
         }
-        let scrim_lut_val: Option<RgbaLutQuad> = scrim_color.map(build_linear_blend_luts);
         let Self {
             framebuffer,
             glyph_atlas,
@@ -1175,6 +1240,10 @@ impl SoftwareRenderer {
         let aa: AntialiasingMode = *antialiasing;
         let clamped_start: usize = prepped_start.min(prepped_scratch.len());
         let prepped_slice: &[PreppedCommand] = &prepped_scratch.as_slice()[clamped_start..];
+        if prepped_slice.is_empty() && !restore_base_cache {
+            return 0;
+        }
+        let scrim_lut_val: Option<RgbaLutQuad> = scrim_color.map(build_linear_blend_luts);
         let glyphs_slice: &[PositionedGlyph] = positioned_glyphs_scratch.as_slice();
         let caret_rects_slice: &[Rect] = caret_rects_scratch.as_slice();
         let rounded_clips_slice: &[RoundedClipMask] = rounded_clips_scratch.as_slice();
@@ -1193,120 +1262,80 @@ impl SoftwareRenderer {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let pixel_area: usize = (clip_w as usize).saturating_mul(clip_h as usize);
-            if pixel_area >= 65_536 && clip_h >= 64 {
-                let pool: &BandWorkerPool = global_band_worker_pool();
+            if pixel_area >= SMALL_DAMAGE_SINGLE_THREAD_PIXELS && clip_h >= BAND_DISPATCH_MIN_HEIGHT
+            {
                 let effective_area: usize =
                     pixel_area.saturating_add(rounded_clips_slice.len().saturating_mul(16_384));
-                let desired_threads: usize =
-                    (effective_area / 65_536).clamp(1, pool.total_threads());
-                let strip_count: usize = (desired_threads.saturating_mul(2))
-                    .min((clip_h / 24) as usize)
-                    .max(1);
-                if strip_count > 1 && desired_threads > 1 {
-                    return pool.execute(
-                        framebuffer,
-                        (
-                            clip_y0,
-                            clip_y1,
-                            strip_count,
-                            desired_threads.saturating_sub(1),
-                        ),
-                        (commands, prepped_slice),
-                        (
-                            glyphs_slice,
-                            caret_rects_slice,
-                            rounded_clips_slice,
-                            corner_masks_slice,
-                        ),
-                        atlas_ref,
-                        (scale, aa, restore_spec),
-                    );
+                if effective_area >= BAND_DISPATCH_MIN_PIXELS.saturating_mul(2) {
+                    let pool: &BandWorkerPool = global_band_worker_pool();
+                    let desired_threads: usize =
+                        (effective_area / BAND_DISPATCH_MIN_PIXELS).clamp(1, pool.total_threads());
+                    let strip_count: usize = (desired_threads.saturating_mul(2))
+                        .min((clip_h / 24) as usize)
+                        .max(1);
+                    if strip_count > 1 && desired_threads > 1 {
+                        return pool.execute(
+                            framebuffer,
+                            (
+                                clip_y0,
+                                clip_y1,
+                                strip_count,
+                                desired_threads.saturating_sub(1),
+                            ),
+                            (commands, prepped_slice),
+                            (
+                                glyphs_slice,
+                                caret_rects_slice,
+                                rounded_clips_slice,
+                                corner_masks_slice,
+                            ),
+                            atlas_ref,
+                            (scale, aa, restore_spec),
+                        );
+                    }
                 }
             }
-            let row_stride: usize = (phys_w as usize) * 4;
-            let start_byte: usize = (clip_y0 as usize) * row_stride;
-            let end_byte: usize = (clip_y1 as usize) * row_stride;
-            let Some(slice) = framebuffer.get_mut_pixels().get_mut(start_byte..end_byte) else {
-                return 0;
-            };
-            if let Some(src_buf) = restore_spec.base_pixels
-                && let Some(src_slice) = src_buf.get(start_byte..end_byte)
-            {
-                restore_band_strip(
-                    slice,
-                    src_slice,
-                    (
-                        row_stride,
-                        clip_h as usize,
-                        (clip_x0 as usize) * 4,
-                        (clip_w as usize) * 4,
-                    ),
-                    restore_spec.scrim_luts,
-                );
-            }
-            let mut band: PixelBand<'_> = PixelBand {
-                width: phys_w,
-                y_offset: clip_y0,
-                height: clip_h,
-                pixels: slice,
-            };
-            Self::render_band(
-                &mut band,
-                commands,
-                prepped_slice,
-                (
-                    glyphs_slice,
-                    caret_rects_slice,
-                    rounded_clips_slice,
-                    corner_masks_slice,
-                ),
-                atlas_ref,
-                (scale, aa),
-            )
         }
-        #[cfg(target_arch = "wasm32")]
+        let row_stride: usize = (phys_w as usize) * 4;
+        let start_byte: usize = (clip_y0 as usize) * row_stride;
+        let end_byte: usize = (clip_y1 as usize) * row_stride;
+        let Some(slice) = framebuffer.get_mut_pixels().get_mut(start_byte..end_byte) else {
+            return 0;
+        };
+        if let Some(src_buf) = restore_spec.base_pixels
+            && let Some(src_slice) = src_buf.get(start_byte..end_byte)
         {
-            let row_stride: usize = (phys_w as usize) * 4;
-            let start_byte: usize = (clip_y0 as usize) * row_stride;
-            let end_byte: usize = (clip_y1 as usize) * row_stride;
-            let Some(slice) = framebuffer.get_mut_pixels().get_mut(start_byte..end_byte) else {
-                return 0;
-            };
-            if let Some(src_buf) = restore_spec.base_pixels
-                && let Some(src_slice) = src_buf.get(start_byte..end_byte)
-            {
-                restore_band_strip(
-                    slice,
-                    src_slice,
-                    (
-                        row_stride,
-                        clip_h as usize,
-                        (clip_x0 as usize) * 4,
-                        (clip_w as usize) * 4,
-                    ),
-                    restore_spec.scrim_luts,
-                );
-            }
-            let mut band: PixelBand<'_> = PixelBand {
-                width: phys_w,
-                y_offset: clip_y0,
-                height: clip_h,
-                pixels: slice,
-            };
-            Self::render_band(
-                &mut band,
-                commands,
-                prepped_slice,
+            restore_band_strip(
+                slice,
+                src_slice,
                 (
-                    glyphs_slice,
-                    caret_rects_slice,
-                    rounded_clips_slice,
-                    corner_masks_slice,
+                    row_stride,
+                    clip_h as usize,
+                    (clip_x0 as usize) * 4,
+                    (clip_w as usize) * 4,
                 ),
-                atlas_ref,
-                (scale, aa),
-            )
+                restore_spec.scrim_luts,
+            );
         }
+        let mut band: PixelBand<'_> = PixelBand {
+            width: phys_w,
+            y_offset: clip_y0,
+            height: clip_h,
+            pixels: slice,
+        };
+        Self::render_band(
+            &mut band,
+            commands,
+            prepped_slice,
+            (
+                glyphs_slice,
+                caret_rects_slice,
+                rounded_clips_slice,
+                corner_masks_slice,
+            ),
+            atlas_ref,
+            (scale, aa),
+        )
     }
 
     /// Runs a lightweight main-thread pre-pass over `commands[range.0..range.1]` into reusable scratch buffers to resolve clips, opaque shadow cutouts, cached text layouts, and pre-positioned glyphs.

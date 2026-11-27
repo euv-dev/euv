@@ -53,3 +53,15 @@ pub(crate) const BAND_WORKER_SPIN_LIMIT: u32 = 32;
 /// Short spin-loop iterations performed by the calling thread before parking on `wake_caller`.
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) const BAND_CALLER_SPIN_LIMIT: u32 = 32;
+
+/// Maximum damaged pixel area executed directly on the calling thread without touching `BandWorkerPool`.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) const SMALL_DAMAGE_SINGLE_THREAD_PIXELS: usize = 16_384;
+
+/// Minimum damaged pixel area required before splitting horizontal bands across background worker threads.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) const BAND_DISPATCH_MIN_PIXELS: usize = 65_536;
+
+/// Minimum vertical height in physical rows required for multi-threaded band dispatch.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) const BAND_DISPATCH_MIN_HEIGHT: u32 = 64;

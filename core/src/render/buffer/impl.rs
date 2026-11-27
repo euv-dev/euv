@@ -1270,24 +1270,137 @@ impl DamageRegion {
         Self {
             full_damage: true,
             rect: None,
+            rects: [Rect::default(); 8],
+            rect_count: 0,
         }
     }
 
-    /// Expands the damaged region to include `rect`.
+    /// Expands the damaged region to include `rect`, normalizing disjoint regions inline on the stack.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable damage region.
     /// - `Rect` - Newly damaged rectangle.
     pub fn add_rect(&mut self, rect: Rect) {
-        if self.get_full_damage() {
+        let Self {
+            full_damage,
+            rect: bounds,
+            rects,
+            rect_count,
+        } = self;
+        if *full_damage {
             return;
         }
-        let next: Rect = match self.bounds_rect() {
+        let next_bounds: Rect = match *bounds {
             Some(existing) => existing.union(rect),
             None => rect,
         };
-        self.set_rect(Some(next));
+        *bounds = Some(next_bounds);
+        if rect.get_width() <= 0.0 || rect.get_height() <= 0.0 {
+            return;
+        }
+        let mut merged: Rect = rect;
+        let mut count: usize = (*rect_count as usize).min(rects.len());
+        let mut changed: bool = true;
+        while changed {
+            changed = false;
+            let mut i: usize = 0;
+            while i < count {
+                let cur: Rect = rects[i];
+                let touches: bool = merged.get_x() - 2.0 <= cur.right()
+                    && cur.get_x() - 2.0 <= merged.right()
+                    && merged.get_y() - 2.0 <= cur.bottom()
+                    && cur.get_y() - 2.0 <= merged.bottom();
+                if touches {
+                    merged = merged.union(cur);
+                    count -= 1;
+                    let mut j: usize = i;
+                    while j < count {
+                        rects[j] = rects[j + 1];
+                        j += 1;
+                    }
+                    rects[count] = Rect::default();
+                    changed = true;
+                } else {
+                    i += 1;
+                }
+            }
+        }
+        if count < rects.len() {
+            let mut insert_at: usize = count;
+            while insert_at > 0 {
+                let prev: Rect = rects[insert_at - 1];
+                let goes_before: bool = merged.get_y() < prev.get_y()
+                    || (merged.get_y() == prev.get_y() && merged.get_x() < prev.get_x());
+                if goes_before {
+                    rects[insert_at] = prev;
+                    insert_at -= 1;
+                } else {
+                    break;
+                }
+            }
+            rects[insert_at] = merged;
+            *rect_count = (count + 1) as u8;
+        } else {
+            *rects = [Rect::default(); 8];
+            rects[0] = next_bounds;
+            *rect_count = 1;
+        }
+    }
+
+    /// Returns viewport-clamped non-overlapping damage rectangles normalized into a stack array without heap allocation.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Damage region.
+    /// - `u32` - Surface physical width.
+    /// - `u32` - Surface physical height.
+    ///
+    /// # Returns
+    ///
+    /// - `([Rect; 8], usize)` - Stack array of clamped disjoint damage rectangles and active count `0..=8`.
+    #[must_use]
+    pub(crate) fn normalized_rects(&self, width: u32, height: u32) -> ([Rect; 8], usize) {
+        let Self {
+            full_damage,
+            rect: bounds,
+            rects,
+            rect_count,
+        } = *self;
+        let mut out: [Rect; 8] = [Rect::default(); 8];
+        if width == 0 || height == 0 {
+            return (out, 0);
+        }
+        let viewport: Rect = Rect::new(0.0, 0.0, width as f32, height as f32);
+        if full_damage {
+            out[0] = viewport;
+            return (out, 1);
+        }
+        let Some(bound_rect) = bounds else {
+            return (out, 0);
+        };
+        let active: usize = (rect_count as usize).min(out.len());
+        if active == 0 {
+            if let Some(clamped) = bound_rect.intersect(viewport)
+                && clamped.get_width() > 0.0
+                && clamped.get_height() > 0.0
+            {
+                out[0] = clamped;
+                return (out, 1);
+            }
+            return (out, 0);
+        }
+        let mut out_len: usize = 0;
+        for item in rects.iter().take(active) {
+            if let Some(clamped) = item.intersect(viewport)
+                && clamped.get_width() > 0.0
+                && clamped.get_height() > 0.0
+            {
+                out[out_len] = clamped;
+                out_len += 1;
+            }
+        }
+        (out, out_len)
     }
 
     /// Returns the damaged bounding rectangle, or full viewport when `full_damage` is true.
@@ -1330,7 +1443,15 @@ impl DamageRegion {
     ///
     /// - `&Self` - Mutable damage region.
     pub fn clear(&mut self) {
-        self.set_full_damage(false);
-        self.set_rect(None);
+        let Self {
+            full_damage,
+            rect,
+            rects,
+            rect_count,
+        } = self;
+        *full_damage = false;
+        *rect = None;
+        *rects = [Rect::default(); 8];
+        *rect_count = 0;
     }
 }
