@@ -264,3 +264,14 @@ pub(crate) const CODE_TYPES: &[&str] = &[
     "void",
     "any",
 ];
+pub(crate) const CODE_BYTE_SLASH: u8 = b'/';
+pub(crate) const CODE_BYTE_DQUOTE: u8 = b'"';
+pub(crate) const CODE_BYTE_SQUOTE: u8 = b'\'';
+pub(crate) const CODE_BYTE_BACKTICK: u8 = b'`';
+pub(crate) const CODE_BYTE_BACKSLASH: u8 = b'\\';
+pub(crate) const CODE_BYTE_SPACE: u8 = b' ';
+pub(crate) const CODE_BYTE_COLON: u8 = b':';
+pub(crate) const CODE_BYTE_DOT: u8 = b'.';
+pub(crate) const CODE_BYTE_UNDERSCORE: u8 = b'_';
+pub(crate) const CODE_BYTE_BANG: u8 = b'!';
+pub(crate) const CODE_BYTE_LPAREN: u8 = b'(';

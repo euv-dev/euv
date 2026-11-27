@@ -26,3 +26,39 @@ pub(crate) const EUV_FMT_RS_EXT: &str = "rs";
 pub(crate) const EUV_FMT_INDENT_SPACES: usize = 4;
 /// Error message returned when `euv fmt --check` detects unformatted macro blocks.
 pub(crate) const ERR_FMT_CHECK_FAILED: &str = "unformatted euv macro blocks found in";
+/// ASCII byte for `!`.
+pub(crate) const BYTE_BANG: u8 = b'!';
+/// ASCII byte for ` `.
+pub(crate) const BYTE_SPACE: u8 = b' ';
+/// ASCII byte for `\t`.
+pub(crate) const BYTE_TAB: u8 = b'\t';
+/// ASCII byte for `\n`.
+pub(crate) const BYTE_NEWLINE: u8 = b'\n';
+/// ASCII byte for `{`.
+pub(crate) const BYTE_LBRACE: u8 = b'{';
+/// ASCII byte for `}`.
+pub(crate) const BYTE_RBRACE: u8 = b'}';
+/// ASCII byte for `(`.
+pub(crate) const BYTE_LPAREN: u8 = b'(';
+/// ASCII byte for `)`.
+pub(crate) const BYTE_RPAREN: u8 = b')';
+/// ASCII byte for `[`.
+pub(crate) const BYTE_LBRACKET: u8 = b'[';
+/// ASCII byte for `]`.
+pub(crate) const BYTE_RBRACKET: u8 = b']';
+/// ASCII byte for `*`.
+pub(crate) const BYTE_STAR: u8 = b'*';
+/// ASCII byte for `/`.
+pub(crate) const BYTE_SLASH: u8 = b'/';
+/// ASCII byte for `r`.
+pub(crate) const BYTE_LOWER_R: u8 = b'r';
+/// ASCII byte for `"`.
+pub(crate) const BYTE_DQUOTE: u8 = b'"';
+/// ASCII byte for `'`.
+pub(crate) const BYTE_SQUOTE: u8 = b'\'';
+/// ASCII byte for `\`.
+pub(crate) const BYTE_BACKSLASH: u8 = b'\\';
+/// ASCII byte for `#`.
+pub(crate) const BYTE_HASH: u8 = b'#';
+/// ASCII byte for `_`.
+pub(crate) const BYTE_UNDERSCORE: u8 = b'_';

@@ -295,3 +295,5 @@ pub(crate) const TOK_CLASS_CONST: &str = "tok-const";
 pub(crate) const TOK_CLASS_PUNC: &str = "tok-punc";
 pub(crate) const TOK_CLASS_ADD: &str = "tok-add";
 pub(crate) const TOK_CLASS_DEL: &str = "tok-del";
+pub(crate) const BYTE_LOWER_O: u8 = b'o';
+pub(crate) const BYTE_LOWER_N: u8 = b'n';

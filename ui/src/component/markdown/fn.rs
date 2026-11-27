@@ -40,16 +40,16 @@ pub fn tokenize_code_line(line: &str, language: &str) -> Vec<CodeSpan> {
     let mut out: Vec<CodeSpan> = Vec::new();
     while i < len {
         let ch: u8 = bytes[i];
-        if ch == b'/' && i + 1 < len && bytes[i + 1] == b'/' {
+        if ch == CODE_BYTE_SLASH && i + 1 < len && bytes[i + 1] == CODE_BYTE_SLASH {
             out.push(CodeSpan::new(line[i..].to_string(), CodeTokenKind::Comment));
             break;
         }
-        if ch == b'"' || ch == b'\'' || ch == b'`' {
+        if ch == CODE_BYTE_DQUOTE || ch == CODE_BYTE_SQUOTE || ch == CODE_BYTE_BACKTICK {
             let quote: u8 = ch;
             let start: usize = i;
             i += 1;
             while i < len {
-                if bytes[i] == b'\\' && i + 1 < len {
+                if bytes[i] == CODE_BYTE_BACKSLASH && i + 1 < len {
                     i += 2;
                     continue;
                 }
@@ -61,10 +61,11 @@ pub fn tokenize_code_line(line: &str, language: &str) -> Vec<CodeSpan> {
             }
             let slice: &str = &line[start..i];
             let mut look: usize = i;
-            while look < len && bytes[look] == b' ' {
+            while look < len && bytes[look] == CODE_BYTE_SPACE {
                 look += 1;
             }
-            let is_json_key: bool = lang == CODE_LANG_JSON && look < len && bytes[look] == b':';
+            let is_json_key: bool =
+                lang == CODE_LANG_JSON && look < len && bytes[look] == CODE_BYTE_COLON;
             let kind: CodeTokenKind = if is_json_key {
                 CodeTokenKind::Property
             } else {
@@ -77,7 +78,9 @@ pub fn tokenize_code_line(line: &str, language: &str) -> Vec<CodeSpan> {
             let start: usize = i;
             i += 1;
             while i < len
-                && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'.' || bytes[i] == b'_')
+                && (bytes[i].is_ascii_alphanumeric()
+                    || bytes[i] == CODE_BYTE_DOT
+                    || bytes[i] == CODE_BYTE_UNDERSCORE)
             {
                 i += 1;
             }
@@ -87,13 +90,14 @@ pub fn tokenize_code_line(line: &str, language: &str) -> Vec<CodeSpan> {
             ));
             continue;
         }
-        if ch.is_ascii_alphabetic() || ch == b'_' {
+        if ch.is_ascii_alphabetic() || ch == CODE_BYTE_UNDERSCORE {
             let start: usize = i;
             i += 1;
-            while i < len && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
+            while i < len && (bytes[i].is_ascii_alphanumeric() || bytes[i] == CODE_BYTE_UNDERSCORE)
+            {
                 i += 1;
             }
-            if i < len && bytes[i] == b'!' {
+            if i < len && bytes[i] == CODE_BYTE_BANG {
                 i += 1;
                 out.push(CodeSpan::new(
                     line[start..i].to_string(),
@@ -115,9 +119,9 @@ pub fn tokenize_code_line(line: &str, language: &str) -> Vec<CodeSpan> {
                     .unwrap_or(false)
             {
                 CodeTokenKind::Type
-            } else if next_non_ws == Some(b'(') {
+            } else if next_non_ws == Some(CODE_BYTE_LPAREN) {
                 CodeTokenKind::Function
-            } else if next_non_ws == Some(b':')
+            } else if next_non_ws == Some(CODE_BYTE_COLON)
                 && (lang == CODE_LANG_TOML || lang == CODE_LANG_YAML)
             {
                 CodeTokenKind::Property
