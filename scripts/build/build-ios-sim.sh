@@ -24,7 +24,7 @@ cat > "${BUILD_DIR}/Cargo.toml" <<EOF
 
 [package]
 name = "euv-ios-host"
-version = "0.44.0"
+version = "0.45.0"
 edition = "2024"
 
 [lib]
@@ -1479,8 +1479,8 @@ cat > "${BUILD_DIR}/Info.plist" <<'EOF'
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
     <key>CFBundleName</key><string>Euv Studio</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.44.0</string>
-    <key>CFBundleVersion</key><string>6</string>
+    <key>CFBundleShortVersionString</key><string>0.45.0</string>
+    <key>CFBundleVersion</key><string>7</string>
     <key>CADisableMinimumFrameDurationOnPhone</key><true/>
     <key>LSRequiresIPhoneOS</key><true/>
     <key>UIApplicationSceneManifest</key>

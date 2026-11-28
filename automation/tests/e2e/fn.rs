@@ -303,11 +303,11 @@ fn e2e_fixture_c_approved_retired_flow_classification() {
     )
     .with_retirement(UiE2eRetirementRecord::new(
         "product-lead".to_string(),
-        "v0.44.0".to_string(),
+        "v0.45.0".to_string(),
         "Legacy promo drawer retired".to_string(),
         Some("modern-offers".to_string()),
     ));
-    let replayer: UiE2eReplayer = UiE2eReplayer::for_build("v0.44.0");
+    let replayer: UiE2eReplayer = UiE2eReplayer::for_build("v0.45.0");
     let retired_res: UiE2eResultV1 = replayer.replay_once(&mut app, &retired_flow, "run-retired");
     assert_eq!(retired_res.get_verdict(), UiE2eVerdict::Retired);
     assert_eq!(
@@ -325,7 +325,7 @@ fn e2e_fixture_c_approved_retired_flow_classification() {
     )
     .with_retirement(UiE2eRetirementRecord::new(
         String::new(),
-        "v0.44.0".to_string(),
+        "v0.45.0".to_string(),
         "Missing approval".to_string(),
         None,
     ));
@@ -337,11 +337,11 @@ fn e2e_fixture_c_approved_retired_flow_classification() {
         Some(E2E_ERR_LOCATOR_NOT_FOUND)
     );
     let blocked_replayer: UiE2eReplayer =
-        UiE2eReplayer::for_build("v0.44.0").with_blocked_reason("fixture server offline");
+        UiE2eReplayer::for_build("v0.45.0").with_blocked_reason("fixture server offline");
     let blocked_res: UiE2eResultV1 =
         blocked_replayer.replay_once(&mut app, &unapproved_flow, "run-blocked");
     assert_eq!(blocked_res.get_verdict(), UiE2eVerdict::Blocked);
-    let unsupported_replayer: UiE2eReplayer = UiE2eReplayer::for_build("v0.44.0")
+    let unsupported_replayer: UiE2eReplayer = UiE2eReplayer::for_build("v0.45.0")
         .with_supported_adapters(vec!["native-window".to_string()]);
     let unsupported_res: UiE2eResultV1 =
         unsupported_replayer.replay_once(&mut app, &unapproved_flow, "run-unsupported");
@@ -369,7 +369,7 @@ fn e2e_fixture_d_first_attempt_timeout_and_clean_retry_classified_flaky() {
             ),
         ],
     );
-    let replayer: UiE2eReplayer = UiE2eReplayer::for_build("v0.44.0")
+    let replayer: UiE2eReplayer = UiE2eReplayer::for_build("v0.45.0")
         .with_max_retries(2)
         .with_max_wait_frames(3);
     let result: UiE2eResultV1 =

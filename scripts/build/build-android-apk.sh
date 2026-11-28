@@ -32,7 +32,7 @@ cat > "${BUILD_DIR}/rust/Cargo.toml" <<EOF
 
 [package]
 name = "euv-android-host"
-version = "0.44.0"
+version = "0.45.0"
 edition = "2024"
 
 [lib]
@@ -3334,8 +3334,8 @@ cat > "${BUILD_DIR}/AndroidManifest.xml" <<'EOF'
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="vip.ltpp.euv.showcase"
-    android:versionCode="7"
-    android:versionName="0.44.0">
+    android:versionCode="8"
+    android:versionName="0.45.0">
     <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="35" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
