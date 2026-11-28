@@ -1048,6 +1048,7 @@ pub fn execute_stress_batch(state: &ShowcaseState, ids: &[&str]) {
 ///
 /// - `NodeId` - Mounted stress lab page handle.
 pub fn mount_stress_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
+    state.ensure_stress_loaded();
     let p: ThemePalette = tokens.get_palette();
     let g: ThemeGeometry = tokens.get_geometry();
     let results_sig: Signal<Vec<StressCaseResult>> = state.get_stress_results();

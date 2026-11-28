@@ -785,6 +785,24 @@ impl EuvRouterOutlet {
                         .set_pointer_events(PointerEvents::None);
                 }
                 let w: NodeId = tree.create_scroll_view(w_style);
+                let scene_scroll_clamp: SceneHandle = env.scene.clone();
+                let clamp_handler: UiEventHandler = Rc::new(RefCell::new(move |_: &UiEvent| {
+                    scene_scroll_clamp.with_write(
+                        |t: &mut SceneTree| {
+                            if let Some(cur) = t
+                                .get_node(w)
+                                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset())
+                                && cur.get_x().abs() > 0.01
+                            {
+                                t.set_scroll_offset(w, Point::new(0.0, cur.get_y()));
+                            }
+                        },
+                        (),
+                    );
+                }));
+                if let Some(wn) = tree.get_node_mut(w) {
+                    wn.get_mut_handlers().set_on_scroll(Some(clamp_handler));
+                }
                 tree.attach_scope(w, page_scope);
                 tree.append_child(w, page_node);
                 tree.append_child(host_id, w);
@@ -827,6 +845,7 @@ impl EuvRouterOutlet {
     /// - `NodeId` - Mounted router outlet container handle.
     fn render(&self) -> NodeId {
         let mut ctx: Context = current_context();
+        bind_fullscreen_context(&ctx);
         let mut host_style: Style = Style::default();
         host_style
             .get_mut_layout()
@@ -841,7 +860,12 @@ impl EuvRouterOutlet {
         let router: EuvRouter = self.get_router().clone();
         let route_order: Vec<String> = self.get_route_order().clone();
         let vp_sig: Signal<Size> = ctx.get_viewport_size();
+        let safe_area_sig: Signal<SafeAreaInsets> = ctx.get_safe_area();
         let swipe_drag_sig: Signal<f32> = ctx.get_swipe_drag_offset();
+        let app_state_sig: Signal<AppState> = ctx.get_app_state();
+        let fs_active_sig: Signal<bool> = use_fullscreen_active();
+        let ctx_fs_sig: Signal<bool> = ctx.immersive_fullscreen_signal();
+        let overlay_count_sig: Signal<usize> = EuvOverlayStack::active_count_signal();
         let fallback: EuvRouteBuilder = {
             let Self { fallback, .. } = self;
             Rc::clone(fallback)
@@ -860,7 +884,6 @@ impl EuvRouterOutlet {
         let double_back_enabled: bool = self.get_double_back_exit();
         let exit_prompt_text: String = self.get_exit_prompt().clone();
         let exit_toast_opt: Option<NodeId> = if double_back_enabled {
-            let safe_area_sig: Signal<SafeAreaInsets> = ctx.get_safe_area();
             let toast_text_clone: String = exit_prompt_text.clone();
             let toast_node: NodeId = view! {
                 portal {
@@ -903,8 +926,10 @@ impl EuvRouterOutlet {
         let last_back_seq: Rc<Cell<u64>> = Rc::new(Cell::new(sys_back_sig.get_untracked()));
         let armed_exit_at_ms: Rc<Cell<Option<u64>>> = Rc::new(Cell::new(None));
         let armed_exit_route: Rc<Cell<Option<u64>>> = Rc::clone(&armed_exit_at_ms);
+        let armed_exit_state: Rc<Cell<Option<u64>>> = Rc::clone(&armed_exit_at_ms);
         let toast_visible: Rc<Cell<bool>> = Rc::new(Cell::new(false));
         let toast_visible_route: Rc<Cell<bool>> = Rc::clone(&toast_visible);
+        let toast_visible_state: Rc<Cell<bool>> = Rc::clone(&toast_visible);
         let (hub_opt, default_ret): (Option<DynamicUpdateHub>, PageRetention) = router
             .get_inner()
             .try_borrow()
@@ -990,40 +1015,141 @@ impl EuvRouterOutlet {
                     );
                 });
             }
+            if let Some(tid) = exit_toast_opt {
+                let scene_toast_safe: SceneHandle = scene.clone();
+                let _: Effect = Effect::new(move || {
+                    let safe: SafeAreaInsets = safe_area_sig.get();
+                    scene_toast_safe.with_write(
+                        |tree: &mut SceneTree| {
+                            if let Some(n) = tree.get_node_mut(tid) {
+                                n.get_mut_style()
+                                    .get_mut_layout()
+                                    .set_bottom(Some(EXIT_TOAST_BOTTOM_OFFSET + safe.get_bottom()));
+                                let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                                tree.mark_dirty(tid, dirty_l | DIRTY_PAINT);
+                            }
+                        },
+                        (),
+                    );
+                });
+                let scene_toast_state: SceneHandle = scene.clone();
+                let _: Effect = Effect::new(move || {
+                    if app_state_sig.get() != AppState::Active {
+                        armed_exit_state.set(None);
+                        if toast_visible_state.replace(false) {
+                            scene_toast_state.with_write(
+                                |tree: &mut SceneTree| {
+                                    tree.cancel_subtree_transitions(tid);
+                                    if let Some(n) = tree.get_node_mut(tid) {
+                                        let st: &mut Style = n.get_mut_style();
+                                        st.get_mut_layout().set_display(Display::None);
+                                        st.get_mut_paint()
+                                            .set_opacity(1.0)
+                                            .set_transform(Transform2D::default());
+                                    }
+                                    let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                                    tree.mark_dirty(tid, dirty_l | DIRTY_PAINT);
+                                },
+                                (),
+                            );
+                        }
+                    }
+                });
+            }
             let _: Effect = Effect::new(move || {
                 let raw_dx: f32 = swipe_drag_sig.get();
-                if route_order_drag.is_empty() || EuvOverlayStack::active_count() > 0 {
-                    if let Some(prev_drag) = drag_preview_cell
+                let app_state: AppState = app_state_sig.get();
+                let is_fullscreen: bool = fs_active_sig.get() || ctx_fs_sig.get();
+                let overlay_count: usize = overlay_count_sig.get();
+                if route_order_drag.is_empty()
+                    || overlay_count > 0
+                    || is_fullscreen
+                    || app_state != AppState::Active
+                {
+                    let prev_drag_opt: Option<EuvDragPreviewState> = drag_preview_cell
                         .try_borrow_mut()
                         .ok()
-                        .and_then(|mut g: RefMut<'_, Option<EuvDragPreviewState>>| g.take())
-                    {
-                        let active_w: Option<NodeId> = active_key_drag.try_borrow().ok().and_then(
-                            |ak: Ref<'_, Option<String>>| {
-                                ak.as_ref().and_then(|p: &String| {
-                                    cache_drag.try_borrow().ok().and_then(
-                                        |m: Ref<'_, HashMap<String, EuvCachedPage>>| {
-                                            m.get(p).map(|e: &EuvCachedPage| e.wrapper)
-                                        },
-                                    )
-                                })
+                        .and_then(|mut g: RefMut<'_, Option<EuvDragPreviewState>>| g.take());
+                    let rel_drag_opt: Option<EuvDragPreviewState> = released_drag_cell
+                        .try_borrow_mut()
+                        .ok()
+                        .and_then(|mut g: RefMut<'_, Option<EuvDragPreviewState>>| g.take());
+                    let cur_path_opt: Option<String> = active_key_drag
+                        .try_borrow()
+                        .ok()
+                        .and_then(|ak: Ref<'_, Option<String>>| ak.clone());
+                    let active_w: Option<NodeId> = cur_path_opt.as_ref().and_then(|p: &String| {
+                        cache_drag.try_borrow().ok().and_then(
+                            |m: Ref<'_, HashMap<String, EuvCachedPage>>| {
+                                m.get(p).map(|e: &EuvCachedPage| e.wrapper)
                             },
-                        );
+                        )
+                    });
+                    let extra_wrappers: Vec<NodeId> = if app_state != AppState::Active {
+                        cache_drag
+                            .try_borrow()
+                            .ok()
+                            .map(|m: Ref<'_, HashMap<String, EuvCachedPage>>| {
+                                m.iter()
+                                    .filter(|(k, _): &(&String, &EuvCachedPage)| {
+                                        cur_path_opt.as_deref() != Some(k.as_str())
+                                    })
+                                    .map(|(_, e): (&String, &EuvCachedPage)| e.wrapper)
+                                    .collect()
+                            })
+                            .unwrap_or_default()
+                    } else {
+                        Vec::new()
+                    };
+                    if prev_drag_opt.is_some()
+                        || rel_drag_opt.is_some()
+                        || !extra_wrappers.is_empty()
+                    {
                         scene_drag.with_write(
                             |tree: &mut SceneTree| {
-                                if let Some(aw) = active_w
-                                    && let Some(n) = tree.get_node_mut(aw)
-                                {
-                                    n.get_mut_style()
-                                        .get_mut_paint()
-                                        .set_transform(Transform2D::default());
-                                    tree.mark_dirty(aw, DIRTY_PAINT);
+                                let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                                if let Some(aw) = active_w {
+                                    tree.cancel_subtree_transitions(aw);
+                                    if let Some(n) = tree.get_node_mut(aw) {
+                                        let st: &mut Style = n.get_mut_style();
+                                        st.get_mut_layout()
+                                            .set_display(Display::Flex)
+                                            .set_position(Position::Relative)
+                                            .set_top(None)
+                                            .set_right(None)
+                                            .set_bottom(None)
+                                            .set_left(None)
+                                            .set_z_index(1);
+                                        st.get_mut_paint()
+                                            .set_pointer_events(PointerEvents::Auto)
+                                            .set_opacity(1.0)
+                                            .set_transform(Transform2D::default());
+                                        tree.mark_dirty(aw, dirty_l | DIRTY_PAINT);
+                                    }
                                 }
-                                if let Some(pn) = tree.get_node_mut(prev_drag.target_wrapper) {
-                                    let st: &mut Style = pn.get_mut_style();
-                                    st.get_mut_layout().set_display(Display::None);
-                                    st.get_mut_paint().set_transform(Transform2D::default());
-                                    tree.mark_dirty(prev_drag.target_wrapper, DIRTY_PAINT);
+                                for tw in prev_drag_opt
+                                    .iter()
+                                    .map(|d: &EuvDragPreviewState| d.target_wrapper)
+                                    .chain(
+                                        rel_drag_opt
+                                            .iter()
+                                            .map(|d: &EuvDragPreviewState| d.target_wrapper),
+                                    )
+                                    .chain(extra_wrappers)
+                                {
+                                    if Some(tw) == active_w {
+                                        continue;
+                                    }
+                                    tree.cancel_subtree_transitions(tw);
+                                    if let Some(pn) = tree.get_node_mut(tw) {
+                                        let st: &mut Style = pn.get_mut_style();
+                                        st.get_mut_layout().set_display(Display::None);
+                                        st.get_mut_paint()
+                                            .set_pointer_events(PointerEvents::None)
+                                            .set_opacity(1.0)
+                                            .set_transform(Transform2D::default());
+                                        tree.mark_dirty(tw, dirty_l | DIRTY_PAINT);
+                                    }
                                 }
                             },
                             (),
@@ -1069,6 +1195,30 @@ impl EuvRouterOutlet {
                     let Some(adj_path) = adj_opt else {
                         return;
                     };
+                    if let Some(old_rel) = released_drag_cell
+                        .try_borrow_mut()
+                        .ok()
+                        .and_then(|mut g: RefMut<'_, Option<EuvDragPreviewState>>| g.take())
+                        && old_rel.target_path != adj_path
+                        && old_rel.target_wrapper != active_wrapper
+                    {
+                        let old_tw: NodeId = old_rel.target_wrapper;
+                        scene_drag.with_write(
+                            |tree: &mut SceneTree| {
+                                tree.cancel_subtree_transitions(old_tw);
+                                if let Some(n) = tree.get_node_mut(old_tw) {
+                                    let st: &mut Style = n.get_mut_style();
+                                    st.get_mut_layout().set_display(Display::None);
+                                    st.get_mut_paint()
+                                        .set_pointer_events(PointerEvents::None)
+                                        .set_transform(Transform2D::default());
+                                    let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                                    tree.mark_dirty(old_tw, dirty_l | DIRTY_PAINT);
+                                }
+                            },
+                            (),
+                        );
+                    }
                     let prev_preview_opt: Option<EuvDragPreviewState> = drag_preview_cell
                         .try_borrow()
                         .ok()
@@ -1363,6 +1513,9 @@ impl EuvRouterOutlet {
                             .and_then(|mut g: RefMut<'_, Option<EuvDragPreviewState>>| g.take())
                     });
                 if route_changed {
+                    if prev_path_opt.is_some() {
+                        let _: usize = EuvOverlayStack::dismiss_all();
+                    }
                     armed_exit_route.set(None);
                     if toast_visible_route.replace(false)
                         && let Some(tid) = exit_toast_opt

@@ -24,13 +24,13 @@ impl Default for ParticleEmitterConfig {
     }
 }
 
-/// Default 1,024-slot particle system pool.
+/// Default 1,024-slot lazy particle system pool.
 impl Default for ParticleSystem {
-    /// Allocates a `ParticleSystem` with 1,024 pooled slots.
+    /// Creates a lazily allocated `ParticleSystem` configured for 1,024 pooled slots.
     ///
     /// # Returns
     ///
-    /// - `Self` - Ready particle system.
+    /// - `Self` - Ready zero-allocation particle system.
     fn default() -> Self {
         Self::with_capacity(1024)
     }
@@ -38,7 +38,7 @@ impl Default for ParticleSystem {
 
 /// Particle emission, deterministic PRNG, and active-prefix SoA kinematics for `ParticleSystem`.
 impl ParticleSystem {
-    /// Allocates a fixed-capacity `ParticleSystem` with `capacity` pre-allocated SoA slots.
+    /// Creates a fixed-capacity `ParticleSystem` whose SoA lanes allocate lazily on first `emit_burst`.
     ///
     /// # Arguments
     ///
@@ -46,23 +46,23 @@ impl ParticleSystem {
     ///
     /// # Returns
     ///
-    /// - `Self` - Pre-allocated particle system.
+    /// - `Self` - Zero-allocation particle system ready for lazy emission.
     #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
         let cap: usize = capacity.max(16);
         Self {
             capacity: cap,
-            pos_x: vec![0.0; cap],
-            pos_y: vec![0.0; cap],
-            vel_x: vec![0.0; cap],
-            vel_y: vec![0.0; cap],
-            age: vec![0.0; cap],
-            lifetime: vec![0.0; cap],
-            drag: vec![0.0; cap],
-            start_size: vec![0.0; cap],
-            end_size: vec![0.0; cap],
-            start_color: vec![Color::default(); cap],
-            end_color: vec![Color::default(); cap],
+            pos_x: Vec::new(),
+            pos_y: Vec::new(),
+            vel_x: Vec::new(),
+            vel_y: Vec::new(),
+            age: Vec::new(),
+            lifetime: Vec::new(),
+            drag: Vec::new(),
+            start_size: Vec::new(),
+            end_size: Vec::new(),
+            start_color: Vec::new(),
+            end_color: Vec::new(),
             min_remaining_life: f32::INFINITY,
             cursor: 0,
             rng_state: 0x9E37_79B9_7F4A_7C15,
@@ -120,6 +120,19 @@ impl ParticleSystem {
         let cap: usize = *capacity;
         if cap == 0 || count == 0 {
             return;
+        }
+        if pos_x.len() < cap {
+            pos_x.resize(cap, 0.0);
+            pos_y.resize(cap, 0.0);
+            vel_x.resize(cap, 0.0);
+            vel_y.resize(cap, 0.0);
+            age.resize(cap, 0.0);
+            lifetime.resize(cap, 0.0);
+            drag.resize(cap, 0.0);
+            start_size.resize(cap, 0.0);
+            end_size.resize(cap, 0.0);
+            start_color.resize(cap, Color::default());
+            end_color.resize(cap, Color::default());
         }
         let base_angle: f32 = config.get_base_angle();
         let spread_rad: f32 = config.get_spread_rad();

@@ -103,6 +103,30 @@ impl EuvAvatar {
     }
 }
 
+/// Vector glyph constructor for `EuvIcon`.
+impl EuvIcon {
+    /// Creates a crisp native vector `EuvIcon` rendered directly via `DisplayList` primitives.
+    ///
+    /// # Arguments
+    ///
+    /// - `EuvIconName` - Built-in vector glyph variant.
+    /// - `f32` - Square icon box size in logical pixels.
+    /// - `Color` - Foreground stroke color.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Vector icon descriptor.
+    #[must_use]
+    pub fn vector(icon: EuvIconName, size: f32, color: Color) -> Self {
+        Self {
+            symbol: String::new(),
+            size,
+            color,
+            icon: Some(icon),
+        }
+    }
+}
+
 /// Declarative `#[component]` implementation for `EuvIcon`.
 #[component]
 /// Inherent implementation of [`EuvIcon`].
@@ -120,6 +144,18 @@ impl EuvIcon {
         let ctx: Context = current_context();
         let sz: f32 = self.get_size();
         let color: Color = self.get_color();
+        if let Some(icon_name) = self.get_icon() {
+            let paint_icon = move |bounds: Rect, dl: &mut DisplayList| {
+                draw_euv_icon(icon_name, bounds, dl, color);
+            };
+            return view! {
+                canvas {
+                    width: Length::Px(sz)
+                    height: Length::Px(sz)
+                    painter: paint_icon
+                }
+            };
+        }
         let Self { symbol, .. } = self;
         let mut row_st: Style = Style::default();
         row_st

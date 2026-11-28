@@ -106,11 +106,19 @@ impl WindowController for LinuxPlatform {
                     .push(WindowEvent::RedrawRequested(id));
                 Ok(())
             }
+            WindowCommand::SetFullscreen(id, mode) => {
+                let rec: &mut LinuxWindowRecord = self
+                    .get_mut_windows()
+                    .get_mut(&id)
+                    .ok_or(PlatformError::WindowNotFound(id.get_value()))?;
+                rec.get_mut_config().set_fullscreen(mode);
+                rec.get_mut_state().set_fullscreen(mode);
+                Ok(())
+            }
             WindowCommand::SetPosition(id, _, _)
             | WindowCommand::SetResizable(id, _)
             | WindowCommand::SetDecorations(id, _)
             | WindowCommand::SetAlwaysOnTop(id, _)
-            | WindowCommand::SetFullscreen(id, _)
             | WindowCommand::SetVisible(id, _)
             | WindowCommand::SetCursor(id, _)
             | WindowCommand::SetIme(id, _, _)
@@ -169,7 +177,19 @@ impl PlatformBackend for LinuxPlatform {
         }
         let id: WindowId = WindowId::new(self.get_next_id());
         self.set_next_id(self.get_next_id().wrapping_add(1));
-        let state: WindowState = WindowState::from_config(id, config, native.get_scale_factor());
+        let mut state: WindowState =
+            WindowState::from_config(id, config, native.get_scale_factor());
+        let hz: f32 = if native.get_is_wayland() {
+            linux_display_refresh_rate_hz(null_mut(), 0)
+        } else {
+            linux_display_refresh_rate_hz(
+                native.get_display() as *mut c_void,
+                native.get_window() as usize,
+            )
+        };
+        state
+            .get_mut_display()
+            .set_refresh_rate_hz(hz.round() as u32);
         self.get_mut_windows().insert(
             id,
             LinuxWindowRecord {

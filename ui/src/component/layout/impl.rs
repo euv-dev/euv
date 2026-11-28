@@ -161,6 +161,430 @@ impl EuvAppShell {
         self.set_page_padding(Some(padding));
         self
     }
+
+    /// Draws the official `Euv Studio` Emperor-Armor Winged Golden Dragon vector emblem.
+    ///
+    /// # Arguments
+    ///
+    /// - `Rect` - Emblem canvas bounds in logical pixels.
+    /// - `&mut DisplayList` - Target display list.
+    fn draw_euv_brand_emblem(bounds: Rect, dl: &mut DisplayList) {
+        let x: f32 = bounds.get_x();
+        let y: f32 = bounds.get_y();
+        let w: f32 = bounds.get_width().max(1.0);
+        let h: f32 = bounds.get_height().max(1.0);
+        let s: f32 = w.min(h);
+        let ox: f32 = x + (w - s) * 0.5;
+        let oy: f32 = y + (h - s) * 0.5;
+        let pt: &dyn Fn(f32, f32) -> Point =
+            &|nx: f32, ny: f32| -> Point { Point::new(ox + nx * s, oy + ny * s) };
+        let spar_w: f32 = (s * 0.058).max(1.3);
+        let fine_w: f32 = (s * 0.036).max(0.85);
+        let beacon_w: f32 = (s * 0.068).max(1.55);
+        // 1. Grand left solar-gold holographic wing (sweeping feathered blades + crimson tip beacon).
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.41, 0.49),
+            p1: pt(0.04, 0.14),
+            p2: pt(0.13, 0.40),
+            color: SHELL_LOGO_WING_AMBER,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.40, 0.54),
+            p1: pt(0.08, 0.34),
+            p2: pt(0.25, 0.54),
+            color: SHELL_LOGO_GOLD_ROYAL,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.39, 0.48),
+            p1: pt(0.10, 0.20),
+            p2: pt(0.24, 0.44),
+            color: SHELL_LOGO_SOLAR_HI,
+        });
+        dl.push(DrawCommand::Line {
+            from: pt(0.40, 0.47),
+            to: pt(0.19, 0.22),
+            color: SHELL_LOGO_OBSIDIAN,
+            width: spar_w,
+        });
+        dl.push(DrawCommand::Line {
+            from: pt(0.40, 0.47),
+            to: pt(0.20, 0.23),
+            color: SHELL_LOGO_GOLD_BRIGHT,
+            width: fine_w,
+        });
+        dl.push(DrawCommand::Line {
+            from: pt(0.19, 0.22),
+            to: pt(0.06, 0.08),
+            color: SHELL_LOGO_CRIMSON,
+            width: beacon_w,
+        });
+        // 2. Grand right solar-gold holographic wing + sweeping tail plume.
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.54, 0.51),
+            p1: pt(0.96, 0.11),
+            p2: pt(0.86, 0.40),
+            color: SHELL_LOGO_WING_AMBER,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.55, 0.55),
+            p1: pt(0.91, 0.32),
+            p2: pt(0.71, 0.55),
+            color: SHELL_LOGO_GOLD_ROYAL,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.56, 0.50),
+            p1: pt(0.89, 0.18),
+            p2: pt(0.73, 0.44),
+            color: SHELL_LOGO_SOLAR_HI,
+        });
+        dl.push(DrawCommand::Line {
+            from: pt(0.54, 0.50),
+            to: pt(0.79, 0.23),
+            color: SHELL_LOGO_OBSIDIAN,
+            width: spar_w,
+        });
+        dl.push(DrawCommand::Line {
+            from: pt(0.54, 0.50),
+            to: pt(0.78, 0.24),
+            color: SHELL_LOGO_GOLD_BRIGHT,
+            width: fine_w,
+        });
+        dl.push(DrawCommand::Line {
+            from: pt(0.80, 0.22),
+            to: pt(0.94, 0.08),
+            color: SHELL_LOGO_CRIMSON,
+            width: beacon_w,
+        });
+        // Sweeping armored golden S-curve tail & solar plume on lower right.
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.58, 0.63),
+            p1: pt(0.88, 0.72),
+            p2: pt(0.68, 0.78),
+            color: SHELL_LOGO_OBSIDIAN,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.62, 0.65),
+            p1: pt(0.86, 0.69),
+            p2: pt(0.72, 0.75),
+            color: SHELL_LOGO_GOLD_ROYAL,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.83, 0.71),
+            p1: pt(0.95, 0.46),
+            p2: pt(0.89, 0.62),
+            color: SHELL_LOGO_WING_AMBER,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.85, 0.67),
+            p1: pt(0.93, 0.50),
+            p2: pt(0.89, 0.60),
+            color: SHELL_LOGO_SOLAR_HI,
+        });
+        // 3. Sculpted obsidian mechanical torso & imperial gold Emperor-Armor breastplate.
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.43, 0.36),
+            p1: pt(0.68, 0.60),
+            p2: pt(0.28, 0.66),
+            color: SHELL_LOGO_OBSIDIAN,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.28, 0.66),
+            p1: pt(0.68, 0.60),
+            p2: pt(0.48, 0.85),
+            color: SHELL_LOGO_OBSIDIAN,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.43, 0.38),
+            p1: pt(0.57, 0.54),
+            p2: pt(0.32, 0.60),
+            color: SHELL_LOGO_GOLD_BRIGHT,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.32, 0.60),
+            p1: pt(0.61, 0.56),
+            p2: pt(0.48, 0.80),
+            color: SHELL_LOGO_GOLD_ROYAL,
+        });
+        dl.push(DrawCommand::Circle {
+            center: pt(0.56, 0.61),
+            radius: s * 0.095,
+            color: SHELL_LOGO_OBSIDIAN,
+        });
+        dl.push(DrawCommand::Circle {
+            center: pt(0.56, 0.61),
+            radius: s * 0.072,
+            color: SHELL_LOGO_GOLD_BRIGHT,
+        });
+        // 4. Sculpted armored wedge talons (left raised claw & lower grounded claw, crisp on Light & Dark).
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.32, 0.63),
+            p1: pt(0.18, 0.68),
+            p2: pt(0.23, 0.58),
+            color: SHELL_LOGO_OBSIDIAN,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.22, 0.60),
+            p1: pt(0.08, 0.55),
+            p2: pt(0.18, 0.65),
+            color: SHELL_LOGO_SILVER,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.20, 0.60),
+            p1: pt(0.10, 0.56),
+            p2: pt(0.18, 0.63),
+            color: SHELL_LOGO_SILVER_HI,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.21, 0.65),
+            p1: pt(0.13, 0.74),
+            p2: pt(0.24, 0.69),
+            color: SHELL_LOGO_SILVER,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.52, 0.72),
+            p1: pt(0.62, 0.82),
+            p2: pt(0.46, 0.84),
+            color: SHELL_LOGO_OBSIDIAN,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.48, 0.81),
+            p1: pt(0.40, 0.94),
+            p2: pt(0.52, 0.86),
+            color: SHELL_LOGO_SILVER,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.53, 0.82),
+            p1: pt(0.53, 0.96),
+            p2: pt(0.59, 0.85),
+            color: SHELL_LOGO_SILVER,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.54, 0.83),
+            p1: pt(0.54, 0.94),
+            p2: pt(0.57, 0.85),
+            color: SHELL_LOGO_SILVER_HI,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.58, 0.80),
+            p1: pt(0.67, 0.91),
+            p2: pt(0.61, 0.78),
+            color: SHELL_LOGO_SILVER,
+        });
+        // 5. Swept-back sinuous multi-branched royal golden antlers (sculpted tapered wedges, not vertical sticks).
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.39, 0.24),
+            p1: pt(0.34, 0.08),
+            p2: pt(0.44, 0.20),
+            color: SHELL_LOGO_OBSIDIAN,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.40, 0.23),
+            p1: pt(0.35, 0.10),
+            p2: pt(0.43, 0.20),
+            color: SHELL_LOGO_GOLD_BRIGHT,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.45, 0.24),
+            p1: pt(0.71, 0.06),
+            p2: pt(0.53, 0.26),
+            color: SHELL_LOGO_OBSIDIAN,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.46, 0.23),
+            p1: pt(0.69, 0.08),
+            p2: pt(0.52, 0.25),
+            color: SHELL_LOGO_GOLD_BRIGHT,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.52, 0.22),
+            p1: pt(0.68, 0.17),
+            p2: pt(0.56, 0.26),
+            color: SHELL_LOGO_CRIMSON,
+        });
+        // Noble heroic armored imperial dragon head facing left.
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.36, 0.20),
+            p1: pt(0.55, 0.25),
+            p2: pt(0.45, 0.42),
+            color: SHELL_LOGO_OBSIDIAN,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.37, 0.21),
+            p1: pt(0.52, 0.27),
+            p2: pt(0.28, 0.35),
+            color: SHELL_LOGO_GOLD_BRIGHT,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.28, 0.35),
+            p1: pt(0.52, 0.27),
+            p2: pt(0.45, 0.40),
+            color: SHELL_LOGO_GOLD_ROYAL,
+        });
+        // Crimson ruby forehead crown jewel & blazing solar-gold eye.
+        dl.push(DrawCommand::Circle {
+            center: pt(0.41, 0.24),
+            radius: (s * 0.042).max(1.0),
+            color: SHELL_LOGO_CRIMSON,
+        });
+        dl.push(DrawCommand::Circle {
+            center: pt(0.425, 0.305),
+            radius: (s * 0.032).max(0.85),
+            color: SHELL_LOGO_OBSIDIAN,
+        });
+        dl.push(DrawCommand::Circle {
+            center: pt(0.425, 0.305),
+            radius: (s * 0.021).max(0.6),
+            color: SHELL_LOGO_SOLAR_HI,
+        });
+        // 6. Iconic Emperor-Armor crimson ruby hexagonal chest crystal & shoulder crystal.
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.39, 0.53),
+            p1: pt(0.45, 0.63),
+            p2: pt(0.33, 0.63),
+            color: SHELL_LOGO_CRIMSON,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.39, 0.72),
+            p1: pt(0.45, 0.63),
+            p2: pt(0.33, 0.63),
+            color: SHELL_LOGO_CRIMSON,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.39, 0.55),
+            p1: pt(0.42, 0.62),
+            p2: pt(0.35, 0.62),
+            color: SHELL_LOGO_CRIMSON_HI,
+        });
+        dl.push(DrawCommand::Circle {
+            center: pt(0.56, 0.61),
+            radius: (s * 0.044).max(1.1),
+            color: SHELL_LOGO_CRIMSON,
+        });
+        dl.push(DrawCommand::Circle {
+            center: pt(0.55, 0.60),
+            radius: (s * 0.019).max(0.5),
+            color: SHELL_LOGO_CRIMSON_HI,
+        });
+    }
+
+    /// Mounts the unified Emperor-Armor Winged Golden Dragon brand emblem shared identically between the top navbar, desktop sidebar, and mobile drawer.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - Single-character brand initial text.
+    /// - `ThemeTokens` - Active design tokens.
+    /// - `Option<Signal<bool>>` - Optional drawer toggle signal when mounted interactively in the top navbar.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Mounted brand logo badge node.
+    fn mount_brand_logo(
+        brand_initial: &str,
+        tokens: ThemeTokens,
+        toggle_menu: Option<Signal<bool>>,
+    ) -> NodeId {
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
+        let badge_r: f32 = g.get_radius_sm().clamp(6.0, 8.0);
+        let is_euv_mark: bool = brand_initial.eq_ignore_ascii_case(SHELL_DEFAULT_INITIAL);
+        let initial_owned: String = brand_initial.to_string();
+        if let Some(menu_sig) = toggle_menu {
+            let on_toggle = move |_: &UiEvent| {
+                let _: bool = menu_sig.update(|v: &mut bool| *v = !*v);
+            };
+            if is_euv_mark {
+                let paint_emblem = move |bounds: Rect, dl: &mut DisplayList| {
+                    Self::draw_euv_brand_emblem(bounds, dl);
+                };
+                view! {
+                    row {
+                        width: Length::Px(SHELL_BRAND_BADGE_SIZE)
+                        height: Length::Px(SHELL_BRAND_BADGE_SIZE)
+                        flex_shrink: 0.0
+                        justify: JustifyContent::Center
+                        align: AlignItems::Center
+                        overflow: Overflow::Hidden
+                        cursor: CursorIcon::Pointer
+                        role: A11yRole::Button
+                        a11y_label: SHELL_MENU_LABEL.to_string()
+                        on_click: on_toggle
+                        canvas {
+                            width: Length::Px(SHELL_BRAND_BADGE_SIZE)
+                            height: Length::Px(SHELL_BRAND_BADGE_SIZE)
+                            painter: paint_emblem
+                        }
+                    }
+                }
+            } else {
+                view! {
+                    row {
+                        width: Length::Px(SHELL_BRAND_BADGE_SIZE)
+                        height: Length::Px(SHELL_BRAND_BADGE_SIZE)
+                        flex_shrink: 0.0
+                        radius: badge_r
+                        background: p.get_primary()
+                        justify: JustifyContent::Center
+                        align: AlignItems::Center
+                        cursor: CursorIcon::Pointer
+                        role: A11yRole::Button
+                        a11y_label: SHELL_MENU_LABEL.to_string()
+                        on_click: on_toggle
+                        text {
+                            font_size: 13.0
+                            font_weight: FontWeight::Bold
+                            color: p.get_primary_foreground()
+                            text_align: TextAlign::Center
+                            text_overflow: TextOverflow::Clip
+                            { initial_owned }
+                        }
+                    }
+                }
+            }
+        } else if is_euv_mark {
+            let paint_emblem = move |bounds: Rect, dl: &mut DisplayList| {
+                Self::draw_euv_brand_emblem(bounds, dl);
+            };
+            view! {
+                row {
+                    width: Length::Px(SHELL_BRAND_BADGE_SIZE)
+                    height: Length::Px(SHELL_BRAND_BADGE_SIZE)
+                    flex_shrink: 0.0
+                    justify: JustifyContent::Center
+                    align: AlignItems::Center
+                    overflow: Overflow::Hidden
+                    role: A11yRole::Group
+                    a11y_label: SHELL_BRAND_A11Y_LABEL.to_string()
+                    canvas {
+                        width: Length::Px(SHELL_BRAND_BADGE_SIZE)
+                        height: Length::Px(SHELL_BRAND_BADGE_SIZE)
+                        painter: paint_emblem
+                    }
+                }
+            }
+        } else {
+            view! {
+                row {
+                    width: Length::Px(SHELL_BRAND_BADGE_SIZE)
+                    height: Length::Px(SHELL_BRAND_BADGE_SIZE)
+                    flex_shrink: 0.0
+                    radius: badge_r
+                    background: p.get_primary()
+                    justify: JustifyContent::Center
+                    align: AlignItems::Center
+                    role: A11yRole::Group
+                    a11y_label: SHELL_BRAND_A11Y_LABEL.to_string()
+                    text {
+                        font_size: 13.0
+                        font_weight: FontWeight::Bold
+                        color: p.get_primary_foreground()
+                        text_align: TextAlign::Center
+                        text_overflow: TextOverflow::Clip
+                        { initial_owned }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Declarative `#[component]` implementation for `EuvAppShell`.
@@ -178,6 +602,7 @@ impl EuvAppShell {
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
         let mut ctx: Context = current_context();
+        bind_fullscreen_context(&ctx);
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
@@ -187,6 +612,11 @@ impl EuvAppShell {
         let gesture_sig: Signal<Option<GestureEvent>> = ctx.get_gesture();
         let swipe_drag_sig: Signal<f32> = ctx.get_swipe_drag_offset();
         let fps_sig: Signal<f32> = ctx.get_live_fps();
+        let refresh_sig: Signal<f32> = ctx.get_display_refresh_rate();
+        let app_state_sig: Signal<AppState> = ctx.get_app_state();
+        let fs_active_sig: Signal<bool> = use_fullscreen_active();
+        let ctx_fs_sig: Signal<bool> = ctx.immersive_fullscreen_signal();
+        let overlay_count_sig: Signal<usize> = EuvOverlayStack::active_count_signal();
         let show_fps: bool = self.get_show_fps();
         let Self {
             brand,
@@ -261,12 +691,15 @@ impl EuvAppShell {
         let mut drawer_scroll: NodeId = NodeId::default();
         let mut drawer_grabber: NodeId = NodeId::default();
         let init_fps: f32 = fps_sig.get_untracked();
+        let init_hz: f32 = refresh_sig.get_untracked().clamp(30.0, 480.0);
+        let init_good_fps: f32 = (init_hz * 0.75).clamp(45.0, 90.0);
+        let init_warn_fps: f32 = (init_hz * 0.45).clamp(24.0, 50.0);
         let init_dot_col: Color = if !init_fps.is_finite() || init_fps <= SHELL_FPS_ACTIVE_THRESHOLD
         {
             p.get_muted_foreground()
-        } else if init_fps >= 48.0 {
+        } else if init_fps >= init_good_fps {
             p.get_success()
-        } else if init_fps >= 28.0 {
+        } else if init_fps >= init_warn_fps {
             p.get_warning()
         } else {
             p.get_destructive()
@@ -280,20 +713,22 @@ impl EuvAppShell {
                     SHELL_FPS_IDLE_LABEL.to_string()
                 } else {
                     let v: f32 = raw.clamp(1.0, 999.0);
-                    format!("{v:.0} FPS")
+                    format!("{v:.0}")
                 }
             };
             let pill: NodeId = view! {
                 row {
-                    min_width: Length::Px(72.0)
-                    height: Length::Px(26.0)
-                    padding: Edges::symmetric(0.0, 8.0)
+                    min_width: Length::Px(46.0)
+                    height: Length::Px(24.0)
+                    padding: Edges::symmetric(0.0, 6.0)
                     radius: g.get_radius_sm()
                     justify: JustifyContent::Center
                     align: AlignItems::Center
-                    gap: 5.0
+                    gap: 4.0
                     background: p.get_muted()
                     border: (1.0, p.get_border())
+                    role: A11yRole::Group
+                    a11y_label: SHELL_FPS_A11Y_LABEL.to_string()
                     view {
                         node_ref: dot_node
                         width: Length::Px(6.0)
@@ -302,7 +737,6 @@ impl EuvAppShell {
                         background: init_dot_col
                     }
                     text {
-                        width: Length::Px(50.0)
                         height: Length::Px(14.0)
                         font_size: 11.0
                         font_family: FontFamily::Monospace
@@ -324,24 +758,27 @@ impl EuvAppShell {
             let mut dot_node: NodeId = NodeId::default();
             let fps_text_desk = move || -> String {
                 let raw: f32 = fps_sig.get();
+                let hz: f32 = refresh_sig.get().clamp(30.0, 480.0);
                 if !raw.is_finite() || raw <= SHELL_FPS_ACTIVE_THRESHOLD {
-                    SHELL_FPS_IDLE_LABEL.to_string()
+                    format!("{SHELL_FPS_IDLE_LABEL} · {hz:.0}Hz")
                 } else {
                     let v: f32 = raw.clamp(1.0, 999.0);
-                    format!("{v:.0} FPS")
+                    format!("{v:.0} · {hz:.0}Hz")
                 }
             };
             let pill: NodeId = view! {
                 row {
-                    min_width: Length::Px(68.0)
-                    height: Length::Px(26.0)
-                    padding: Edges::symmetric(0.0, 8.0)
+                    min_width: Length::Px(82.0)
+                    height: Length::Px(24.0)
+                    padding: Edges::symmetric(0.0, 7.0)
                     radius: g.get_radius_sm()
                     justify: JustifyContent::Center
                     align: AlignItems::Center
-                    gap: 5.0
+                    gap: 4.0
                     background: p.get_muted()
                     border: (1.0, p.get_border())
+                    role: A11yRole::Group
+                    a11y_label: SHELL_FPS_A11Y_LABEL.to_string()
                     view {
                         node_ref: dot_node
                         width: Length::Px(6.0)
@@ -350,7 +787,6 @@ impl EuvAppShell {
                         background: init_dot_col
                     }
                     text {
-                        width: Length::Px(50.0)
                         height: Length::Px(14.0)
                         font_size: 11.0
                         font_family: FontFamily::Monospace
@@ -367,6 +803,24 @@ impl EuvAppShell {
         } else {
             None
         };
+        let paint_menu_icon = move |bounds: Rect, dl: &mut DisplayList| {
+            let live_p: ThemePalette = live_tokens_untracked(tokens).get_palette();
+            draw_euv_icon(EuvIconName::Menu, bounds, dl, live_p.get_foreground());
+        };
+        let on_toggle_menu_btn = move |_: &UiEvent| {
+            let _: bool = menu_open.update(|v: &mut bool| *v = !*v);
+        };
+        let top_brand_badge: Option<NodeId> = if has_bottom_nav {
+            Some(Self::mount_brand_logo(
+                &brand_initial,
+                tokens,
+                Some(menu_open),
+            ))
+        } else {
+            None
+        };
+        let nav_brand_badge: NodeId = Self::mount_brand_logo(&brand_initial, tokens, None);
+        let drawer_brand_badge: NodeId = Self::mount_brand_logo(&brand_initial, tokens, None);
         let root: NodeId = view! {
             column {
                 width: Length::Percent(100.0)
@@ -390,28 +844,8 @@ impl EuvAppShell {
                         align: AlignItems::Center
                         gap: SPACE_SM
                         overflow: Overflow::Hidden
-                        if has_bottom_nav {
-                            row {
-                                width: Length::Px(30.0)
-                                height: Length::Px(30.0)
-                                flex_shrink: 0.0
-                                radius: 99.0
-                                background: p.get_primary()
-                                justify: JustifyContent::Center
-                                align: AlignItems::Center
-                                cursor: CursorIcon::Pointer
-                                on_click: move |_: &UiEvent| {
-                                    let _: bool = menu_open.update(|v: &mut bool| *v = !*v);
-                                }
-                                text {
-                                    font_size: 13.0
-                                    font_weight: FontWeight::Bold
-                                    color: p.get_primary_foreground()
-                                    text_align: TextAlign::Center
-                                    text_overflow: TextOverflow::Clip
-                                    { brand_initial.clone() }
-                                }
-                            }
+                        if let Some(badge_node) = top_brand_badge {
+                            { badge_node }
                         }
                         text {
                             node_ref: top_title_txt
@@ -438,13 +872,22 @@ impl EuvAppShell {
                             { mob_act }
                         }
                         if !has_bottom_nav {
-                            EuvButton {
-                                label: SHELL_MENU_LABEL.to_string()
-                                tokens: tokens
-                                outline()
-                                sm()
-                                on_click: move |_: &UiEvent| {
-                                    let _: bool = menu_open.update(|v: &mut bool| *v = !*v);
+                            row {
+                                width: Length::Px(30.0)
+                                height: Length::Px(30.0)
+                                justify: JustifyContent::Center
+                                align: AlignItems::Center
+                                radius: g.get_radius_md()
+                                background: p.get_background()
+                                border: (g.get_border_width(), p.get_border())
+                                cursor: CursorIcon::Pointer
+                                role: A11yRole::Button
+                                a11y_label: SHELL_MENU_LABEL.to_string()
+                                on_click: on_toggle_menu_btn
+                                canvas {
+                                    width: Length::Px(15.0)
+                                    height: Length::Px(15.0)
+                                    painter: paint_menu_icon
                                 }
                             }
                         }
@@ -476,20 +919,7 @@ impl EuvAppShell {
                             align: AlignItems::Center
                             gap: SPACE_SM
                             padding: Edges::new(0.0, 0.0, SPACE_XS, 0.0)
-                            view {
-                                width: Length::Px(24.0)
-                                height: Length::Px(24.0)
-                                radius: 6.0
-                                background: p.get_primary()
-                                justify: JustifyContent::Center
-                                align: AlignItems::Center
-                                text {
-                                    font_size: 13.0
-                                    font_weight: FontWeight::Bold
-                                    color: p.get_primary_foreground()
-                                    { brand_initial.clone() }
-                                }
-                            }
+                            { nav_brand_badge }
                             text {
                                 font_size: 14.5
                                 font_weight: FontWeight::Bold
@@ -611,20 +1041,7 @@ impl EuvAppShell {
                                 align: AlignItems::Center
                                 gap: SPACE_SM
                                 padding: Edges::new(0.0, 0.0, SPACE_XS, 0.0)
-                                view {
-                                    width: Length::Px(22.0)
-                                    height: Length::Px(22.0)
-                                    radius: 6.0
-                                    background: p.get_primary()
-                                    justify: JustifyContent::Center
-                                    align: AlignItems::Center
-                                    text {
-                                        font_size: 12.0
-                                        font_weight: FontWeight::Bold
-                                        color: p.get_primary_foreground()
-                                        { brand_initial }
-                                    }
-                                }
+                                { drawer_brand_badge }
                                 text {
                                     font_size: 14.5
                                     font_weight: FontWeight::Bold
@@ -654,6 +1071,23 @@ impl EuvAppShell {
                 }
             }
         };
+        if !has_managed_outlet {
+            let main_clamp_scene: SceneHandle = ctx.get_scene().clone();
+            ctx.on_scroll(main_area, move |_: &UiEvent| {
+                main_clamp_scene.with_write(
+                    |tree: &mut SceneTree| {
+                        if let Some(cur) = tree
+                            .get_node(main_area)
+                            .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset())
+                            && cur.get_x().abs() > 0.01
+                        {
+                            tree.set_scroll_offset(main_area, Point::new(0.0, cur.get_y()));
+                        }
+                    },
+                    (),
+                );
+            });
+        }
         let d_down_active: Rc<Cell<bool>> = drawer_drag_active.clone();
         let d_down_x: Rc<Cell<f32>> = drawer_drag_start_x.clone();
         let d_down_w: Rc<Cell<f32>> = drawer_drag_base_w.clone();
@@ -757,6 +1191,26 @@ impl EuvAppShell {
                     (),
                 );
             });
+            let h_cancel: SceneHandle = ctx.get_scene().clone();
+            let da_cancel: Rc<Cell<bool>> = drawer_drag_active.clone();
+            let dm_cancel: Rc<Cell<bool>> = drawer_drag_moved.clone();
+            ctx.on_pointer_cancel(target_node, move |_: &UiEvent| {
+                if !da_cancel.replace(false) {
+                    return;
+                }
+                dm_cancel.set(false);
+                h_cancel.with_write(
+                    |tree: &mut SceneTree| {
+                        if let Some(n) = tree.get_node_mut(drawer_panel) {
+                            n.get_mut_style()
+                                .get_mut_paint()
+                                .set_transform(Transform2D::default());
+                            tree.mark_dirty(drawer_panel, DIRTY_PAINT);
+                        }
+                    },
+                    (),
+                );
+            });
         }
         let drawer_click_moved: Rc<Cell<bool>> = drawer_drag_moved.clone();
         ctx.on_click(drawer_portal, move |ev: &UiEvent| {
@@ -770,21 +1224,45 @@ impl EuvAppShell {
         let handle: SceneHandle = ctx.get_scene().clone();
         let handle_layout: SceneHandle = handle.clone();
         let handle_crumb: SceneHandle = handle.clone();
+        let handle_state: SceneHandle = handle.clone();
+        let drawer_da_close: Rc<Cell<bool>> = drawer_drag_active.clone();
+        let drawer_dm_close: Rc<Cell<bool>> = drawer_drag_moved.clone();
+        let drawer_da_state: Rc<Cell<bool>> = drawer_drag_active;
+        let drawer_dm_state: Rc<Cell<bool>> = drawer_drag_moved;
         let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(false));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
             let _: Effect =
                 EuvOverlayStack::bind_signal(menu_open, SHELL_DRAWER_OVERLAY_NAME, Z_INDEX_DRAWER);
+            let _: Effect = Effect::new(move || {
+                if app_state_sig.get() != AppState::Active && drawer_da_state.replace(false) {
+                    drawer_dm_state.set(false);
+                    handle_state.with_write(
+                        |tree: &mut SceneTree| {
+                            if let Some(n) = tree.get_node_mut(drawer_panel) {
+                                n.get_mut_style()
+                                    .get_mut_paint()
+                                    .set_transform(Transform2D::default());
+                                tree.mark_dirty(drawer_panel, DIRTY_PAINT);
+                            }
+                        },
+                        (),
+                    );
+                }
+            });
             if mobile_fps_dot.is_some() || desktop_fps_dot.is_some() {
                 let handle_fps: SceneHandle = handle.clone();
                 let prev_dot_col: Cell<Color> = Cell::new(init_dot_col);
                 let _: Effect = Effect::new(move || {
                     let live_p: ThemePalette = use_live_tokens(tokens).get_palette();
                     let raw: f32 = fps_sig.get();
+                    let target_hz: f32 = refresh_sig.get().clamp(30.0, 480.0);
+                    let good_fps: f32 = (target_hz * 0.75).clamp(45.0, 90.0);
+                    let warn_fps: f32 = (target_hz * 0.45).clamp(24.0, 50.0);
                     let dot_col: Color = if !raw.is_finite() || raw <= SHELL_FPS_ACTIVE_THRESHOLD {
                         live_p.get_muted_foreground()
-                    } else if raw >= 48.0 {
+                    } else if raw >= good_fps {
                         live_p.get_success()
-                    } else if raw >= 28.0 {
+                    } else if raw >= warn_fps {
                         live_p.get_warning()
                     } else {
                         live_p.get_destructive()
@@ -837,6 +1315,7 @@ impl EuvAppShell {
                 let bp: Breakpoint = bp_sig.get();
                 let vp: Size = vp_sig.get();
                 let safe: SafeAreaInsets = safe_sig.get();
+                let is_fullscreen: bool = fs_active_sig.get() || ctx_fs_sig.get();
                 let compact: bool = has_bottom_nav || bp.is_compact();
                 let is_medium: bool = !has_bottom_nav && bp == Breakpoint::Medium;
                 let top_inset: f32 = safe.get_top();
@@ -863,17 +1342,21 @@ impl EuvAppShell {
                     (usable_w - side_margin * 2.0).clamp(min_dock_w, SHELL_BOTTOM_NAV_MAX_WIDTH);
                 let dock_left: f32 = left_inset + ((usable_w - dock_w) * 0.5).max(8.0);
                 let desktop_bar_h: f32 = 52.0 + top_inset;
-                let body_h: f32 = if compact {
+                let body_h: f32 = if is_fullscreen {
+                    vp_h
+                } else if compact {
                     (vp_h - header_h - div_h).max(120.0)
                 } else {
                     vp_h
                 };
-                let main_h: f32 = if compact {
+                let main_h: f32 = if is_fullscreen {
+                    vp_h
+                } else if compact {
                     body_h
                 } else {
                     (vp_h - desktop_bar_h - div_h).max(120.0)
                 };
-                if !compact {
+                if !compact || is_fullscreen {
                     let _: bool = menu_open.set_if_changed(false);
                 }
                 let drawer_vp_w: f32 = vp.get_width().max(320.0);
@@ -884,15 +1367,20 @@ impl EuvAppShell {
                 } else {
                     drawer_def_w
                 };
-                let compact_disp: Display = if compact {
-                    Display::Flex
-                } else {
+                let compact_disp: Display = if is_fullscreen || !compact {
                     Display::None
+                } else {
+                    Display::Flex
                 };
-                let desktop_disp: Display = if compact {
+                let desktop_disp: Display = if is_fullscreen || compact {
                     Display::None
                 } else {
                     Display::Flex
+                };
+                let bottom_disp: Display = if has_bottom_nav && !is_fullscreen {
+                    Display::Flex
+                } else {
+                    Display::None
                 };
                 handle_layout.with_write(
                     |tree: &mut SceneTree| {
@@ -931,9 +1419,11 @@ impl EuvAppShell {
                                     0.0,
                                     SPACE_MD + left_inset,
                                 ));
+                            tree.mark_dirty(top_bar, mask_all);
                         }
                         if let Some(n) = tree.get_node_mut(top_bar_divider) {
                             n.get_mut_style().get_mut_layout().set_display(compact_disp);
+                            tree.mark_dirty(top_bar_divider, mask_all);
                         }
                         if let Some(n) = tree.get_node_mut(desktop_top_bar) {
                             let bar_pad: f32 = if is_medium { SPACE_MD } else { SPACE_XL };
@@ -947,24 +1437,29 @@ impl EuvAppShell {
                                     0.0,
                                     bar_pad,
                                 ));
+                            tree.mark_dirty(desktop_top_bar, mask_all);
                         }
                         if let Some(n) = tree.get_node_mut(desktop_top_divider) {
                             n.get_mut_style().get_mut_layout().set_display(desktop_disp);
+                            tree.mark_dirty(desktop_top_divider, mask_all);
                         }
                         if let Some(n) = tree.get_node_mut(body_row) {
                             n.get_mut_style()
                                 .get_mut_layout()
                                 .set_height(Length::Px(body_h));
+                            tree.mark_dirty(body_row, mask_all);
                         }
                         if let Some(n) = tree.get_node_mut(content_column) {
                             n.get_mut_style()
                                 .get_mut_layout()
                                 .set_height(Length::Px(body_h));
+                            tree.mark_dirty(content_column, mask_all);
                         }
                         let nav_w: f32 = if is_medium { 204.0 } else { NAV_SIDEBAR_WIDTH };
                         let nav_pad: f32 = if is_medium { SPACE_MD } else { SPACE_LG };
                         if let Some(n) = tree.get_node_mut(nav_divider) {
                             n.get_mut_style().get_mut_layout().set_display(desktop_disp);
+                            tree.mark_dirty(nav_divider, mask_all);
                         }
                         if let Some(n) = tree.get_node_mut(nav_rail) {
                             n.get_mut_style()
@@ -977,6 +1472,7 @@ impl EuvAppShell {
                                     nav_pad + bottom_inset,
                                     nav_pad + left_inset,
                                 ));
+                            tree.mark_dirty(nav_rail, mask_all);
                         }
                         let main_pad: f32 = if bp.is_compact() {
                             SPACE_MD
@@ -985,7 +1481,7 @@ impl EuvAppShell {
                         } else {
                             SPACE_XL
                         };
-                        let main_bottom_pad: f32 = if has_bottom_nav {
+                        let main_bottom_pad: f32 = if has_bottom_nav && !is_fullscreen {
                             main_pad + SHELL_BOTTOM_NAV_HEIGHT + dock_bottom + 12.0
                         } else {
                             main_pad + bottom_inset
@@ -1014,6 +1510,7 @@ impl EuvAppShell {
                                     .set_row_gap(main_gap)
                                     .set_column_gap(main_gap);
                             }
+                            tree.mark_dirty(main_area, mask_all);
                         }
                         if has_managed_outlet && page_padding.is_none() {
                             scratch_children.clear();
@@ -1029,16 +1526,19 @@ impl EuvAppShell {
                                 }
                             }
                         }
-                        if has_bottom_nav && let Some(n) = tree.get_node_mut(bottom_bar_host) {
-                            n.get_mut_style()
-                                .get_mut_layout()
-                                .set_width(Length::Px(dock_w))
-                                .set_height(Length::Px(SHELL_BOTTOM_NAV_HEIGHT))
-                                .set_left(Some(dock_left))
-                                .set_bottom(Some(dock_bottom))
-                                .set_right(None)
-                                .set_top(None)
-                                .set_padding(Edges::symmetric(0.0, 7.0));
+                        if let Some(n) = tree.get_node_mut(bottom_bar_host) {
+                            let lay: &mut LayoutStyle = n.get_mut_style().get_mut_layout();
+                            lay.set_display(bottom_disp);
+                            if has_bottom_nav {
+                                lay.set_width(Length::Px(dock_w))
+                                    .set_height(Length::Px(SHELL_BOTTOM_NAV_HEIGHT))
+                                    .set_left(Some(dock_left))
+                                    .set_bottom(Some(dock_bottom))
+                                    .set_right(None)
+                                    .set_top(None)
+                                    .set_padding(Edges::symmetric(0.0, 7.0));
+                            }
+                            tree.mark_dirty(bottom_bar_host, mask_all);
                         }
                         if let Some(n) = tree.get_node_mut(drawer_scroll) {
                             n.get_mut_style().get_mut_layout().set_padding(Edges::new(
@@ -1047,14 +1547,15 @@ impl EuvAppShell {
                                 SPACE_LG + bottom_inset,
                                 SPACE_LG + left_inset,
                             ));
+                            tree.mark_dirty(drawer_scroll, mask_all);
                         }
                         if let Some(n) = tree.get_node_mut(drawer_panel) {
                             n.get_mut_style()
                                 .get_mut_layout()
                                 .set_width(Length::Px(drawer_target_w));
+                            tree.mark_dirty(drawer_panel, mask_all);
                         }
-                        let mask: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
-                        tree.mark_dirty(root, mask | DIRTY_PAINT);
+                        tree.mark_dirty(root, mask_all);
                     },
                     (),
                 );
@@ -1072,14 +1573,20 @@ impl EuvAppShell {
             let swipe_routes_drag: Rc<[String]> = Rc::clone(&swipe_routes_rc);
             let _: Effect = Effect::new(move || {
                 let raw_dx: f32 = swipe_drag_sig.get();
+                let app_state: AppState = app_state_sig.get();
+                let is_fullscreen: bool = fs_active_sig.get() || ctx_fs_sig.get();
+                let overlay_count: usize = overlay_count_sig.get();
                 if has_managed_outlet
                     || menu_open.get_untracked()
-                    || EuvOverlayStack::active_count() > 0
+                    || overlay_count > 0
+                    || is_fullscreen
+                    || app_state != AppState::Active
                     || swipe_routes_drag.is_empty()
                 {
                     if drag_was_active.replace(false) {
                         handle_swipe.with_write(
                             |tree: &mut SceneTree| {
+                                tree.cancel_subtree_transitions(main_area);
                                 if let Some(n) = tree.get_node_mut(main_area) {
                                     n.get_mut_style()
                                         .get_mut_paint()
@@ -1161,7 +1668,7 @@ impl EuvAppShell {
                             }
                             return;
                         }
-                        if EuvOverlayStack::active_count() > 0 {
+                        if EuvOverlayStack::active_count() > 0 || is_fullscreen_active() {
                             return;
                         }
                         let drawer_intent: bool =
@@ -1325,11 +1832,17 @@ impl EuvAppShell {
                     let def_w: f32 = (vp_w * 0.68).clamp(224.0, 256.0);
                     handle.with_write(
                         |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(drawer_portal);
+                            tree.cancel_subtree_transitions(drawer_panel);
                             if let Some(n) = tree.get_node_mut(drawer_portal) {
-                                n.get_mut_style()
-                                    .get_mut_paint()
-                                    .set_pointer_events(PointerEvents::Auto);
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::Flex);
+                                st.get_mut_paint()
+                                    .set_pointer_events(PointerEvents::Auto)
+                                    .set_transform(Transform2D::default());
                             }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(drawer_portal, dirty_l | DIRTY_PAINT);
                             if let Some(n) = tree.get_node_mut(drawer_panel) {
                                 let st: &mut Style = n.get_mut_style();
                                 st.get_mut_layout().set_width(Length::Px(def_w));
@@ -1361,32 +1874,38 @@ impl EuvAppShell {
                         (),
                     );
                 } else {
+                    drawer_da_close.set(false);
+                    drawer_dm_close.set(false);
                     let _: bool = drawer_expanded.set_if_changed(false);
-                    let vp_w: f32 = vp_sig.get_untracked().get_width().max(320.0);
-                    let slide_w: f32 = (vp_w * 0.88).clamp(256.0, 380.0);
                     handle.with_write(
                         |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(drawer_portal);
+                            tree.cancel_subtree_transitions(drawer_panel);
                             if let Some(n) = tree.get_node_mut(drawer_portal) {
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::None);
+                                st.get_mut_paint()
+                                    .set_pointer_events(PointerEvents::None)
+                                    .set_opacity(1.0)
+                                    .set_transform(Transform2D::default());
+                            }
+                            if let Some(n) = tree.get_node_mut(drawer_panel) {
                                 n.get_mut_style()
                                     .get_mut_paint()
-                                    .set_pointer_events(PointerEvents::None);
+                                    .set_opacity(1.0)
+                                    .set_transform(Transform2D::default());
                             }
-                            tree.start_transition(
-                                NodeTransition::slide_fade(
-                                    drawer_panel,
-                                    Point::new(0.0, 0.0),
-                                    Point::new(-slide_w, 0.0),
-                                    1.0,
-                                    1.0,
-                                    0.20,
-                                    false,
-                                )
-                                .with_easing(Easing::EaseOutCubic),
-                            );
-                            tree.start_transition(
-                                NodeTransition::fade(drawer_portal, 1.0, 0.0, 0.20, true)
-                                    .with_easing(Easing::EaseOutCubic),
-                            );
+                            let mut hover_stack: Vec<NodeId> = vec![drawer_portal];
+                            while let Some(cur_id) = hover_stack.pop() {
+                                if let Some(cur_n) = tree.get_node_mut(cur_id) {
+                                    cur_n.get_mut_interaction().set_hovered(false);
+                                    for &cid in cur_n.get_children().iter() {
+                                        hover_stack.push(cid);
+                                    }
+                                }
+                            }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(drawer_portal, dirty_l | DIRTY_PAINT);
                         },
                         (),
                     );
@@ -1560,176 +2079,68 @@ impl EuvActionRow {
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
         let mut ctx: Context = current_context();
-        let bp_sig: Signal<Breakpoint> = ctx.get_breakpoint();
         let Self { children } = self;
         let root: NodeId = view! {
-            column {
+            row {
                 width: Length::Percent(100.0)
+                flex_wrap: FlexWrap::Wrap
+                align: AlignItems::Center
                 gap: SPACE_SM
             }
         };
-        let (orig_widths, wide_flags): (Vec<Length>, Vec<bool>) = ctx.get_scene().with_read(
-            |tree: &SceneTree| {
-                let mut widths: Vec<Length> = Vec::with_capacity(children.len());
-                let mut wide: Vec<bool> = Vec::with_capacity(children.len());
-                for cid in children.iter().copied() {
-                    let w: Length = tree
-                        .get_node(cid)
-                        .map(|n: &SceneNode| n.style_ref().get_layout().get_width())
-                        .unwrap_or(Length::Auto);
-                    let label_len: usize = tree
-                        .get_node(cid)
-                        .map(|n: &SceneNode| {
-                            let direct: usize = match n.get_kind() {
-                                NodeKind::Text(t) => t.chars().count(),
-                                _ => 0,
-                            };
-                            let child_max: usize = n
-                                .get_children()
-                                .iter()
-                                .filter_map(|sub: &NodeId| tree.get_node(*sub))
-                                .map(|sub_n: &SceneNode| match sub_n.get_kind() {
+        if !children.is_empty() {
+            ctx.get_scene().with_write(
+                |tree: &mut SceneTree| {
+                    for cid in children.iter().copied() {
+                        let (label_len, is_switch_like): (usize, bool) = tree
+                            .get_node(cid)
+                            .map(|n: &SceneNode| {
+                                let direct: usize = match n.get_kind() {
                                     NodeKind::Text(t) => t.chars().count(),
                                     _ => 0,
-                                })
-                                .max()
-                                .unwrap_or(0);
-                            direct.max(child_max)
-                        })
-                        .unwrap_or(0);
-                    let is_switch_like: bool = tree
-                        .get_node(cid)
-                        .map(|n: &SceneNode| {
-                            n.get_children().len() > 1
-                                || matches!(
-                                    n.a11y_props().map(|a: A11yProps| a.get_role()),
-                                    Some(A11yRole::Switch | A11yRole::Checkbox)
-                                )
-                        })
-                        .unwrap_or(false);
-                    widths.push(w);
-                    wide.push(is_switch_like || label_len > 11);
-                }
-                (widths, wide)
-            },
-            (
-                vec![Length::Auto; children.len()],
-                vec![false; children.len()],
-            ),
-        );
-        let pair_count: usize = children.len() / 2;
-        let mut pair_rows: Vec<NodeId> = Vec::with_capacity(pair_count);
-        for _ in 0..pair_count {
-            let pr: NodeId = view! {
-                grid {
-                    columns: 2
-                    width: Length::Percent(100.0)
-                    gap: SPACE_SM
-                }
-            };
-            pair_rows.push(pr);
-        }
-        if !pair_rows.is_empty() {
-            ctx.append_many(root, pair_rows.as_slice());
-        }
-        let handle: SceneHandle = ctx.get_scene().clone();
-        let children_c: Vec<NodeId> = children.clone();
-        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            Effect::new(move || {
-                let compact: bool = bp_sig.get().is_compact();
-                handle.with_write(
-                    |tree: &mut SceneTree| {
-                        if compact {
-                            if let Some(n) = tree.get_node_mut(root) {
-                                n.get_mut_style()
-                                    .get_mut_layout()
-                                    .set_flex_direction(FlexDirection::Column)
-                                    .set_flex_wrap(FlexWrap::NoWrap)
-                                    .set_align_items(AlignItems::Stretch);
-                            }
-                            for pair_row in pair_rows.iter().copied() {
-                                if let Some(n) = tree.get_node_mut(pair_row) {
-                                    n.get_mut_style()
-                                        .get_mut_layout()
-                                        .set_display(Display::None);
+                                };
+                                let child_max: usize = n
+                                    .get_children()
+                                    .iter()
+                                    .filter_map(|sub: &NodeId| tree.get_node(*sub))
+                                    .map(|sub_n: &SceneNode| match sub_n.get_kind() {
+                                        NodeKind::Text(t) => t.chars().count(),
+                                        _ => 0,
+                                    })
+                                    .max()
+                                    .unwrap_or(0);
+                                let switch_like: bool = n.get_children().len() > 1
+                                    || matches!(
+                                        n.a11y_props().map(|a: A11yProps| a.get_role()),
+                                        Some(A11yRole::Switch | A11yRole::Checkbox)
+                                    );
+                                (direct.max(child_max), switch_like)
+                            })
+                            .unwrap_or((0, false));
+                        if let Some(n) = tree.get_node_mut(cid) {
+                            let lay: &mut LayoutStyle = n.get_mut_style().get_mut_layout();
+                            let fixed_w: bool = !matches!(lay.get_width(), Length::Auto);
+                            if !fixed_w {
+                                lay.set_flex_grow(1.0).set_flex_shrink(1.0);
+                                if matches!(lay.get_min_width(), Length::Auto) {
+                                    let min_w: f32 = if is_switch_like {
+                                        ACTION_ROW_SWITCH_MIN_WIDTH
+                                    } else {
+                                        ((label_len as f32) * 7.2 + 24.0).clamp(
+                                            ACTION_ROW_MIN_BTN_WIDTH,
+                                            ACTION_ROW_MAX_BTN_WIDTH,
+                                        )
+                                    };
+                                    lay.set_min_width(Length::Px(min_w));
                                 }
-                            }
-                            let mut idx: usize = 0;
-                            let mut pair_slot: usize = 0;
-                            while idx < children_c.len() {
-                                let a: NodeId = children_c[idx];
-                                let a_wide: bool = wide_flags.get(idx).copied().unwrap_or(false);
-                                let can_pair: bool = !a_wide
-                                    && idx + 1 < children_c.len()
-                                    && !wide_flags.get(idx + 1).copied().unwrap_or(false)
-                                    && pair_slot < pair_rows.len();
-                                if can_pair {
-                                    let pair_row: NodeId = pair_rows[pair_slot];
-                                    pair_slot += 1;
-                                    if let Some(n) = tree.get_node_mut(pair_row) {
-                                        n.get_mut_style()
-                                            .get_mut_layout()
-                                            .set_display(Display::Grid)
-                                            .set_grid_columns(2);
-                                    }
-                                    tree.append_child(root, pair_row);
-                                    let b: NodeId = children_c[idx + 1];
-                                    for item in [a, b].into_iter() {
-                                        if let Some(n) = tree.get_node_mut(item) {
-                                            n.get_mut_style()
-                                                .get_mut_layout()
-                                                .set_width(Length::Percent(100.0));
-                                        }
-                                        tree.append_child(pair_row, item);
-                                    }
-                                    idx += 2;
-                                } else {
-                                    if let Some(n) = tree.get_node_mut(a) {
-                                        n.get_mut_style()
-                                            .get_mut_layout()
-                                            .set_width(Length::Percent(100.0));
-                                    }
-                                    tree.append_child(root, a);
-                                    idx += 1;
-                                }
-                            }
-                        } else {
-                            if let Some(n) = tree.get_node_mut(root) {
-                                n.get_mut_style()
-                                    .get_mut_layout()
-                                    .set_flex_direction(FlexDirection::Row)
-                                    .set_flex_wrap(FlexWrap::Wrap)
-                                    .set_align_items(AlignItems::Center);
-                            }
-                            for pair_row in pair_rows.iter().copied() {
-                                if let Some(n) = tree.get_node_mut(pair_row) {
-                                    n.get_mut_style()
-                                        .get_mut_layout()
-                                        .set_display(Display::None);
-                                }
-                            }
-                            for (idx, cid) in children_c.iter().copied().enumerate() {
-                                if let Some(n) = tree.get_node_mut(cid) {
-                                    let ow: Length =
-                                        orig_widths.get(idx).copied().unwrap_or(Length::Auto);
-                                    n.get_mut_style().get_mut_layout().set_width(ow);
-                                }
-                                tree.append_child(root, cid);
                             }
                         }
-                        let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
-                        tree.mark_dirty(root, dirty_l | DIRTY_PAINT);
-                    },
-                    (),
-                );
-            })
-        });
-        ctx.get_scene().with_write(
-            |tree: &mut SceneTree| {
-                tree.attach_scope(root, scope);
-            },
-            (),
-        );
+                    }
+                },
+                (),
+            );
+            ctx.append_many(root, children.as_slice());
+        }
         root
     }
 }

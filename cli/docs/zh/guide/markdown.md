@@ -4,7 +4,7 @@ title: Markdown 语法
 
 # Markdown 语法
 
-euv-docs 在构建期渲染 VuePress 风格的 markdown 子集。本页是该解析器
+Euv-docs 在构建期渲染 VuePress 风格的 markdown 子集。本页是该解析器
 支持的**全部**块级与行内语法的权威参考,附实际渲染样例。
 
 ## 标题
@@ -270,7 +270,7 @@ markdown 标记就直接渲染为可点击的链接。
 
 图片保留 alt 文本与源 URL 渲染:
 
-![euv logo 占位](https://dummyimage.com/120x40/eee/aaa.png)
+![Euv logo 占位](https://dummyimage.com/120x40/eee/aaa.png)
 
 需要图片完全离线可用时,用 base64 编码的 `data:` URL:
 

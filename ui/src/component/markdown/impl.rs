@@ -334,21 +334,31 @@ impl EuvCodeBlock {
         let m_copy_cb: Option<MarkdownStrCallback> = modal_on_copy.cloned();
         let m_ctx: Context = ctx.clone();
         let m_copied: Rc<Cell<bool>> = Rc::clone(copied_cell);
+        let m_copied_paint: Rc<Cell<bool>> = Rc::clone(copied_cell);
         let init_copy_label: &'static str = if copied_cell.get() {
             CODE_BTN_COPIED
         } else {
             CODE_BTN_COPY
         };
-        let modal_copy_txt_cell: Rc<Cell<NodeId>> = Rc::new(Cell::new(NodeId::default()));
-        let modal_copy_txt_cb: Rc<Cell<NodeId>> = Rc::clone(&modal_copy_txt_cell);
+        let modal_copy_btn_cell: Rc<Cell<NodeId>> = Rc::new(Cell::new(NodeId::default()));
+        let modal_copy_btn_cb: Rc<Cell<NodeId>> = Rc::clone(&modal_copy_btn_cell);
+        let modal_copy_icon_cell: Rc<Cell<NodeId>> = Rc::new(Cell::new(NodeId::default()));
+        let modal_copy_icon_cb: Rc<Cell<NodeId>> = Rc::clone(&modal_copy_icon_cell);
         let on_modal_copy = move |_: &UiEvent| {
             let _: bool = m_ctx.copy_to_clipboard(&m_copy_str);
             m_copied.set(true);
-            let m_txt: NodeId = modal_copy_txt_cb.get();
+            let m_btn: NodeId = modal_copy_btn_cb.get();
+            let m_icon: NodeId = modal_copy_icon_cb.get();
             m_ctx.get_scene().with_write(
                 |tree: &mut SceneTree| {
-                    tree.set_text(inline_copy_txt, CODE_BTN_COPIED.to_string());
-                    tree.set_text(m_txt, CODE_BTN_COPIED.to_string());
+                    if let Some(n) = tree.get_node_mut(m_btn) {
+                        *n.get_mut_a11y() = Some(A11yProps::new(
+                            A11yRole::Button,
+                            CODE_BTN_COPIED.to_string(),
+                        ));
+                    }
+                    tree.mark_dirty(inline_copy_txt, DIRTY_PAINT);
+                    tree.mark_dirty(m_icon, DIRTY_PAINT);
                 },
                 (),
             );
@@ -356,33 +366,68 @@ impl EuvCodeBlock {
                 cb(&m_copy_str);
             }
         };
+        let paint_modal_copy_icon = move |bounds: Rect, dl: &mut DisplayList| {
+            let cur_tok: ThemeTokens = live_tokens_untracked(tokens);
+            let cur_eva: CodeThemePalette = CodeThemePalette::resolve(cur_tok.get_mode());
+            if m_copied_paint.get() {
+                draw_euv_icon(
+                    EuvIconName::Check,
+                    bounds,
+                    dl,
+                    cur_tok.get_palette().get_success(),
+                );
+            } else {
+                draw_euv_icon(EuvIconName::Copy, bounds, dl, cur_eva.get_function());
+            }
+        };
+        let paint_close_icon = move |bounds: Rect, dl: &mut DisplayList| {
+            let cur_p: ThemePalette = live_tokens_untracked(tokens).get_palette();
+            draw_euv_icon(
+                EuvIconName::Minimize,
+                bounds,
+                dl,
+                cur_p.get_secondary_foreground(),
+            );
+        };
         let on_close_btn = move |_: &UiEvent| {
             let _: bool = fs_open.set_if_changed(false);
         };
         let m_title: &str = modal_filename.unwrap_or(live_eva.get_theme_name());
         let m_lang: &str = modal_lang;
         let lines_badge: String = format!("{line_count} L");
+        let safe_sig: Signal<SafeAreaInsets> = ctx.get_safe_area();
+        let init_safe: SafeAreaInsets = safe_sig.get_untracked();
         let mut modal_scroll_st: Style = Style::default();
         modal_scroll_st
             .get_mut_layout()
             .set_flex_direction(FlexDirection::Column)
             .set_align_items(AlignItems::Start);
-        let mut modal_copy_txt: NodeId = NodeId::default();
+        let mut top_bar_node: NodeId = NodeId::default();
+        let mut body_scroll_node: NodeId = NodeId::default();
+        let mut modal_copy_btn: NodeId = NodeId::default();
+        let mut modal_copy_icon: NodeId = NodeId::default();
         let card: NodeId = view! {
             column {
                 width: Length::Percent(100.0)
-                max_width: Length::Px(CODE_MODAL_MAX_WIDTH)
                 height: Length::Percent(100.0)
-                max_height: Length::Px(CODE_MODAL_MAX_HEIGHT)
+                flex_grow: 1.0
+                padding: Edges::all(0.0)
+                margin: Edges::all(0.0)
                 background: live_eva.get_background()
-                border: (1.0, live_eva.get_border())
-                radius: live_g.get_radius_lg()
-                shadow: live_g.get_shadow_lg()
+                border: (0.0, COLOR_TRANSPARENT)
+                radius: 0.0
                 overflow: Overflow::Hidden
                 stop_event_propagation: true
                 row {
+                    node_ref: top_bar_node
                     width: Length::Percent(100.0)
-                    padding: Edges::symmetric(SPACE_SM, SPACE_MD)
+                    flex_shrink: 0.0
+                    padding: Edges::new(
+                        SPACE_SM + init_safe.get_top(),
+                        SPACE_MD + init_safe.get_right(),
+                        SPACE_SM,
+                        SPACE_MD + init_safe.get_left()
+                    )
                     justify: JustifyContent::SpaceBetween
                     align: AlignItems::Center
                     gap: SPACE_SM
@@ -432,7 +477,7 @@ impl EuvCodeBlock {
                     row {
                         flex_shrink: 0.0
                         align: AlignItems::Center
-                        gap: SPACE_SM
+                        gap: SPACE_XS
                         row {
                             padding: Edges::symmetric(3.0, 8.0)
                             radius: live_g.get_radius_sm()
@@ -447,7 +492,7 @@ impl EuvCodeBlock {
                             }
                         }
                         row {
-                            padding: Edges::symmetric(3.0, 8.0)
+                            padding: Edges::symmetric(3.0, 7.0)
                             radius: live_g.get_radius_sm()
                             background: live_eva.get_background()
                             border: (1.0, live_eva.get_border())
@@ -460,34 +505,41 @@ impl EuvCodeBlock {
                             }
                         }
                         row {
-                            padding: Edges::symmetric(4.0, 10.0)
+                            node_ref: modal_copy_btn
+                            width: Length::Px(28.0)
+                            height: Length::Px(28.0)
+                            justify: JustifyContent::Center
+                            align: AlignItems::Center
                             radius: live_g.get_radius_sm()
                             cursor: CursorIcon::Pointer
                             background: live_eva.get_background()
                             border: (1.0, live_eva.get_border())
+                            role: A11yRole::Button
+                            a11y_label: init_copy_label.to_string()
                             on_click: on_modal_copy
-                            text {
-                                node_ref: modal_copy_txt
-                                font_size: 11.5
-                                font_weight: FontWeight::SemiBold
-                                color: live_eva.get_function()
-                                text_overflow: TextOverflow::Clip
-                                { init_copy_label }
+                            canvas {
+                                node_ref: modal_copy_icon
+                                width: Length::Px(14.0)
+                                height: Length::Px(14.0)
+                                painter: paint_modal_copy_icon
                             }
                         }
                         row {
-                            padding: Edges::symmetric(4.0, 10.0)
+                            width: Length::Px(28.0)
+                            height: Length::Px(28.0)
+                            justify: JustifyContent::Center
+                            align: AlignItems::Center
                             radius: live_g.get_radius_sm()
                             cursor: CursorIcon::Pointer
                             background: live_p.get_secondary()
                             border: (1.0, live_p.get_border())
+                            role: A11yRole::Button
+                            a11y_label: CODE_BTN_CLOSE.to_string()
                             on_click: on_close_btn
-                            text {
-                                font_size: 11.5
-                                font_weight: FontWeight::SemiBold
-                                color: live_p.get_secondary_foreground()
-                                text_overflow: TextOverflow::Clip
-                                { CODE_BTN_CLOSE }
+                            canvas {
+                                width: Length::Px(14.0)
+                                height: Length::Px(14.0)
+                                painter: paint_close_icon
                             }
                         }
                     }
@@ -498,12 +550,19 @@ impl EuvCodeBlock {
                     background: live_eva.get_border()
                 }
                 scroll {
+                    node_ref: body_scroll_node
                     style: modal_scroll_st
                     flex_grow: 1.0
                     flex_shrink: 1.0
                     min_height: Length::Px(0.0)
                     width: Length::Percent(100.0)
-                    padding: Edges::symmetric(SPACE_MD, SPACE_SM)
+                    padding: Edges::new(
+                        SPACE_MD,
+                        SPACE_SM + init_safe.get_right(),
+                        SPACE_MD + init_safe.get_bottom(),
+                        SPACE_SM + init_safe.get_left()
+                    )
+                    stop_scroll_propagation: true
                     column {
                         min_width: Length::Px(modal_nat_w)
                         width: Length::Percent(100.0)
@@ -515,7 +574,44 @@ impl EuvCodeBlock {
                 }
             }
         };
-        modal_copy_txt_cell.set(modal_copy_txt);
+        let handle_safe: SceneHandle = ctx.get_scene().clone();
+        let (safe_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            Effect::new(move || {
+                let safe: SafeAreaInsets = safe_sig.get();
+                handle_safe.with_write(
+                    |tree: &mut SceneTree| {
+                        let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                        if let Some(n) = tree.get_node_mut(top_bar_node) {
+                            n.get_mut_style().get_mut_layout().set_padding(Edges::new(
+                                SPACE_SM + safe.get_top(),
+                                SPACE_MD + safe.get_right(),
+                                SPACE_SM,
+                                SPACE_MD + safe.get_left(),
+                            ));
+                            tree.mark_dirty(top_bar_node, dirty_l | DIRTY_PAINT);
+                        }
+                        if let Some(n) = tree.get_node_mut(body_scroll_node) {
+                            n.get_mut_style().get_mut_layout().set_padding(Edges::new(
+                                SPACE_MD,
+                                SPACE_SM + safe.get_right(),
+                                SPACE_MD + safe.get_bottom(),
+                                SPACE_SM + safe.get_left(),
+                            ));
+                            tree.mark_dirty(body_scroll_node, dirty_l | DIRTY_PAINT);
+                        }
+                    },
+                    (),
+                );
+            })
+        });
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(card, safe_scope);
+            },
+            (),
+        );
+        modal_copy_btn_cell.set(modal_copy_btn);
+        modal_copy_icon_cell.set(modal_copy_icon);
         card
     }
 
@@ -691,18 +787,26 @@ impl EuvCodeBlock {
             .set_overflow(TextOverflow::Clip);
         let lang_txt: NodeId = tree.create_text(display_lang_rc.to_string(), lang_txt_st);
         tree.append_child(lang_badge, lang_txt);
-        let mut fs_btn_st: Style = pill_st;
-        fs_btn_st
+        let mut icon_btn_st: Style = Style::default();
+        icon_btn_st
             .get_mut_layout()
-            .set_row_gap(4.0)
-            .set_column_gap(4.0);
-        fs_btn_st.get_mut_paint().set_cursor(CursorIcon::Pointer);
-        let fs_btn: NodeId = tree.create_view(fs_btn_st);
+            .set_flex_direction(FlexDirection::Row)
+            .set_width(Length::Px(26.0))
+            .set_height(Length::Px(26.0))
+            .set_justify_content(JustifyContent::Center)
+            .set_align_items(AlignItems::Center);
+        icon_btn_st
+            .get_mut_paint()
+            .set_radius(radius_sm)
+            .set_background(Some(eva_bg))
+            .set_border(eva_border)
+            .set_cursor(CursorIcon::Pointer);
+        let fs_btn: NodeId = tree.create_view(icon_btn_st);
         let mut icon_st: Style = Style::default();
         icon_st
             .get_mut_layout()
-            .set_width(Length::Px(12.0))
-            .set_height(Length::Px(12.0));
+            .set_width(Length::Px(13.0))
+            .set_height(Length::Px(13.0));
         let paint_fs_icon: CanvasDrawCallback =
             Rc::new(RefCell::new(move |bounds: Rect, dl: &mut DisplayList| {
                 let live_eva: CodeThemePalette =
@@ -710,23 +814,25 @@ impl EuvCodeBlock {
                 draw_code_fullscreen_icon(bounds, dl, live_eva.get_function());
             }));
         let fs_icon: NodeId = tree.create_canvas(icon_st, paint_fs_icon);
-        let mut action_txt_st: Style = Style::default();
-        action_txt_st
-            .get_mut_text()
-            .set_font_size(11.0)
-            .set_weight(FontWeight::SemiBold)
-            .set_color(eva.get_function())
-            .set_align(TextAlign::Center)
-            .set_overflow(TextOverflow::Clip);
-        let fs_txt: NodeId = tree.create_text(CODE_BTN_FULLSCREEN.to_string(), action_txt_st);
-        tree.append_children(fs_btn, &[fs_icon, fs_txt]);
-        let mut copy_btn_st: Style = pill_st;
-        copy_btn_st
-            .get_mut_layout()
-            .set_padding(Edges::symmetric(3.0, 10.0));
-        copy_btn_st.get_mut_paint().set_cursor(CursorIcon::Pointer);
-        let copy_btn: NodeId = tree.create_view(copy_btn_st);
-        let copy_txt_node: NodeId = tree.create_text(CODE_BTN_COPY.to_string(), action_txt_st);
+        tree.append_child(fs_btn, fs_icon);
+        let copy_btn: NodeId = tree.create_view(icon_btn_st);
+        let copied_for_icon: Rc<Cell<bool>> = Rc::clone(&copied_cell);
+        let paint_copy_icon: CanvasDrawCallback =
+            Rc::new(RefCell::new(move |bounds: Rect, dl: &mut DisplayList| {
+                let cur_tok: ThemeTokens = live_tokens_untracked(tokens);
+                let cur_eva: CodeThemePalette = CodeThemePalette::resolve(cur_tok.get_mode());
+                if copied_for_icon.get() {
+                    draw_euv_icon(
+                        EuvIconName::Check,
+                        bounds,
+                        dl,
+                        cur_tok.get_palette().get_success(),
+                    );
+                } else {
+                    draw_euv_icon(EuvIconName::Copy, bounds, dl, cur_eva.get_function());
+                }
+            }));
+        let copy_txt_node: NodeId = tree.create_canvas(icon_st, paint_copy_icon);
         tree.append_child(copy_btn, copy_txt_node);
         tree.append_children(right_row, &[lang_badge, fs_btn, copy_btn]);
         tree.append_children(header_row, &[left_row, right_row]);
@@ -747,6 +853,7 @@ impl EuvCodeBlock {
             .set_width(Length::Percent(100.0))
             .set_max_height(Length::Px(inline_max_h))
             .set_padding(Edges::symmetric(SPACE_SM, SPACE_XS));
+        scroll_st.get_mut_paint().set_stop_scroll_propagation(true);
         let scroll_node: NodeId = tree.create_scroll_view(scroll_st);
         let mut code_col_st: Style = Style::default().selectable(is_selectable);
         code_col_st
@@ -766,6 +873,7 @@ impl EuvCodeBlock {
         portal_st
             .get_mut_layout()
             .set_display(Display::None)
+            .set_flex_direction(FlexDirection::Column)
             .set_position(Position::Fixed)
             .set_top(Some(0.0))
             .set_right(Some(0.0))
@@ -773,14 +881,20 @@ impl EuvCodeBlock {
             .set_left(Some(0.0))
             .set_width(Length::Percent(100.0))
             .set_height(Length::Percent(100.0))
-            .set_padding(Edges::all(CODE_MODAL_PADDING))
-            .set_justify_content(JustifyContent::Center)
-            .set_align_items(AlignItems::Center)
-            .set_z_index(Z_INDEX_MODAL);
+            .set_padding(Edges::all(0.0))
+            .set_margin(Edges::all(0.0))
+            .set_justify_content(JustifyContent::Start)
+            .set_align_items(AlignItems::Stretch)
+            .set_overflow(Overflow::Hidden)
+            .set_z_index(Z_INDEX_FULLSCREEN);
         portal_st
             .get_mut_paint()
-            .set_background(Some(tokens.get_palette().get_overlay()))
-            .set_stop_scroll_propagation(true);
+            .set_background(Some(eva_bg))
+            .set_border(Border::default())
+            .set_radius(CornerRadius::all(0.0))
+            .set_pointer_events(PointerEvents::None)
+            .set_stop_scroll_propagation(true)
+            .set_stop_event_propagation(true);
         let fs_portal: NodeId = tree.create_portal(portal_st);
         let ctx_copy: Context = ctx.clone();
         let on_copy_inline: Option<MarkdownStrCallback> = on_copy.clone();
@@ -791,7 +905,13 @@ impl EuvCodeBlock {
             copied_for_copy.set(true);
             ctx_copy.get_scene().with_write(
                 |t: &mut SceneTree| {
-                    t.set_text(copy_txt_node, CODE_BTN_COPIED.to_string());
+                    if let Some(n) = t.get_node_mut(copy_btn) {
+                        *n.get_mut_a11y() = Some(A11yProps::new(
+                            A11yRole::Button,
+                            CODE_BTN_COPIED.to_string(),
+                        ));
+                    }
+                    t.mark_dirty(copy_txt_node, DIRTY_PAINT);
                 },
                 (),
             );
@@ -802,16 +922,8 @@ impl EuvCodeBlock {
         if let Some(node) = tree.get_node_mut(copy_btn) {
             node.get_mut_handlers().set_on_click(Some(on_copy_handler));
             node.get_mut_interaction().set_focusable(true);
-        }
-        let fs_open_scrim: Rc<Cell<Option<Signal<bool>>>> = Rc::clone(&fs_open_slot);
-        let on_scrim_handler: UiEventHandler = Rc::new(RefCell::new(move |_: &UiEvent| {
-            if let Some(sig) = fs_open_scrim.get() {
-                let _: bool = sig.set_if_changed(false);
-            }
-        }));
-        if let Some(node) = tree.get_node_mut(fs_portal) {
-            node.get_mut_handlers().set_on_click(Some(on_scrim_handler));
-            node.get_mut_interaction().set_focusable(true);
+            *node.get_mut_a11y() =
+                Some(A11yProps::new(A11yRole::Button, CODE_BTN_COPY.to_string()));
         }
         let modal_hl: Vec<usize> = if highlight_lines.is_empty() {
             Vec::new()
@@ -832,6 +944,8 @@ impl EuvCodeBlock {
             fs_open_slot.set(Some(fs_open));
             let handle_ov: SceneHandle = ctx_fs.get_scene().clone();
             let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+            let fs_acquired: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+            let fs_cleanup: Rc<Cell<bool>> = Rc::clone(&fs_acquired);
             let ctx_build: Context = ctx_fs.clone();
             let code_build: Rc<str> = Rc::clone(&modal_code_rc);
             let lang_build: Rc<str> = Rc::clone(&modal_lang);
@@ -840,10 +954,15 @@ impl EuvCodeBlock {
             let cb_build: Option<MarkdownStrCallback> = modal_on_copy.clone();
             let copied_build: Rc<Cell<bool>> = Rc::clone(&copied_cell);
             let (ov_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+                on_cleanup(move || {
+                    if fs_cleanup.replace(false) {
+                        exit_fullscreen();
+                    }
+                });
                 let _: Effect = EuvOverlayStack::bind_signal(
                     fs_open,
                     CODE_FULLSCREEN_OVERLAY_NAME,
-                    Z_INDEX_MODAL,
+                    Z_INDEX_FULLSCREEN,
                 );
                 Effect::new(move || {
                     let is_open: bool = fs_open.get();
@@ -851,6 +970,11 @@ impl EuvCodeBlock {
                         return;
                     }
                     if is_open {
+                        if !fs_acquired.replace(true) {
+                            enter_fullscreen();
+                        }
+                        let live_eva: CodeThemePalette =
+                            CodeThemePalette::resolve(live_tokens_untracked(tokens).get_mode());
                         let modal_card: NodeId = with_context(ctx_build.clone(), || {
                             Self::mount_fullscreen_modal_card(
                                 &ctx_build,
@@ -864,32 +988,40 @@ impl EuvCodeBlock {
                         });
                         handle_ov.with_write(
                             |t: &mut SceneTree| {
+                                t.cancel_subtree_transitions(fs_portal);
                                 t.replace_children(fs_portal, vec![modal_card]);
                                 if let Some(n) = t.get_node_mut(fs_portal) {
-                                    n.get_mut_style()
-                                        .get_mut_paint()
-                                        .set_pointer_events(PointerEvents::Auto);
+                                    let st: &mut Style = n.get_mut_style();
+                                    st.get_mut_layout().set_display(Display::Flex);
+                                    st.get_mut_paint()
+                                        .set_background(Some(live_eva.get_background()))
+                                        .set_pointer_events(PointerEvents::Auto)
+                                        .set_opacity(1.0)
+                                        .set_transform(Transform2D::default());
                                 }
-                                t.start_transition(
-                                    NodeTransition::fade(fs_portal, 0.0, 1.0, 0.18, false)
-                                        .with_easing(Easing::EaseOutCubic),
-                                );
+                                let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                                t.mark_dirty(fs_portal, dirty_l | DIRTY_PAINT);
                             },
                             (),
                         );
                     } else {
+                        if fs_acquired.replace(false) {
+                            exit_fullscreen();
+                        }
                         handle_ov.with_write(
                             |t: &mut SceneTree| {
+                                t.cancel_subtree_transitions(fs_portal);
                                 t.replace_children(fs_portal, Vec::new());
                                 if let Some(n) = t.get_node_mut(fs_portal) {
-                                    n.get_mut_style()
-                                        .get_mut_paint()
-                                        .set_pointer_events(PointerEvents::None);
+                                    let st: &mut Style = n.get_mut_style();
+                                    st.get_mut_layout().set_display(Display::None);
+                                    st.get_mut_paint()
+                                        .set_pointer_events(PointerEvents::None)
+                                        .set_opacity(1.0)
+                                        .set_transform(Transform2D::default());
                                 }
-                                t.start_transition(
-                                    NodeTransition::fade(fs_portal, 1.0, 0.0, 0.16, true)
-                                        .with_easing(Easing::EaseOutCubic),
-                                );
+                                let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                                t.mark_dirty(fs_portal, dirty_l | DIRTY_PAINT);
                             },
                             (),
                         );
@@ -907,6 +1039,10 @@ impl EuvCodeBlock {
             node.get_mut_handlers()
                 .set_on_click(Some(on_open_fs_handler));
             node.get_mut_interaction().set_focusable(true);
+            *node.get_mut_a11y() = Some(A11yProps::new(
+                A11yRole::Button,
+                CODE_BTN_FULLSCREEN.to_string(),
+            ));
         }
         tree.append_children(root, &[header_row, div_node, scroll_node, fs_portal]);
         root
@@ -1147,6 +1283,7 @@ impl EuvMarkdownInlineCode {
     /// - `NodeId` - Mounted inline code pill handle.
     fn render(&self) -> NodeId {
         let ctx: Context = current_context();
+        bind_fullscreen_context(&ctx);
         let tokens: ThemeTokens = self.get_tokens();
         let eva: CodeThemePalette = CodeThemePalette::resolve(tokens.get_mode());
         let snippet: &str = self.get_code().as_str();
@@ -2394,7 +2531,8 @@ impl EuvMarkdownTable {
         table_scroll_st
             .get_mut_paint()
             .set_border(Border::new(1.0, p.get_border()))
-            .set_radius(CornerRadius::all(g.get_radius_md().max(0.0)));
+            .set_radius(CornerRadius::all(g.get_radius_md().max(0.0)))
+            .set_stop_scroll_propagation(true);
         let scroll_id: NodeId = tree.create_scroll_view(table_scroll_st);
         let mut inner_col_st: Style = Style::default().selectable(is_selectable);
         inner_col_st
@@ -3132,6 +3270,7 @@ impl EuvMarkdown {
     /// - `NodeId` - Mounted Markdown document column handle.
     fn render(&self) -> NodeId {
         let ctx: Context = current_context();
+        bind_fullscreen_context(&ctx);
         let tokens: ThemeTokens = self.get_tokens();
         let Self {
             source,

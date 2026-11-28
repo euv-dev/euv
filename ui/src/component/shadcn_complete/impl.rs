@@ -2232,25 +2232,45 @@ impl EuvContextMenu {
                     return;
                 }
                 if is_open {
-                    handle_anim.start_transition(NodeTransition::slide_fade(
-                        menu,
-                        Point::new(0.0, -6.0),
-                        Point::new(0.0, 0.0),
-                        0.0,
-                        1.0,
-                        0.16,
-                        false,
-                    ));
+                    handle_anim.with_write(
+                        |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(menu);
+                            if let Some(n) = tree.get_node_mut(menu) {
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::Flex);
+                                st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
+                            }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(menu, dirty_l | DIRTY_PAINT);
+                            tree.start_transition(NodeTransition::slide_fade(
+                                menu,
+                                Point::new(0.0, -6.0),
+                                Point::new(0.0, 0.0),
+                                0.0,
+                                1.0,
+                                0.16,
+                                false,
+                            ));
+                        },
+                        (),
+                    );
                 } else {
-                    handle_anim.start_transition(NodeTransition::slide_fade(
-                        menu,
-                        Point::new(0.0, 0.0),
-                        Point::new(0.0, -4.0),
-                        1.0,
-                        0.0,
-                        0.14,
-                        true,
-                    ));
+                    handle_anim.with_write(
+                        |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(menu);
+                            if let Some(n) = tree.get_node_mut(menu) {
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::None);
+                                st.get_mut_paint()
+                                    .set_pointer_events(PointerEvents::None)
+                                    .set_opacity(1.0)
+                                    .set_transform(Transform2D::default());
+                            }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(menu, dirty_l | DIRTY_PAINT);
+                        },
+                        (),
+                    );
                 }
             })
         });

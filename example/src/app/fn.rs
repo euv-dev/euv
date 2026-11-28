@@ -14,6 +14,9 @@ pub fn create_showcase_app(
     headless: bool,
     mode: RenderMode,
 ) -> Result<(App, ShowcaseState), PlatformError> {
+    EuvOverlayStack::clear();
+    reset_fullscreen_state();
+    clear_provided_theme();
     let render_cfg: RenderConfig = match mode {
         RenderMode::Software => RenderConfig::software(),
         RenderMode::Hardware => RenderConfig::hardware(),
@@ -67,6 +70,9 @@ pub fn create_showcase_app_for_platform(
     platform: PlatformKind,
     mode: RenderMode,
 ) -> Result<(App, ShowcaseState), PlatformError> {
+    EuvOverlayStack::clear();
+    reset_fullscreen_state();
+    clear_provided_theme();
     let render_cfg: RenderConfig = match mode {
         RenderMode::Software => RenderConfig::software(),
         RenderMode::Hardware => RenderConfig::hardware(),
@@ -172,6 +178,9 @@ fn dump_rgba_frame(
 #[cfg(not(target_arch = "wasm32"))]
 pub fn capture_showcase_screenshots(out_dir: &Path) -> Result<usize, PlatformError> {
     reset_reactive_runtime();
+    EuvOverlayStack::clear();
+    reset_fullscreen_state();
+    clear_provided_theme();
     fs::create_dir_all(out_dir)
         .map_err(|err: Error| PlatformError::InitializationFailed(err.to_string()))?;
     let mut window_cfg: WindowConfig = WindowConfig::default();
@@ -536,7 +545,9 @@ pub fn euv_web_boot() {
     let win_resize: Window = win.clone();
     let canvas_resize: HtmlCanvasElement = canvas.clone();
     let on_resize: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
-        if web_sync_exact_viewport(&win_resize, &canvas_resize) {
+        let viewport_changed: bool = web_sync_exact_viewport(&win_resize, &canvas_resize);
+        let safe_changed: bool = web_sync_safe_area();
+        if viewport_changed || safe_changed {
             web_mark_needs_frame();
         }
     }) as Box<dyn FnMut(Event)>);
@@ -813,6 +824,9 @@ fn web_attach_system_event_listeners(win: &Window, doc: &Document) {
             let visible: bool = kb_delta >= WEB_KEYBOARD_MIN_DELTA_PX;
             let height: f32 = if visible { kb_delta } else { 0.0 };
             web_dispatch_system_event(SystemEvent::KeyboardVisibilityChanged { visible, height });
+            if web_sync_safe_area() {
+                web_mark_needs_frame();
+            }
         })
             as Box<dyn FnMut(Event)>);
         drop(vv_target.add_event_listener_with_callback(
@@ -1202,6 +1216,17 @@ fn web_attach_ime_proxy(doc: &Document) {
 /// - `bool` - `true` when handled by the browser bridge.
 #[cfg(target_arch = "wasm32")]
 fn web_native_action_bridge(kind: &str, arg1: &str, _arg2: &str) -> bool {
+    if kind == NATIVE_ACTION_FULLSCREEN {
+        if arg1 == WEB_FS_ACTION_ON {
+            web_set_fullscreen(true);
+            return true;
+        }
+        if arg1 == WEB_FS_ACTION_OFF {
+            web_set_fullscreen(false);
+            return true;
+        }
+        return false;
+    }
     if kind != NATIVE_ACTION_IME {
         return false;
     }
@@ -1321,6 +1346,36 @@ fn web_sync_exact_viewport(win: &Window, canvas: &HtmlCanvasElement) -> bool {
             canvas.set_height(phys_h);
         }
         app.set_exact_physical_viewport(phys_w, phys_h, dpr);
+        true
+    })
+}
+
+/// Re-queries browser CSS `env(safe-area-inset-*)` values and dispatches `WindowEvent::SafeAreaChanged` when changed.
+///
+/// # Returns
+///
+/// - `bool` - `true` when effective safe-area insets changed and require a relayout frame.
+#[cfg(target_arch = "wasm32")]
+fn web_sync_safe_area() -> bool {
+    let measured: SafeAreaInsets = web_query_safe_area_insets();
+    WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
+        let Ok(mut borrow) = slot.try_borrow_mut() else {
+            return false;
+        };
+        let Some((app, _)) = borrow.as_mut() else {
+            return false;
+        };
+        let effective: SafeAreaInsets = if app.is_immersive_fullscreen() {
+            SafeAreaInsets::default()
+        } else {
+            measured
+        };
+        let current: SafeAreaInsets = app.get_context().get_safe_area().get_untracked();
+        if current == effective {
+            return false;
+        }
+        let wid: WindowId = app.get_window_state().get_id();
+        app.dispatch_window_event(WindowEvent::SafeAreaChanged(wid, effective));
         true
     })
 }

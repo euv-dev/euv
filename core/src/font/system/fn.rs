@@ -478,20 +478,45 @@ unsafe extern "C" {
     fn CGContextRelease(ctx: *mut c_void);
 }
 
-/// Releases cached CoreText `CTFontRef` handles and the thread-local grayscale `CGColorSpaceRef`.
+/// Increments the per-thread counter tracking lazy native fallback font loads (CJK / symbol cascades).
+#[cfg(any(
+    target_os = "macos",
+    target_os = "ios",
+    target_os = "windows",
+    target_os = "linux",
+    target_os = "android"
+))]
+/// Body of the `record_fallback_font_load` free function.
+fn record_fallback_font_load() {
+    THREAD_FALLBACK_FONT_LOADS.with(|counter: &Cell<usize>| {
+        counter.set(counter.get().saturating_add(1));
+    });
+}
+
+/// Releases the scratch CoreGraphics bitmap context, cached CoreText `CTFontRef` handles, and singleton grayscale `CGColorSpaceRef`.
 ///
 /// # Arguments
 ///
 /// - `*mut c_void` - Cached grayscale `CGColorSpaceRef` (may be null).
+/// - `*mut c_void` - Cached scratch `CGBitmapContextRef` (may be null).
 /// - `&mut Vec<CoreTextFontCacheEntry>` - Cached CoreText font entries to drain and release.
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub(crate) fn release_coretext_cache(
     gray_space: *mut c_void,
+    scratch_ctx: *mut c_void,
     fonts: &mut Vec<CoreTextFontCacheEntry>,
 ) {
     // SAFETY: Every cached handle was created by CoreText/CoreGraphics and retained exclusively by this thread-local cache.
     unsafe {
+        if !scratch_ctx.is_null() {
+            CGContextRelease(scratch_ctx);
+        }
         for entry in fonts.drain(..) {
+            for fb in entry.fallback_fonts.into_iter() {
+                if !fb.is_null() {
+                    CFRelease(fb);
+                }
+            }
             if !entry.font.is_null() {
                 CFRelease(entry.font);
             }
@@ -502,96 +527,155 @@ pub(crate) fn release_coretext_cache(
     }
 }
 
-/// Resolves or creates a cached Apple CoreText base font handle and singleton grayscale color space for `key`.
+/// Ensures the thread-local CoreGraphics scratch `CGBitmapContextRef` can accommodate at least `(need_w, need_h)` pixels.
 ///
 /// # Arguments
 ///
+/// - `&mut CoreTextFontCache` - Thread-local CoreText cache owning the scratch bitmap and context.
+/// - `usize` - Minimum required pixel width.
+/// - `usize` - Minimum required pixel height.
+///
+/// # Returns
+///
+/// - `Option<*mut c_void>` - Ready scratch `CGBitmapContextRef`, or `None` on CoreGraphics allocation failure.
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+fn ensure_coretext_scratch_ctx(
+    cache: &mut CoreTextFontCache,
+    need_w: usize,
+    need_h: usize,
+) -> Option<*mut c_void> {
+    if !cache.scratch_ctx.is_null() && cache.scratch_w >= need_w && cache.scratch_h >= need_h {
+        return Some(cache.scratch_ctx);
+    }
+    // SAFETY: Releases any prior `CGBitmapContextRef` before reallocating `scratch_buf`, then creates and configures a new context.
+    unsafe {
+        if !cache.scratch_ctx.is_null() {
+            CGContextRelease(cache.scratch_ctx);
+            cache.scratch_ctx = null_mut();
+        }
+        let next_w: usize = need_w.max(CORETEXT_SCRATCH_INIT_DIM).next_power_of_two();
+        let next_h: usize = need_h.max(CORETEXT_SCRATCH_INIT_DIM).next_power_of_two();
+        cache.scratch_buf.clear();
+        cache.scratch_buf.resize(next_w * next_h, 0);
+        let ctx: *mut c_void = CGBitmapContextCreate(
+            cache.scratch_buf.as_mut_ptr().cast::<c_void>(),
+            next_w,
+            next_h,
+            8,
+            next_w,
+            cache.gray_space,
+            0,
+        );
+        if ctx.is_null() {
+            cache.scratch_w = 0;
+            cache.scratch_h = 0;
+            return None;
+        }
+        CGContextSetAllowsAntialiasing(ctx, true);
+        CGContextSetShouldAntialias(ctx, true);
+        CGContextSetAllowsFontSmoothing(ctx, true);
+        CGContextSetShouldSmoothFonts(ctx, true);
+        CGContextSetGrayFillColor(ctx, 1.0, 1.0);
+        cache.scratch_ctx = ctx;
+        cache.scratch_w = next_w;
+        cache.scratch_h = next_h;
+        Some(ctx)
+    }
+}
+
+/// Resolves or creates a cached Apple CoreText base font entry inside `cache` for `key`.
+///
+/// # Arguments
+///
+/// - `&mut CoreTextFontCache` - Thread-local CoreText handle cache.
 /// - `GlyphKey` - Quantized glyph style descriptor.
 ///
 /// # Returns
 ///
-/// - `Option<(*mut c_void, f64, f64, *mut c_void)>` - Tuple `(base_font, base_ascent, base_descent, gray_space)`.
+/// - `Option<usize>` - Index of the matching entry inside `cache.fonts`.
 #[cfg(any(target_os = "macos", target_os = "ios"))]
-fn lookup_or_create_coretext_base(key: GlyphKey) -> Option<(*mut c_void, f64, f64, *mut c_void)> {
+fn lookup_or_create_coretext_entry(cache: &mut CoreTextFontCache, key: GlyphKey) -> Option<usize> {
     let style_sig: u32 = GlyphAtlas::pack_style_sig(
         key.get_size_tenths(),
         key.get_bold(),
         key.get_monospace(),
         key.get_italic(),
     );
-    CORETEXT_FONT_CACHE.with(|cell: &RefCell<CoreTextFontCache>| {
-        let mut cache: RefMut<'_, CoreTextFontCache> = cell.borrow_mut();
-        // SAFETY: CoreGraphics/CoreText handles live inside this thread-local cache and are released on eviction or `Drop`.
-        unsafe {
+    // SAFETY: CoreGraphics/CoreText handles live inside this thread-local cache and are released on eviction or `Drop`.
+    unsafe {
+        if cache.gray_space.is_null() {
+            cache.gray_space = CGColorSpaceCreateDeviceGray();
             if cache.gray_space.is_null() {
-                cache.gray_space = CGColorSpaceCreateDeviceGray();
-                if cache.gray_space.is_null() {
-                    return None;
-                }
-            }
-            let gray_space: *mut c_void = cache.gray_space;
-            for entry in cache.fonts.iter() {
-                if entry.style_sig == style_sig {
-                    return Some((entry.font, entry.ascent, entry.descent, gray_space));
-                }
-            }
-            let size_px: f64 = ((key.get_size_tenths() as f64) * 0.1).max(6.0);
-            let ui_font_kind: u32 = if key.get_monospace() {
-                CT_FONT_UI_FIXED_PITCH
-            } else if key.get_bold() {
-                CT_FONT_UI_EMPHASIZED_SYSTEM
-            } else {
-                CT_FONT_UI_SYSTEM
-            };
-            let raw_base: *mut c_void =
-                CTFontCreateUIFontForLanguage(ui_font_kind, size_px, null());
-            if raw_base.is_null() {
                 return None;
             }
-            let mut desired_traits: u32 = 0;
-            if key.get_monospace() && key.get_bold() {
-                desired_traits |= CT_FONT_TRAIT_BOLD;
-            }
-            if key.get_italic() {
-                desired_traits |= CT_FONT_TRAIT_ITALIC;
-            }
-            let base_font: *mut c_void = if desired_traits != 0 {
-                let styled: *mut c_void = CTFontCreateCopyWithSymbolicTraits(
-                    raw_base,
-                    0.0,
-                    null(),
-                    desired_traits,
-                    desired_traits,
-                );
-                if styled.is_null() {
-                    raw_base
-                } else {
-                    CFRelease(raw_base);
-                    styled
-                }
-            } else {
-                raw_base
-            };
-            let base_ascent: f64 = CTFontGetAscent(base_font).max(size_px * 0.80);
-            let base_descent: f64 = CTFontGetDescent(base_font).max(size_px * 0.24);
-            if cache.fonts.len() >= CORETEXT_FONT_CACHE_MAX {
-                let evicted: CoreTextFontCacheEntry = cache.fonts.remove(0);
-                if !evicted.font.is_null() {
-                    CFRelease(evicted.font);
-                }
-            }
-            cache.fonts.push(CoreTextFontCacheEntry {
-                style_sig,
-                font: base_font,
-                ascent: base_ascent,
-                descent: base_descent,
-            });
-            Some((base_font, base_ascent, base_descent, gray_space))
         }
-    })
+        for (idx, entry) in cache.fonts.iter().enumerate() {
+            if entry.style_sig == style_sig {
+                return Some(idx);
+            }
+        }
+        let size_px: f64 = ((key.get_size_tenths() as f64) * 0.1).max(6.0);
+        let ui_font_kind: u32 = if key.get_monospace() {
+            CT_FONT_UI_FIXED_PITCH
+        } else if key.get_bold() {
+            CT_FONT_UI_EMPHASIZED_SYSTEM
+        } else {
+            CT_FONT_UI_SYSTEM
+        };
+        let raw_base: *mut c_void = CTFontCreateUIFontForLanguage(ui_font_kind, size_px, null());
+        if raw_base.is_null() {
+            return None;
+        }
+        let mut desired_traits: u32 = 0;
+        if key.get_monospace() && key.get_bold() {
+            desired_traits |= CT_FONT_TRAIT_BOLD;
+        }
+        if key.get_italic() {
+            desired_traits |= CT_FONT_TRAIT_ITALIC;
+        }
+        let base_font: *mut c_void = if desired_traits != 0 {
+            let styled: *mut c_void = CTFontCreateCopyWithSymbolicTraits(
+                raw_base,
+                0.0,
+                null(),
+                desired_traits,
+                desired_traits,
+            );
+            if styled.is_null() {
+                raw_base
+            } else {
+                CFRelease(raw_base);
+                styled
+            }
+        } else {
+            raw_base
+        };
+        let base_ascent: f64 = CTFontGetAscent(base_font).max(size_px * 0.80);
+        let base_descent: f64 = CTFontGetDescent(base_font).max(size_px * 0.24);
+        if cache.fonts.len() >= CORETEXT_FONT_CACHE_MAX {
+            let evicted: CoreTextFontCacheEntry = cache.fonts.remove(0);
+            for fb in evicted.fallback_fonts.into_iter() {
+                if !fb.is_null() {
+                    CFRelease(fb);
+                }
+            }
+            if !evicted.font.is_null() {
+                CFRelease(evicted.font);
+            }
+        }
+        let idx: usize = cache.fonts.len();
+        cache.fonts.push(CoreTextFontCacheEntry {
+            style_sig,
+            font: base_font,
+            ascent: base_ascent,
+            descent: base_descent,
+            fallback_fonts: [null_mut(); CORETEXT_FALLBACK_SLOTS],
+        });
+        Some(idx)
+    }
 }
 
-/// Rasterizes a Unicode or ASCII glyph using cached Apple CoreText + CoreGraphics (`SF Pro` / `PingFang SC`).
+/// Rasterizes a Unicode or ASCII glyph using cached Apple CoreText + persistent CoreGraphics scratch context (`SF Pro` / lazy `PingFang SC`).
 ///
 /// # Arguments
 ///
@@ -605,87 +689,143 @@ fn rasterize_coretext_glyph(key: GlyphKey) -> Option<RasterizedGlyph> {
     let mut utf16_buf: [u16; 2] = [0; 2];
     let encoded: &[u16] = key.get_codepoint().encode_utf16(&mut utf16_buf);
     let count: isize = encoded.len() as isize;
-    let (base_font, base_ascent, base_descent, gray_space): (*mut c_void, f64, f64, *mut c_void) =
-        lookup_or_create_coretext_base(key)?;
-    // SAFETY: `base_font` and `gray_space` are valid thread-local cached handles; any cascaded fallback font is released locally.
-    unsafe {
-        let mut glyphs: [u16; 2] = [0; 2];
-        let found_primary: bool =
-            CTFontGetGlyphsForCharacters(base_font, encoded.as_ptr(), glyphs.as_mut_ptr(), count);
-        let (active_font, owned_active): (*mut c_void, bool) = if found_primary && glyphs[0] != 0 {
-            (base_font, false)
-        } else {
-            let cf_str: *mut c_void = CFStringCreateWithCharacters(null(), encoded.as_ptr(), count);
-            if cf_str.is_null() {
-                return None;
-            }
-            let range: CtRange = CtRange {
-                location: 0,
-                length: count,
-            };
-            let cascaded: *mut c_void = CTFontCreateForString(base_font, cf_str, range);
-            CFRelease(cf_str);
-            if cascaded.is_null() {
-                return None;
-            }
-            let found_fallback: bool = CTFontGetGlyphsForCharacters(
-                cascaded,
+    CORETEXT_FONT_CACHE.with(|cell: &RefCell<CoreTextFontCache>| {
+        let mut cache: RefMut<'_, CoreTextFontCache> = cell.try_borrow_mut().ok()?;
+        let entry_idx: usize = lookup_or_create_coretext_entry(&mut cache, key)?;
+        let (base_font, base_ascent, base_descent): (*mut c_void, f64, f64) = {
+            let entry: &CoreTextFontCacheEntry = &cache.fonts[entry_idx];
+            (entry.font, entry.ascent, entry.descent)
+        };
+        // SAFETY: `base_font`, cached fallback fonts, and `scratch_ctx` are owned by this thread-local cache.
+        unsafe {
+            let mut glyphs: [u16; 2] = [0; 2];
+            let found_primary: bool = CTFontGetGlyphsForCharacters(
+                base_font,
                 encoded.as_ptr(),
                 glyphs.as_mut_ptr(),
                 count,
             );
-            if !found_fallback || glyphs[0] == 0 {
-                CFRelease(cascaded);
-                return None;
+            let active_font: *mut c_void = if found_primary && glyphs[0] != 0 {
+                base_font
+            } else {
+                let mut hit_fb: *mut c_void = null_mut();
+                for fb in cache.fonts[entry_idx].fallback_fonts.into_iter() {
+                    if !fb.is_null()
+                        && CTFontGetGlyphsForCharacters(
+                            fb,
+                            encoded.as_ptr(),
+                            glyphs.as_mut_ptr(),
+                            count,
+                        )
+                        && glyphs[0] != 0
+                    {
+                        hit_fb = fb;
+                        break;
+                    }
+                }
+                if !hit_fb.is_null() {
+                    hit_fb
+                } else {
+                    let cf_str: *mut c_void =
+                        CFStringCreateWithCharacters(null(), encoded.as_ptr(), count);
+                    if cf_str.is_null() {
+                        return None;
+                    }
+                    let range: CtRange = CtRange {
+                        location: 0,
+                        length: count,
+                    };
+                    let cascaded: *mut c_void = CTFontCreateForString(base_font, cf_str, range);
+                    CFRelease(cf_str);
+                    if cascaded.is_null() {
+                        return None;
+                    }
+                    let found_fallback: bool = CTFontGetGlyphsForCharacters(
+                        cascaded,
+                        encoded.as_ptr(),
+                        glyphs.as_mut_ptr(),
+                        count,
+                    );
+                    if !found_fallback || glyphs[0] == 0 {
+                        CFRelease(cascaded);
+                        return None;
+                    }
+                    record_fallback_font_load();
+                    let fb_slots: &mut [*mut c_void; CORETEXT_FALLBACK_SLOTS] =
+                        &mut cache.fonts[entry_idx].fallback_fonts;
+                    let mut stored: bool = false;
+                    for slot in fb_slots.iter_mut() {
+                        if slot.is_null() {
+                            *slot = cascaded;
+                            stored = true;
+                            break;
+                        }
+                    }
+                    if !stored {
+                        let last_idx: usize = CORETEXT_FALLBACK_SLOTS - 1;
+                        if !fb_slots[last_idx].is_null() {
+                            CFRelease(fb_slots[last_idx]);
+                        }
+                        fb_slots[last_idx] = cascaded;
+                    }
+                    cascaded
+                }
+            };
+            let mut adv_size: CtSize = CtSize {
+                width: 0.0,
+                height: 0.0,
+            };
+            let adv_f64: f64 = CTFontGetAdvancesForGlyphs(
+                active_font,
+                CT_FONT_ORIENTATION_DEFAULT,
+                glyphs.as_ptr(),
+                &mut adv_size,
+                1,
+            );
+            let advance: u32 = adv_f64.ceil().max(2.0) as u32;
+            let out_w: u32 = (adv_f64.ceil() + 3.0).max(4.0) as u32;
+            let out_h: u32 = (base_ascent + base_descent).ceil().max(8.0) as u32 + 2;
+            let out_w_usize: usize = out_w as usize;
+            let out_h_usize: usize = out_h as usize;
+            if key.get_codepoint() == ' ' {
+                return Some(RasterizedGlyph::new(
+                    out_w,
+                    out_h,
+                    advance,
+                    vec![0; out_w_usize * out_h_usize],
+                ));
             }
-            (cascaded, true)
-        };
-        let mut adv_size: CtSize = CtSize {
-            width: 0.0,
-            height: 0.0,
-        };
-        let adv_f64: f64 = CTFontGetAdvancesForGlyphs(
-            active_font,
-            CT_FONT_ORIENTATION_DEFAULT,
-            glyphs.as_ptr(),
-            &mut adv_size,
-            1,
-        );
-        let advance: u32 = adv_f64.ceil().max(2.0) as u32;
-        let out_w: u32 = (adv_f64.ceil() + 3.0).max(4.0) as u32;
-        let out_h: u32 = (base_ascent + base_descent).ceil().max(8.0) as u32 + 2;
-        let mut coverage: Vec<u8> = vec![0; (out_w as usize) * (out_h as usize)];
-        let cg_ctx: *mut c_void = CGBitmapContextCreate(
-            coverage.as_mut_ptr().cast::<c_void>(),
-            out_w as usize,
-            out_h as usize,
-            8,
-            out_w as usize,
-            gray_space,
-            0,
-        );
-        if cg_ctx.is_null() {
-            if owned_active {
-                CFRelease(active_font);
+            let cg_ctx: *mut c_void =
+                ensure_coretext_scratch_ctx(&mut cache, out_w_usize, out_h_usize)?;
+            let scratch_w: usize = cache.scratch_w;
+            let scratch_h: usize = cache.scratch_h;
+            let pos: CtPoint = CtPoint {
+                x: 1.0,
+                y: ((scratch_h - out_h_usize) as f64) + base_descent.ceil() + 1.0,
+            };
+            CTFontDrawGlyphs(active_font, glyphs.as_ptr(), &pos, 1, cg_ctx);
+            let mut coverage: Vec<u8> = vec![0; out_w_usize * out_h_usize];
+            for row in 0..out_h_usize {
+                let src_off: usize = row * scratch_w;
+                let dst_off: usize = row * out_w_usize;
+                coverage[dst_off..dst_off + out_w_usize]
+                    .copy_from_slice(&cache.scratch_buf[src_off..src_off + out_w_usize]);
             }
-            return None;
+            let clear_w: usize = out_w_usize
+                .saturating_mul(2)
+                .max(out_w_usize + 32)
+                .min(scratch_w);
+            let clear_h: usize = out_h_usize
+                .saturating_add(out_h_usize / 2)
+                .max(out_h_usize + 32)
+                .min(scratch_h);
+            for row in 0..clear_h {
+                let off: usize = row * scratch_w;
+                cache.scratch_buf[off..off + clear_w].fill(0);
+            }
+            Some(RasterizedGlyph::new(out_w, out_h, advance, coverage))
         }
-        CGContextSetAllowsAntialiasing(cg_ctx, true);
-        CGContextSetShouldAntialias(cg_ctx, true);
-        CGContextSetAllowsFontSmoothing(cg_ctx, true);
-        CGContextSetShouldSmoothFonts(cg_ctx, true);
-        CGContextSetGrayFillColor(cg_ctx, 1.0, 1.0);
-        let pos: CtPoint = CtPoint {
-            x: 1.0,
-            y: base_descent.ceil() + 1.0,
-        };
-        CTFontDrawGlyphs(active_font, glyphs.as_ptr(), &pos, 1, cg_ctx);
-        CGContextRelease(cg_ctx);
-        if owned_active {
-            CFRelease(active_font);
-        }
-        Some(RasterizedGlyph::new(out_w, out_h, advance, coverage))
-    }
+    })
 }
 
 #[cfg(target_os = "windows")]
@@ -882,6 +1022,9 @@ fn lookup_or_create_win32_font(
         );
         if hfont.is_null() {
             return None;
+        }
+        if face_kind == 2 {
+            record_fallback_font_load();
         }
         let prev_obj: *mut c_void = SelectObject(cache.hdc, hfont);
         let mut tm: WinTextMetricW = WinTextMetricW::default();
@@ -1084,46 +1227,49 @@ unsafe extern "C" {
     fn dlclose(handle: *mut c_void) -> i32;
 }
 
-/// Checks at runtime whether FreeType (`libfreetype.so.6` / `libft2.so`) and a system font exist.
+/// Checks at runtime whether FreeType (`libfreetype.so.6` / `libft2.so`) and a primary Latin system font exist (cached once per process).
 ///
 /// # Returns
 ///
-/// - `bool` - True when FreeType symbols and at least one system font file are reachable.
+/// - `bool` - True when FreeType symbols and at least one primary system font file are reachable.
 #[cfg(any(target_os = "linux", target_os = "android"))]
 fn freetype_runtime_available() -> bool {
-    let Ok(lib_name) = CString::new(LIB_FREETYPE_SONAME) else {
-        return false;
-    };
-    let Ok(sym_init) = CString::new(SYM_FT_INIT) else {
-        return false;
-    };
-    let Ok(sym_done) = CString::new(SYM_FT_DONE) else {
-        return false;
-    };
-    unsafe {
-        let handle: *mut c_void = dlopen(lib_name.as_ptr(), RTLD_LAZY_FONT);
-        if handle.is_null() {
+    *FREETYPE_AVAILABLE_CACHE.get_or_init(|| {
+        let Ok(lib_name) = CString::new(LIB_FREETYPE_SONAME) else {
             return false;
-        }
-        let init_ptr: *mut c_void = dlsym(handle, sym_init.as_ptr());
-        let done_ptr: *mut c_void = dlsym(handle, sym_done.as_ptr());
-        let _: i32 = dlclose(handle);
-        if init_ptr.is_null() || done_ptr.is_null() {
+        };
+        let Ok(sym_init) = CString::new(SYM_FT_INIT) else {
             return false;
+        };
+        let Ok(sym_done) = CString::new(SYM_FT_DONE) else {
+            return false;
+        };
+        // SAFETY: Dynamically resolves FreeType initialization symbols and closes the probe handle cleanly.
+        unsafe {
+            let handle: *mut c_void = dlopen(lib_name.as_ptr(), RTLD_LAZY_FONT);
+            if handle.is_null() {
+                return false;
+            }
+            let init_ptr: *mut c_void = dlsym(handle, sym_init.as_ptr());
+            let done_ptr: *mut c_void = dlsym(handle, sym_done.as_ptr());
+            let _: i32 = dlclose(handle);
+            if init_ptr.is_null() || done_ptr.is_null() {
+                return false;
+            }
         }
-    }
-    #[cfg(target_os = "linux")]
-    {
-        LINUX_FONT_CANDIDATES
-            .iter()
-            .any(|p: &&str| Path::new(p).exists())
-    }
-    #[cfg(target_os = "android")]
-    {
-        ANDROID_FONT_CANDIDATES
-            .iter()
-            .any(|p: &&str| Path::new(p).exists())
-    }
+        #[cfg(target_os = "linux")]
+        {
+            LINUX_FONT_CANDIDATES
+                .iter()
+                .any(|p: &&str| Path::new(p).exists())
+        }
+        #[cfg(target_os = "android")]
+        {
+            ANDROID_FONT_CANDIDATES
+                .iter()
+                .any(|p: &&str| Path::new(p).exists())
+        }
+    })
 }
 
 /// Opens the first existing FreeType font face from `candidates`.
@@ -1160,11 +1306,71 @@ fn freetype_open_first_face(
     null_mut()
 }
 
-/// Initializes a cached per-thread FreeType 2 runtime via `dlopen` (`libfreetype.so.6` / `libft2.so`).
+/// Lazily resolves a FreeType face slot at most once on first demand.
+///
+/// # Arguments
+///
+/// - `*mut c_void` - Initialized `FT_Library` handle.
+/// - `FtNewFaceFn` - Resolved `FT_New_Face` function pointer.
+/// - `&mut FtLazyFace` - Lazy face slot to resolve.
+/// - `&[&str]` - Ordered OS font file candidates.
+/// - `bool` - Whether a successful open counts as a lazy fallback (CJK/Unicode) load.
 ///
 /// # Returns
 ///
-/// - `Option<FreeTypeRuntime>` - Initialized FreeType runtime with regular, bold, and CJK faces.
+/// - `*mut FtFaceRec` - Cached face pointer (or null when unavailable).
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn freetype_resolve_lazy_face(
+    library: *mut c_void,
+    new_face: FtNewFaceFn,
+    slot: &mut FtLazyFace,
+    candidates: &[&str],
+    count_fallback: bool,
+) -> *mut FtFaceRec {
+    if !slot.probed {
+        slot.probed = true;
+        slot.face = freetype_open_first_face(library, new_face, candidates);
+        if count_fallback && !slot.face.is_null() {
+            record_fallback_font_load();
+        }
+    }
+    slot.face
+}
+
+/// Ensures `slot.face` is configured to `size_px`, skipping `FT_Set_Pixel_Sizes` when already active.
+///
+/// # Arguments
+///
+/// - `FtSetPixelSizesFn` - Resolved `FT_Set_Pixel_Sizes` function pointer.
+/// - `&mut FtLazyFace` - Target loaded FreeType face slot.
+/// - `u32` - Desired pixel height.
+///
+/// # Returns
+///
+/// - `bool` - True when the pixel size is active on `slot.face`.
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn freetype_ensure_pixel_size(
+    set_pixel_sizes: FtSetPixelSizesFn,
+    slot: &mut FtLazyFace,
+    size_px: u32,
+) -> bool {
+    if slot.last_size_px == size_px {
+        return true;
+    }
+    // SAFETY: `slot.face` is a valid opened `FT_Face` belonging to this thread's FreeType library.
+    let err: i32 = unsafe { set_pixel_sizes(slot.face, 0, size_px) };
+    if err != 0 {
+        return false;
+    }
+    slot.last_size_px = size_px;
+    true
+}
+
+/// Initializes a cached per-thread FreeType 2 runtime via `dlopen`, opening only the primary Latin regular face on cold start.
+///
+/// # Returns
+///
+/// - `Option<FreeTypeRuntime>` - Initialized FreeType runtime with lazy style and CJK fallback slots.
 #[cfg(any(target_os = "linux", target_os = "android"))]
 fn init_freetype_runtime() -> Option<FreeTypeRuntime> {
     let lib_name: CString = CString::new(LIB_FREETYPE_SONAME).ok()?;
@@ -1173,7 +1379,7 @@ fn init_freetype_runtime() -> Option<FreeTypeRuntime> {
     let s_set_px: CString = CString::new(SYM_FT_SET_PIXEL_SIZES).ok()?;
     let s_char_idx: CString = CString::new(SYM_FT_GET_CHAR_INDEX).ok()?;
     let s_load: CString = CString::new(SYM_FT_LOAD_GLYPH).ok()?;
-    // SAFETY: Dynamically resolves standard FreeType 2 C ABI symbols and opens OS system font files.
+    // SAFETY: Dynamically resolves standard FreeType 2 C ABI symbols and opens only the primary regular font file on cold start.
     unsafe {
         let handle: *mut c_void = dlopen(lib_name.as_ptr(), RTLD_LAZY_FONT);
         if handle.is_null() {
@@ -1193,7 +1399,7 @@ fn init_freetype_runtime() -> Option<FreeTypeRuntime> {
             return None;
         }
         let ft_init: unsafe extern "C" fn(*mut *mut c_void) -> i32 = transmute(p_init);
-        let ft_new_face: FtNewFaceFn = transmute(p_new_face);
+        let new_face: FtNewFaceFn = transmute(p_new_face);
         let set_pixel_sizes: FtSetPixelSizesFn = transmute(p_set_px);
         let get_char_index: FtGetCharIndexFn = transmute(p_char_idx);
         let load_glyph: FtLoadGlyphFn = transmute(p_load);
@@ -1203,39 +1409,20 @@ fn init_freetype_runtime() -> Option<FreeTypeRuntime> {
         }
         #[cfg(target_os = "linux")]
         let reg_list: &[&str] = &LINUX_FONT_CANDIDATES;
-        #[cfg(target_os = "linux")]
-        let bold_list: &[&str] = &LINUX_BOLD_FONT_CANDIDATES;
-        #[cfg(target_os = "linux")]
-        let mono_list: &[&str] = &LINUX_MONO_FONT_CANDIDATES;
-        #[cfg(target_os = "linux")]
-        let mono_bold_list: &[&str] = &LINUX_MONO_BOLD_FONT_CANDIDATES;
-        #[cfg(target_os = "linux")]
-        let cjk_list: &[&str] = &LINUX_CJK_FONT_CANDIDATES;
         #[cfg(target_os = "android")]
         let reg_list: &[&str] = &ANDROID_FONT_CANDIDATES;
-        #[cfg(target_os = "android")]
-        let bold_list: &[&str] = &ANDROID_BOLD_FONT_CANDIDATES;
-        #[cfg(target_os = "android")]
-        let mono_list: &[&str] = &ANDROID_MONO_FONT_CANDIDATES;
-        #[cfg(target_os = "android")]
-        let mono_bold_list: &[&str] = &ANDROID_MONO_BOLD_FONT_CANDIDATES;
-        #[cfg(target_os = "android")]
-        let cjk_list: &[&str] = &ANDROID_CJK_FONT_CANDIDATES;
-        let regular_face: *mut FtFaceRec = freetype_open_first_face(library, ft_new_face, reg_list);
+        let regular_face: *mut FtFaceRec = freetype_open_first_face(library, new_face, reg_list);
         if regular_face.is_null() {
             return None;
         }
-        let bold_face: *mut FtFaceRec = freetype_open_first_face(library, ft_new_face, bold_list);
-        let mono_face: *mut FtFaceRec = freetype_open_first_face(library, ft_new_face, mono_list);
-        let mono_bold_face: *mut FtFaceRec =
-            freetype_open_first_face(library, ft_new_face, mono_bold_list);
-        let cjk_face: *mut FtFaceRec = freetype_open_first_face(library, ft_new_face, cjk_list);
         Some(FreeTypeRuntime {
-            regular_face,
-            bold_face,
-            mono_face,
-            mono_bold_face,
-            cjk_face,
+            library,
+            new_face,
+            regular: FtLazyFace::loaded(regular_face),
+            bold: FtLazyFace::unprobed(),
+            mono: FtLazyFace::unprobed(),
+            mono_bold: FtLazyFace::unprobed(),
+            cjk: FtLazyFace::unprobed(),
             set_pixel_sizes,
             get_char_index,
             load_glyph,
@@ -1243,7 +1430,7 @@ fn init_freetype_runtime() -> Option<FreeTypeRuntime> {
     }
 }
 
-/// Rasterizes a Unicode or ASCII glyph on Linux / Android using dynamically loaded FreeType 2 into a uniform baseline-aligned box.
+/// Rasterizes a Unicode or ASCII glyph on Linux / Android using dynamically loaded FreeType 2 with lazy style and CJK fallback faces.
 ///
 /// # Arguments
 ///
@@ -1261,51 +1448,112 @@ fn rasterize_freetype_glyph(key: GlyphKey) -> Option<RasterizedGlyph> {
             if guard.is_none() {
                 *guard = Some(init_freetype_runtime());
             }
-            let rt: &FreeTypeRuntime = guard.as_ref()?.as_ref()?;
+            let rt: &mut FreeTypeRuntime = guard.as_mut()?.as_mut()?;
             let size_px: u32 = ((key.get_size_tenths() as f32) * 0.1)
                 .round()
                 .clamp(6.0, 256.0) as u32;
-            let primary_face: *mut FtFaceRec = if key.get_monospace() {
-                if key.get_bold() && !rt.mono_bold_face.is_null() {
-                    rt.mono_bold_face
-                } else if !rt.mono_face.is_null() {
-                    rt.mono_face
-                } else if key.get_bold() && !rt.bold_face.is_null() {
-                    rt.bold_face
-                } else {
-                    rt.regular_face
+            #[cfg(target_os = "linux")]
+            let (bold_list, mono_list, mono_bold_list, cjk_list): (
+                &[&str],
+                &[&str],
+                &[&str],
+                &[&str],
+            ) = (
+                &LINUX_BOLD_FONT_CANDIDATES,
+                &LINUX_MONO_FONT_CANDIDATES,
+                &LINUX_MONO_BOLD_FONT_CANDIDATES,
+                &LINUX_CJK_FONT_CANDIDATES,
+            );
+            #[cfg(target_os = "android")]
+            let (bold_list, mono_list, mono_bold_list, cjk_list): (
+                &[&str],
+                &[&str],
+                &[&str],
+                &[&str],
+            ) = (
+                &ANDROID_BOLD_FONT_CANDIDATES,
+                &ANDROID_MONO_FONT_CANDIDATES,
+                &ANDROID_MONO_BOLD_FONT_CANDIDATES,
+                &ANDROID_CJK_FONT_CANDIDATES,
+            );
+            let lib: *mut c_void = rt.library;
+            let new_face: FtNewFaceFn = rt.new_face;
+            let get_char_index: FtGetCharIndexFn = rt.get_char_index;
+            let set_pixel_sizes: FtSetPixelSizesFn = rt.set_pixel_sizes;
+            let load_glyph: FtLoadGlyphFn = rt.load_glyph;
+            let mut primary_slot: u8 = 0;
+            if key.get_monospace() {
+                if key.get_bold()
+                    && !freetype_resolve_lazy_face(
+                        lib,
+                        new_face,
+                        &mut rt.mono_bold,
+                        mono_bold_list,
+                        false,
+                    )
+                    .is_null()
+                {
+                    primary_slot = 3;
+                } else if !freetype_resolve_lazy_face(lib, new_face, &mut rt.mono, mono_list, false)
+                    .is_null()
+                {
+                    primary_slot = 2;
+                } else if key.get_bold()
+                    && !freetype_resolve_lazy_face(lib, new_face, &mut rt.bold, bold_list, false)
+                        .is_null()
+                {
+                    primary_slot = 1;
                 }
-            } else if key.get_bold() && !rt.bold_face.is_null() {
-                rt.bold_face
-            } else {
-                rt.regular_face
+            } else if key.get_bold()
+                && !freetype_resolve_lazy_face(lib, new_face, &mut rt.bold, bold_list, false)
+                    .is_null()
+            {
+                primary_slot = 1;
+            }
+            let primary_face: *mut FtFaceRec = match primary_slot {
+                1 => rt.bold.face,
+                2 => rt.mono.face,
+                3 => rt.mono_bold.face,
+                _ => rt.regular.face,
             };
             let codepoint: usize = key.get_codepoint() as usize;
             // SAFETY: Faces and function pointers are initialized by `init_freetype_runtime` and valid for thread lifetime.
             unsafe {
-                let mut active_face: *mut FtFaceRec = primary_face;
-                let mut glyph_idx: u32 = (rt.get_char_index)(active_face, codepoint);
-                if glyph_idx == 0 && !rt.cjk_face.is_null() {
-                    let cjk_idx: u32 = (rt.get_char_index)(rt.cjk_face, codepoint);
-                    if cjk_idx != 0 {
-                        active_face = rt.cjk_face;
-                        glyph_idx = cjk_idx;
+                let mut active_slot: u8 = primary_slot;
+                let mut glyph_idx: u32 = get_char_index(primary_face, codepoint);
+                if glyph_idx == 0 {
+                    let cjk_face: *mut FtFaceRec =
+                        freetype_resolve_lazy_face(lib, new_face, &mut rt.cjk, cjk_list, true);
+                    if !cjk_face.is_null() {
+                        let cjk_idx: u32 = get_char_index(cjk_face, codepoint);
+                        if cjk_idx != 0 {
+                            active_slot = 4;
+                            glyph_idx = cjk_idx;
+                        }
                     }
                 }
-                if glyph_idx == 0 && active_face != rt.regular_face {
-                    let reg_idx: u32 = (rt.get_char_index)(rt.regular_face, codepoint);
+                if glyph_idx == 0 && active_slot != 0 {
+                    let reg_idx: u32 = get_char_index(rt.regular.face, codepoint);
                     if reg_idx != 0 {
-                        active_face = rt.regular_face;
+                        active_slot = 0;
                         glyph_idx = reg_idx;
                     }
                 }
                 if glyph_idx == 0 {
                     return None;
                 }
-                if (rt.set_pixel_sizes)(active_face, 0, size_px) != 0 {
+                let slot_ref: &mut FtLazyFace = match active_slot {
+                    1 => &mut rt.bold,
+                    2 => &mut rt.mono,
+                    3 => &mut rt.mono_bold,
+                    4 => &mut rt.cjk,
+                    _ => &mut rt.regular,
+                };
+                if !freetype_ensure_pixel_size(set_pixel_sizes, slot_ref, size_px) {
                     return None;
                 }
-                if (rt.load_glyph)(active_face, glyph_idx, FT_LOAD_RENDER) != 0 {
+                let active_face: *mut FtFaceRec = slot_ref.face;
+                if load_glyph(active_face, glyph_idx, FT_LOAD_RENDER) != 0 {
                     return None;
                 }
                 let face_ref: &FtFaceRec = &*active_face;
@@ -1372,7 +1620,7 @@ fn rasterize_freetype_glyph(key: GlyphKey) -> Option<RasterizedGlyph> {
         .flatten()
 }
 
-/// Rasterizes a glyph on Web using an offscreen `HtmlCanvasElement` + `CanvasRenderingContext2d`.
+/// Rasterizes a glyph on Web using a cached reusable offscreen `HtmlCanvasElement` + `CanvasRenderingContext2d`.
 ///
 /// # Arguments
 ///
@@ -1383,48 +1631,91 @@ fn rasterize_freetype_glyph(key: GlyphKey) -> Option<RasterizedGlyph> {
 /// - `Option<RasterizedGlyph>` - Anti-aliased coverage bitmap extracted from Canvas alpha channel.
 #[cfg(target_arch = "wasm32")]
 fn rasterize_web_canvas_glyph(key: GlyphKey) -> Option<RasterizedGlyph> {
-    let win: Window = window()?;
-    let doc: Document = win.document()?;
-    let el: Element = doc.create_element(WEB_FONT_CANVAS_TAG).ok()?;
-    let canvas: HtmlCanvasElement = el.dyn_into::<HtmlCanvasElement>().ok()?;
-    let size_px: f32 = ((key.get_size_tenths() as f32) * 0.1).max(8.0);
-    let h: u32 = (size_px * 1.32).ceil().max(10.0) as u32;
-    let initial_w: u32 = (size_px * 1.6).ceil().max(12.0) as u32;
-    canvas.set_width(initial_w);
-    canvas.set_height(h);
-    let raw: Object = canvas.get_context(WEB_FONT_CTX_2D).ok()??;
-    let ctx2d: CanvasRenderingContext2d = raw.dyn_into::<CanvasRenderingContext2d>().ok()?;
-    let style_prefix: &str = if key.get_italic() { "italic " } else { "" };
-    let weight: &str = if key.get_bold() { "700" } else { "400" };
-    let family_decl: &str = if key.get_monospace() {
-        FONT_FAMILY_WEB_MONO
-    } else {
-        FONT_FAMILY_WEB_SYSTEM
-    };
-    let font_decl: String = format!("{style_prefix}{weight} {size_px}px {family_decl}");
-    ctx2d.set_font(&font_decl);
-    let mut text_buf: [u8; 4] = [0; 4];
-    let text: &str = key.get_codepoint().encode_utf8(&mut text_buf);
-    let measured_w: f64 = ctx2d
-        .measure_text(text)
-        .map(|m: TextMetrics| m.width())
-        .unwrap_or((size_px * 0.62) as f64);
-    let advance: u32 = if key.get_monospace() && (key.get_codepoint() as u32) <= 0x7E {
-        (size_px * MONOSPACE_ADVANCE_RATIO).round().max(2.0) as u32
-    } else {
-        measured_w.round().max(2.0) as u32
-    };
-    let w: u32 = (advance + 3).max(4);
-    canvas.set_width(w);
-    canvas.set_height(h);
-    ctx2d.set_font(&font_decl);
-    ctx2d.set_fill_style_str(WEB_FONT_WHITE);
-    drop(ctx2d.fill_text(text, 1.0, (size_px * 0.98) as f64));
-    let img: ImageData = ctx2d.get_image_data(0.0, 0.0, w as f64, h as f64).ok()?;
-    let rgba: Clamped<Vec<u8>> = img.data();
-    let mut coverage: Vec<u8> = Vec::with_capacity((w as usize) * (h as usize));
-    for px in rgba.0.as_chunks::<4>().0.iter() {
-        coverage.push(px[3]);
-    }
-    Some(RasterizedGlyph::new(w, h, advance, coverage))
+    WEB_FONT_SCRATCH.with(|cell: &RefCell<WebFontScratch>| {
+        let mut scratch: RefMut<'_, WebFontScratch> = cell.try_borrow_mut().ok()?;
+        let WebFontScratch {
+            canvas,
+            ctx2d,
+            width,
+            height,
+            last_font,
+        } = &mut *scratch;
+        if canvas.is_none() || ctx2d.is_none() {
+            let win: Window = window()?;
+            let doc: Document = win.document()?;
+            let el: Element = doc.create_element(WEB_FONT_CANVAS_TAG).ok()?;
+            let next_canvas: HtmlCanvasElement = el.dyn_into::<HtmlCanvasElement>().ok()?;
+            next_canvas.set_width(WEB_FONT_SCRATCH_INIT_DIM);
+            next_canvas.set_height(WEB_FONT_SCRATCH_INIT_DIM);
+            let raw: Object = next_canvas.get_context(WEB_FONT_CTX_2D).ok()??;
+            let next_ctx2d: CanvasRenderingContext2d =
+                raw.dyn_into::<CanvasRenderingContext2d>().ok()?;
+            next_ctx2d.set_fill_style_str(WEB_FONT_WHITE);
+            *canvas = Some(next_canvas);
+            *ctx2d = Some(next_ctx2d);
+            *width = WEB_FONT_SCRATCH_INIT_DIM;
+            *height = WEB_FONT_SCRATCH_INIT_DIM;
+            last_font.clear();
+        }
+        let size_px: f32 = ((key.get_size_tenths() as f32) * 0.1).max(8.0);
+        let h: u32 = (size_px * 1.32).ceil().max(10.0) as u32;
+        let style_prefix: &str = if key.get_italic() { "italic " } else { "" };
+        let weight: &str = if key.get_bold() { "700" } else { "400" };
+        let family_decl: &str = if key.get_monospace() {
+            FONT_FAMILY_WEB_MONO
+        } else {
+            FONT_FAMILY_WEB_SYSTEM
+        };
+        let font_decl: String = format!("{style_prefix}{weight} {size_px}px {family_decl}");
+        let mut text_buf: [u8; 4] = [0; 4];
+        let text: &str = key.get_codepoint().encode_utf8(&mut text_buf);
+        let ctx2d_ref: &CanvasRenderingContext2d = ctx2d.as_ref()?;
+        if *last_font != font_decl {
+            ctx2d_ref.set_font(&font_decl);
+            last_font.clear();
+            last_font.push_str(&font_decl);
+        }
+        let measured_w: f64 = ctx2d_ref
+            .measure_text(text)
+            .map(|m: TextMetrics| m.width())
+            .unwrap_or((size_px * 0.62) as f64);
+        let advance: u32 = if key.get_monospace() && (key.get_codepoint() as u32) <= 0x7E {
+            (size_px * MONOSPACE_ADVANCE_RATIO).round().max(2.0) as u32
+        } else {
+            measured_w.round().max(2.0) as u32
+        };
+        let w: u32 = (advance + 3).max(4);
+        if key.get_codepoint() == ' ' {
+            return Some(RasterizedGlyph::new(
+                w,
+                h,
+                advance,
+                vec![0; (w as usize) * (h as usize)],
+            ));
+        }
+        if w > *width || h > *height {
+            let next_w: u32 = w.max(*width).next_power_of_two();
+            let next_h: u32 = h.max(*height).next_power_of_two();
+            let canvas_ref: &HtmlCanvasElement = canvas.as_ref()?;
+            canvas_ref.set_width(next_w);
+            canvas_ref.set_height(next_h);
+            *width = next_w;
+            *height = next_h;
+            ctx2d_ref.set_font(&font_decl);
+            ctx2d_ref.set_fill_style_str(WEB_FONT_WHITE);
+            last_font.clear();
+            last_font.push_str(&font_decl);
+        }
+        ctx2d_ref.clear_rect(0.0, 0.0, w as f64, h as f64);
+        drop(ctx2d_ref.fill_text(text, 1.0, (size_px * 0.98) as f64));
+        let img: ImageData = ctx2d_ref
+            .get_image_data(0.0, 0.0, w as f64, h as f64)
+            .ok()?;
+        let rgba: Clamped<Vec<u8>> = img.data();
+        let mut coverage: Vec<u8> = Vec::with_capacity((w as usize) * (h as usize));
+        for px in rgba.0.as_chunks::<4>().0.iter() {
+            coverage.push(px[3]);
+        }
+        Some(RasterizedGlyph::new(w, h, advance, coverage))
+    })
 }

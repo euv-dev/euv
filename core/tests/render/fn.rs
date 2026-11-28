@@ -2089,3 +2089,389 @@ fn selectable_text_drag_double_triple_click_highlight_and_clipboard_copy() {
     assert_eq!(app.copy_selection().as_deref(), Some("Hello Rust World"));
     assert_eq!(app.read_clipboard().as_deref(), Some("Hello Rust World"));
 }
+
+#[test]
+fn viewport_and_scroll_clip_culling_preserves_bit_exact_parity_and_emits_zero_offscreen_commands() {
+    reset_reactive_runtime();
+    let scene: SceneHandle = SceneHandle::new_tree();
+    let mut ctx: Context = Context::new(scene.clone(), PlatformKind::Headless);
+    let root_col: NodeId = ctx.view(
+        Style::default()
+            .column()
+            .width(Length::Px(360.0))
+            .height(Length::Px(640.0))
+            .background(Color::hex(0xF8FAFC)),
+    );
+    let scroll: NodeId = ctx.scroll_view(
+        Style::default()
+            .column()
+            .width(Length::Px(360.0))
+            .height(Length::Px(560.0))
+            .padding(Edges::all(12.0))
+            .gap(12.0),
+    );
+    for idx in 0..24usize {
+        let is_bleed_shadow: bool = idx == 5;
+        let is_transformed_up: bool = idx == 6;
+        let mut card_style: Style = Style::default()
+            .column()
+            .width(Length::Percent(100.0))
+            .height(Length::Px(100.0))
+            .padding(Edges::all(12.0))
+            .gap(6.0)
+            .background(COLOR_WHITE)
+            .border(1.0, Color::hex(0xCBD5E1))
+            .radius(12.0)
+            .overflow(Overflow::Hidden);
+        if is_bleed_shadow {
+            card_style = card_style.shadow(Shadow::new(
+                0.0,
+                -14.0,
+                20.0,
+                4.0,
+                Color::rgba(15, 23, 42, 90),
+            ));
+        } else {
+            card_style = card_style.shadow(Shadow::new(
+                0.0,
+                4.0,
+                10.0,
+                0.0,
+                Color::rgba(15, 23, 42, 32),
+            ));
+        }
+        if is_transformed_up {
+            card_style
+                .get_mut_paint()
+                .set_transform(Transform2D::new(0.0, -180.0, 1.0, 1.0, 0.0));
+        }
+        let card: NodeId = ctx.view(card_style);
+        let label_text: String = if idx >= 10 {
+            format!("OFFSCREEN_CARD_{idx:02}")
+        } else {
+            format!("VISIBLE_CARD_{idx:02}")
+        };
+        let title: NodeId = ctx.text(
+            label_text,
+            Style::default().font_size(14.0).color(Color::hex(0x0F172A)),
+        );
+        ctx.append(card, title);
+        if idx == 15 {
+            let fixed_bar: NodeId = ctx.view(
+                Style::default()
+                    .row()
+                    .position(Position::Fixed)
+                    .inset(None, Some(0.0), Some(0.0), Some(0.0))
+                    .width(Length::Px(360.0))
+                    .height(Length::Px(52.0))
+                    .padding(Edges::all(10.0))
+                    .background(Color::hex(0x1E293B)),
+            );
+            let fixed_lbl: NodeId = ctx.text(
+                "FIXED_ESCAPED".to_string(),
+                Style::default().font_size(13.0).color(COLOR_WHITE),
+            );
+            ctx.append(fixed_bar, fixed_lbl);
+            ctx.append(card, fixed_bar);
+        }
+        if idx == 18 {
+            let portal_badge: NodeId = ctx.portal(
+                Style::default()
+                    .position(Position::Fixed)
+                    .inset(Some(16.0), Some(16.0), None, None)
+                    .width(Length::Px(120.0))
+                    .height(Length::Px(32.0))
+                    .padding(Edges::all(6.0))
+                    .z_index(20)
+                    .background(Color::hex(0x2563EB))
+                    .radius(8.0),
+            );
+            let portal_lbl: NodeId = ctx.text(
+                "PORTAL_ESCAPED".to_string(),
+                Style::default().font_size(12.0).color(COLOR_WHITE),
+            );
+            ctx.append(portal_badge, portal_lbl);
+            ctx.append(card, portal_badge);
+        }
+        ctx.append(scroll, card);
+    }
+    ctx.append(root_col, scroll);
+    scene.with_write(
+        |tree: &mut SceneTree| {
+            let root: NodeId = tree.get_root();
+            tree.replace_children(root, vec![root_col]);
+        },
+        (),
+    );
+    let vp: Size = Size::new(360.0, 640.0);
+    let mut layout_engine: LayoutEngine = LayoutEngine::default();
+    let _: LayoutStats = scene.with_write(
+        |tree: &mut SceneTree| layout_engine.compute(tree, vp),
+        LayoutStats::default(),
+    );
+    for scale in [1.0_f32, 2.0_f32].into_iter() {
+        let mut dl_culled: DisplayList = DisplayList::default();
+        let mut dl_full: DisplayList = DisplayList::default();
+        scene.with_read(
+            |tree: &SceneTree| {
+                PaintPass::build(tree, vp, scale, Color::hex(0xF8FAFC), &mut dl_culled);
+                PaintPass::build(
+                    tree,
+                    Size::new(360.0, 4800.0),
+                    scale,
+                    Color::hex(0xF8FAFC),
+                    &mut dl_full,
+                );
+            },
+            (),
+        );
+        let offscreen_cmds: usize = dl_culled
+            .get_commands()
+            .iter()
+            .filter(|cmd: &&DrawCommand| {
+                matches!(cmd, DrawCommand::TextRun { text, .. } if text.starts_with("OFFSCREEN_CARD_"))
+            })
+            .count();
+        assert_eq!(offscreen_cmds, 0);
+        let has_fixed_escaped: bool = dl_culled
+            .get_commands()
+            .iter()
+            .any(|cmd: &DrawCommand| matches!(cmd, DrawCommand::TextRun { text, .. } if text == "FIXED_ESCAPED"));
+        let has_portal_escaped: bool = dl_culled
+            .get_commands()
+            .iter()
+            .any(|cmd: &DrawCommand| matches!(cmd, DrawCommand::TextRun { text, .. } if text == "PORTAL_ESCAPED"));
+        let has_transformed_card: bool = dl_culled
+            .get_commands()
+            .iter()
+            .any(|cmd: &DrawCommand| matches!(cmd, DrawCommand::TextRun { text, .. } if text == "VISIBLE_CARD_06"));
+        let has_bleeding_shadow: bool = dl_culled.get_commands().iter().any(|cmd: &DrawCommand| {
+            matches!(cmd, DrawCommand::BoxShadow { rect, shadow, .. } if rect.get_y() > 560.0 && shadow.get_offset_y() < -10.0)
+        });
+        assert!(has_fixed_escaped);
+        assert!(has_portal_escaped);
+        assert!(has_transformed_card);
+        assert!(has_bleeding_shadow);
+        dl_full.set_viewport(vp);
+        let pw: u32 = (vp.get_width() * scale).round() as u32;
+        let ph: u32 = (vp.get_height() * scale).round() as u32;
+        let mut sw_culled: SoftwareRenderer =
+            SoftwareRenderer::with_config(pw, ph, RenderConfig::software());
+        let mut sw_full: SoftwareRenderer =
+            SoftwareRenderer::with_config(pw, ph, RenderConfig::software());
+        let _: (usize, usize) = sw_culled.render(&dl_culled, DamageRegion::full());
+        let _: (usize, usize) = sw_full.render(&dl_full, DamageRegion::full());
+        assert_eq!(
+            sw_culled.get_framebuffer().fnv1a_hash(),
+            sw_full.get_framebuffer().fnv1a_hash()
+        );
+    }
+    scene.with_write(
+        |tree: &mut SceneTree| {
+            if let Some(sc_node) = tree.get_node_mut(scroll) {
+                let mut st: Style = sc_node.get_style();
+                st.get_mut_layout().set_overflow(Overflow::Visible);
+                sc_node.set_style(st);
+            }
+        },
+        (),
+    );
+    let mut dl_vp_culled: DisplayList = DisplayList::default();
+    let mut dl_vp_full: DisplayList = DisplayList::default();
+    scene.with_read(
+        |tree: &SceneTree| {
+            PaintPass::build(tree, vp, 1.0, Color::hex(0xF8FAFC), &mut dl_vp_culled);
+            PaintPass::build(
+                tree,
+                Size::new(360.0, 4800.0),
+                1.0,
+                Color::hex(0xF8FAFC),
+                &mut dl_vp_full,
+            );
+        },
+        (),
+    );
+    assert!(dl_vp_culled.len() < dl_vp_full.len() / 2);
+    dl_vp_full.set_viewport(vp);
+    let mut sw_vp_culled: SoftwareRenderer =
+        SoftwareRenderer::with_config(360, 640, RenderConfig::software());
+    let mut sw_vp_full: SoftwareRenderer =
+        SoftwareRenderer::with_config(360, 640, RenderConfig::software());
+    let _: (usize, usize) = sw_vp_culled.render(&dl_vp_culled, DamageRegion::full());
+    let _: (usize, usize) = sw_vp_full.render(&dl_vp_full, DamageRegion::full());
+    assert_eq!(
+        sw_vp_culled.get_framebuffer().fnv1a_hash(),
+        sw_vp_full.get_framebuffer().fnv1a_hash()
+    );
+}
+
+#[test]
+fn lazy_native_font_fallback_skips_cjk_on_cold_ascii_and_renders_cjk_on_demand() {
+    let handle: thread::JoinHandle<()> = thread::spawn(|| {
+        let font: NativeSystemFont = NativeSystemFont::system();
+        let before: usize = NativeSystemFont::thread_fallback_font_loads();
+        assert_eq!(before, 0);
+        let mut atlas: GlyphAtlas = GlyphAtlas::default();
+        let ascii_sample: &str =
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,:;-";
+        for ch in ascii_sample.chars() {
+            let key: GlyphKey = GlyphKey::new(ch, 160, false);
+            let glyph: &RasterizedGlyph = atlas.get_or_rasterize_with(key, &font);
+            if ch != ' ' {
+                assert!(glyph.get_coverage().iter().any(|&a: &u8| a > 0));
+            }
+        }
+        let after_ascii: usize = NativeSystemFont::thread_fallback_font_loads();
+        assert_eq!(after_ascii, before);
+        let mut cjk_bitmaps: Vec<Vec<u8>> = Vec::new();
+        for ch in ['中', '国', '启', '动'].into_iter() {
+            let key: GlyphKey = GlyphKey::new(ch, 160, false);
+            let glyph: &RasterizedGlyph = atlas.get_or_rasterize_with(key, &font);
+            assert!(glyph.get_coverage().iter().any(|&a: &u8| a > 0));
+            cjk_bitmaps.push(glyph.get_coverage().clone());
+        }
+        assert_ne!(cjk_bitmaps[0], cjk_bitmaps[1]);
+        if font.font_info().get_backend() != FontRenderBackend::DeterministicBitmap {
+            let after_cjk: usize = NativeSystemFont::thread_fallback_font_loads();
+            #[cfg(any(target_os = "macos", target_os = "ios", target_os = "windows"))]
+            assert!(after_cjk > before);
+            assert!(after_cjk <= before + 2);
+            for ch in ['框', '架'].into_iter() {
+                let key: GlyphKey = GlyphKey::new(ch, 160, false);
+                let glyph: &RasterizedGlyph = atlas.get_or_rasterize_with(key, &font);
+                assert!(glyph.get_coverage().iter().any(|&a: &u8| a > 0));
+            }
+            assert_eq!(NativeSystemFont::thread_fallback_font_loads(), after_cjk);
+        }
+    });
+    assert!(handle.join().is_ok());
+}
+
+#[test]
+fn lazy_game_cold_start_constructors_allocate_on_first_active_step_and_render() {
+    let mut particles: ParticleSystem = ParticleSystem::default();
+    assert_eq!(particles.update(0.016), 0);
+    assert!(particles.active_particle(0).is_none());
+    particles.emit_burst(Point::new(10.0, 20.0), 12, ParticleEmitterConfig::default());
+    assert_eq!(particles.get_active_count(), 12);
+    assert!(particles.active_particle(0).is_some());
+    assert_eq!(particles.update(0.016), 12);
+    let mut physics: PhysicsWorld2D = PhysicsWorld2D::default();
+    let mut world: GameWorld = GameWorld::default();
+    let a: EntityId = world.spawn(EntityTag::Player, Point::new(0.0, 0.0));
+    let b: EntityId = world.spawn(EntityTag::Enemy, Point::new(6.0, 0.0));
+    if let Some(ent) = world.get_entity_mut(a) {
+        ent.set_body(Some(RigidBody2D::dynamic(1.0, 0.5, 0.0)));
+        ent.set_collider(Some(Collider2D::circle(
+            8.0,
+            COLLISION_LAYER_PLAYER,
+            COLLISION_LAYER_ENEMY,
+            false,
+        )));
+    }
+    if let Some(ent) = world.get_entity_mut(b) {
+        ent.set_body(Some(RigidBody2D::dynamic(1.0, 0.5, 0.0)));
+        ent.set_collider(Some(Collider2D::circle(
+            8.0,
+            COLLISION_LAYER_ENEMY,
+            COLLISION_LAYER_PLAYER,
+            false,
+        )));
+    }
+    let events: Vec<CollisionEvent> = physics.step(&mut world, 0.016);
+    assert_eq!(events.len(), 1);
+    let mut audio: AudioBus = AudioBus::default();
+    assert!(audio.drain().is_empty());
+    audio.play(SoundCue::Explosion, 0.8, 0.0, 1.0);
+    assert_eq!(audio.drain().len(), 1);
+    let empty_bvh: Bvh3D = Bvh3D::build(Vec::new());
+    assert!(empty_bvh.get_nodes().is_empty());
+    let mut renderer3d: Renderer3D = Renderer3D::default();
+    let mut world3d: World3D = World3D::default();
+    let low_q: RenderQualityConfig = RenderQualityConfig::from_preset(QualityPreset::Low);
+    let img_low: ImageBuffer = renderer3d.render_world(&mut world3d, 240, 144, &low_q);
+    assert_eq!(img_low.get_width(), 240);
+    assert_eq!(img_low.get_height(), 144);
+    let high_q: RenderQualityConfig = RenderQualityConfig::from_preset(QualityPreset::High);
+    let img_high: ImageBuffer = renderer3d.render_world(&mut world3d, 240, 144, &high_q);
+    assert_eq!(img_high.get_width(), 240);
+    assert_eq!(img_high.get_height(), 144);
+}
+
+#[test]
+fn flex_wrap_row_distributes_flex_grow_per_wrapped_line_without_trailing_gap() {
+    reset_reactive_runtime();
+    let scene: SceneHandle = SceneHandle::new_tree();
+    let mut ctx: Context = Context::new(scene.clone(), PlatformKind::Headless);
+    let wrap_row: NodeId = ctx.view(
+        Style::default()
+            .row()
+            .wrap(FlexWrap::Wrap)
+            .width(Length::Percent(100.0))
+            .gap(8.0),
+    );
+    let mut buttons: Vec<NodeId> = Vec::new();
+    for idx in 0..5usize {
+        let btn: NodeId = ctx.view(
+            Style::default()
+                .flex_grow(1.0)
+                .min_width(Length::Px(110.0))
+                .height(Length::Px(36.0))
+                .background(COLOR_WHITE),
+        );
+        let lbl: NodeId = ctx.text(
+            format!("Btn {idx}"),
+            Style::default().font_size(13.0).color(COLOR_BLACK),
+        );
+        ctx.append(btn, lbl);
+        ctx.append(wrap_row, btn);
+        buttons.push(btn);
+    }
+    scene.with_write(
+        |tree: &mut SceneTree| {
+            let root: NodeId = tree.get_root();
+            tree.replace_children(root, vec![wrap_row]);
+        },
+        (),
+    );
+    let mut engine: LayoutEngine = LayoutEngine::default();
+    let _: LayoutStats = scene.with_write(
+        |tree: &mut SceneTree| engine.compute(tree, Size::new(360.0, 400.0)),
+        LayoutStats::default(),
+    );
+    let bounds_narrow: Vec<Rect> = scene.with_read(
+        |tree: &SceneTree| {
+            buttons
+                .iter()
+                .map(|&id: &NodeId| tree.get_node(id).unwrap().get_layout_box().get_bounds())
+                .collect()
+        },
+        Vec::new(),
+    );
+    assert!((bounds_narrow[0].get_y() - 0.0).abs() < 0.05);
+    assert!((bounds_narrow[1].get_y() - 0.0).abs() < 0.05);
+    assert!((bounds_narrow[2].get_y() - 0.0).abs() < 0.05);
+    assert!((bounds_narrow[2].right() - 360.0).abs() < 0.1);
+    assert!((bounds_narrow[3].get_y() - 44.0).abs() < 0.05);
+    assert!((bounds_narrow[4].get_y() - 44.0).abs() < 0.05);
+    assert!((bounds_narrow[4].right() - 360.0).abs() < 0.1);
+    assert!((bounds_narrow[3].get_width() - 176.0).abs() < 0.1);
+    assert!((bounds_narrow[4].get_width() - 176.0).abs() < 0.1);
+    let _: LayoutStats = scene.with_write(
+        |tree: &mut SceneTree| engine.compute(tree, Size::new(640.0, 400.0)),
+        LayoutStats::default(),
+    );
+    let bounds_wide: Vec<Rect> = scene.with_read(
+        |tree: &SceneTree| {
+            buttons
+                .iter()
+                .map(|&id: &NodeId| tree.get_node(id).unwrap().get_layout_box().get_bounds())
+                .collect()
+        },
+        Vec::new(),
+    );
+    for rect in bounds_wide.iter() {
+        assert!((rect.get_y() - 0.0).abs() < 0.05);
+    }
+    assert!((bounds_wide[4].right() - 640.0).abs() < 0.1);
+}

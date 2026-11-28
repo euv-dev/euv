@@ -18,6 +18,9 @@ impl EuvDrawer {
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let vp_sig: Signal<Size> = ctx.get_viewport_size();
+        let safe_sig: Signal<SafeAreaInsets> = ctx.get_safe_area();
+        let app_state_sig: Signal<AppState> = ctx.get_app_state();
+        let init_safe: SafeAreaInsets = safe_sig.get_untracked();
         let open: Signal<bool> = self.get_open();
         let body: NodeId = self.get_body();
         let Self { title, .. } = self;
@@ -30,6 +33,7 @@ impl EuvDrawer {
         let drag_moved: Rc<Cell<bool>> = Rc::new(Cell::new(false));
         let mut panel: NodeId = NodeId::default();
         let mut grabber: NodeId = NodeId::default();
+        let mut drawer_scroll: NodeId = NodeId::default();
         let scrim: NodeId = view! {
             portal {
                 style: Style::default().row()
@@ -40,6 +44,7 @@ impl EuvDrawer {
                 height: Length::Percent(100.0)
                 justify: JustifyContent::End
                 background: p.get_overlay()
+                pointer_events: if init_open { PointerEvents::Auto } else { PointerEvents::None }
                 stop_scroll_propagation: true
                 z_index: Z_INDEX_DRAWER
                 row {
@@ -69,12 +74,18 @@ impl EuvDrawer {
                         }
                     }
                     scroll {
+                        node_ref: drawer_scroll
                         style: Style::default().column()
                         flex_grow: 1.0
                         flex_shrink: 1.0
                         min_width: Length::Px(0.0)
                         height: Length::Percent(100.0)
-                        padding: Edges::new(SPACE_XL, SPACE_XL, SPACE_XL, SPACE_SM)
+                        padding: Edges::new(
+                            SPACE_XL + init_safe.get_top(),
+                            SPACE_XL + init_safe.get_right(),
+                            SPACE_XL + init_safe.get_bottom(),
+                            SPACE_SM
+                        )
                         gap: SPACE_MD
                         stop_scroll_propagation: true
                         text {
@@ -148,6 +159,26 @@ impl EuvDrawer {
                     );
                 }
             });
+            let h_cancel: SceneHandle = ctx.get_scene().clone();
+            let da_cancel: Rc<Cell<bool>> = drag_active.clone();
+            let dm_cancel: Rc<Cell<bool>> = drag_moved.clone();
+            ctx.on_pointer_cancel(target_node, move |_: &UiEvent| {
+                if !da_cancel.replace(false) {
+                    return;
+                }
+                dm_cancel.set(false);
+                h_cancel.with_write(
+                    |tree: &mut SceneTree| {
+                        if let Some(n) = tree.get_node_mut(panel) {
+                            n.get_mut_style()
+                                .get_mut_paint()
+                                .set_transform(Transform2D::default());
+                            tree.mark_dirty(panel, DIRTY_PAINT);
+                        }
+                    },
+                    (),
+                );
+            });
             let h_up: SceneHandle = ctx.get_scene().clone();
             let da_up: Rc<Cell<bool>> = drag_active.clone();
             let sx_up: Rc<Cell<f32>> = drag_start_x.clone();
@@ -204,9 +235,49 @@ impl EuvDrawer {
         });
         let handle: SceneHandle = ctx.get_scene().clone();
         let handle_dim: SceneHandle = handle.clone();
+        let handle_safe: SceneHandle = handle.clone();
+        let handle_state: SceneHandle = handle.clone();
+        let da_close: Rc<Cell<bool>> = drag_active.clone();
+        let dm_close: Rc<Cell<bool>> = drag_moved.clone();
+        let da_state: Rc<Cell<bool>> = drag_active;
+        let dm_state: Rc<Cell<bool>> = drag_moved;
         let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(init_open));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
             let _: Effect = EuvOverlayStack::bind_signal(open, DRAWER_OVERLAY_NAME, Z_INDEX_DRAWER);
+            let _: Effect = Effect::new(move || {
+                let safe: SafeAreaInsets = safe_sig.get();
+                handle_safe.with_write(
+                    |tree: &mut SceneTree| {
+                        if let Some(n) = tree.get_node_mut(drawer_scroll) {
+                            n.get_mut_style().get_mut_layout().set_padding(Edges::new(
+                                SPACE_XL + safe.get_top(),
+                                SPACE_XL + safe.get_right(),
+                                SPACE_XL + safe.get_bottom(),
+                                SPACE_SM,
+                            ));
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(drawer_scroll, dirty_l | DIRTY_PAINT);
+                        }
+                    },
+                    (),
+                );
+            });
+            let _: Effect = Effect::new(move || {
+                if app_state_sig.get() != AppState::Active && da_state.replace(false) {
+                    dm_state.set(false);
+                    handle_state.with_write(
+                        |tree: &mut SceneTree| {
+                            if let Some(n) = tree.get_node_mut(panel) {
+                                n.get_mut_style()
+                                    .get_mut_paint()
+                                    .set_transform(Transform2D::default());
+                                tree.mark_dirty(panel, DIRTY_PAINT);
+                            }
+                        },
+                        (),
+                    );
+                }
+            });
             let _: Effect = Effect::new(move || {
                 let vp_w: f32 = vp_sig.get().get_width().max(320.0);
                 let is_exp: bool = expanded.get();
@@ -246,11 +317,17 @@ impl EuvDrawer {
                     let def_w: f32 = (vp_w * 0.80).clamp(240.0, 340.0);
                     handle.with_write(
                         |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(scrim);
+                            tree.cancel_subtree_transitions(panel);
                             if let Some(n) = tree.get_node_mut(scrim) {
-                                n.get_mut_style()
-                                    .get_mut_paint()
-                                    .set_pointer_events(PointerEvents::Auto);
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::Flex);
+                                st.get_mut_paint()
+                                    .set_pointer_events(PointerEvents::Auto)
+                                    .set_transform(Transform2D::default());
                             }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(scrim, dirty_l | DIRTY_PAINT);
                             if let Some(n) = tree.get_node_mut(panel) {
                                 let st: &mut Style = n.get_mut_style();
                                 st.get_mut_layout().set_width(Length::Px(def_w));
@@ -276,32 +353,29 @@ impl EuvDrawer {
                         (),
                     );
                 } else {
+                    da_close.set(false);
+                    dm_close.set(false);
                     let _: bool = expanded.set_if_changed(false);
-                    let vp_w: f32 = vp_sig.get_untracked().get_width().max(320.0);
-                    let slide_w: f32 = (vp_w * 0.92).clamp(340.0, 560.0);
                     handle.with_write(
                         |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(scrim);
+                            tree.cancel_subtree_transitions(panel);
                             if let Some(n) = tree.get_node_mut(scrim) {
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::None);
+                                st.get_mut_paint()
+                                    .set_pointer_events(PointerEvents::None)
+                                    .set_opacity(1.0)
+                                    .set_transform(Transform2D::default());
+                            }
+                            if let Some(n) = tree.get_node_mut(panel) {
                                 n.get_mut_style()
                                     .get_mut_paint()
-                                    .set_pointer_events(PointerEvents::None);
+                                    .set_opacity(1.0)
+                                    .set_transform(Transform2D::default());
                             }
-                            tree.start_transition(
-                                NodeTransition::slide_fade(
-                                    panel,
-                                    Point::new(0.0, 0.0),
-                                    Point::new(slide_w, 0.0),
-                                    1.0,
-                                    1.0,
-                                    0.20,
-                                    false,
-                                )
-                                .with_easing(Easing::EaseOutCubic),
-                            );
-                            tree.start_transition(
-                                NodeTransition::fade(scrim, 1.0, 0.0, 0.20, true)
-                                    .with_easing(Easing::EaseOutCubic),
-                            );
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(scrim, dirty_l | DIRTY_PAINT);
                         },
                         (),
                     );
@@ -336,6 +410,9 @@ impl EuvSheet {
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let vp_sig: Signal<Size> = ctx.get_viewport_size();
+        let safe_sig: Signal<SafeAreaInsets> = ctx.get_safe_area();
+        let app_state_sig: Signal<AppState> = ctx.get_app_state();
+        let init_safe: SafeAreaInsets = safe_sig.get_untracked();
         let open: Signal<bool> = self.get_open();
         let body: NodeId = self.get_body();
         let Self { title, .. } = self;
@@ -348,6 +425,7 @@ impl EuvSheet {
         let drag_moved: Rc<Cell<bool>> = Rc::new(Cell::new(false));
         let mut panel: NodeId = NodeId::default();
         let mut grabber: NodeId = NodeId::default();
+        let mut sheet_scroll: NodeId = NodeId::default();
         let sheet_r: f32 = g.get_radius_xl();
         let mut sheet_panel_base: Style = Style::default().column();
         sheet_panel_base
@@ -363,6 +441,7 @@ impl EuvSheet {
                 height: Length::Percent(100.0)
                 justify: JustifyContent::End
                 background: p.get_overlay()
+                pointer_events: if init_open { PointerEvents::Auto } else { PointerEvents::None }
                 stop_scroll_propagation: true
                 z_index: Z_INDEX_DRAWER
                 column {
@@ -393,10 +472,16 @@ impl EuvSheet {
                         }
                     }
                     scroll {
+                        node_ref: sheet_scroll
                         style: Style::default().column()
                         flex_grow: 1.0
                         width: Length::Percent(100.0)
-                        padding: Edges::new(SPACE_XS, SPACE_XL, SPACE_XL, SPACE_XL)
+                        padding: Edges::new(
+                            SPACE_XS,
+                            SPACE_XL + init_safe.get_right(),
+                            SPACE_XL + init_safe.get_bottom(),
+                            SPACE_XL + init_safe.get_left()
+                        )
                         gap: SPACE_MD
                         stop_scroll_propagation: true
                         text {
@@ -470,6 +555,26 @@ impl EuvSheet {
                     );
                 }
             });
+            let h_cancel: SceneHandle = ctx.get_scene().clone();
+            let da_cancel: Rc<Cell<bool>> = drag_active.clone();
+            let dm_cancel: Rc<Cell<bool>> = drag_moved.clone();
+            ctx.on_pointer_cancel(target_node, move |_: &UiEvent| {
+                if !da_cancel.replace(false) {
+                    return;
+                }
+                dm_cancel.set(false);
+                h_cancel.with_write(
+                    |tree: &mut SceneTree| {
+                        if let Some(n) = tree.get_node_mut(panel) {
+                            n.get_mut_style()
+                                .get_mut_paint()
+                                .set_transform(Transform2D::default());
+                            tree.mark_dirty(panel, DIRTY_PAINT);
+                        }
+                    },
+                    (),
+                );
+            });
             let h_up: SceneHandle = ctx.get_scene().clone();
             let da_up: Rc<Cell<bool>> = drag_active.clone();
             let sy_up: Rc<Cell<f32>> = drag_start_y.clone();
@@ -526,9 +631,49 @@ impl EuvSheet {
         });
         let handle: SceneHandle = ctx.get_scene().clone();
         let handle_dim: SceneHandle = handle.clone();
+        let handle_safe: SceneHandle = handle.clone();
+        let handle_state: SceneHandle = handle.clone();
+        let da_close: Rc<Cell<bool>> = drag_active.clone();
+        let dm_close: Rc<Cell<bool>> = drag_moved.clone();
+        let da_state: Rc<Cell<bool>> = drag_active;
+        let dm_state: Rc<Cell<bool>> = drag_moved;
         let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(init_open));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
             let _: Effect = EuvOverlayStack::bind_signal(open, SHEET_OVERLAY_NAME, Z_INDEX_DRAWER);
+            let _: Effect = Effect::new(move || {
+                let safe: SafeAreaInsets = safe_sig.get();
+                handle_safe.with_write(
+                    |tree: &mut SceneTree| {
+                        if let Some(n) = tree.get_node_mut(sheet_scroll) {
+                            n.get_mut_style().get_mut_layout().set_padding(Edges::new(
+                                SPACE_XS,
+                                SPACE_XL + safe.get_right(),
+                                SPACE_XL + safe.get_bottom(),
+                                SPACE_XL + safe.get_left(),
+                            ));
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(sheet_scroll, dirty_l | DIRTY_PAINT);
+                        }
+                    },
+                    (),
+                );
+            });
+            let _: Effect = Effect::new(move || {
+                if app_state_sig.get() != AppState::Active && da_state.replace(false) {
+                    dm_state.set(false);
+                    handle_state.with_write(
+                        |tree: &mut SceneTree| {
+                            if let Some(n) = tree.get_node_mut(panel) {
+                                n.get_mut_style()
+                                    .get_mut_paint()
+                                    .set_transform(Transform2D::default());
+                                tree.mark_dirty(panel, DIRTY_PAINT);
+                            }
+                        },
+                        (),
+                    );
+                }
+            });
             let _: Effect = Effect::new(move || {
                 let vp_h: f32 = vp_sig.get().get_height().max(320.0);
                 let is_exp: bool = expanded.get();
@@ -568,11 +713,17 @@ impl EuvSheet {
                     let def_h: f32 = (vp_h * 0.44).clamp(240.0, 360.0);
                     handle.with_write(
                         |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(scrim);
+                            tree.cancel_subtree_transitions(panel);
                             if let Some(n) = tree.get_node_mut(scrim) {
-                                n.get_mut_style()
-                                    .get_mut_paint()
-                                    .set_pointer_events(PointerEvents::Auto);
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::Flex);
+                                st.get_mut_paint()
+                                    .set_pointer_events(PointerEvents::Auto)
+                                    .set_transform(Transform2D::default());
                             }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(scrim, dirty_l | DIRTY_PAINT);
                             if let Some(n) = tree.get_node_mut(panel) {
                                 let st: &mut Style = n.get_mut_style();
                                 st.get_mut_layout().set_height(Length::Px(def_h));
@@ -598,32 +749,29 @@ impl EuvSheet {
                         (),
                     );
                 } else {
+                    da_close.set(false);
+                    dm_close.set(false);
                     let _: bool = expanded.set_if_changed(false);
-                    let vp_h: f32 = vp_sig.get_untracked().get_height().max(320.0);
-                    let slide_h: f32 = (vp_h * 0.86).clamp(300.0, 760.0);
                     handle.with_write(
                         |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(scrim);
+                            tree.cancel_subtree_transitions(panel);
                             if let Some(n) = tree.get_node_mut(scrim) {
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::None);
+                                st.get_mut_paint()
+                                    .set_pointer_events(PointerEvents::None)
+                                    .set_opacity(1.0)
+                                    .set_transform(Transform2D::default());
+                            }
+                            if let Some(n) = tree.get_node_mut(panel) {
                                 n.get_mut_style()
                                     .get_mut_paint()
-                                    .set_pointer_events(PointerEvents::None);
+                                    .set_opacity(1.0)
+                                    .set_transform(Transform2D::default());
                             }
-                            tree.start_transition(
-                                NodeTransition::slide_fade(
-                                    panel,
-                                    Point::new(0.0, 0.0),
-                                    Point::new(0.0, slide_h),
-                                    1.0,
-                                    1.0,
-                                    0.20,
-                                    false,
-                                )
-                                .with_easing(Easing::EaseOutCubic),
-                            );
-                            tree.start_transition(
-                                NodeTransition::fade(scrim, 1.0, 0.0, 0.20, true)
-                                    .with_easing(Easing::EaseOutCubic),
-                            );
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(scrim, dirty_l | DIRTY_PAINT);
                         },
                         (),
                     );
@@ -692,32 +840,48 @@ impl EuvPopover {
                     return;
                 }
                 if is_open {
-                    handle.start_transition(
-                        NodeTransition::slide_fade(
-                            card,
-                            Point::new(0.0, -8.0),
-                            Point::new(0.0, 0.0),
-                            0.0,
-                            1.0,
-                            0.24,
-                            false,
-                        )
-                        .with_scale(0.95, 1.0)
-                        .with_easing(Easing::SpringSnappy),
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(card);
+                            if let Some(n) = tree.get_node_mut(card) {
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::Flex);
+                                st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
+                            }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(card, dirty_l | DIRTY_PAINT);
+                            tree.start_transition(
+                                NodeTransition::slide_fade(
+                                    card,
+                                    Point::new(0.0, -8.0),
+                                    Point::new(0.0, 0.0),
+                                    0.0,
+                                    1.0,
+                                    0.24,
+                                    false,
+                                )
+                                .with_scale(0.95, 1.0)
+                                .with_easing(Easing::SpringSnappy),
+                            );
+                        },
+                        (),
                     );
                 } else {
-                    handle.start_transition(
-                        NodeTransition::slide_fade(
-                            card,
-                            Point::new(0.0, 0.0),
-                            Point::new(0.0, -5.0),
-                            1.0,
-                            0.0,
-                            0.14,
-                            true,
-                        )
-                        .with_scale(1.0, 0.96)
-                        .with_easing(Easing::EaseOutCubic),
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(card);
+                            if let Some(n) = tree.get_node_mut(card) {
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::None);
+                                st.get_mut_paint()
+                                    .set_pointer_events(PointerEvents::None)
+                                    .set_opacity(1.0)
+                                    .set_transform(Transform2D::default());
+                            }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(card, dirty_l | DIRTY_PAINT);
+                        },
+                        (),
                     );
                 }
             })
@@ -1027,32 +1191,48 @@ impl EuvDropdown {
                     return;
                 }
                 if is_open {
-                    handle.start_transition(
-                        NodeTransition::slide_fade(
-                            menu,
-                            Point::new(0.0, -8.0),
-                            Point::new(0.0, 0.0),
-                            0.0,
-                            1.0,
-                            0.24,
-                            false,
-                        )
-                        .with_scale(0.95, 1.0)
-                        .with_easing(Easing::SpringSnappy),
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(menu);
+                            if let Some(n) = tree.get_node_mut(menu) {
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::Flex);
+                                st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
+                            }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(menu, dirty_l | DIRTY_PAINT);
+                            tree.start_transition(
+                                NodeTransition::slide_fade(
+                                    menu,
+                                    Point::new(0.0, -8.0),
+                                    Point::new(0.0, 0.0),
+                                    0.0,
+                                    1.0,
+                                    0.24,
+                                    false,
+                                )
+                                .with_scale(0.95, 1.0)
+                                .with_easing(Easing::SpringSnappy),
+                            );
+                        },
+                        (),
                     );
                 } else {
-                    handle.start_transition(
-                        NodeTransition::slide_fade(
-                            menu,
-                            Point::new(0.0, 0.0),
-                            Point::new(0.0, -5.0),
-                            1.0,
-                            0.0,
-                            0.14,
-                            true,
-                        )
-                        .with_scale(1.0, 0.96)
-                        .with_easing(Easing::EaseOutCubic),
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(menu);
+                            if let Some(n) = tree.get_node_mut(menu) {
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::None);
+                                st.get_mut_paint()
+                                    .set_pointer_events(PointerEvents::None)
+                                    .set_opacity(1.0)
+                                    .set_transform(Transform2D::default());
+                            }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(menu, dirty_l | DIRTY_PAINT);
+                        },
+                        (),
                     );
                 }
             })
@@ -1109,12 +1289,19 @@ impl EuvNotification {
         let title_owned: String = title.clone();
         let message_owned: String = message.clone();
         let init_vis: bool = visible.get_untracked();
+        let safe_sig: Signal<SafeAreaInsets> = ctx.get_safe_area();
+        let init_safe: SafeAreaInsets = safe_sig.get_untracked();
         let card: NodeId = view! {
             portal {
                 style: Style::default().column()
                 display: if init_vis { Display::Flex } else { Display::None }
                 position: Position::Fixed
-                inset: (Some(SPACE_LG), Some(SPACE_LG), None, None)
+                inset: (
+                    Some(SPACE_LG + init_safe.get_top()),
+                    Some(SPACE_LG + init_safe.get_right()),
+                    None,
+                    None
+                )
                 width: Length::Percent(90.0)
                 max_width: Length::Px(340.0)
                 padding: Edges::all(SPACE_MD)
@@ -1124,6 +1311,7 @@ impl EuvNotification {
                 radius: g.get_radius_lg()
                 shadow: g.get_shadow_lg()
                 overflow: Overflow::Hidden
+                pointer_events: if init_vis { PointerEvents::Auto } else { PointerEvents::None }
                 z_index: Z_INDEX_TOAST
                 role: A11yRole::Alert
                 a11y_label: title_owned.clone()
@@ -1141,8 +1329,25 @@ impl EuvNotification {
             }
         };
         let handle: SceneHandle = ctx.get_scene().clone();
+        let handle_safe: SceneHandle = handle.clone();
         let prev_vis: Rc<Cell<bool>> = Rc::new(Cell::new(init_vis));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            let _: Effect = Effect::new(move || {
+                let safe: SafeAreaInsets = safe_sig.get();
+                handle_safe.with_write(
+                    |tree: &mut SceneTree| {
+                        if let Some(n) = tree.get_node_mut(card) {
+                            n.get_mut_style()
+                                .get_mut_layout()
+                                .set_top(Some(SPACE_LG + safe.get_top()))
+                                .set_right(Some(SPACE_LG + safe.get_right()));
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(card, dirty_l | DIRTY_PAINT);
+                        }
+                    },
+                    (),
+                );
+            });
             Effect::new(move || {
                 let is_vis: bool = visible.get();
                 let was_vis: bool = prev_vis.replace(is_vis);
@@ -1150,32 +1355,48 @@ impl EuvNotification {
                     return;
                 }
                 if is_vis {
-                    handle.start_transition(
-                        NodeTransition::slide_fade(
-                            card,
-                            Point::new(36.0, 0.0),
-                            Point::new(0.0, 0.0),
-                            0.0,
-                            1.0,
-                            0.28,
-                            false,
-                        )
-                        .with_scale(0.95, 1.0)
-                        .with_easing(Easing::SpringSnappy),
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(card);
+                            if let Some(n) = tree.get_node_mut(card) {
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::Flex);
+                                st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
+                            }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(card, dirty_l | DIRTY_PAINT);
+                            tree.start_transition(
+                                NodeTransition::slide_fade(
+                                    card,
+                                    Point::new(36.0, 0.0),
+                                    Point::new(0.0, 0.0),
+                                    0.0,
+                                    1.0,
+                                    0.28,
+                                    false,
+                                )
+                                .with_scale(0.95, 1.0)
+                                .with_easing(Easing::SpringSnappy),
+                            );
+                        },
+                        (),
                     );
                 } else {
-                    handle.start_transition(
-                        NodeTransition::slide_fade(
-                            card,
-                            Point::new(0.0, 0.0),
-                            Point::new(28.0, 0.0),
-                            1.0,
-                            0.0,
-                            0.18,
-                            true,
-                        )
-                        .with_scale(1.0, 0.96)
-                        .with_easing(Easing::EaseOutCubic),
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(card);
+                            if let Some(n) = tree.get_node_mut(card) {
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::None);
+                                st.get_mut_paint()
+                                    .set_pointer_events(PointerEvents::None)
+                                    .set_opacity(1.0)
+                                    .set_transform(Transform2D::default());
+                            }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(card, dirty_l | DIRTY_PAINT);
+                        },
+                        (),
                     );
                 }
             })
@@ -1256,11 +1477,16 @@ impl EuvLoading {
                 if is_on {
                     handle.with_write(
                         |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(portal);
                             if let Some(n) = tree.get_node_mut(portal) {
-                                n.get_mut_style()
-                                    .get_mut_paint()
-                                    .set_pointer_events(PointerEvents::Auto);
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::Flex);
+                                st.get_mut_paint()
+                                    .set_pointer_events(PointerEvents::Auto)
+                                    .set_transform(Transform2D::default());
                             }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(portal, dirty_l | DIRTY_PAINT);
                             tree.start_transition(NodeTransition::fade(
                                 portal, 0.0, 1.0, 0.18, false,
                             ));
@@ -1270,14 +1496,17 @@ impl EuvLoading {
                 } else {
                     handle.with_write(
                         |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(portal);
                             if let Some(n) = tree.get_node_mut(portal) {
-                                n.get_mut_style()
-                                    .get_mut_paint()
-                                    .set_pointer_events(PointerEvents::None);
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::None);
+                                st.get_mut_paint()
+                                    .set_pointer_events(PointerEvents::None)
+                                    .set_opacity(1.0)
+                                    .set_transform(Transform2D::default());
                             }
-                            tree.start_transition(NodeTransition::fade(
-                                portal, 1.0, 0.0, 0.18, true,
-                            ));
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(portal, dirty_l | DIRTY_PAINT);
                         },
                         (),
                     );

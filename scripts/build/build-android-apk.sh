@@ -32,7 +32,7 @@ cat > "${BUILD_DIR}/rust/Cargo.toml" <<EOF
 
 [package]
 name = "euv-android-host"
-version = "0.44.0"
+version = "0.45.0"
 edition = "2024"
 
 [lib]
@@ -51,13 +51,15 @@ strip = "symbols"
 EOF
 
 cat > "${BUILD_DIR}/rust/src/lib.rs" <<'EOF'
+use std::cell::Cell;
 use std::ffi::{CString, c_char, c_void};
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicPtr, Ordering};
 use euv::{
     App, GlyphKey, ImeEvent, KeyCode, KeyEvent, MemoryPressure, Modifiers, NativeSystemFont,
     NetworkStatus, PlatformKind, PointerEvent, RasterizedGlyph, RenderMode, SafeAreaInsets,
     SystemEvent, SystemTheme, WindowEvent, WindowId, register_external_glyph_rasterizer,
-    register_native_action_bridge,
+    register_native_action_bridge, reset_reactive_runtime,
 };
 use euv_example::{ShowcaseState, create_showcase_app_for_platform};
 
@@ -106,13 +108,31 @@ pub struct JniNativeInterface {
     get_direct_buffer_capacity: unsafe extern "C" fn(JniEnv, JObject) -> i64,
 }
 
-static ACTIVE_JNI_ENV: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
+thread_local! {
+    static ACTIVE_JNI_ENV: Cell<*mut c_void> = const { Cell::new(std::ptr::null_mut()) };
+}
+static BRIDGE_INIT_LOCK: Mutex<()> = Mutex::new(());
 static BRIDGE_CLASS_REF: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
 static RASTERIZE_METHOD: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
 static ACTION_METHOD: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
 
+struct JniEnvGuard(*mut c_void);
+
+impl JniEnvGuard {
+    fn enter(env: JniEnv) -> Self {
+        let prev: *mut c_void = ACTIVE_JNI_ENV.with(|cell: &Cell<*mut c_void>| cell.replace(env.cast()));
+        Self(prev)
+    }
+}
+
+impl Drop for JniEnvGuard {
+    fn drop(&mut self) {
+        ACTIVE_JNI_ENV.with(|cell: &Cell<*mut c_void>| cell.set(self.0));
+    }
+}
+
 fn android_native_action_bridge(kind: &str, arg1: &str, arg2: &str) -> bool {
-    let env_ptr: *mut c_void = ACTIVE_JNI_ENV.load(Ordering::Acquire);
+    let env_ptr: *mut c_void = ACTIVE_JNI_ENV.with(Cell::get);
     let cls_ptr: JClass = BRIDGE_CLASS_REF.load(Ordering::Acquire);
     let mid_ptr: JMethodId = ACTION_METHOD.load(Ordering::Acquire);
     if env_ptr.is_null() || cls_ptr.is_null() || mid_ptr.is_null() {
@@ -153,7 +173,7 @@ fn android_native_action_bridge(kind: &str, arg1: &str, arg2: &str) -> bool {
 }
 
 fn android_native_glyph_rasterizer(key: GlyphKey) -> Option<RasterizedGlyph> {
-    let env_ptr: *mut c_void = ACTIVE_JNI_ENV.load(Ordering::Acquire);
+    let env_ptr: *mut c_void = ACTIVE_JNI_ENV.with(Cell::get);
     let cls_ptr: JClass = BRIDGE_CLASS_REF.load(Ordering::Acquire);
     let mid_ptr: JMethodId = RASTERIZE_METHOD.load(Ordering::Acquire);
     if env_ptr.is_null() || cls_ptr.is_null() || mid_ptr.is_null() {
@@ -201,11 +221,387 @@ fn android_native_glyph_rasterizer(key: GlyphKey) -> Option<RasterizedGlyph> {
     }
 }
 
+pub struct EglPresenter {
+    display: *mut c_void,
+    context: *mut c_void,
+    surface: *mut c_void,
+    program: u32,
+    texture: u32,
+    vao: u32,
+    tex_w: u32,
+    tex_h: u32,
+    surface_w: u32,
+    surface_h: u32,
+}
+
+const EGL_NO_DISPLAY: *mut c_void = std::ptr::null_mut();
+const EGL_NO_CONTEXT: *mut c_void = std::ptr::null_mut();
+const EGL_NO_SURFACE: *mut c_void = std::ptr::null_mut();
+const EGL_DEFAULT_DISPLAY: *mut c_void = std::ptr::null_mut();
+const EGL_SURFACE_TYPE: i32 = 0x3033;
+const EGL_WINDOW_BIT: i32 = 0x0004;
+const EGL_RENDERABLE_TYPE: i32 = 0x3040;
+const EGL_OPENGL_ES3_BIT: i32 = 0x0040;
+const EGL_RED_SIZE: i32 = 0x3024;
+const EGL_GREEN_SIZE: i32 = 0x3023;
+const EGL_BLUE_SIZE: i32 = 0x3022;
+const EGL_ALPHA_SIZE: i32 = 0x3021;
+const EGL_NONE: i32 = 0x3038;
+const EGL_CONTEXT_CLIENT_VERSION: i32 = 0x3098;
+
+const GL_VERTEX_SHADER: u32 = 0x8B31;
+const GL_FRAGMENT_SHADER: u32 = 0x8B30;
+const GL_COMPILE_STATUS: u32 = 0x8B81;
+const GL_LINK_STATUS: u32 = 0x8B82;
+const GL_TEXTURE_2D: u32 = 0x0DE1;
+const GL_TEXTURE_MIN_FILTER: u32 = 0x2801;
+const GL_TEXTURE_MAG_FILTER: u32 = 0x2800;
+const GL_TEXTURE_WRAP_S: u32 = 0x2802;
+const GL_TEXTURE_WRAP_T: u32 = 0x2803;
+const GL_LINEAR: i32 = 0x2601;
+const GL_CLAMP_TO_EDGE: i32 = 0x812F;
+const GL_RGBA8: i32 = 0x8058;
+const GL_RGBA: u32 = 0x1908;
+const GL_UNSIGNED_BYTE: u32 = 0x1401;
+const GL_UNPACK_ALIGNMENT: u32 = 0x0CF5;
+const GL_UNPACK_ROW_LENGTH: u32 = 0x0CF2;
+const GL_TEXTURE0: u32 = 0x84C0;
+const GL_TRIANGLES: u32 = 0x0004;
+
+#[link(name = "EGL")]
+unsafe extern "C" {
+    fn eglGetDisplay(display_id: *mut c_void) -> *mut c_void;
+    fn eglInitialize(dpy: *mut c_void, major: *mut i32, minor: *mut i32) -> u32;
+    fn eglChooseConfig(
+        dpy: *mut c_void,
+        attrib_list: *const i32,
+        configs: *mut *mut c_void,
+        config_size: i32,
+        num_config: *mut i32,
+    ) -> u32;
+    fn eglCreateContext(
+        dpy: *mut c_void,
+        config: *mut c_void,
+        share_context: *mut c_void,
+        attrib_list: *const i32,
+    ) -> *mut c_void;
+    fn eglCreateWindowSurface(
+        dpy: *mut c_void,
+        config: *mut c_void,
+        win: *mut ANativeWindow,
+        attrib_list: *const i32,
+    ) -> *mut c_void;
+    fn eglMakeCurrent(
+        dpy: *mut c_void,
+        draw: *mut c_void,
+        read: *mut c_void,
+        ctx: *mut c_void,
+    ) -> u32;
+    fn eglSwapInterval(dpy: *mut c_void, interval: i32) -> u32;
+    fn eglSwapBuffers(dpy: *mut c_void, surface: *mut c_void) -> u32;
+    fn eglDestroySurface(dpy: *mut c_void, surface: *mut c_void) -> u32;
+    fn eglDestroyContext(dpy: *mut c_void, ctx: *mut c_void) -> u32;
+}
+
+#[link(name = "GLESv3")]
+unsafe extern "C" {
+    fn glCreateShader(shader_type: u32) -> u32;
+    fn glShaderSource(shader: u32, count: i32, string: *const *const c_char, length: *const i32);
+    fn glCompileShader(shader: u32);
+    fn glGetShaderiv(shader: u32, pname: u32, params: *mut i32);
+    fn glDeleteShader(shader: u32);
+    fn glCreateProgram() -> u32;
+    fn glAttachShader(program: u32, shader: u32);
+    fn glLinkProgram(program: u32);
+    fn glGetProgramiv(program: u32, pname: u32, params: *mut i32);
+    fn glDeleteProgram(program: u32);
+    fn glUseProgram(program: u32);
+    fn glGetUniformLocation(program: u32, name: *const c_char) -> i32;
+    fn glUniform1i(location: i32, v0: i32);
+    fn glGenVertexArrays(n: i32, arrays: *mut u32);
+    fn glBindVertexArray(array: u32);
+    fn glDeleteVertexArrays(n: i32, arrays: *const u32);
+    fn glGenTextures(n: i32, textures: *mut u32);
+    fn glActiveTexture(texture: u32);
+    fn glBindTexture(target: u32, texture: u32);
+    fn glDeleteTextures(n: i32, textures: *const u32);
+    fn glTexParameteri(target: u32, pname: u32, param: i32);
+    fn glPixelStorei(pname: u32, param: i32);
+    fn glTexImage2D(
+        target: u32,
+        level: i32,
+        internalformat: i32,
+        width: i32,
+        height: i32,
+        border: i32,
+        format: u32,
+        ty: u32,
+        pixels: *const c_void,
+    );
+    fn glTexSubImage2D(
+        target: u32,
+        level: i32,
+        xoffset: i32,
+        yoffset: i32,
+        width: i32,
+        height: i32,
+        format: u32,
+        ty: u32,
+        pixels: *const c_void,
+    );
+    fn glViewport(x: i32, y: i32, width: i32, height: i32);
+    fn glDrawArrays(mode: u32, first: i32, count: i32);
+}
+
+impl EglPresenter {
+    fn compile_shader(ty: u32, src: &std::ffi::CStr) -> Option<u32> {
+        unsafe {
+            let sh: u32 = glCreateShader(ty);
+            if sh == 0 {
+                return None;
+            }
+            let ptr: *const c_char = src.as_ptr();
+            glShaderSource(sh, 1, &ptr, std::ptr::null());
+            glCompileShader(sh);
+            let mut ok: i32 = 0;
+            glGetShaderiv(sh, GL_COMPILE_STATUS, &mut ok);
+            if ok == 0 {
+                glDeleteShader(sh);
+                return None;
+            }
+            Some(sh)
+        }
+    }
+
+    fn create(win: *mut ANativeWindow, surface_w: u32, surface_h: u32) -> Option<Self> {
+        if win.is_null() {
+            return None;
+        }
+        unsafe {
+            let display: *mut c_void = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+            if display == EGL_NO_DISPLAY {
+                return None;
+            }
+            let mut maj: i32 = 0;
+            let mut min: i32 = 0;
+            if eglInitialize(display, &mut maj, &mut min) == 0 {
+                return None;
+            }
+            let cfg_attribs: [i32; 13] = [
+                EGL_SURFACE_TYPE,
+                EGL_WINDOW_BIT,
+                EGL_RENDERABLE_TYPE,
+                EGL_OPENGL_ES3_BIT,
+                EGL_RED_SIZE,
+                8,
+                EGL_GREEN_SIZE,
+                8,
+                EGL_BLUE_SIZE,
+                8,
+                EGL_ALPHA_SIZE,
+                8,
+                EGL_NONE,
+            ];
+            let mut config: *mut c_void = std::ptr::null_mut();
+            let mut num_cfg: i32 = 0;
+            if eglChooseConfig(display, cfg_attribs.as_ptr(), &mut config, 1, &mut num_cfg) == 0
+                || num_cfg <= 0
+                || config.is_null()
+            {
+                return None;
+            }
+            let ctx_attribs: [i32; 3] = [EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE];
+            let context: *mut c_void =
+                eglCreateContext(display, config, EGL_NO_CONTEXT, ctx_attribs.as_ptr());
+            if context == EGL_NO_CONTEXT {
+                return None;
+            }
+            let surface: *mut c_void =
+                eglCreateWindowSurface(display, config, win, std::ptr::null());
+            if surface == EGL_NO_SURFACE {
+                eglDestroyContext(display, context);
+                return None;
+            }
+            if eglMakeCurrent(display, surface, surface, context) == 0 {
+                eglDestroySurface(display, surface);
+                eglDestroyContext(display, context);
+                return None;
+            }
+            let _ = eglSwapInterval(display, 0);
+            let vs_src = c"#version 300 es\nout vec2 v_uv;\nvoid main() {\n    vec2 pos = vec2((gl_VertexID == 1) ? 3.0 : -1.0, (gl_VertexID == 2) ? 3.0 : -1.0);\n    v_uv = vec2((pos.x + 1.0) * 0.5, 1.0 - (pos.y + 1.0) * 0.5);\n    gl_Position = vec4(pos, 0.0, 1.0);\n}\n";
+            let fs_src = c"#version 300 es\nprecision mediump float;\nin vec2 v_uv;\nuniform sampler2D u_tex;\nout vec4 frag_color;\nvoid main() {\n    frag_color = texture(u_tex, v_uv);\n}\n";
+            let Some(vs) = Self::compile_shader(GL_VERTEX_SHADER, vs_src) else {
+                eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+                eglDestroySurface(display, surface);
+                eglDestroyContext(display, context);
+                return None;
+            };
+            let Some(fs) = Self::compile_shader(GL_FRAGMENT_SHADER, fs_src) else {
+                glDeleteShader(vs);
+                eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+                eglDestroySurface(display, surface);
+                eglDestroyContext(display, context);
+                return None;
+            };
+            let program: u32 = glCreateProgram();
+            glAttachShader(program, vs);
+            glAttachShader(program, fs);
+            glLinkProgram(program);
+            glDeleteShader(vs);
+            glDeleteShader(fs);
+            let mut linked: i32 = 0;
+            glGetProgramiv(program, GL_LINK_STATUS, &mut linked);
+            if linked == 0 {
+                glDeleteProgram(program);
+                eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+                eglDestroySurface(display, surface);
+                eglDestroyContext(display, context);
+                return None;
+            }
+            let mut vao: u32 = 0;
+            glGenVertexArrays(1, &mut vao);
+            let mut texture: u32 = 0;
+            glGenTextures(1, &mut texture);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, texture);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glUseProgram(program);
+            let loc: i32 = glGetUniformLocation(program, c"u_tex".as_ptr());
+            if loc >= 0 {
+                glUniform1i(loc, 0);
+            }
+            Some(Self {
+                display,
+                context,
+                surface,
+                program,
+                texture,
+                vao,
+                tex_w: 0,
+                tex_h: 0,
+                surface_w,
+                surface_h,
+            })
+        }
+    }
+
+    fn present(&mut self, pixels: &[u8], fb_w: u32, fb_h: u32, dirty: Option<ARect>) -> bool {
+        let needed: usize = (fb_w as usize).saturating_mul(fb_h as usize).saturating_mul(4);
+        if fb_w == 0 || fb_h == 0 || pixels.len() < needed {
+            return false;
+        }
+        unsafe {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, self.texture);
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+            if self.tex_w != fb_w || self.tex_h != fb_h {
+                glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+                glTexImage2D(
+                    GL_TEXTURE_2D,
+                    0,
+                    GL_RGBA8,
+                    fb_w as i32,
+                    fb_h as i32,
+                    0,
+                    GL_RGBA,
+                    GL_UNSIGNED_BYTE,
+                    pixels.as_ptr().cast::<c_void>(),
+                );
+                self.tex_w = fb_w;
+                self.tex_h = fb_h;
+            } else if let Some(r) = dirty {
+                let x0: i32 = r.left.clamp(0, fb_w as i32);
+                let y0: i32 = r.top.clamp(0, fb_h as i32);
+                let x1: i32 = r.right.clamp(x0, fb_w as i32);
+                let y1: i32 = r.bottom.clamp(y0, fb_h as i32);
+                let dw: i32 = x1 - x0;
+                let dh: i32 = y1 - y0;
+                if dw > 0 && dh > 0 {
+                    let byte_off: usize =
+                        ((y0 as usize).saturating_mul(fb_w as usize).saturating_add(x0 as usize))
+                            .saturating_mul(4);
+                    glPixelStorei(GL_UNPACK_ROW_LENGTH, fb_w as i32);
+                    glTexSubImage2D(
+                        GL_TEXTURE_2D,
+                        0,
+                        x0,
+                        y0,
+                        dw,
+                        dh,
+                        GL_RGBA,
+                        GL_UNSIGNED_BYTE,
+                        pixels.as_ptr().add(byte_off).cast::<c_void>(),
+                    );
+                    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+                }
+            } else {
+                glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+                glTexSubImage2D(
+                    GL_TEXTURE_2D,
+                    0,
+                    0,
+                    0,
+                    fb_w as i32,
+                    fb_h as i32,
+                    GL_RGBA,
+                    GL_UNSIGNED_BYTE,
+                    pixels.as_ptr().cast::<c_void>(),
+                );
+            }
+            glViewport(0, 0, self.surface_w as i32, self.surface_h as i32);
+            glUseProgram(self.program);
+            glBindVertexArray(self.vao);
+            glDrawArrays(GL_TRIANGLES, 0, 3);
+            eglSwapBuffers(self.display, self.surface) != 0
+        }
+    }
+
+    fn destroy(&mut self) {
+        unsafe {
+            if self.display != EGL_NO_DISPLAY {
+                let _ = eglMakeCurrent(self.display, self.surface, self.surface, self.context);
+                if self.texture != 0 {
+                    glDeleteTextures(1, &self.texture);
+                    self.texture = 0;
+                }
+                if self.vao != 0 {
+                    glDeleteVertexArrays(1, &self.vao);
+                    self.vao = 0;
+                }
+                if self.program != 0 {
+                    glDeleteProgram(self.program);
+                    self.program = 0;
+                }
+                let _ = eglMakeCurrent(
+                    self.display,
+                    EGL_NO_SURFACE,
+                    EGL_NO_SURFACE,
+                    EGL_NO_CONTEXT,
+                );
+                if self.surface != EGL_NO_SURFACE {
+                    let _ = eglDestroySurface(self.display, self.surface);
+                    self.surface = EGL_NO_SURFACE;
+                }
+                if self.context != EGL_NO_CONTEXT {
+                    let _ = eglDestroyContext(self.display, self.context);
+                    self.context = EGL_NO_CONTEXT;
+                }
+                self.display = EGL_NO_DISPLAY;
+            }
+        }
+    }
+}
+
 pub struct EuvAndroidHandle {
     app: App,
     _state: ShowcaseState,
     wid: WindowId,
     native_window: *mut ANativeWindow,
+    egl: Option<EglPresenter>,
+    target_refresh_hz: f32,
     surface_w: u32,
     surface_h: u32,
     argb: Vec<i32>,
@@ -260,6 +656,9 @@ unsafe extern "C" {
 
 impl Drop for EuvAndroidHandle {
     fn drop(&mut self) {
+        if let Some(mut egl) = self.egl.take() {
+            egl.destroy();
+        }
         if !self.native_window.is_null() {
             unsafe { ANativeWindow_release(self.native_window) };
             self.native_window = std::ptr::null_mut();
@@ -330,8 +729,13 @@ pub extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeCreate(
     phys_height: i32,
     scale: f32,
     refresh_hz: f32,
+    safe_top: f32,
+    safe_right: f32,
+    safe_bottom: f32,
+    safe_left: f32,
 ) -> i64 {
     if !env.is_null() && !cls.is_null() {
+        let _init_guard = BRIDGE_INIT_LOCK.lock().ok();
         unsafe {
             let table: &JniNativeInterface = &*(*env);
             if BRIDGE_CLASS_REF.load(Ordering::Acquire).is_null() {
@@ -362,9 +766,9 @@ pub extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeCreate(
             }
         }
     }
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
+    reset_reactive_runtime();
     let Ok((mut app, state)) = create_showcase_app_for_platform(PlatformKind::Android, RenderMode::Software) else {
-        ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
         return 0;
     };
     app.get_mut_renderer()
@@ -377,13 +781,22 @@ pub extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeCreate(
     let ph: u32 = phys_height.max(200) as u32;
     let s: f32 = scale.clamp(1.0, 4.5);
     app.set_exact_physical_viewport(pw, ph, s);
-    let _ = app.step_game_frame(1.0 / hz);
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
+    app.dispatch_window_event(WindowEvent::SafeAreaChanged(
+        wid,
+        SafeAreaInsets::new(
+            safe_top.max(0.0),
+            safe_right.max(0.0),
+            safe_bottom.max(0.0),
+            safe_left.max(0.0),
+        ),
+    ));
     let handle = Box::new(EuvAndroidHandle {
         app,
         _state: state,
         wid,
         native_window: std::ptr::null_mut(),
+        egl: None,
+        target_refresh_hz: hz,
         surface_w: 0,
         surface_h: 0,
         argb: Vec::new(),
@@ -393,6 +806,54 @@ pub extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeCreate(
         last_blit_us: 0,
     });
     Box::into_raw(handle) as i64
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeDestroy(
+    env: JniEnv,
+    _cls: JObject,
+    ptr: i64,
+) {
+    if ptr == 0 {
+        return;
+    }
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
+    let handle: Box<EuvAndroidHandle> = unsafe { Box::from_raw(ptr as *mut EuvAndroidHandle) };
+    drop(handle);
+    reset_reactive_runtime();
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeIsRunning(
+    _env: JniEnv,
+    _cls: JObject,
+    ptr: i64,
+) -> i32 {
+    if ptr == 0 {
+        return 0;
+    }
+    let h: &EuvAndroidHandle = unsafe { &*(ptr as *const EuvAndroidHandle) };
+    if h.app.get_running() { 1 } else { 0 }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeUpdateRefreshRate(
+    env: JniEnv,
+    _cls: JObject,
+    ptr: i64,
+    refresh_hz: f32,
+) {
+    if ptr == 0 {
+        return;
+    }
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
+    let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
+    let hz: f32 = refresh_hz.clamp(24.0, 480.0);
+    h.target_refresh_hz = hz;
+    h.app.update_display_refresh_rate_hz(hz);
+    if !h.native_window.is_null() {
+        let _: bool = euv::android_set_native_window_frame_rate(h.native_window as usize, hz);
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -408,8 +869,11 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeSetSur
     if ptr == 0 {
         return;
     }
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
+    if let Some(mut egl) = h.egl.take() {
+        egl.destroy();
+    }
     if !h.native_window.is_null() {
         unsafe { ANativeWindow_release(h.native_window) };
         h.native_window = std::ptr::null_mut();
@@ -422,13 +886,17 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeSetSur
             let pw: u32 = phys_width.max(200) as u32;
             let ph: u32 = phys_height.max(200) as u32;
             let s: f32 = scale.clamp(1.0, 4.5);
-            unsafe {
-                let _ = ANativeWindow_setBuffersGeometry(
-                    win,
-                    pw as i32,
-                    ph as i32,
-                    WINDOW_FORMAT_RGBA_8888,
-                );
+            let _: bool = euv::android_set_native_window_frame_rate(win as usize, h.target_refresh_hz);
+            h.egl = EglPresenter::create(win, pw, ph);
+            if h.egl.is_none() {
+                unsafe {
+                    let _ = ANativeWindow_setBuffersGeometry(
+                        win,
+                        pw as i32,
+                        ph as i32,
+                        WINDOW_FORMAT_RGBA_8888,
+                    );
+                }
             }
             h.native_window = win;
             h.surface_w = pw;
@@ -436,7 +904,6 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeSetSur
             h.app.set_exact_physical_viewport(pw, ph, s);
         }
     }
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -452,9 +919,10 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeStepSu
     }
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     let t_step = std::time::Instant::now();
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
-    let step_res = h.app.step_game_frame(dt.clamp(1.0 / 480.0, 0.05));
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
+    let step_res = {
+        let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
+        h.app.step_game_frame(dt.clamp(1.0 / 480.0, 0.05))
+    };
     h.last_step_us = t_step.elapsed().as_micros() as u64;
     let Ok(stats) = step_res else {
         return 0;
@@ -471,26 +939,6 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeStepSu
         h.width = w;
         h.height = ht;
         if w > 0 && ht > 0 {
-            if h.surface_w != w || h.surface_h != ht {
-                unsafe {
-                    let _ = ANativeWindow_setBuffersGeometry(
-                        h.native_window,
-                        w as i32,
-                        ht as i32,
-                        WINDOW_FORMAT_RGBA_8888,
-                    );
-                }
-                h.surface_w = w;
-                h.surface_h = ht;
-            }
-            let mut buf: ANativeWindowBuffer = ANativeWindowBuffer {
-                width: 0,
-                height: 0,
-                stride: 0,
-                format: 0,
-                bits: std::ptr::null_mut(),
-                reserved: [0; 6],
-            };
             let dmg = h.app.last_frame_damage();
             let mut dirty_box: ARect = ARect {
                 left: 0,
@@ -511,26 +959,52 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeStepSu
                         right: rx1,
                         bottom: ry1,
                     };
-                    (rx1 - rx0) > 0 && (ry1 - ry0) > 0 && ((rx1 - rx0) as u64) * ((ry1 - ry0) as u64) * 4 < (w as u64) * (ht as u64) * 3
+                    (rx1 - rx0) > 0 && (ry1 - ry0) > 0
                 }).unwrap_or(false);
-            let dirty_ptr: *mut ARect = if use_partial {
-                &mut dirty_box
-            } else {
-                std::ptr::null_mut()
-            };
-            let lock_rc: i32 = unsafe {
-                ANativeWindow_lock(h.native_window, &mut buf, dirty_ptr)
-            };
-            if lock_rc == 0 {
-                copy_rgba_rect_to_native_window(
+            let mut presented_egl: bool = false;
+            if let Some(egl) = h.egl.as_mut() {
+                presented_egl = egl.present(
                     fb.get_pixels().as_slice(),
-                    w as usize,
-                    ht as usize,
-                    &buf,
+                    w,
+                    ht,
                     if use_partial { Some(dirty_box) } else { None },
                 );
-                unsafe {
-                    let _ = ANativeWindow_unlockAndPost(h.native_window);
+            }
+            if !presented_egl {
+                if h.surface_w != w || h.surface_h != ht {
+                    unsafe {
+                        let _ = ANativeWindow_setBuffersGeometry(
+                            h.native_window,
+                            w as i32,
+                            ht as i32,
+                            WINDOW_FORMAT_RGBA_8888,
+                        );
+                    }
+                    h.surface_w = w;
+                    h.surface_h = ht;
+                }
+                let mut buf: ANativeWindowBuffer = ANativeWindowBuffer {
+                    width: 0,
+                    height: 0,
+                    stride: 0,
+                    format: 0,
+                    bits: std::ptr::null_mut(),
+                    reserved: [0; 6],
+                };
+                let lock_rc: i32 = unsafe {
+                    ANativeWindow_lock(h.native_window, &mut buf, std::ptr::null_mut())
+                };
+                if lock_rc == 0 {
+                    copy_rgba_rect_to_native_window(
+                        fb.get_pixels().as_slice(),
+                        w as usize,
+                        ht as usize,
+                        &buf,
+                        None,
+                    );
+                    unsafe {
+                        let _ = ANativeWindow_unlockAndPost(h.native_window);
+                    }
                 }
             }
         }
@@ -577,13 +1051,12 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeResize
     if ptr == 0 {
         return;
     }
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     let pw: u32 = phys_width.max(200) as u32;
     let ph: u32 = phys_height.max(200) as u32;
     let s: f32 = scale.clamp(1.0, 4.5);
     h.app.set_exact_physical_viewport(pw, ph, s);
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -599,13 +1072,12 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeSetSaf
     if ptr == 0 {
         return;
     }
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     h.app.dispatch_window_event(WindowEvent::SafeAreaChanged(
         h.wid,
         SafeAreaInsets::new(top.max(0.0), right.max(0.0), bottom.max(0.0), left.max(0.0)),
     ));
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -620,13 +1092,12 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeTouchD
     if ptr == 0 {
         return;
     }
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     h.app.dispatch_window_event(WindowEvent::PointerDown(
         h.wid,
         PointerEvent::touch((pointer_id as u64).saturating_add(1), x, y),
     ));
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -641,13 +1112,12 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeTouchM
     if ptr == 0 {
         return;
     }
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     h.app.dispatch_window_event(WindowEvent::PointerMove(
         h.wid,
         PointerEvent::touch((pointer_id as u64).saturating_add(1), x, y),
     ));
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -662,13 +1132,12 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeTouchU
     if ptr == 0 {
         return;
     }
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     h.app.dispatch_window_event(WindowEvent::PointerUp(
         h.wid,
         PointerEvent::touch((pointer_id as u64).saturating_add(1), x, y),
     ));
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -681,7 +1150,7 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeTouchC
     if ptr == 0 {
         return;
     }
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     let mapped_id: u64 = if pointer_id < 0 {
         0
@@ -690,7 +1159,6 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeTouchC
     };
     h.app
         .dispatch_window_event(WindowEvent::PointerCancel(h.wid, mapped_id));
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -703,7 +1171,7 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeTouchS
     if ptr == 0 {
         return;
     }
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     let bits: u64 = active_mask as u64;
     let mut live_ids: Vec<u64> = Vec::with_capacity(bits.count_ones() as usize);
@@ -713,7 +1181,6 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeTouchS
         }
     }
     h.app.reconcile_active_touch_ids(&live_ids);
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -725,11 +1192,10 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeImeDis
     if ptr == 0 {
         return;
     }
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     h.app
         .dispatch_window_event(WindowEvent::Ime(h.wid, ImeEvent::Disabled));
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -741,13 +1207,12 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeSystem
     if ptr == 0 {
         return;
     }
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     h.app.dispatch_window_event(WindowEvent::KeyDown(
         h.wid,
         KeyEvent::new(KeyCode::Back, Modifiers::default(), false),
     ));
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 fn read_jni_utf8(env: JniEnv, utf8_bytes: JByteArray) -> Option<String> {
@@ -786,10 +1251,9 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeSystem
         6 => SystemEvent::Terminate,
         _ => return,
     };
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     h.app.dispatch_system_event(ev);
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -802,11 +1266,10 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeFocusC
     if ptr == 0 {
         return;
     }
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     h.app
         .dispatch_system_event(SystemEvent::FocusChanged(focused != 0));
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -820,14 +1283,13 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeKeyboa
     if ptr == 0 {
         return;
     }
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     h.app
         .dispatch_system_event(SystemEvent::KeyboardVisibilityChanged {
             visible: visible != 0,
             height: height.max(0.0),
         });
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -840,7 +1302,7 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeThemeC
     if ptr == 0 {
         return;
     }
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     let mode: SystemTheme = if is_dark != 0 {
         SystemTheme::Dark
@@ -848,7 +1310,6 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeThemeC
         SystemTheme::Light
     };
     h.app.dispatch_system_event(SystemEvent::ThemeChanged(mode));
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -866,11 +1327,10 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeMemory
     } else {
         MemoryPressure::Warning
     };
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     h.app
         .dispatch_system_event(SystemEvent::MemoryWarning(pressure));
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -883,11 +1343,10 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeLowPow
     if ptr == 0 {
         return;
     }
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     h.app
         .dispatch_system_event(SystemEvent::LowPowerModeChanged(enabled != 0));
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -907,11 +1366,10 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeNetwor
         3 => NetworkStatus::Cellular,
         _ => NetworkStatus::Unknown,
     };
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     h.app
         .dispatch_system_event(SystemEvent::NetworkStatusChanged(status));
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -924,7 +1382,7 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeLocale
     if ptr == 0 {
         return;
     }
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     if let Some(locale) = read_jni_utf8(env, utf8_bytes)
         && !locale.is_empty()
@@ -932,7 +1390,6 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeLocale
         h.app
             .dispatch_system_event(SystemEvent::LocaleChanged(locale));
     }
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -945,14 +1402,13 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeDeepLi
     if ptr == 0 {
         return;
     }
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     if let Some(uri) = read_jni_utf8(env, utf8_bytes)
         && !uri.is_empty()
     {
         h.app.dispatch_system_event(SystemEvent::DeepLink(uri));
     }
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -964,10 +1420,9 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeClipbo
     if ptr == 0 {
         return;
     }
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     h.app.dispatch_system_event(SystemEvent::ClipboardChanged);
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -980,7 +1435,7 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeTextIn
     if ptr == 0 || env.is_null() || utf8_bytes.is_null() {
         return;
     }
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     let text_opt: Option<String> = unsafe {
         let table: &JniNativeInterface = &*(*env);
@@ -999,7 +1454,6 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeTextIn
         h.app
             .dispatch_window_event(WindowEvent::TextInput(h.wid, text));
     }
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -1019,13 +1473,12 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeKeyDow
         4 => KeyCode::Escape,
         _ => return,
     };
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
     h.app.dispatch_window_event(WindowEvent::KeyDown(
         h.wid,
         KeyEvent::new(code, Modifiers::default(), false),
     ));
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -1073,9 +1526,10 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeStepFr
         return 0;
     }
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
-    let step_res = h.app.step_game_frame(dt.clamp(1.0 / 480.0, 0.05));
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
+    let step_res = {
+        let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
+        h.app.step_game_frame(dt.clamp(1.0 / 480.0, 0.05))
+    };
     let Ok(stats) = step_res else {
         return 0;
     };
@@ -1118,9 +1572,10 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeStepFr
         return 0;
     }
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
-    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
-    let step_res = h.app.step_game_frame(dt.clamp(1.0 / 480.0, 0.05));
-    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
+    let step_res = {
+        let _jni_guard: JniEnvGuard = JniEnvGuard::enter(env);
+        h.app.step_game_frame(dt.clamp(1.0 / 480.0, 0.05))
+    };
     let Ok(stats) = step_res else {
         return 0;
     };
@@ -1206,7 +1661,9 @@ import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 
 public final class EuvNativeBridge {
-    private static final Paint GLYPH_PAINT = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
+    private static final ThreadLocal<Paint> GLYPH_PAINT = ThreadLocal.withInitial(
+        () -> new Paint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG)
+    );
     private static final Typeface FACE_REGULAR = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL);
     private static final Typeface FACE_BOLD = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD);
     private static final Typeface FACE_ITALIC = Typeface.create(Typeface.SANS_SERIF, Typeface.ITALIC);
@@ -1216,20 +1673,64 @@ public final class EuvNativeBridge {
     private static final Typeface FACE_MONO_ITALIC = Typeface.create(Typeface.MONOSPACE, Typeface.ITALIC);
     private static final Typeface FACE_MONO_BOLD_ITALIC = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD_ITALIC);
     private static final String CHANNEL_ID = "euv_native_alerts";
+    private static final Object HOST_LOCK = new Object();
     private static WeakReference<Activity> hostActivity = new WeakReference<>(null);
+    private static long activeSessionGen = 0L;
     private static int notifSeq = 100;
 
     static {
         System.loadLibrary("euv_android_host");
     }
 
+    public static long registerHostActivity(Activity activity) {
+        synchronized (HOST_LOCK) {
+            activeSessionGen += 1L;
+            hostActivity = new WeakReference<>(activity);
+            return activeSessionGen;
+        }
+    }
+
+    public static void activateHostActivity(Activity activity, long sessionGen) {
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
+            return;
+        }
+        synchronized (HOST_LOCK) {
+            Activity current = hostActivity.get();
+            if (sessionGen >= activeSessionGen || current == null || current.isFinishing() || current.isDestroyed()) {
+                if (sessionGen > activeSessionGen) {
+                    activeSessionGen = sessionGen;
+                }
+                hostActivity = new WeakReference<>(activity);
+            }
+        }
+    }
+
+    public static void clearHostActivity(Activity activity, long sessionGen) {
+        synchronized (HOST_LOCK) {
+            if (hostActivity.get() == activity && sessionGen == activeSessionGen) {
+                hostActivity = new WeakReference<>(null);
+            }
+        }
+    }
+
     public static void setHostActivity(Activity activity) {
-        hostActivity = new WeakReference<>(activity);
+        synchronized (HOST_LOCK) {
+            if (activity != null) {
+                activeSessionGen += 1L;
+            }
+            hostActivity = new WeakReference<>(activity);
+        }
+    }
+
+    private static Activity currentHostActivity() {
+        synchronized (HOST_LOCK) {
+            return hostActivity.get();
+        }
     }
 
     public static boolean invokeNativeAction(String kind, String arg1, String arg2) {
-        Activity act = hostActivity.get();
-        if (act == null || act.isFinishing()) {
+        Activity act = currentHostActivity();
+        if (act == null || act.isFinishing() || act.isDestroyed()) {
             return false;
         }
         String k = (kind != null) ? kind : "";
@@ -1237,6 +1738,9 @@ public final class EuvNativeBridge {
         String a2 = (arg2 != null) ? arg2 : "";
         Log.i("euv-native", "invokeNativeAction kind=" + k + " arg1=" + a1 + " arg2=" + a2);
         act.runOnUiThread(() -> {
+            if (act.isDestroyed()) {
+                return;
+            }
             try {
                 switch (k) {
                     case "ime": {
@@ -1283,7 +1787,7 @@ public final class EuvNativeBridge {
                             nm.createNotificationChannel(ch);
                             Notification.Builder b = new Notification.Builder(act, CHANNEL_ID)
                                 .setSmallIcon(android.R.drawable.ic_dialog_info)
-                                .setContentTitle(a1.isEmpty() ? "Euv Showcase" : a1)
+                                .setContentTitle(a1.isEmpty() ? "Euv Studio" : a1)
                                 .setContentText(a2.isEmpty() ? "Native notification dispatched" : a2)
                                 .setAutoCancel(!"island".equals(k))
                                 .setOngoing("island".equals(k));
@@ -1306,16 +1810,20 @@ public final class EuvNativeBridge {
                         break;
                     }
                     case "fullscreen": {
-                        WindowInsetsController ctrl = act.getWindow().getInsetsController();
-                        if (ctrl != null) {
-                            if ("on".equals(a1)) {
-                                ctrl.hide(WindowInsets.Type.systemBars());
-                                ctrl.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-                            } else {
-                                ctrl.show(WindowInsets.Type.systemBars());
+                        boolean enableFs = "on".equals(a1);
+                        if (act instanceof EuvActivity) {
+                            ((EuvActivity) act).setImmersiveFullscreen(enableFs);
+                        } else {
+                            WindowInsetsController ctrl = act.getWindow().getInsetsController();
+                            if (ctrl != null) {
+                                if (enableFs) {
+                                    ctrl.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
+                                    ctrl.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                                } else {
+                                    ctrl.show(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
+                                }
                             }
                         }
-                        Toast.makeText(act, "Fullscreen: " + a1, Toast.LENGTH_SHORT).show();
                         break;
                     }
                     case "protocol": {
@@ -1328,7 +1836,9 @@ public final class EuvNativeBridge {
                         break;
                     }
                     case "exit": {
-                        act.finish();
+                        if (!act.isFinishing() && !act.isDestroyed()) {
+                            act.finish();
+                        }
                         break;
                     }
                     default: {
@@ -1356,17 +1866,18 @@ public final class EuvNativeBridge {
             face = bold ? (italic ? FACE_BOLD_ITALIC : FACE_BOLD)
                         : (italic ? FACE_ITALIC : FACE_REGULAR);
         }
-        GLYPH_PAINT.setTypeface(face);
-        GLYPH_PAINT.setTextSize(Math.max(6.0f, sizePx));
-        GLYPH_PAINT.setColor(Color.WHITE);
-        Paint.FontMetrics fm = GLYPH_PAINT.getFontMetrics();
-        float advF = GLYPH_PAINT.measureText(text);
+        Paint paint = GLYPH_PAINT.get();
+        paint.setTypeface(face);
+        paint.setTextSize(Math.max(6.0f, sizePx));
+        paint.setColor(Color.WHITE);
+        Paint.FontMetrics fm = paint.getFontMetrics();
+        float advF = paint.measureText(text);
         int adv = Math.max(2, (int) Math.ceil(advF));
         int w = Math.max(4, adv + 4);
         int h = Math.max(8, (int) Math.ceil(fm.descent - fm.ascent) + 4);
         Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ALPHA_8);
         Canvas canvas = new Canvas(bmp);
-        canvas.drawText(text, 1.0f, -fm.ascent + 2.0f, GLYPH_PAINT);
+        canvas.drawText(text, 1.0f, -fm.ascent + 2.0f, paint);
         ByteBuffer alpha = ByteBuffer.allocate(w * h);
         bmp.copyPixelsToBuffer(alpha);
         bmp.recycle();
@@ -1381,7 +1892,19 @@ public final class EuvNativeBridge {
         return out;
     }
 
-    public static native long nativeCreate(int physWidth, int physHeight, float scale, float refreshHz);
+    public static native long nativeCreate(
+        int physWidth,
+        int physHeight,
+        float scale,
+        float refreshHz,
+        float safeTop,
+        float safeRight,
+        float safeBottom,
+        float safeLeft
+    );
+    public static native void nativeDestroy(long handle);
+    public static native int nativeIsRunning(long handle);
+    public static native void nativeUpdateRefreshRate(long handle, float refreshHz);
     public static native void nativeImeDisabled(long handle);
     public static native void nativeSystemLifecycle(long handle, int tag);
     public static native void nativeFocusChanged(long handle, int focused);
@@ -1426,6 +1949,8 @@ import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Insets;
 import android.graphics.PixelFormat;
+import android.graphics.Rect;
+import android.hardware.display.DisplayManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -1436,33 +1961,95 @@ import android.text.InputType;
 import android.util.Log;
 import android.view.Choreographer;
 import android.view.Display;
+import android.view.DisplayCutout;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.View;
+import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
+import android.widget.FrameLayout;
 import android.view.inputmethod.BaseInputConnection;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 public final class EuvActivity extends Activity {
+    private static final int LAUNCH_BG_LIGHT = 0xFFFAFAFA;
+    private static final int LAUNCH_BG_DARK = 0xFF09090B;
+    private static final long LAUNCH_HOLD_TIMEOUT_MS = 1200L;
+    private FrameLayout rootContainer;
+    private View launchCoverView;
     private EuvCanvasView canvasView;
+    private long sessionGen = 0L;
+    private volatile boolean activityDestroyed = false;
+    private Object backInvokedCallback = null;
     private float targetRefreshHz = 60.0f;
+    private int appliedDisplayModeId = 0;
+    private boolean immersiveFullscreen = false;
+    private volatile boolean firstFramePresented = false;
     private ClipboardManager clipboardManager;
+    private DisplayManager displayManager;
+    private final DisplayManager.DisplayListener displayListener = new DisplayManager.DisplayListener() {
+        @Override
+        public void onDisplayAdded(int displayId) {}
+
+        @Override
+        public void onDisplayRemoved(int displayId) {}
+
+        @Override
+        public void onDisplayChanged(int displayId) {
+            if (activityDestroyed || isDestroyed()) return;
+            selectHighestRefreshMode(getWindow());
+            if (canvasView != null) {
+                canvasView.updateTargetRefreshRate(targetRefreshHz);
+                canvasView.requestSafeAreaRefresh();
+            }
+        }
+    };
     private final ClipboardManager.OnPrimaryClipChangedListener clipListener = () -> {
+        if (activityDestroyed || isDestroyed()) return;
         if (canvasView != null) {
             canvasView.dispatchClipboardChanged();
         }
     };
+
+    private Display resolveActiveDisplay() {
+        try {
+            Display d = getDisplay();
+            if (d != null) return d;
+        } catch (Throwable ignored) {
+        }
+        try {
+            DisplayManager dm = (DisplayManager) getSystemService(Context.DISPLAY_SERVICE);
+            if (dm != null) {
+                Display d = dm.getDisplay(Display.DEFAULT_DISPLAY);
+                if (d != null) return d;
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            WindowManager wm = getWindowManager();
+            if (wm != null) {
+                @SuppressWarnings("deprecation")
+                Display d = wm.getDefaultDisplay();
+                return d;
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
 
     private void syncSystemConfig(Configuration cfg) {
         if (canvasView == null || cfg == null) return;
@@ -1488,7 +2075,7 @@ public final class EuvActivity extends Activity {
 
     private void selectHighestRefreshMode(Window win) {
         try {
-            Display display = getDisplay();
+            Display display = resolveActiveDisplay();
             if (display == null) return;
             Display.Mode current = display.getMode();
             Display.Mode best = current;
@@ -1500,53 +2087,182 @@ public final class EuvActivity extends Activity {
                 }
             }
             targetRefreshHz = Math.max(60.0f, best.getRefreshRate());
-            WindowManager.LayoutParams lp = win.getAttributes();
-            lp.preferredDisplayModeId = best.getModeId();
-            lp.preferredRefreshRate = targetRefreshHz;
-            win.setAttributes(lp);
+            int bestModeId = best.getModeId();
+            if (appliedDisplayModeId != bestModeId) {
+                WindowManager.LayoutParams lp = win.getAttributes();
+                lp.preferredDisplayModeId = bestModeId;
+                lp.preferredRefreshRate = targetRefreshHz;
+                win.setAttributes(lp);
+                appliedDisplayModeId = bestModeId;
+            }
+            if (Build.VERSION.SDK_INT >= 34) {
+                try {
+                    Method boost = Window.class.getMethod("setFrameRateBoostOnTouchEnabled", boolean.class);
+                    boost.invoke(win, Boolean.TRUE);
+                } catch (Throwable ignored) {
+                }
+            }
+            if (canvasView != null) {
+                canvasView.updateTargetRefreshRate(targetRefreshHz);
+            }
         } catch (Throwable t) {
             Log.w("euv-fps", "refresh mode hint skipped: " + t.getMessage());
         }
     }
 
+    public void setImmersiveFullscreen(boolean enabled) {
+        if (immersiveFullscreen == enabled && canvasView != null) {
+            canvasView.setImmersiveFullscreen(enabled);
+            return;
+        }
+        immersiveFullscreen = enabled;
+        Window win = getWindow();
+        if (win != null) {
+            WindowInsetsController ctrl = win.getInsetsController();
+            if (ctrl != null) {
+                int barTypes = WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars();
+                if (enabled) {
+                    ctrl.hide(barTypes);
+                    ctrl.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                } else {
+                    ctrl.show(barTypes);
+                }
+            }
+        }
+        if (canvasView != null) {
+            canvasView.setImmersiveFullscreen(enabled);
+            canvasView.requestSafeAreaRefresh();
+        }
+    }
+
+    private void attachDecorInsetsListener(Window win) {
+        if (win == null) return;
+        View decor = win.getDecorView();
+        if (decor == null) return;
+        decor.setOnApplyWindowInsetsListener((v, insets) -> {
+            if (canvasView != null) {
+                canvasView.applyWindowInsets(insets);
+            }
+            return v.onApplyWindowInsets(insets);
+        });
+    }
+
+    private void dismissLaunchCoverOnFirstFrame() {
+        if (firstFramePresented) return;
+        firstFramePresented = true;
+        if (activityDestroyed || isDestroyed()) return;
+        runOnUiThread(() -> {
+            if (activityDestroyed || isDestroyed()) return;
+            if (launchCoverView != null) {
+                ViewGroup parent = (ViewGroup) launchCoverView.getParent();
+                if (parent != null) {
+                    parent.removeView(launchCoverView);
+                }
+                launchCoverView = null;
+            }
+        });
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        EuvNativeBridge.setHostActivity(this);
+        activityDestroyed = false;
+        sessionGen = EuvNativeBridge.registerHostActivity(this);
         Window win = getWindow();
         win.setDecorFitsSystemWindows(false);
         win.setStatusBarColor(Color.TRANSPARENT);
         win.setNavigationBarColor(Color.TRANSPARENT);
+        Configuration cfg = getResources().getConfiguration();
+        boolean isNight = (cfg.uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        int launchBg = isNight ? LAUNCH_BG_DARK : LAUNCH_BG_LIGHT;
         WindowManager.LayoutParams lp = win.getAttributes();
         lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         win.setAttributes(lp);
         selectHighestRefreshMode(win);
-        canvasView = new EuvCanvasView(this, targetRefreshHz);
-        setContentView(canvasView);
+        rootContainer = new FrameLayout(this);
+        rootContainer.setBackgroundColor(launchBg);
+        canvasView = new EuvCanvasView(this, win, targetRefreshHz, this::dismissLaunchCoverOnFirstFrame);
+        rootContainer.addView(
+            canvasView,
+            new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        );
+        launchCoverView = new View(this);
+        launchCoverView.setBackgroundColor(launchBg);
+        launchCoverView.setClickable(false);
+        launchCoverView.setFocusable(false);
+        rootContainer.addView(
+            launchCoverView,
+            new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        );
+        setContentView(rootContainer);
+        attachDecorInsetsListener(win);
+        displayManager = (DisplayManager) getSystemService(Context.DISPLAY_SERVICE);
+        if (displayManager != null) {
+            displayManager.registerDisplayListener(displayListener, new Handler(getMainLooper()));
+        }
         clipboardManager = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboardManager != null) {
             clipboardManager.addPrimaryClipChangedListener(clipListener);
         }
         forwardIntentDeepLink(getIntent());
         if (Build.VERSION.SDK_INT >= 33) {
+            android.window.OnBackInvokedCallback cb = () -> {
+                if (!activityDestroyed && canvasView != null) {
+                    canvasView.dispatchSystemBack();
+                }
+            };
+            backInvokedCallback = cb;
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
                 android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
-                () -> {
-                    if (canvasView != null) {
-                        canvasView.dispatchSystemBack();
-                    }
-                }
+                cb
             );
         }
-        canvasView.post(() -> {
+        View decor = win.getDecorView();
+        decor.post(() -> {
+            if (activityDestroyed || isDestroyed()) return;
+            selectHighestRefreshMode(win);
             WindowInsetsController ctrl = win.getInsetsController();
             if (ctrl != null) {
+                int appearance = isNight
+                    ? 0
+                    : (WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                        | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
                 ctrl.setSystemBarsAppearance(
-                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
-                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                    appearance,
+                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                        | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
                 );
             }
+            if (canvasView != null) {
+                canvasView.requestSafeAreaRefresh();
+            }
         });
+        decor.postDelayed(() -> {
+            if (!activityDestroyed && !isDestroyed() && canvasView != null) {
+                canvasView.requestSafeAreaRefresh();
+            }
+        }, 150L);
+        decor.postDelayed(() -> {
+            if (!activityDestroyed && !isDestroyed() && canvasView != null) {
+                canvasView.requestSafeAreaRefresh();
+            }
+        }, 400L);
+        decor.postDelayed(this::dismissLaunchCoverOnFirstFrame, LAUNCH_HOLD_TIMEOUT_MS);
+    }
+
+    @Override
+    public void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        selectHighestRefreshMode(getWindow());
+        if (canvasView != null) {
+            canvasView.requestSafeAreaRefresh();
+        }
     }
 
     @Override
@@ -1574,13 +2290,28 @@ public final class EuvActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        activityDestroyed = true;
+        if (Build.VERSION.SDK_INT >= 33 && backInvokedCallback instanceof android.window.OnBackInvokedCallback) {
+            try {
+                getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(
+                    (android.window.OnBackInvokedCallback) backInvokedCallback
+                );
+            } catch (Throwable ignored) {
+            }
+            backInvokedCallback = null;
+        }
+        if (displayManager != null) {
+            displayManager.unregisterDisplayListener(displayListener);
+            displayManager = null;
+        }
         if (clipboardManager != null) {
             clipboardManager.removePrimaryClipChangedListener(clipListener);
+            clipboardManager = null;
         }
-        EuvNativeBridge.setHostActivity(null);
+        EuvNativeBridge.clearHostActivity(this, sessionGen);
         if (canvasView != null) {
-            canvasView.dispatchSystemLifecycleSync(6);
             canvasView.shutdown();
+            canvasView = null;
         }
         super.onDestroy();
     }
@@ -1622,8 +2353,10 @@ public final class EuvActivity extends Activity {
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
+        selectHighestRefreshMode(getWindow());
         if (canvasView != null) {
             canvasView.syncDisplayScaleAndResize();
+            canvasView.requestSafeAreaRefresh();
             syncSystemConfig(newConfig);
         }
     }
@@ -1631,12 +2364,17 @@ public final class EuvActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        EuvNativeBridge.setHostActivity(this);
+        EuvNativeBridge.activateHostActivity(this, sessionGen);
         selectHighestRefreshMode(getWindow());
         if (canvasView != null) {
-            canvasView.dispatchSystemLifecycle(3);
+            canvasView.onActivityResumed();
             syncSystemConfig(getResources().getConfiguration());
-            canvasView.startLoop();
+            canvasView.requestSafeAreaRefresh();
+            getWindow().getDecorView().post(() -> {
+                if (!activityDestroyed && !isDestroyed() && canvasView != null) {
+                    canvasView.requestSafeAreaRefresh();
+                }
+            });
         }
     }
 
@@ -1644,9 +2382,7 @@ public final class EuvActivity extends Activity {
     protected void onPause() {
         super.onPause();
         if (canvasView != null) {
-            canvasView.cancelAllTouches();
-            canvasView.dispatchSystemLifecycle(4);
-            canvasView.stopLoop();
+            canvasView.onActivityPaused();
         }
     }
 
@@ -1656,15 +2392,22 @@ public final class EuvActivity extends Activity {
         if (canvasView != null) {
             if (!hasFocus) {
                 canvasView.cancelAllTouches();
+            } else {
+                selectHighestRefreshMode(getWindow());
+                canvasView.requestSafeAreaRefresh();
+                canvasView.requestFocus();
             }
             canvasView.dispatchFocusChanged(hasFocus);
         }
     }
 
     private static final class EuvCanvasView extends SurfaceView implements SurfaceHolder.Callback {
+        private final Window hostWindow;
+        private final Runnable onFirstFramePresented;
         private final HandlerThread renderThread;
         private final Handler renderHandler;
         private final Object moveLock = new Object();
+        private final Object safeLock = new Object();
         private boolean hasPendingMove = false;
         private int pendingMoveCount = 0;
         private final int[] pendingMoveIds = new int[16];
@@ -1672,9 +2415,18 @@ public final class EuvActivity extends Activity {
         private final float[] pendingMoveYs = new float[16];
         private long pendingMoveMask = 0L;
         private long handle = 0;
+        private volatile boolean destroyed = false;
+        private volatile boolean activityResumed = false;
+        private long activeLoopGen = 0L;
         private volatile float displayDensity = 2.0f;
         private volatile float renderScale = 2.0f;
-        private final float targetFps;
+        private volatile float targetFps = 60.0f;
+        private volatile boolean immersiveFullscreen = false;
+        private boolean firstPresentNotified = false;
+        private float cachedSafeTop = 28.0f;
+        private float cachedSafeRight = 0.0f;
+        private float cachedSafeBottom = 24.0f;
+        private float cachedSafeLeft = 0.0f;
         private boolean surfaceReady = false;
         private int surfaceW = 0;
         private int surfaceH = 0;
@@ -1690,19 +2442,25 @@ public final class EuvActivity extends Activity {
         private final Choreographer.FrameCallback renderFrameCallback = new Choreographer.FrameCallback() {
             @Override
             public void doFrame(long frameTimeNanos) {
-                if (!running) return;
-                float dt = (lastNanos > 0) ? ((frameTimeNanos - lastNanos) / 1_000_000_000.0f) : (1.0f / targetFps);
+                if (!running || destroyed) return;
+                long gen = activeLoopGen;
+                Choreographer.getInstance().postFrameCallback(this);
+                float hz = targetFps > 24.0f ? targetFps : 60.0f;
+                float dt = (lastNanos > 0) ? ((frameTimeNanos - lastNanos) / 1_000_000_000.0f) : (1.0f / hz);
                 lastNanos = frameTimeNanos;
                 flushPendingMovesOnRenderThread();
+                if (!running || destroyed || activeLoopGen != gen) return;
                 stepAndPresentOnRenderThread(dt, false);
-                Choreographer.getInstance().postFrameCallback(this);
             }
         };
 
-        EuvCanvasView(Context ctx, float preferredHz) {
+        EuvCanvasView(Context ctx, Window window, float preferredHz, Runnable firstFrameCallback) {
             super(ctx);
+            hostWindow = window;
+            onFirstFramePresented = firstFrameCallback;
             targetFps = Math.max(60.0f, preferredHz);
             refreshDensity(ctx);
+            seedInitialSafeArea(ctx);
             renderThread = new HandlerThread("euv-render", Process.THREAD_PRIORITY_DISPLAY);
             renderThread.start();
             renderHandler = new Handler(renderThread.getLooper());
@@ -1710,28 +2468,190 @@ public final class EuvActivity extends Activity {
             getHolder().addCallback(this);
             setFocusable(true);
             setFocusableInTouchMode(true);
+            applyViewRequestedFrameRate(targetFps);
             setOnApplyWindowInsetsListener((v, insets) -> {
-                Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
-                Insets ime = insets.getInsets(WindowInsets.Type.ime());
-                boolean imeVisible = ime.bottom > 0;
-                boolean imeHiddenNow = imeWasVisible && !imeVisible;
-                imeWasVisible = imeVisible;
-                float d = displayDensity;
-                float top = bars.top / d;
-                float right = bars.right / d;
-                float bottom = Math.max(bars.bottom, ime.bottom) / d;
-                float left = bars.left / d;
-                float imeHeight = ime.bottom / d;
+                applyWindowInsets(insets);
+                return insets;
+            });
+        }
+
+        private void applyViewRequestedFrameRate(float hz) {
+            if (Build.VERSION.SDK_INT >= 35) {
+                try {
+                    Method setReq = View.class.getMethod("setRequestedFrameRate", float.class);
+                    setReq.invoke(this, hz);
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+
+        private int queryFallbackStatusBarHeightPx(Context ctx) {
+            int fallbackPx = 0;
+            try {
+                int resId = ctx.getResources().getIdentifier("status_bar_height", "dimen", "android");
+                if (resId > 0) {
+                    fallbackPx = Math.max(fallbackPx, ctx.getResources().getDimensionPixelSize(resId));
+                }
+            } catch (Throwable ignored) {
+            }
+            try {
+                Display d = ctx.getDisplay();
+                if (d == null) {
+                    DisplayManager dm = (DisplayManager) ctx.getSystemService(Context.DISPLAY_SERVICE);
+                    if (dm != null) {
+                        d = dm.getDisplay(Display.DEFAULT_DISPLAY);
+                    }
+                }
+                if (d != null) {
+                    DisplayCutout cutout = d.getCutout();
+                    fallbackPx = Math.max(fallbackPx, extractCutoutTopPx(cutout, ctx));
+                }
+            } catch (Throwable ignored) {
+            }
+            return fallbackPx;
+        }
+
+        private int extractCutoutTopPx(DisplayCutout cutout, Context ctx) {
+            if (cutout == null) return 0;
+            int topPx = Math.max(0, cutout.getSafeInsetTop());
+            int screenH = ctx.getResources().getDisplayMetrics().heightPixels;
+            int maxTopBand = screenH > 0 ? (screenH / 3) : 600;
+            List<Rect> rects = cutout.getBoundingRects();
+            if (rects != null) {
+                for (Rect r : rects) {
+                    if (r != null && r.top <= topPx + 32 && r.bottom > topPx && r.bottom <= maxTopBand) {
+                        topPx = Math.max(topPx, r.bottom);
+                    }
+                }
+            }
+            return topPx;
+        }
+
+        private void seedInitialSafeArea(Context ctx) {
+            WindowInsets rootInsets = (hostWindow != null && hostWindow.getDecorView() != null)
+                ? hostWindow.getDecorView().getRootWindowInsets()
+                : null;
+            if (rootInsets != null) {
+                applyWindowInsets(rootInsets);
+                return;
+            }
+            float d = displayDensity;
+            int topPx = queryFallbackStatusBarHeightPx(ctx);
+            int navPx = 0;
+            try {
+                int navId = ctx.getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+                if (navId > 0) {
+                    navPx = Math.min(ctx.getResources().getDimensionPixelSize(navId), Math.round(32.0f * d));
+                }
+            } catch (Throwable ignored) {
+            }
+            synchronized (safeLock) {
+                cachedSafeTop = Math.max(28.0f, topPx / d);
+                cachedSafeRight = 0.0f;
+                cachedSafeBottom = Math.max(0.0f, navPx / d);
+                cachedSafeLeft = 0.0f;
+            }
+        }
+
+        void setImmersiveFullscreen(boolean enabled) {
+            immersiveFullscreen = enabled;
+            if (enabled) {
+                synchronized (safeLock) {
+                    cachedSafeTop = 0.0f;
+                    cachedSafeRight = 0.0f;
+                    cachedSafeBottom = 0.0f;
+                    cachedSafeLeft = 0.0f;
+                }
                 renderHandler.post(() -> {
                     if (handle != 0) {
-                        EuvNativeBridge.nativeKeyboardChanged(handle, imeVisible ? 1 : 0, imeHeight);
-                        if (imeHiddenNow) {
-                            EuvNativeBridge.nativeImeDisabled(handle);
-                        }
-                        EuvNativeBridge.nativeSetSafeArea(handle, top, right, bottom, left);
+                        EuvNativeBridge.nativeSetSafeArea(handle, 0.0f, 0.0f, 0.0f, 0.0f);
+                        stepAndPresentOnRenderThread(1.0f / targetFps, true);
                     }
                 });
-                return insets;
+            }
+        }
+
+        void requestSafeAreaRefresh() {
+            if (hostWindow != null && hostWindow.getDecorView() != null) {
+                View decor = hostWindow.getDecorView();
+                WindowInsets live = decor.getRootWindowInsets();
+                if (live != null) {
+                    applyWindowInsets(live);
+                }
+                decor.requestApplyInsets();
+            }
+            requestApplyInsets();
+        }
+
+        void applyWindowInsets(WindowInsets insets) {
+            if (insets == null) return;
+            Context ctx = getContext();
+            refreshDensity(ctx);
+            int safeTypes = WindowInsets.Type.statusBars()
+                | WindowInsets.Type.displayCutout()
+                | WindowInsets.Type.navigationBars()
+                | WindowInsets.Type.systemBars()
+                | WindowInsets.Type.mandatorySystemGestures();
+            Insets visibleBars = insets.getInsets(safeTypes);
+            Insets ignoringBars = insets.getInsetsIgnoringVisibility(
+                WindowInsets.Type.statusBars()
+                    | WindowInsets.Type.displayCutout()
+                    | WindowInsets.Type.navigationBars()
+                    | WindowInsets.Type.systemBars()
+            );
+            Insets ime = insets.getInsets(WindowInsets.Type.ime());
+            boolean imeVisible = ime.bottom > 0;
+            boolean imeHiddenNow = imeWasVisible && !imeVisible;
+            imeWasVisible = imeVisible;
+            float d = displayDensity;
+            float top;
+            float right;
+            float bottom;
+            float left;
+            if (immersiveFullscreen) {
+                top = 0.0f;
+                right = 0.0f;
+                bottom = imeVisible ? (ime.bottom / d) : 0.0f;
+                left = 0.0f;
+            } else {
+                int cutoutTopPx = extractCutoutTopPx(insets.getDisplayCutout(), ctx);
+                int fallbackTopPx = queryFallbackStatusBarHeightPx(ctx);
+                int topPx = Math.max(
+                    Math.max(visibleBars.top, ignoringBars.top),
+                    Math.max(cutoutTopPx, fallbackTopPx)
+                );
+                int rightPx = Math.max(visibleBars.right, ignoringBars.right);
+                int bottomPx = Math.max(Math.max(visibleBars.bottom, ignoringBars.bottom), ime.bottom);
+                int leftPx = Math.max(visibleBars.left, ignoringBars.left);
+                top = topPx / d;
+                right = rightPx / d;
+                bottom = bottomPx / d;
+                left = leftPx / d;
+            }
+            float imeHeight = ime.bottom / d;
+            boolean changed;
+            synchronized (safeLock) {
+                changed = Math.abs(top - cachedSafeTop) > 0.25f
+                    || Math.abs(right - cachedSafeRight) > 0.25f
+                    || Math.abs(bottom - cachedSafeBottom) > 0.25f
+                    || Math.abs(left - cachedSafeLeft) > 0.25f;
+                cachedSafeTop = top;
+                cachedSafeRight = right;
+                cachedSafeBottom = bottom;
+                cachedSafeLeft = left;
+            }
+            final boolean shouldRedraw = changed;
+            renderHandler.post(() -> {
+                if (handle != 0) {
+                    EuvNativeBridge.nativeKeyboardChanged(handle, imeVisible ? 1 : 0, imeHeight);
+                    if (imeHiddenNow) {
+                        EuvNativeBridge.nativeImeDisabled(handle);
+                    }
+                    EuvNativeBridge.nativeSetSafeArea(handle, top, right, bottom, left);
+                    if (shouldRedraw && surfaceReady) {
+                        stepAndPresentOnRenderThread(1.0f / targetFps, true);
+                    }
+                }
             });
         }
 
@@ -1740,13 +2660,28 @@ public final class EuvActivity extends Activity {
             renderScale = Math.max(1.0f, Math.min(4.5f, displayDensity));
         }
 
+        void updateTargetRefreshRate(float hz) {
+            float clamped = Math.max(60.0f, Math.min(480.0f, hz));
+            targetFps = clamped;
+            applyViewRequestedFrameRate(clamped);
+            SurfaceHolder holder = getHolder();
+            if (holder != null && holder.getSurface() != null && holder.getSurface().isValid()) {
+                applySurfaceFrameRate(holder.getSurface());
+            }
+            renderHandler.post(() -> {
+                if (handle != 0) {
+                    EuvNativeBridge.nativeUpdateRefreshRate(handle, clamped);
+                }
+            });
+        }
+
         private void applySurfaceFrameRate(Surface surface) {
             if (surface != null && Build.VERSION.SDK_INT >= 31) {
                 try {
                     surface.setFrameRate(
                         targetFps,
                         Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE,
-                        Surface.CHANGE_FRAME_RATE_ALWAYS
+                        Surface.CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS
                     );
                 } catch (Throwable ignored) {
                 }
@@ -1891,40 +2826,102 @@ public final class EuvActivity extends Activity {
 
         @Override
         public void surfaceCreated(SurfaceHolder holder) {
-            applySurfaceFrameRate(holder.getSurface());
+            Surface surface = holder.getSurface();
+            applySurfaceFrameRate(surface);
+            int w = getWidth();
+            int h = getHeight();
+            if (w > 0 && h > 0 && surface != null && surface.isValid()) {
+                initializeSurfaceAndPresent(surface, w, h);
+            } else {
+                post(this::requestSafeAreaRefresh);
+            }
         }
 
-        @Override
-        public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-            if (width <= 0 || height <= 0) return;
+        private void ensureLiveHandleOnRenderThread(int width, int height, float scale) {
+            if (destroyed) return;
+            final float initTop;
+            final float initRight;
+            final float initBottom;
+            final float initLeft;
+            synchronized (safeLock) {
+                initTop = cachedSafeTop;
+                initRight = cachedSafeRight;
+                initBottom = cachedSafeBottom;
+                initLeft = cachedSafeLeft;
+            }
+            if (handle != 0 && EuvNativeBridge.nativeIsRunning(handle) == 0) {
+                long stale = handle;
+                handle = 0;
+                EuvNativeBridge.nativeSetSurface(stale, null, 0, 0, scale);
+                EuvNativeBridge.nativeDestroy(stale);
+            }
+            if (handle == 0) {
+                handle = EuvNativeBridge.nativeCreate(
+                    Math.max(200, width),
+                    Math.max(200, height),
+                    scale,
+                    targetFps,
+                    initTop,
+                    initRight,
+                    initBottom,
+                    initLeft
+                );
+            } else {
+                EuvNativeBridge.nativeUpdateRefreshRate(handle, targetFps);
+                EuvNativeBridge.nativeSetSafeArea(handle, initTop, initRight, initBottom, initLeft);
+            }
+        }
+
+        private void initializeSurfaceAndPresent(Surface surface, int width, int height) {
+            if (destroyed) return;
             refreshDensity(getContext());
             surfaceW = width;
             surfaceH = height;
-            Surface surface = holder.getSurface();
             applySurfaceFrameRate(surface);
             float scale = renderScale;
             renderHandler.post(() -> {
-                if (handle == 0) {
-                    handle = EuvNativeBridge.nativeCreate(width, height, scale, targetFps);
-                }
+                if (destroyed) return;
+                ensureLiveHandleOnRenderThread(width, height, scale);
+                if (handle == 0) return;
                 EuvNativeBridge.nativeSetSurface(handle, surface, width, height, scale);
                 surfaceReady = true;
-                post(this::requestApplyInsets);
+                if (activityResumed && !running) {
+                    startLoopOnRenderThread();
+                }
+                post(this::requestSafeAreaRefresh);
                 stepAndPresentOnRenderThread(1.0f / targetFps, true);
             });
         }
 
         @Override
+        public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+            if (destroyed || width <= 0 || height <= 0) return;
+            if (surfaceReady && surfaceW == width && surfaceH == height && handle != 0) {
+                applySurfaceFrameRate(holder.getSurface());
+                post(this::requestSafeAreaRefresh);
+                return;
+            }
+            initializeSurfaceAndPresent(holder.getSurface(), width, height);
+        }
+
+        @Override
         public void surfaceDestroyed(SurfaceHolder holder) {
+            if (destroyed) return;
+            synchronized (moveLock) {
+                hasPendingMove = false;
+                pendingMoveCount = 0;
+            }
             CountDownLatch latch = new CountDownLatch(1);
             float scale = renderScale;
-            renderHandler.post(() -> {
+            boolean posted = renderHandler.post(() -> {
                 surfaceReady = false;
                 if (handle != 0) {
+                    EuvNativeBridge.nativeTouchCancel(handle, -1);
                     EuvNativeBridge.nativeSetSurface(handle, null, 0, 0, scale);
                 }
                 latch.countDown();
             });
+            if (!posted) return;
             try {
                 latch.await(500L, TimeUnit.MILLISECONDS);
             } catch (InterruptedException ignored) {
@@ -2042,25 +3039,105 @@ public final class EuvActivity extends Activity {
             });
         }
 
-        void startLoop() {
+        private void startLoopOnRenderThread() {
+            if (destroyed) return;
+            activeLoopGen += 1L;
+            running = true;
+            lastNanos = 0;
+            Choreographer ch = Choreographer.getInstance();
+            ch.removeFrameCallback(renderFrameCallback);
+            ch.postFrameCallback(renderFrameCallback);
+        }
+
+        private void stopLoopOnRenderThread() {
+            activeLoopGen += 1L;
+            running = false;
+            Choreographer.getInstance().removeFrameCallback(renderFrameCallback);
+        }
+
+        void onActivityResumed() {
+            if (destroyed) return;
+            activityResumed = true;
+            SurfaceHolder holder = getHolder();
+            Surface liveSurface = (holder != null) ? holder.getSurface() : null;
+            int curW = surfaceW > 0 ? surfaceW : getWidth();
+            int curH = surfaceH > 0 ? surfaceH : getHeight();
+            float scale = renderScale;
             renderHandler.post(() -> {
-                if (!running) {
-                    running = true;
-                    lastNanos = 0;
-                    Choreographer.getInstance().postFrameCallback(renderFrameCallback);
+                if (destroyed) return;
+                if (handle != 0 && EuvNativeBridge.nativeIsRunning(handle) == 0) {
+                    ensureLiveHandleOnRenderThread(curW, curH, scale);
+                    if (handle != 0 && liveSurface != null && liveSurface.isValid() && curW > 0 && curH > 0) {
+                        EuvNativeBridge.nativeSetSurface(handle, liveSurface, curW, curH, scale);
+                        surfaceReady = true;
+                    }
+                }
+                if (handle != 0) {
+                    EuvNativeBridge.nativeSystemLifecycle(handle, 3);
+                }
+                startLoopOnRenderThread();
+                if (handle != 0 && surfaceReady) {
+                    stepAndPresentOnRenderThread(1.0f / targetFps, true);
                 }
             });
         }
 
-        void stopLoop() {
+        void onActivityPaused() {
+            activityResumed = false;
+            if (destroyed) return;
+            synchronized (moveLock) {
+                hasPendingMove = false;
+                pendingMoveCount = 0;
+            }
             renderHandler.post(() -> {
-                running = false;
-                Choreographer.getInstance().removeFrameCallback(renderFrameCallback);
+                if (handle != 0) {
+                    EuvNativeBridge.nativeTouchCancel(handle, -1);
+                    EuvNativeBridge.nativeSystemLifecycle(handle, 4);
+                }
+                stopLoopOnRenderThread();
             });
         }
 
+        void startLoop() {
+            if (destroyed) return;
+            renderHandler.post(this::startLoopOnRenderThread);
+        }
+
+        void stopLoop() {
+            if (destroyed) return;
+            renderHandler.post(this::stopLoopOnRenderThread);
+        }
+
         void shutdown() {
-            stopLoop();
+            if (destroyed) return;
+            destroyed = true;
+            activityResumed = false;
+            synchronized (moveLock) {
+                hasPendingMove = false;
+                pendingMoveCount = 0;
+            }
+            float scale = renderScale;
+            CountDownLatch latch = new CountDownLatch(1);
+            boolean posted = renderHandler.post(() -> {
+                stopLoopOnRenderThread();
+                surfaceReady = false;
+                if (handle != 0) {
+                    long closing = handle;
+                    handle = 0;
+                    EuvNativeBridge.nativeTouchCancel(closing, -1);
+                    EuvNativeBridge.nativeSystemLifecycle(closing, 6);
+                    EuvNativeBridge.nativeSetSurface(closing, null, 0, 0, scale);
+                    EuvNativeBridge.nativeDestroy(closing);
+                }
+                latch.countDown();
+            });
+            if (posted) {
+                try {
+                    latch.await(1000L, TimeUnit.MILLISECONDS);
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                }
+            }
             renderThread.quitSafely();
         }
 
@@ -2096,6 +3173,12 @@ public final class EuvActivity extends Activity {
             long t0 = System.nanoTime();
             int presented = EuvNativeBridge.nativeStepSurface(handle, dt, force ? 1 : 0);
             if (presented != 0) {
+                if (!firstPresentNotified) {
+                    firstPresentNotified = true;
+                    if (onFirstFramePresented != null) {
+                        onFirstFramePresented.run();
+                    }
+                }
                 double totalMs = (System.nanoTime() - t0) / 1_000_000.0;
                 double stepMs = EuvNativeBridge.nativeGetLastStepUs(handle) / 1000.0;
                 double blitMs = EuvNativeBridge.nativeGetLastBlitUs(handle) / 1000.0;
@@ -2156,9 +3239,10 @@ public final class EuvActivity extends Activity {
 
         @Override
         public boolean onTouchEvent(MotionEvent event) {
+            if (destroyed) return false;
             int action = event.getActionMasked();
             int actionIdx = event.getActionIndex();
-            float d = displayDensity;
+            float d = renderScale;
             switch (action) {
                 case MotionEvent.ACTION_DOWN: {
                     int pid = event.getPointerId(actionIdx);
@@ -2169,8 +3253,11 @@ public final class EuvActivity extends Activity {
                         pendingMoveCount = 0;
                     }
                     renderHandler.post(() -> {
-                        if (handle == 0) return;
-                        EuvNativeBridge.nativeTouchCancel(handle, -1);
+                        if (destroyed || handle == 0) return;
+                        if (activityResumed && !running) {
+                            startLoopOnRenderThread();
+                        }
+                        EuvNativeBridge.nativeTouchSyncMask(handle, 0L);
                         EuvNativeBridge.nativeTouchDown(handle, pid, x, y);
                     });
                     return true;
@@ -2181,6 +3268,7 @@ public final class EuvActivity extends Activity {
                     float y = event.getY(actionIdx) / d;
                     long mask = buildActiveTouchMask(event, -1);
                     renderHandler.post(() -> {
+                        if (destroyed) return;
                         flushPendingMovesOnRenderThread();
                         if (handle == 0) return;
                         EuvNativeBridge.nativeTouchDown(handle, pid, x, y);
@@ -2209,6 +3297,7 @@ public final class EuvActivity extends Activity {
                     float y = event.getY(actionIdx) / d;
                     long mask = buildActiveTouchMask(event, actionIdx);
                     renderHandler.post(() -> {
+                        if (destroyed) return;
                         flushPendingMovesOnRenderThread();
                         if (handle == 0) return;
                         EuvNativeBridge.nativeTouchUp(handle, pid, x, y);
@@ -2221,10 +3310,11 @@ public final class EuvActivity extends Activity {
                     float x = event.getX(actionIdx) / d;
                     float y = event.getY(actionIdx) / d;
                     renderHandler.post(() -> {
+                        if (destroyed) return;
                         flushPendingMovesOnRenderThread();
                         if (handle == 0) return;
                         EuvNativeBridge.nativeTouchUp(handle, pid, x, y);
-                        EuvNativeBridge.nativeTouchCancel(handle, -1);
+                        EuvNativeBridge.nativeTouchSyncMask(handle, 0L);
                     });
                     return true;
                 }
@@ -2244,8 +3334,8 @@ cat > "${BUILD_DIR}/AndroidManifest.xml" <<'EOF'
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="vip.ltpp.euv.showcase"
-    android:versionCode="7"
-    android:versionName="0.44.0">
+    android:versionCode="8"
+    android:versionName="0.45.0">
     <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="35" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -2261,11 +3351,11 @@ cat > "${BUILD_DIR}/AndroidManifest.xml" <<'EOF'
     <uses-permission android:name="android.permission.BODY_SENSORS" />
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" />
     <application
-        android:label="Euv Showcase"
+        android:label="Euv Studio"
         android:usesCleartextTraffic="true"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
-        android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
+        android:theme="@style/EuvLaunchTheme"
         android:hardwareAccelerated="true">
         <activity
             android:name=".EuvActivity"
@@ -2310,7 +3400,52 @@ log_info "Generating app icon resources and packaging EuvShowcase.apk..."
 RES_DIR="${BUILD_DIR}/res"
 RES_ZIP="${BUILD_DIR}/res.zip"
 rm -rf "${RES_DIR}" "${RES_ZIP}"
-mkdir -p "${RES_DIR}/mipmap-xxhdpi" "${RES_DIR}/mipmap-xxxhdpi"
+mkdir -p "${RES_DIR}/mipmap-xxhdpi" "${RES_DIR}/mipmap-xxxhdpi" \
+  "${RES_DIR}/values" "${RES_DIR}/values-night" "${RES_DIR}/values-v31" "${RES_DIR}/values-night-v31"
+cat > "${RES_DIR}/values/styles.xml" <<'EOF'
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="euv_launch_bg">#FAFAFA</color>
+    <style name="EuvLaunchTheme" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+        <item name="android:windowBackground">@color/euv_launch_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>
+EOF
+cat > "${RES_DIR}/values-night/styles.xml" <<'EOF'
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="euv_launch_bg">#09090B</color>
+    <style name="EuvLaunchTheme" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@color/euv_launch_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>
+EOF
+cat > "${RES_DIR}/values-v31/styles.xml" <<'EOF'
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="EuvLaunchTheme" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+        <item name="android:windowBackground">@color/euv_launch_bg</item>
+        <item name="android:windowSplashScreenBackground">@color/euv_launch_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>
+EOF
+cat > "${RES_DIR}/values-night-v31/styles.xml" <<'EOF'
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="EuvLaunchTheme" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@color/euv_launch_bg</item>
+        <item name="android:windowSplashScreenBackground">@color/euv_launch_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>
+EOF
 python3 "${REPO_ROOT}/scripts/env/generate-icon.py" "${RES_DIR}/mipmap-xxhdpi/ic_launcher.png" 144 "${EUV_APP_ICON:-}"
 python3 "${REPO_ROOT}/scripts/env/generate-icon.py" "${RES_DIR}/mipmap-xxxhdpi/ic_launcher.png" 192 "${EUV_APP_ICON:-}"
 "${AAPT2}" compile --dir "${RES_DIR}" -o "${RES_ZIP}"
@@ -2321,6 +3456,7 @@ rm -f "${UNALIGNED_APK}" "${ALIGNED_APK}" "${APK_OUT}"
 "${AAPT2}" link \
   -I "${ANDROID_JAR}" \
   --manifest "${BUILD_DIR}/AndroidManifest.xml" \
+  --auto-add-overlay \
   -R "${RES_ZIP}" \
   -o "${UNALIGNED_APK}"
 

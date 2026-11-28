@@ -13,6 +13,7 @@ impl Default for HeadlessPlatform {
             scale_factor: 1.0,
             safe_area: SafeAreaInsets::default(),
             theme: ThemeMode::Light,
+            refresh_rate_hz: FALLBACK_REFRESH_RATE_HZ,
             next_id: 1,
             windows: HashMap::new(),
             pending_events: Vec::new(),
@@ -43,6 +44,23 @@ impl HeadlessPlatform {
         backend.set_scale_factor(scale_factor.max(0.5));
         backend.set_safe_area(safe_area);
         backend
+    }
+
+    /// Overrides the simulated hardware refresh rate in Hertz for deterministic high-refresh testing.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Headless platform builder.
+    /// - `f32` - Simulated display refresh rate in Hertz (`24.0`..=`480.0`).
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated headless backend.
+    #[must_use]
+    pub fn with_refresh_rate_hz(mut self, hz: f32) -> Self {
+        let pacing: FramePacingConfig = compute_frame_pacing(hz);
+        self.set_refresh_rate_hz(pacing.get_preferred_hz());
+        self
     }
 
     /// Enqueues a synthetic `WindowEvent` to be consumed on the next `poll_events()` call.
@@ -275,6 +293,9 @@ impl PlatformBackend for HeadlessPlatform {
         let mut state: WindowState = WindowState::from_config(id, config, self.get_scale_factor());
         state.set_safe_area(self.get_safe_area());
         state.set_system_theme(self.get_theme());
+        state
+            .get_mut_display()
+            .set_refresh_rate_hz(self.get_refresh_rate_hz().round() as u32);
         let record: HeadlessWindowRecord = HeadlessWindowRecord {
             config: config.clone(),
             state,
@@ -437,5 +458,18 @@ impl PlatformBackend for HeadlessPlatform {
     /// - `ThemeMode` - Simulated theme mode.
     fn system_theme(&self) -> ThemeMode {
         self.get_theme()
+    }
+
+    /// Returns the simulated display refresh rate in Hertz.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Platform reference.
+    ///
+    /// # Returns
+    ///
+    /// - `f32` - Simulated refresh rate in Hertz.
+    fn display_refresh_rate_hz(&self) -> f32 {
+        self.get_refresh_rate_hz()
     }
 }

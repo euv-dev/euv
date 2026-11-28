@@ -1,11 +1,11 @@
 ---
 home: true
-title: euv
+title: Euv
 order: 0
 tagline: High-performance cross-platform native Rust UI framework targeting Web, Android, iOS, iPadOS, macOS, Windows, and Linux via direct system APIs.
 ---
 
-## Why euv
+## Why Euv
 
 `euv` replaces Web-only DOM diffing with a unified native Rust architecture:
 

@@ -172,7 +172,9 @@ impl App {
             window_state.get_logical_height(),
         ));
         let _: bool = context.get_app_state().set(AppState::Active);
+        let init_fs: bool = window_state.get_fullscreen() != FullscreenMode::Windowed;
         let _: bool = context.get_window_focused().set(window_state.get_focused());
+        let _: bool = context.get_immersive_fullscreen().set(init_fs);
         let _: bool = context.get_display_refresh_rate().set(native_hz);
         let _: bool = context.get_live_fps().set(native_hz);
         let renderer: Renderer = Renderer::new(
@@ -261,6 +263,8 @@ impl App {
             background_frozen: false,
             resume_zero_dt_pending: false,
             background_frozen_scopes: Vec::new(),
+            gesture_arena: GestureArena::new(),
+            last_immersive_fullscreen: init_fs,
         })
     }
 
@@ -679,6 +683,210 @@ impl App {
         self.get_context().app_state_signal()
     }
 
+    /// Returns the reactive `Signal<SafeAreaInsets>` tracking OS status-bar, notch, and Atomic/Dynamic Island insets.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Application reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Signal<SafeAreaInsets>` - Reactive safe-area signal.
+    #[must_use]
+    pub fn safe_area_signal(&self) -> Signal<SafeAreaInsets> {
+        self.get_context().safe_area_signal()
+    }
+
+    /// Returns the reactive `Signal<bool>` tracking immersive fullscreen mode across UI chrome and OS bars.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Application reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Signal<bool>` - Reactive immersive fullscreen state signal.
+    #[must_use]
+    pub fn immersive_fullscreen_signal(&self) -> Signal<bool> {
+        self.get_context().immersive_fullscreen_signal()
+    }
+
+    /// Returns whether immersive fullscreen mode is currently enabled.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Application reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` while immersive fullscreen is active.
+    #[must_use]
+    pub fn is_immersive_fullscreen(&self) -> bool {
+        self.get_context()
+            .get_immersive_fullscreen()
+            .get_untracked()
+    }
+
+    /// Toggles immersive fullscreen mode, updating reactive UI chrome state and enqueuing platform fullscreen commands.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable application.
+    /// - `bool` - `true` to enter edge-to-edge immersive fullscreen; `false` to exit and restore bars.
+    pub fn set_immersive_fullscreen(&mut self, enabled: bool) {
+        self.get_context().set_immersive_fullscreen(enabled);
+        self.sync_immersive_fullscreen();
+    }
+
+    /// Returns the currently active exclusive gesture owner inside `GestureArena`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Application reference.
+    ///
+    /// # Returns
+    ///
+    /// - `ActiveGesture` - Current exclusive gesture state (`Idle` when no gesture is active).
+    #[must_use]
+    pub fn active_gesture(&self) -> ActiveGesture {
+        self.get_gesture_arena().get_active()
+    }
+
+    /// Synchronizes `Context::immersive_fullscreen` transitions into platform `WindowCommand`s and native fullscreen hooks.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable application.
+    fn sync_immersive_fullscreen(&mut self) {
+        let want_fs: bool = self
+            .get_context()
+            .get_immersive_fullscreen()
+            .get_untracked();
+        if want_fs == self.get_last_immersive_fullscreen() {
+            return;
+        }
+        self.set_last_immersive_fullscreen(want_fs);
+        let wid: WindowId = self.get_window_state().get_id();
+        let mode: FullscreenMode = if want_fs {
+            FullscreenMode::Borderless
+        } else {
+            FullscreenMode::Windowed
+        };
+        let status_bar: StatusBarStyle = if want_fs {
+            StatusBarStyle::Hidden
+        } else {
+            self.get_config().get_window().get_status_bar()
+        };
+        self.get_mut_window_state().set_fullscreen(mode);
+        self.queue_window_command(WindowCommand::SetFullscreen(wid, mode));
+        self.queue_window_command(WindowCommand::SetStatusBarStyle(wid, status_bar));
+        let action_arg: &str = if want_fs {
+            FULLSCREEN_ACTION_ON
+        } else {
+            FULLSCREEN_ACTION_OFF
+        };
+        let _: bool = dispatch_native_action(NATIVE_ACTION_FULLSCREEN, action_arg, "");
+        self.set_pending_full_damage(FullRedrawReason::Forced);
+    }
+
+    /// Flushes any pending `WindowCommand` entries in FIFO order to the active `PlatformBackend`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable application.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<(), PlatformError>` - Execution status across all drained commands.
+    fn flush_window_commands(&mut self) -> Result<(), PlatformError> {
+        if self.get_command_queue().is_empty() {
+            return Ok(());
+        }
+        let commands: Vec<WindowCommand> = self.get_mut_command_queue().drain();
+        for cmd in commands.into_iter() {
+            let Self { platform, .. } = self;
+            platform.apply_command(cmd)?;
+        }
+        Ok(())
+    }
+
+    /// Sanitizes raw OS `SafeAreaInsets`, replacing negative or non-finite values with `0.0`.
+    ///
+    /// # Arguments
+    ///
+    /// - `SafeAreaInsets` - Raw insets reported by an OS or test harness.
+    ///
+    /// # Returns
+    ///
+    /// - `SafeAreaInsets` - Non-negative finite safe-area insets.
+    #[must_use]
+    fn sanitize_safe_area(insets: SafeAreaInsets) -> SafeAreaInsets {
+        let top: f32 = if insets.get_top().is_finite() {
+            insets.get_top().max(0.0)
+        } else {
+            0.0
+        };
+        let right: f32 = if insets.get_right().is_finite() {
+            insets.get_right().max(0.0)
+        } else {
+            0.0
+        };
+        let bottom: f32 = if insets.get_bottom().is_finite() {
+            insets.get_bottom().max(0.0)
+        } else {
+            0.0
+        };
+        let left: f32 = if insets.get_left().is_finite() {
+            insets.get_left().max(0.0)
+        } else {
+            0.0
+        };
+        SafeAreaInsets::new(top, right, bottom, left)
+    }
+
+    /// Clears gesture capture, pressed nodes, and active scroll targets if their scene nodes were disposed or hidden.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable application.
+    fn prune_dead_or_hidden_gesture_targets(&mut self) {
+        let owner_opt: Option<NodeId> = self.get_gesture_arena().active_owner_node();
+        let fling_target_opt: Option<NodeId> = {
+            let Self {
+                touch_scroll_target,
+                ..
+            } = self;
+            *touch_scroll_target
+        };
+        let (owner_stale, fling_stale, pressed_stale): (bool, bool, bool) =
+            self.get_scene().with_read(
+                |tree: &SceneTree| {
+                    let o_bad: bool = owner_opt
+                        .map(|id: NodeId| !tree.is_node_visible(id))
+                        .unwrap_or(false);
+                    let f_bad: bool = fling_target_opt
+                        .map(|id: NodeId| !tree.is_node_visible(id))
+                        .unwrap_or(false);
+                    let p_bad: bool = tree
+                        .get_focus()
+                        .pressed_node()
+                        .map(|id: NodeId| !tree.is_node_visible(id))
+                        .unwrap_or(false);
+                    (o_bad, f_bad, p_bad)
+                },
+                (false, false, false),
+            );
+        if owner_stale {
+            self.cancel_all_active_pointers();
+        } else if pressed_stale {
+            self.cancel_pressed_node_with_event();
+        }
+        if fling_stale {
+            self.set_scroll_velocity(Point::default());
+            self.set_touch_scroll_target(None);
+        }
+    }
+
     /// Returns `true` when the application is currently frozen in background with zero CPU/GPU frame work.
     ///
     /// # Arguments
@@ -774,7 +982,11 @@ impl App {
             },
             Vec::new(),
         );
-        self.set_background_frozen_scopes(frozen_ids);
+        for sid in frozen_ids.into_iter() {
+            if !self.get_background_frozen_scopes().contains(&sid) {
+                self.get_mut_background_frozen_scopes().push(sid);
+            }
+        }
         let _: bool = self.get_context().get_is_idle().set_if_changed(true);
         let _: bool = self.get_context().get_present_fps().set_if_changed(0.0);
         let _: bool = self.get_context().get_live_fps().set_if_changed(0.0);
@@ -799,10 +1011,19 @@ impl App {
         self.set_fps_accum_secs(0.0);
         self.set_fps_accum_frames(0);
         self.set_fps_budget_accum(0.0);
+        let mount_scope_id: Option<ScopeId> = {
+            let Self { mount_scope, .. } = self;
+            mount_scope.as_ref().map(Scope::id)
+        };
         let scopes_to_resume: Vec<ScopeId> = take(self.get_mut_background_frozen_scopes());
         let should_flush: bool = with_runtime(
             |rt: &mut ReactiveRuntime| {
                 let mut any_dirty: bool = false;
+                if let Some(ms_id) = mount_scope_id
+                    && rt.set_scope_frozen(ms_id, false)
+                {
+                    any_dirty = true;
+                }
                 for sid in scopes_to_resume.into_iter() {
                     if rt.set_scope_frozen(sid, false) {
                         any_dirty = true;
@@ -905,8 +1126,52 @@ impl App {
     /// - `&Self` - Mutable application.
     /// - `SystemEvent` - Incoming platform or synthetic system event.
     pub fn dispatch_system_event(&mut self, event: SystemEvent) {
-        let canonical_events: Vec<SystemEvent> =
+        let prev_state: AppState = self.get_system_event_normalizer().state();
+        let was_terminated: bool = prev_state == AppState::Terminated;
+        let was_frozen: bool = self.get_background_frozen();
+        let was_stopped: bool = !self.get_running();
+        let is_reentry_event: bool = matches!(
+            event,
+            SystemEvent::Appear | SystemEvent::Foreground | SystemEvent::FocusChanged(true)
+        );
+        let mut synthesize_foreground: bool = false;
+        let needs_reentry: bool = was_terminated || was_stopped;
+        if is_reentry_event && (needs_reentry || was_frozen) {
+            if was_terminated {
+                let mut revived: SystemEventNormalizer = SystemEventNormalizer::new();
+                let _: Vec<SystemEvent> = revived.normalize(SystemEvent::Background);
+                self.set_system_event_normalizer(revived);
+            }
+            if !self.get_running() {
+                self.set_running(true);
+            }
+            let _: bool = self
+                .get_context()
+                .get_exit_requested()
+                .set_if_changed(false);
+            self.get_mut_command_queue()
+                .get_mut_commands()
+                .retain(|cmd: &WindowCommand| !matches!(cmd, WindowCommand::Close(_)));
+            if self.get_background_frozen() {
+                self.exit_background_freeze(true);
+            }
+            self.cancel_all_active_pointers();
+            self.set_scroll_velocity(Point::default());
+            self.set_touch_scroll_target(None);
+            let from_inactive_bg: bool = was_terminated || prev_state == AppState::Background;
+            if matches!(event, SystemEvent::FocusChanged(true)) && (from_inactive_bg || was_frozen)
+            {
+                synthesize_foreground = true;
+            }
+        }
+        let mut canonical_events: Vec<SystemEvent> =
             self.get_mut_system_event_normalizer().normalize(event);
+        if synthesize_foreground {
+            let fg_events: Vec<SystemEvent> = self
+                .get_mut_system_event_normalizer()
+                .normalize(SystemEvent::Foreground);
+            canonical_events.extend(fg_events);
+        }
         let next_state: AppState = self.get_system_event_normalizer().state();
         let _: bool = self
             .get_context()
@@ -963,9 +1228,19 @@ impl App {
                             .set_if_changed(logical_size);
                     });
                 }
-                SystemEvent::SafeAreaChanged(insets) => {
-                    self.get_mut_window_state().set_safe_area(*insets);
-                    let _: bool = self.get_context().get_safe_area().set_if_changed(*insets);
+                SystemEvent::SafeAreaChanged(raw_insets) => {
+                    let insets: SafeAreaInsets = Self::sanitize_safe_area(*raw_insets);
+                    self.get_mut_window_state().set_safe_area(insets);
+                    let _: bool = self.get_context().get_safe_area().set_if_changed(insets);
+                    let scene: SceneHandle = self.get_scene().clone();
+                    scene.with_write(
+                        |tree: &mut SceneTree| {
+                            let root: NodeId = tree.get_root();
+                            let layout_bits: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(root, layout_bits | DIRTY_PAINT);
+                        },
+                        (),
+                    );
                     self.set_pending_full_damage(FullRedrawReason::Forced);
                 }
                 SystemEvent::OrientationChanged(orient) => {
@@ -1560,6 +1835,18 @@ impl App {
                         FullRedrawReason::Resize
                     });
                 }
+                let plat_safe: Option<SafeAreaInsets> = {
+                    let Self { platform, .. } = self;
+                    platform
+                        .window_state(wid)
+                        .map(|st: WindowState| st.get_safe_area())
+                };
+                if let Some(insets) = plat_safe {
+                    let sanitized: SafeAreaInsets = Self::sanitize_safe_area(insets);
+                    if sanitized != self.get_window_state().get_safe_area() {
+                        self.dispatch_system_event(SystemEvent::SafeAreaChanged(sanitized));
+                    }
+                }
                 let ws: WindowState = self.get_window_state();
                 self.dispatch_system_event(SystemEvent::Resize {
                     width: ws.get_logical_width(),
@@ -1709,13 +1996,8 @@ impl App {
     pub fn step_frame(&mut self) -> Result<FrameStats, PlatformError> {
         let telemetry_on: bool = self.get_telemetry_enabled();
         let mut phase_mark: PhaseMark = Self::phase_start(telemetry_on);
-        if !self.get_command_queue().is_empty() {
-            let commands: Vec<WindowCommand> = self.get_mut_command_queue().drain();
-            for cmd in commands.into_iter() {
-                let Self { platform, .. } = self;
-                platform.apply_command(cmd)?;
-            }
-        }
+        self.sync_immersive_fullscreen();
+        self.flush_window_commands()?;
         let events: Vec<WindowEvent> = {
             let Self { platform, .. } = self;
             platform.poll_events()
@@ -1728,6 +2010,9 @@ impl App {
             return Ok(self.record_background_frozen_frame(input_us));
         }
         flush_effects();
+        self.sync_immersive_fullscreen();
+        self.flush_window_commands()?;
+        self.prune_dead_or_hidden_gesture_targets();
         let resume_zero_dt: bool = self.get_resume_zero_dt_pending();
         if resume_zero_dt {
             self.set_resume_zero_dt_pending(false);
@@ -2431,7 +2716,7 @@ impl App {
         Ok(last_stats)
     }
 
-    /// Cancels all active pointer/touch contacts and resets transient gesture, drag, and pressed UI state.
+    /// Cancels all active pointer/touch contacts and resets transient gesture, drag, hover, and pressed UI state.
     ///
     /// # Arguments
     ///
@@ -2443,6 +2728,11 @@ impl App {
         if had_pointers {
             self.publish_active_touches();
         }
+        let _: bool = self
+            .get_context()
+            .get_swipe_drag_offset()
+            .set_if_changed(0.0);
+        self.get_mut_gesture_arena().reset_all();
         self.set_gesture_origin(None);
         self.set_gesture_suppressed(false);
         self.set_pinch_base_dist(0.0);
@@ -2460,9 +2750,15 @@ impl App {
         self.set_scrollbar_dragging(false);
         self.set_scrollbar_drag_axis(SCROLLBAR_AXIS_NONE);
         self.set_text_selecting_node(None);
+        self.set_touch_scroll_target(None);
         self.set_smooth_scroll_pending(Point::default());
         self.set_smooth_scroll_target(None);
-        self.clear_pressed_node();
+        self.get_mut_input_state().get_mut_keys_down().clear();
+        self.get_mut_input_state().get_mut_buttons_down().clear();
+        self.get_mut_input_state()
+            .set_modifiers(Modifiers::default());
+        self.cancel_pressed_node_with_event();
+        self.clear_hover_chain();
     }
 
     /// Reconciles active touch contacts against the OS ground-truth live pointer ID list, pruning any stale/missed touches.
@@ -2487,9 +2783,15 @@ impl App {
         for stale_id in stale_ids.into_iter() {
             let _: Option<Point> = self.get_mut_active_pointers().remove(&stale_id);
             let _: Option<PointerDevice> = self.get_mut_active_pointer_devices().remove(&stale_id);
+            self.get_mut_gesture_arena().remove_pointer(stale_id);
         }
         self.publish_active_touches();
         if self.get_active_pointers().is_empty() {
+            let _: bool = self
+                .get_context()
+                .get_swipe_drag_offset()
+                .set_if_changed(0.0);
+            self.get_mut_gesture_arena().reset_sequence();
             self.set_gesture_origin(None);
             self.set_gesture_suppressed(false);
             self.set_pinch_base_dist(0.0);
@@ -2507,31 +2809,58 @@ impl App {
             self.set_scrollbar_dragging(false);
             self.set_scrollbar_drag_axis(SCROLLBAR_AXIS_NONE);
             self.set_text_selecting_node(None);
-            self.clear_pressed_node();
+            self.cancel_pressed_node_with_event();
         } else {
             self.sync_remaining_pointer_state();
         }
     }
 
-    /// Clears any currently pressed scene node and marks it dirty so visual press states never stick.
+    /// Clears the pressed scene node, marks it dirty, and emits `UiEventKind::PointerCancel` outside the scene borrow.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable app.
-    fn clear_pressed_node(&mut self) {
+    fn cancel_pressed_node_with_event(&mut self) {
+        self.get_mut_gesture_arena().set_pressed_target(None);
         let scene: SceneHandle = self.get_scene().clone();
-        scene.with_write(
+        let callbacks: Vec<(UiEventHandler, UiEvent)> = scene.with_write(
             |tree: &mut SceneTree| {
+                let mut out: Vec<(UiEventHandler, UiEvent)> = Vec::new();
                 if let Some(prev_id) = tree.get_focus().pressed_node() {
                     tree.get_mut_focus().set_pressed(None);
                     if let Some(node) = tree.get_node_mut(prev_id) {
                         node.get_mut_interaction().set_pressed(false);
+                        if let Some(h) =
+                            node.get_handlers().handler_for(&UiEventKind::PointerCancel)
+                        {
+                            out.push((h, UiEvent::new(prev_id, UiEventKind::PointerCancel)));
+                        }
                     }
                     tree.mark_dirty(prev_id, DIRTY_PAINT);
                 }
+                out
             },
-            (),
+            Vec::new(),
         );
+        Self::invoke_callbacks(callbacks);
+    }
+
+    /// Clears the hovered ancestor chain and invokes any `PointerLeave` callbacks outside the scene borrow.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable app.
+    fn clear_hover_chain(&mut self) {
+        let scene: SceneHandle = self.get_scene().clone();
+        let callbacks: Vec<(UiEventHandler, UiEvent)> = scene.with_write(
+            |tree: &mut SceneTree| {
+                let mut out: Vec<(UiEventHandler, UiEvent)> = Vec::new();
+                Self::sync_hover_chain(tree, None, &mut out);
+                out
+            },
+            Vec::new(),
+        );
+        Self::invoke_callbacks(callbacks);
     }
 
     /// Cancels a single active pointer identifier and cleanly hands off remaining contacts without freezing.
@@ -2543,10 +2872,16 @@ impl App {
     fn handle_pointer_cancel_single(&mut self, pointer_id: u64) {
         let removed_pt: bool = self.get_mut_active_pointers().remove(&pointer_id).is_some();
         let _: Option<PointerDevice> = self.get_mut_active_pointer_devices().remove(&pointer_id);
+        self.get_mut_gesture_arena().remove_pointer(pointer_id);
         if removed_pt {
             self.publish_active_touches();
         }
         if self.get_active_pointers().is_empty() {
+            let _: bool = self
+                .get_context()
+                .get_swipe_drag_offset()
+                .set_if_changed(0.0);
+            self.get_mut_gesture_arena().reset_sequence();
             self.set_gesture_origin(None);
             self.set_gesture_suppressed(false);
             self.set_pinch_base_dist(0.0);
@@ -2564,7 +2899,7 @@ impl App {
             self.set_scrollbar_dragging(false);
             self.set_scrollbar_drag_axis(SCROLLBAR_AXIS_NONE);
             self.set_text_selecting_node(None);
-            self.clear_pressed_node();
+            self.cancel_pressed_node_with_event();
         } else {
             self.sync_remaining_pointer_state();
         }
@@ -2582,6 +2917,8 @@ impl App {
                 .map(|(dist, _): (f32, Point)| dist)
                 .unwrap_or(0.0);
             self.set_pinch_base_dist(next_base);
+            self.get_mut_gesture_arena()
+                .claim(ActiveGesture::Pinch, true);
             self.set_touch_drag_pointer_id(None);
             self.set_touch_drag_origin(None);
             self.set_touch_drag_last(None);
@@ -2612,12 +2949,41 @@ impl App {
                 } = self;
                 *touch_drag_pointer_id
             };
-            if cur_drag_id != Some(rem_id) {
+            if cur_drag_id != Some(rem_id)
+                || self.get_gesture_arena().primary_pointer() != Some(rem_id)
+                || self.get_gesture_arena().get_active() == ActiveGesture::Pinch
+            {
                 let locked: Option<NodeId> = self.resolve_touch_scroll_target(rem_pos);
+                let (origin_hit, overlay_barrier): (Option<NodeId>, Option<NodeId>) =
+                    self.get_scene().with_read(
+                        |tree: &SceneTree| {
+                            let h: Option<NodeId> = hit_test(tree, rem_pos);
+                            let b: Option<NodeId> = GestureArena::find_overlay_barrier(tree, h);
+                            (h, b)
+                        },
+                        (None, None),
+                    );
+                let now_ms: u64 = self.get_context().elapsed_ms();
+                self.get_mut_gesture_arena().begin_primary(
+                    rem_id,
+                    PointerDevice::Touch,
+                    rem_pos,
+                    now_ms,
+                    false,
+                );
+                self.get_mut_gesture_arena().set_suppress_click(true);
+                self.get_mut_gesture_arena().bind_targets(
+                    origin_hit,
+                    None,
+                    None,
+                    overlay_barrier,
+                    false,
+                );
                 self.set_touch_drag_pointer_id(Some(rem_id));
                 self.set_touch_drag_origin(Some(rem_pos));
                 self.set_touch_drag_last(Some(rem_pos));
                 self.set_touch_dragging(false);
+                self.set_touch_drag_travel(0.0);
                 self.set_touch_scroll_axis(0);
                 self.set_touch_vel_accum_delta(Point::default());
                 self.clear_touch_vel_samples();
@@ -3111,13 +3477,14 @@ impl App {
         let _: bool = self.get_context().get_gesture().set(Some(ev));
     }
 
-    /// Advances double-tap aging and stationary long-press gesture detection on every frame tick.
+    /// Advances double-tap aging, gesture arena timers, and stationary long-press detection on every frame tick.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable app.
     /// - `f32` - Elapsed frame delta in seconds.
     fn tick_gesture_timers(&mut self, dt_secs: f32) {
+        self.get_mut_gesture_arena().tick_timers(dt_secs);
         let age: f32 = (self.get_last_tap_age_secs() + dt_secs).min(10.0);
         self.set_last_tap_age_secs(age);
         let click_age: f32 = (self.get_text_last_click_age_secs() + dt_secs).min(10.0);
@@ -3127,24 +3494,20 @@ impl App {
             *gesture_origin
         };
         if let Some(origin) = origin_opt
+            && self.get_gesture_arena().get_active() == ActiveGesture::Pending
+            && !self.get_gesture_arena().get_suppress_click()
             && !self.get_long_press_fired()
             && self.get_active_pointers().len() == 1
         {
             let cur: Point = self.get_input_state().get_pointer_position();
             let moved: f32 = (cur.get_x() - origin.get_x()).hypot(cur.get_y() - origin.get_y());
-            if moved <= 12.0 {
+            if moved <= GESTURE_TOUCH_SLOP_DP {
                 let held: f32 = self.get_gesture_hold_secs() + dt_secs;
                 self.set_gesture_hold_secs(held);
                 if held >= 0.45 {
                     self.set_long_press_fired(true);
-                    self.emit_gesture(
-                        GestureEventKind::LongPress,
-                        origin,
-                        cur,
-                        1.0,
-                        1,
-                        PointerDevice::Touch,
-                    );
+                    let dev: PointerDevice = self.get_gesture_arena().get_primary_device();
+                    self.emit_gesture(GestureEventKind::LongPress, origin, cur, 1.0, 1, dev);
                 }
             }
         }
@@ -3206,7 +3569,7 @@ impl App {
         Some((dist, mid))
     }
 
-    /// Handles pointer motion with 1:1 touch pan-to-scroll, deterministic multi-touch pinch, stale-mouse cleanup, pointer capture for sliders, hover bubbling, cursor updates, and scrollbar dragging.
+    /// Handles pointer motion via `GestureArena` with axis-locked scroll disambiguation, exclusive ownership, stale-mouse cleanup, pinch recognition, and wheel-burst hover isolation.
     ///
     /// # Arguments
     ///
@@ -3218,18 +3581,25 @@ impl App {
         if ptr.get_device() == PointerDevice::Mouse && ptr.get_pressure() <= 0.0 {
             if self.get_mut_active_pointers().remove(&pid).is_some() {
                 let _: Option<PointerDevice> = self.get_mut_active_pointer_devices().remove(&pid);
+                self.get_mut_gesture_arena().remove_pointer(pid);
                 self.publish_active_touches();
                 if self.get_active_pointers().is_empty() {
+                    let _: bool = self
+                        .get_context()
+                        .get_swipe_drag_offset()
+                        .set_if_changed(0.0);
+                    self.get_mut_gesture_arena().reset_sequence();
                     self.set_scrollbar_dragging(false);
                     self.set_scrollbar_drag_axis(SCROLLBAR_AXIS_NONE);
                     self.set_text_selecting_node(None);
-                    self.clear_pressed_node();
+                    self.cancel_pressed_node_with_event();
                 }
             }
         } else if let Some(prev_pt) = self.get_active_pointers().get(&pid).copied() {
             let moved_enough: bool =
                 (pos.get_x() - prev_pt.get_x()).hypot(pos.get_y() - prev_pt.get_y()) > 0.05;
             let _: Option<Point> = self.get_mut_active_pointers().insert(pid, pos);
+            self.get_mut_gesture_arena().record_pointer_activity(pid);
             if moved_enough {
                 self.publish_active_touches();
             }
@@ -3252,143 +3622,202 @@ impl App {
                 return;
             }
         }
+        self.prune_dead_or_hidden_gesture_targets();
         let is_touch: bool = ptr.get_device() == PointerDevice::Touch;
-        let drag_pid_opt: Option<u64> = {
-            let Self {
-                touch_drag_pointer_id,
-                ..
-            } = self;
-            *touch_drag_pointer_id
-        };
-        let origin_opt: Option<Point> = {
-            let Self {
-                touch_drag_origin, ..
-            } = self;
-            *touch_drag_origin
-        };
-        let is_scrollbar_drag: bool = self.get_scrollbar_dragging();
-        if is_touch
-            && self.get_active_pointers().len() == 1
-            && drag_pid_opt == Some(pid)
-            && let Some(origin) = origin_opt
-        {
-            let captured_drag_control: bool = is_scrollbar_drag
-                || (!self.get_touch_dragging()
-                    && self.get_scene().with_read(
-                        |tree: &SceneTree| {
-                            tree.get_focus()
-                                .pressed_node()
-                                .and_then(|pressed_id: NodeId| tree.get_node(pressed_id))
-                                .map(|n: &SceneNode| {
-                                    n.get_handlers()
-                                        .handler_for(&UiEventKind::PointerMove(pos))
-                                        .is_some()
-                                })
-                                .unwrap_or(false)
-                        },
-                        false,
-                    ));
-            if !captured_drag_control {
-                let total_dx: f32 = pos.get_x() - origin.get_x();
-                let total_dy: f32 = pos.get_y() - origin.get_y();
-                let total_dist: f32 = total_dx.hypot(total_dy);
-                if !self.get_touch_dragging() && total_dist > TOUCH_SLOP_DP {
-                    let axis: u8 = if total_dy.abs() >= total_dx.abs() * 1.15 {
-                        1
-                    } else if total_dx.abs() >= total_dy.abs() * 1.75 {
-                        2
-                    } else {
-                        3
-                    };
-                    self.set_touch_dragging(true);
-                    self.set_touch_drag_travel(0.0);
-                    self.set_touch_scroll_axis(axis);
-                    if axis == 2 && !self.get_gesture_suppressed() {
-                        let _: bool = self
-                            .get_context()
-                            .get_swipe_drag_offset()
-                            .set_if_changed(total_dx);
+        let is_stylus: bool = ptr.get_device() == PointerDevice::Stylus;
+        let active_gesture: ActiveGesture = self.get_gesture_arena().get_active();
+        let is_primary_pointer: bool = self.get_gesture_arena().primary_pointer() == Some(pid);
+        if is_primary_pointer && self.get_active_pointers().len() == 1 {
+            match active_gesture {
+                ActiveGesture::VerticalScroll(scroll_node) => {
+                    let prev: Point = self.get_gesture_arena().get_last_pos();
+                    let raw_dy: f32 = prev.get_y() - pos.get_y();
+                    let step_dist: f32 = raw_dy.abs();
+                    if step_dist >= 0.05 {
+                        let moved: bool = self
+                            .handle_scroll_on_target(Point::new(0.0, raw_dy), Some(scroll_node));
+                        if moved {
+                            self.set_touch_drag_travel(self.get_touch_drag_travel() + step_dist);
+                            let cur_accum: Point = self.get_touch_vel_accum_delta();
+                            self.set_touch_vel_accum_delta(Point::new(
+                                cur_accum.get_x(),
+                                cur_accum.get_y() + raw_dy,
+                            ));
+                            self.set_touch_vel_idle_secs(0.0);
+                            self.set_scroll_fling_pos(pos);
+                        }
                     }
-                    self.set_touch_vel_accum_delta(Point::default());
-                    self.clear_touch_vel_samples();
-                    self.set_touch_vel_idle_secs(0.0);
-                    self.clear_pressed_node();
-                    self.set_scroll_fling_pos(pos);
-                    let slop_scale: f32 = TOUCH_SLOP_DP / total_dist;
-                    let anchor_x: f32 = origin.get_x() + total_dx * slop_scale;
-                    let anchor_y: f32 = origin.get_y() + total_dy * slop_scale;
-                    let raw_dx: f32 = anchor_x - pos.get_x();
-                    let raw_dy: f32 = anchor_y - pos.get_y();
-                    let (scroll_dx, scroll_dy): (f32, f32) =
-                        self.project_touch_scroll_delta(raw_dx, raw_dy);
-                    let excess_dist: f32 = scroll_dx.hypot(scroll_dy);
-                    if excess_dist >= 0.05 {
-                        let locked_target: Option<NodeId> = {
-                            let Self {
-                                touch_scroll_target,
-                                ..
-                            } = self;
-                            *touch_scroll_target
-                        };
-                        let _: bool = self.handle_scroll_on_target(
-                            Point::new(scroll_dx, scroll_dy),
-                            locked_target,
-                        );
-                        self.set_touch_drag_travel(excess_dist);
-                        self.set_touch_vel_accum_delta(Point::new(scroll_dx, scroll_dy));
-                    }
+                    self.get_mut_gesture_arena().set_last_pos(pos);
                     self.set_touch_drag_last(Some(pos));
                     return;
                 }
-                if self.get_touch_dragging() {
-                    if self.get_touch_scroll_axis() == 2 && !self.get_gesture_suppressed() {
-                        let _: bool = self
-                            .get_context()
-                            .get_swipe_drag_offset()
-                            .set_if_changed(total_dx);
-                    }
-                    let prev_opt: Option<Point> = {
-                        let Self {
-                            touch_drag_last, ..
-                        } = self;
-                        *touch_drag_last
-                    };
-                    if let Some(prev) = prev_opt {
-                        let raw_dx: f32 = prev.get_x() - pos.get_x();
-                        let raw_dy: f32 = prev.get_y() - pos.get_y();
-                        let (scroll_dx, scroll_dy): (f32, f32) =
-                            self.project_touch_scroll_delta(raw_dx, raw_dy);
-                        let step_dist: f32 = scroll_dx.hypot(scroll_dy);
-                        if step_dist < 0.05 {
-                            return;
+                ActiveGesture::HorizontalScroll(scroll_node) => {
+                    let prev: Point = self.get_gesture_arena().get_last_pos();
+                    let raw_dx: f32 = prev.get_x() - pos.get_x();
+                    let step_dist: f32 = raw_dx.abs();
+                    let _: bool = self
+                        .get_context()
+                        .get_swipe_drag_offset()
+                        .set_if_changed(0.0);
+                    if step_dist >= 0.05 {
+                        let moved: bool = self
+                            .handle_scroll_on_target(Point::new(raw_dx, 0.0), Some(scroll_node));
+                        if moved {
+                            self.set_touch_drag_travel(self.get_touch_drag_travel() + step_dist);
+                            let cur_accum: Point = self.get_touch_vel_accum_delta();
+                            self.set_touch_vel_accum_delta(Point::new(
+                                cur_accum.get_x() + raw_dx,
+                                cur_accum.get_y(),
+                            ));
+                            self.set_touch_vel_idle_secs(0.0);
+                            self.set_scroll_fling_pos(pos);
                         }
-                        let locked_target: Option<NodeId> = {
-                            let Self {
-                                touch_scroll_target,
-                                ..
-                            } = self;
-                            *touch_scroll_target
-                        };
-                        let _: bool = self.handle_scroll_on_target(
-                            Point::new(scroll_dx, scroll_dy),
-                            locked_target,
-                        );
-                        self.set_touch_drag_travel(self.get_touch_drag_travel() + step_dist);
-                        let cur_accum: Point = self.get_touch_vel_accum_delta();
-                        self.set_touch_vel_accum_delta(Point::new(
-                            cur_accum.get_x() + scroll_dx,
-                            cur_accum.get_y() + scroll_dy,
-                        ));
-                        self.set_touch_vel_idle_secs(0.0);
-                        self.set_scroll_fling_pos(pos);
                     }
+                    self.get_mut_gesture_arena().set_last_pos(pos);
                     self.set_touch_drag_last(Some(pos));
                     return;
+                }
+                ActiveGesture::RouteSwipe => {
+                    let origin: Point = self.get_gesture_arena().get_origin();
+                    let total_dx: f32 = pos.get_x() - origin.get_x();
+                    let _: bool = self
+                        .get_context()
+                        .get_swipe_drag_offset()
+                        .set_if_changed(total_dx);
+                    self.get_mut_gesture_arena().set_last_pos(pos);
+                    self.set_touch_drag_last(Some(pos));
+                    return;
+                }
+                ActiveGesture::Pending => {
+                    if let Some(drag_id) = self.get_gesture_arena().direct_drag_node() {
+                        let origin: Point = self.get_gesture_arena().get_origin();
+                        let dist: f32 =
+                            (pos.get_x() - origin.get_x()).hypot(pos.get_y() - origin.get_y());
+                        if dist >= GESTURE_DIRECT_DRAG_PROMOTE_DP {
+                            self.get_mut_gesture_arena()
+                                .claim(ActiveGesture::DirectDrag(drag_id), false);
+                        }
+                        self.get_mut_gesture_arena().set_last_pos(pos);
+                        self.set_touch_drag_last(Some(pos));
+                    } else if is_touch || is_stylus {
+                        let resolution: GestureResolution = self.get_scene().with_read(
+                            |tree: &SceneTree| {
+                                self.get_gesture_arena().resolve_touch_move(tree, pos)
+                            },
+                            GestureResolution::StillPending,
+                        );
+                        match resolution {
+                            GestureResolution::Won(winner) => {
+                                let origin: Point = self.get_gesture_arena().get_origin();
+                                let total_dx: f32 = pos.get_x() - origin.get_x();
+                                let total_dy: f32 = pos.get_y() - origin.get_y();
+                                let total_dist: f32 = total_dx.hypot(total_dy).max(0.001);
+                                let slop_scale: f32 = (GESTURE_TOUCH_SLOP_DP / total_dist).min(1.0);
+                                let anchor_x: f32 = origin.get_x() + total_dx * slop_scale;
+                                let anchor_y: f32 = origin.get_y() + total_dy * slop_scale;
+                                let raw_dx: f32 = anchor_x - pos.get_x();
+                                let raw_dy: f32 = anchor_y - pos.get_y();
+                                self.get_mut_gesture_arena().claim(winner, true);
+                                self.set_gesture_hold_secs(0.0);
+                                self.set_long_press_fired(false);
+                                self.set_text_selecting_node(None);
+                                self.get_scene().clear_text_selection();
+                                self.cancel_pressed_node_with_event();
+                                self.clear_hover_chain();
+                                self.set_touch_dragging(true);
+                                self.set_touch_drag_travel(0.0);
+                                self.set_touch_vel_accum_delta(Point::default());
+                                self.clear_touch_vel_samples();
+                                self.set_touch_vel_idle_secs(0.0);
+                                self.set_scroll_fling_pos(pos);
+                                match winner {
+                                    ActiveGesture::VerticalScroll(scroll_node) => {
+                                        self.set_touch_scroll_axis(1);
+                                        self.set_touch_scroll_target(Some(scroll_node));
+                                        let _: bool = self
+                                            .get_context()
+                                            .get_swipe_drag_offset()
+                                            .set_if_changed(0.0);
+                                        let excess: f32 = raw_dy.abs();
+                                        if excess >= 0.05 {
+                                            let moved: bool = self.handle_scroll_on_target(
+                                                Point::new(0.0, raw_dy),
+                                                Some(scroll_node),
+                                            );
+                                            if moved {
+                                                self.set_touch_drag_travel(excess);
+                                                self.set_touch_vel_accum_delta(Point::new(
+                                                    0.0, raw_dy,
+                                                ));
+                                            }
+                                        }
+                                    }
+                                    ActiveGesture::HorizontalScroll(scroll_node) => {
+                                        self.set_touch_scroll_axis(2);
+                                        self.set_touch_scroll_target(Some(scroll_node));
+                                        let _: bool = self
+                                            .get_context()
+                                            .get_swipe_drag_offset()
+                                            .set_if_changed(0.0);
+                                        let excess: f32 = raw_dx.abs();
+                                        if excess >= 0.05 {
+                                            let moved: bool = self.handle_scroll_on_target(
+                                                Point::new(raw_dx, 0.0),
+                                                Some(scroll_node),
+                                            );
+                                            if moved {
+                                                self.set_touch_drag_travel(excess);
+                                                self.set_touch_vel_accum_delta(Point::new(
+                                                    raw_dx, 0.0,
+                                                ));
+                                            }
+                                        }
+                                    }
+                                    ActiveGesture::RouteSwipe => {
+                                        self.set_touch_scroll_axis(2);
+                                        self.set_touch_scroll_target(None);
+                                        let _: bool = self
+                                            .get_context()
+                                            .get_swipe_drag_offset()
+                                            .set_if_changed(total_dx);
+                                    }
+                                    _ => {}
+                                }
+                                self.get_mut_gesture_arena().set_last_pos(pos);
+                                self.set_touch_drag_last(Some(pos));
+                                return;
+                            }
+                            GestureResolution::CancelPending => {
+                                self.get_mut_gesture_arena().set_suppress_click(true);
+                                self.set_gesture_hold_secs(0.0);
+                                self.set_long_press_fired(false);
+                                self.cancel_pressed_node_with_event();
+                                self.clear_hover_chain();
+                                self.get_mut_gesture_arena().set_last_pos(pos);
+                                self.set_touch_drag_last(Some(pos));
+                                return;
+                            }
+                            GestureResolution::StillPending => {
+                                self.get_mut_gesture_arena().set_last_pos(pos);
+                                self.set_touch_drag_last(Some(pos));
+                                return;
+                            }
+                        }
+                    }
+                }
+                ActiveGesture::DirectDrag(_)
+                | ActiveGesture::ScrollbarDrag(_)
+                | ActiveGesture::TextSelection(_)
+                | ActiveGesture::Idle
+                | ActiveGesture::Pinch => {
+                    self.get_mut_gesture_arena().set_last_pos(pos);
                 }
             }
-            self.set_touch_drag_last(Some(pos));
         }
+        let is_scrollbar_drag: bool = self.get_scrollbar_dragging();
         let drag_axis: u8 = self.get_scrollbar_drag_axis();
+        let wheel_isolated: bool =
+            self.get_active_pointers().is_empty() && self.get_gesture_arena().is_wheel_isolated();
         let text_sel_node: Option<NodeId> = {
             let Self {
                 text_selecting_node,
@@ -3503,7 +3932,7 @@ impl App {
                         )));
                     }
                     let hit: Option<NodeId> = hit_test(tree, pos);
-                    if !is_touch {
+                    if !is_touch && !wheel_isolated {
                         Self::sync_hover_chain(tree, hit, &mut out);
                     }
                     let mut resolved_cursor: CursorIcon = CursorIcon::Default;
@@ -3562,7 +3991,58 @@ impl App {
         Self::invoke_callbacks(callbacks);
     }
 
-    /// Handles pointer press, propagating pressed state, capturing draggable controls, and supporting scrollbar thumb clicks.
+    /// Recovers from stale single-pointer or cross-device contacts abandoned by OS interruptions before registering a new `PointerDown`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable app.
+    /// - `u64` - Incoming primary pointer identifier.
+    /// - `PointerDevice` - Incoming pointer device class.
+    fn recover_stale_pointers_before_down(&mut self, pid: u64, device: PointerDevice) {
+        if self.get_active_pointers().is_empty() {
+            return;
+        }
+        if device == PointerDevice::Mouse || self.get_active_pointers().contains_key(&pid) {
+            self.cancel_all_active_pointers();
+            return;
+        }
+        let stale_ids: Vec<u64> = self
+            .get_active_pointers()
+            .keys()
+            .copied()
+            .filter(|existing_id: &u64| {
+                let wrong_dev: bool = self.get_active_pointer_devices().get(existing_id)
+                    == Some(&PointerDevice::Mouse);
+                wrong_dev || self.get_gesture_arena().is_pointer_stale(*existing_id)
+            })
+            .collect();
+        if stale_ids.len() == self.get_active_pointers().len() {
+            self.cancel_all_active_pointers();
+            return;
+        }
+        if !stale_ids.is_empty() {
+            for stale_id in stale_ids.into_iter() {
+                let _: Option<Point> = self.get_mut_active_pointers().remove(&stale_id);
+                let _: Option<PointerDevice> =
+                    self.get_mut_active_pointer_devices().remove(&stale_id);
+                self.get_mut_gesture_arena().remove_pointer(stale_id);
+            }
+            self.publish_active_touches();
+        }
+        let origin_invisible: bool = self
+            .get_gesture_arena()
+            .origin_hit_node()
+            .map(|id: NodeId| {
+                self.get_scene()
+                    .with_read(|tree: &SceneTree| !tree.is_node_visible(id), true)
+            })
+            .unwrap_or(false);
+        if origin_invisible && self.get_active_pointers().len() == 1 {
+            self.cancel_all_active_pointers();
+        }
+    }
+
+    /// Handles pointer press via `GestureArena` with stale-contact recovery, fling-arrest click suppression, Tier 0 overlay barriers, and direct-drag detection.
     ///
     /// # Arguments
     ///
@@ -3571,7 +4051,20 @@ impl App {
     fn handle_pointer_down_event(&mut self, ptr: PointerEvent) {
         let pos: Point = ptr.get_position();
         let pid: u64 = ptr.get_pointer_id();
+        self.prune_dead_or_hidden_gesture_targets();
+        self.recover_stale_pointers_before_down(pid, ptr.get_device());
+        let fling_vel: Point = self.get_scroll_velocity();
+        let fling_speed: f32 = fling_vel.get_x().hypot(fling_vel.get_y());
+        let fling_active: bool = fling_speed > GESTURE_FLING_TAP_STOP_SPEED_DP_S;
+        let fling_target: Option<NodeId> = {
+            let Self {
+                touch_scroll_target,
+                ..
+            } = self;
+            *touch_scroll_target
+        };
         self.set_caret_blink_secs(0.0);
+        self.set_scroll_velocity(Point::default());
         self.set_smooth_scroll_pending(Point::default());
         self.set_smooth_scroll_target(None);
         self.get_scene().with_write(
@@ -3584,44 +4077,12 @@ impl App {
         let _: Option<PointerDevice> = self
             .get_mut_active_pointer_devices()
             .insert(pid, ptr.get_device());
+        self.get_mut_gesture_arena().record_pointer_activity(pid);
         self.publish_active_touches();
-        if self.get_active_pointers().len() == 1 {
-            let suppress_gest: bool = self.get_scene().with_read(
-                |tree: &SceneTree| {
-                    let mut walk: Option<NodeId> = hit_test(tree, pos);
-                    while let Some(aid) = walk {
-                        if let Some(node) = tree.get_node(aid) {
-                            let is_canvas: bool = matches!(node.get_kind(), NodeKind::Canvas);
-                            let has_drag_move: bool = node
-                                .get_handlers()
-                                .handler_for(&UiEventKind::PointerMove(pos))
-                                .is_some();
-                            let has_horiz_scroll: bool =
-                                node.get_style().get_layout().get_overflow() == Overflow::Scroll
-                                    && node.get_layout_box().get_content_size().get_width()
-                                        > node.get_layout_box().get_content_bounds().get_width()
-                                            + 2.0;
-                            if is_canvas
-                                || has_drag_move
-                                || has_horiz_scroll
-                                || node.get_style().get_paint().get_stop_event_propagation()
-                            {
-                                return true;
-                            }
-                            walk = node.parent_id();
-                        } else {
-                            break;
-                        }
-                    }
-                    false
-                },
-                false,
-            );
-            self.set_gesture_suppressed(suppress_gest);
-            self.set_gesture_origin(Some(pos));
-            self.set_gesture_hold_secs(0.0);
-            self.set_long_press_fired(false);
-        } else {
+        if self.get_active_pointers().len() >= 2 {
+            self.cancel_pressed_node_with_event();
+            self.get_mut_gesture_arena()
+                .claim(ActiveGesture::Pinch, true);
             self.set_gesture_origin(None);
             self.set_gesture_suppressed(true);
             let next_base: f32 = self
@@ -3638,7 +4099,6 @@ impl App {
             self.set_touch_vel_accum_delta(Point::default());
             self.clear_touch_vel_samples();
             self.set_touch_vel_idle_secs(0.0);
-            self.set_scroll_velocity(Point::default());
             self.set_touch_scroll_target(None);
             let _: bool = self
                 .get_context()
@@ -3646,7 +4106,13 @@ impl App {
                 .set_if_changed(0.0);
             return;
         }
-        if ptr.get_device() == PointerDevice::Touch {
+        let started_ms: u64 = self.get_context().elapsed_ms();
+        self.get_mut_gesture_arena()
+            .begin_primary(pid, ptr.get_device(), pos, started_ms, false);
+        self.set_gesture_origin(Some(pos));
+        self.set_gesture_hold_secs(0.0);
+        self.set_long_press_fired(false);
+        if ptr.get_device() == PointerDevice::Touch || ptr.get_device() == PointerDevice::Stylus {
             self.set_touch_drag_pointer_id(Some(pid));
             self.set_touch_drag_origin(Some(pos));
             self.set_touch_drag_last(Some(pos));
@@ -3656,7 +4122,6 @@ impl App {
             self.set_touch_vel_accum_delta(Point::default());
             self.clear_touch_vel_samples();
             self.set_touch_vel_idle_secs(0.0);
-            self.set_scroll_velocity(Point::default());
             self.set_scroll_fling_pos(pos);
             let locked: Option<NodeId> = self.resolve_touch_scroll_target(pos);
             self.set_touch_scroll_target(locked);
@@ -3670,7 +4135,6 @@ impl App {
             self.set_touch_vel_accum_delta(Point::default());
             self.clear_touch_vel_samples();
             self.set_touch_vel_idle_secs(0.0);
-            self.set_scroll_velocity(Point::default());
             self.set_touch_scroll_target(None);
         }
         let prev_click_node: Option<NodeId> = {
@@ -3690,10 +4154,15 @@ impl App {
         let prev_click_age: f32 = self.get_text_last_click_age_secs();
         let prev_click_count: u8 = self.get_text_click_count();
         let scene: SceneHandle = self.get_scene().clone();
-        let (callbacks, grabbed_scrollbar_axis, tapped_enabled_input, text_sel_started): PointerDownOutcome =
-            scene.with_write(
+        let plan: PointerDownPlan = scene.with_write(
             |tree: &mut SceneTree| {
                 let hit: Option<NodeId> = hit_test(tree, pos);
+                let arrested_fling: bool = fling_active
+                    && match fling_target {
+                        Some(target_id) => Self::has_ancestor(tree, hit, target_id),
+                        None => ptr.get_device() != PointerDevice::Mouse,
+                    };
+                let overlay_barrier: Option<NodeId> = GestureArena::find_overlay_barrier(tree, hit);
                 let mut hover_out: Vec<(UiEventHandler, UiEvent)> = Vec::new();
                 Self::sync_hover_chain(
                     tree,
@@ -3711,6 +4180,13 @@ impl App {
                     while let Some(aid) = sb_walk {
                         let next_parent: Option<NodeId> =
                             tree.get_node(aid).and_then(SceneNode::parent_id);
+                        let is_barrier: bool = tree
+                            .get_node(aid)
+                            .map(|n: &SceneNode| {
+                                matches!(n.get_kind(), NodeKind::Portal)
+                                    || n.style_ref().layout_ref().get_position() == Position::Fixed
+                            })
+                            .unwrap_or(false);
                         if let Some(node) = tree.get_node(aid)
                             && node.get_style().get_layout().get_overflow() == Overflow::Scroll
                         {
@@ -3722,8 +4198,7 @@ impl App {
                                 .unwrap_or_else(|| lbox.get_bounds());
                             let inner_right: f32 = screen_outer.right() - border_w;
                             let inner_bottom: f32 = screen_outer.bottom() - border_w;
-                            let inner_w: f32 =
-                                (screen_outer.get_width() - border_w * 2.0).max(1.0);
+                            let inner_w: f32 = (screen_outer.get_width() - border_w * 2.0).max(1.0);
                             let inner_h: f32 =
                                 (screen_outer.get_height() - border_w * 2.0).max(1.0);
                             let view_w: f32 = lbox.get_content_bounds().get_width().max(1.0);
@@ -3803,31 +4278,70 @@ impl App {
                                 break;
                             }
                         }
+                        if is_barrier {
+                            break;
+                        }
                         sb_walk = next_parent;
                     }
                 }
                 if let Some((sb_id, sb_axis)) = scrollbar_target {
                     tree.get_mut_focus().set_pressed(Some(sb_id));
-                    return (sb_callbacks, sb_axis, false, None);
+                    return PointerDownPlan {
+                        callbacks: sb_callbacks,
+                        scrollbar_axis: sb_axis,
+                        scrollbar_node: Some(sb_id),
+                        tapped_enabled_input: false,
+                        text_sel_started: None,
+                        origin_hit: hit,
+                        press_target: Some(sb_id),
+                        direct_drag_target: None,
+                        overlay_barrier,
+                        route_swipe_allowed: false,
+                        suppress_global_gestures: true,
+                        arrested_fling: false,
+                    };
                 }
                 let mut focus_target: Option<NodeId> = None;
                 let mut press_target: Option<NodeId> = None;
+                let mut direct_drag_target: Option<NodeId> = None;
+                let mut has_canvas: bool = false;
+                let mut stops_event_prop: bool = false;
                 let mut target_walk: Option<NodeId> = hit;
                 while let Some(aid) = target_walk {
                     if let Some(node) = tree.get_node(aid) {
                         let is_scrim: bool = matches!(node.get_kind(), NodeKind::Portal)
                             || node.get_style().get_layout().get_position() == Position::Fixed;
-                        if focus_target.is_none()
+                        let is_canvas: bool = matches!(node.get_kind(), NodeKind::Canvas);
+                        if is_canvas {
+                            has_canvas = true;
+                        }
+                        let has_ptr_down: bool = node
+                            .get_handlers()
+                            .handler_for(&UiEventKind::PointerDown(pos))
+                            .is_some();
+                        let has_ptr_move: bool = node
+                            .get_handlers()
+                            .handler_for(&UiEventKind::PointerMove(pos))
+                            .is_some();
+                        if direct_drag_target.is_none()
+                            && (is_canvas || (has_ptr_down && has_ptr_move))
+                        {
+                            direct_drag_target = Some(aid);
+                        }
+                        if node.get_style().get_paint().get_stop_event_propagation() {
+                            stops_event_prop = true;
+                        }
+                        if !arrested_fling
+                            && focus_target.is_none()
                             && node.get_interaction().get_focusable()
                             && (!is_scrim || hit == Some(aid))
                         {
                             focus_target = Some(aid);
                         }
-                        if (!is_scrim || hit == Some(aid))
-                            && (node
-                                .get_handlers()
-                                .handler_for(&UiEventKind::PointerDown(pos))
-                                .is_some()
+                        if !arrested_fling
+                            && press_target.is_none()
+                            && (!is_scrim || hit == Some(aid))
+                            && (has_ptr_down
                                 || node
                                     .get_handlers()
                                     .handler_for(&UiEventKind::Click(pos))
@@ -3835,6 +4349,8 @@ impl App {
                                 || node.get_style().get_paint().get_cursor() == CursorIcon::Pointer)
                         {
                             press_target = Some(aid);
+                        }
+                        if is_scrim || stops_event_prop {
                             break;
                         }
                         target_walk = node.parent_id();
@@ -3843,7 +4359,8 @@ impl App {
                     }
                 }
                 let mut started_sel: Option<StartedTextSelection> = None;
-                if ptr.get_button() == PointerButton::Primary
+                if !arrested_fling
+                    && ptr.get_button() == PointerButton::Primary
                     && ptr.get_device() != PointerDevice::Touch
                     && let Some(hit_id) = hit
                     && tree.is_node_selectable(hit_id)
@@ -3903,13 +4420,15 @@ impl App {
                     tree.clear_text_selection();
                 }
                 let hit_enabled_input: bool = focus_target
-                        .and_then(|fid: NodeId| tree.get_node(fid))
-                        .map(|n: &SceneNode| {
-                            matches!(n.get_kind(), NodeKind::Input(inp) if !inp.get_disabled())
-                        })
-                        .unwrap_or(false);
+                    .and_then(|fid: NodeId| tree.get_node(fid))
+                    .map(|n: &SceneNode| {
+                        matches!(n.get_kind(), NodeKind::Input(inp) if !inp.get_disabled())
+                    })
+                    .unwrap_or(false);
                 let mut out: Vec<(UiEventHandler, UiEvent)> = sb_callbacks;
-                out.extend(tree.update_focus(focus_target));
+                if !arrested_fling {
+                    out.extend(tree.update_focus(focus_target));
+                }
                 tree.get_mut_focus().set_pressed(press_target);
                 if let Some(id) = press_target {
                     if let Some(node) = tree.get_node_mut(id) {
@@ -3923,13 +4442,44 @@ impl App {
                     }
                     tree.mark_dirty(id, DIRTY_PAINT);
                 }
-                (out, SCROLLBAR_AXIS_NONE, hit_enabled_input, started_sel)
+                let suppress_global: bool =
+                    has_canvas || direct_drag_target.is_some() || stops_event_prop;
+                let route_swipe_allowed: bool = !suppress_global && overlay_barrier.is_none();
+                PointerDownPlan {
+                    callbacks: out,
+                    scrollbar_axis: SCROLLBAR_AXIS_NONE,
+                    scrollbar_node: None,
+                    tapped_enabled_input: hit_enabled_input,
+                    text_sel_started: started_sel,
+                    origin_hit: hit,
+                    press_target,
+                    direct_drag_target,
+                    overlay_barrier,
+                    route_swipe_allowed,
+                    suppress_global_gestures: suppress_global,
+                    arrested_fling,
+                }
             },
-            (Vec::new(), SCROLLBAR_AXIS_NONE, false, None),
+            PointerDownPlan::default(),
         );
-        self.set_scrollbar_dragging(grabbed_scrollbar_axis != SCROLLBAR_AXIS_NONE);
-        self.set_scrollbar_drag_axis(grabbed_scrollbar_axis);
-        if let Some((sel_id, anchor_char, clicks, drag_active)) = text_sel_started {
+        self.set_gesture_suppressed(plan.suppress_global_gestures);
+        self.set_scrollbar_dragging(plan.scrollbar_axis != SCROLLBAR_AXIS_NONE);
+        self.set_scrollbar_drag_axis(plan.scrollbar_axis);
+        if plan.arrested_fling {
+            self.get_mut_gesture_arena().set_arrested_fling(true);
+            self.get_mut_gesture_arena().set_suppress_click(true);
+        }
+        self.get_mut_gesture_arena().bind_targets(
+            plan.origin_hit,
+            plan.press_target,
+            plan.direct_drag_target,
+            plan.overlay_barrier,
+            plan.route_swipe_allowed,
+        );
+        if let Some(sb_id) = plan.scrollbar_node {
+            self.get_mut_gesture_arena()
+                .claim(ActiveGesture::ScrollbarDrag(sb_id), true);
+        } else if let Some((sel_id, anchor_char, clicks, drag_active)) = plan.text_sel_started {
             self.set_text_selecting_node(if drag_active { Some(sel_id) } else { None });
             self.set_text_select_anchor_char(anchor_char);
             self.set_text_click_count(clicks);
@@ -3937,23 +4487,41 @@ impl App {
             self.set_text_last_click_pos(Some(pos));
             self.set_text_last_click_age_secs(0.0);
             self.set_gesture_suppressed(true);
+            if drag_active {
+                self.get_mut_gesture_arena()
+                    .claim(ActiveGesture::TextSelection(sel_id), false);
+            }
         } else {
             self.set_text_selecting_node(None);
             self.set_text_click_count(0);
             self.set_text_last_click_node(None);
             self.set_text_last_click_pos(None);
+            if let Some(drag_id) = plan.direct_drag_target {
+                let is_canvas: bool = self.get_scene().with_read(
+                    |tree: &SceneTree| {
+                        tree.get_node(drag_id)
+                            .map(|n: &SceneNode| matches!(n.get_kind(), NodeKind::Canvas))
+                            .unwrap_or(false)
+                    },
+                    false,
+                );
+                if is_canvas {
+                    self.get_mut_gesture_arena()
+                        .claim(ActiveGesture::DirectDrag(drag_id), false);
+                }
+            }
         }
         if ptr.get_device() == PointerDevice::Touch {
-            if !tapped_enabled_input {
+            if !plan.tapped_enabled_input && !plan.arrested_fling {
                 self.sync_ime_focus();
             }
-        } else {
-            self.sync_ime_focus_forced(tapped_enabled_input);
+        } else if !plan.arrested_fling {
+            self.sync_ime_focus_forced(plan.tapped_enabled_input);
         }
-        Self::invoke_callbacks(callbacks);
+        Self::invoke_callbacks(plan.callbacks);
     }
 
-    /// Handles pointer release, firing `PointerUp` on captured targets and bubbling `Click` when not touch-scrolling.
+    /// Handles pointer release via `GestureArena`, launching inertial fling, suppressing clicks after scroll/swipe/fling-arrest, and enforcing Tier 0 overlay barriers.
     ///
     /// # Arguments
     ///
@@ -3964,35 +4532,74 @@ impl App {
         let pid: u64 = ptr.get_pointer_id();
         let had_active_pointer: bool = self.get_mut_active_pointers().remove(&pid).is_some();
         let _: Option<PointerDevice> = self.get_mut_active_pointer_devices().remove(&pid);
+        self.get_mut_gesture_arena().remove_pointer(pid);
         self.publish_active_touches();
         if !self.get_active_pointers().is_empty() {
             self.sync_remaining_pointer_state();
             return;
         }
+        let active_before: ActiveGesture = self.get_gesture_arena().get_active();
+        let arena_suppress_click: bool = self.get_gesture_arena().get_suppress_click();
+        let arrested_fling: bool = self.get_gesture_arena().get_arrested_fling();
+        let arena_origin: Point = self.get_gesture_arena().get_origin();
+        let origin_hit: Option<NodeId> = self.get_gesture_arena().origin_hit_node();
         let origin_opt: Option<Point> = {
             let Self { gesture_origin, .. } = self;
             *gesture_origin
         };
         let suppressed: bool = self.get_gesture_suppressed();
+        self.get_mut_gesture_arena().reset_sequence();
         self.set_gesture_origin(None);
         self.set_gesture_suppressed(false);
         self.set_pinch_base_dist(0.0);
         self.set_gesture_hold_secs(0.0);
         let long_fired: bool = self.get_long_press_fired();
         self.set_long_press_fired(false);
-        let locked_axis: u8 = self.get_touch_scroll_axis();
         let _: bool = self
             .get_context()
             .get_swipe_drag_offset()
             .set_if_changed(0.0);
-        if let Some(origin) = origin_opt
+        let dx: f32 = pos.get_x() - arena_origin.get_x();
+        let dy: f32 = pos.get_y() - arena_origin.get_y();
+        let dist: f32 = dx.hypot(dy);
+        let is_scroll_winner: bool = matches!(
+            active_before,
+            ActiveGesture::VerticalScroll(_) | ActiveGesture::HorizontalScroll(_)
+        );
+        let is_non_click_winner: bool = is_scroll_winner
+            || matches!(
+                active_before,
+                ActiveGesture::RouteSwipe | ActiveGesture::ScrollbarDrag(_) | ActiveGesture::Pinch
+            );
+        if active_before == ActiveGesture::RouteSwipe {
+            let is_horiz_swipe: bool = dx.abs() >= SWIPE_MIN_DISTANCE_DP
+                && dx.abs() >= dy.abs() * SWIPE_DIRECTION_RATIO
+                && dy.abs() <= SWIPE_MAX_CROSS_AXIS_DP;
+            if is_horiz_swipe {
+                let swipe_kind: GestureEventKind = if dx > 0.0 {
+                    GestureEventKind::SwipeRight
+                } else {
+                    GestureEventKind::SwipeLeft
+                };
+                self.emit_gesture(swipe_kind, arena_origin, pos, 1.0, 1, ptr.get_device());
+            } else {
+                self.emit_gesture(
+                    GestureEventKind::Pan,
+                    arena_origin,
+                    pos,
+                    1.0,
+                    1,
+                    ptr.get_device(),
+                );
+            }
+        } else if active_before == ActiveGesture::Pending
+            && let Some(origin) = origin_opt
             && !long_fired
             && !suppressed
+            && !arrested_fling
+            && !arena_suppress_click
         {
-            let dx: f32 = pos.get_x() - origin.get_x();
-            let dy: f32 = pos.get_y() - origin.get_y();
-            let dist: f32 = dx.hypot(dy);
-            if dist <= TOUCH_SLOP_DP {
+            if dist <= GESTURE_TOUCH_SLOP_DP {
                 let prev_tap: Option<Point> = {
                     let Self { last_tap_pos, .. } = self;
                     *last_tap_pos
@@ -4020,14 +4627,16 @@ impl App {
                     self.emit_gesture(GestureEventKind::Tap, origin, pos, 1.0, 1, ptr.get_device());
                 }
             } else {
-                let is_horiz_swipe: bool = locked_axis != 1
+                let h_scroll_claims: bool = self.get_scene().with_read(
+                    |tree: &SceneTree| {
+                        GestureArena::find_horizontal_scroll_winner(tree, origin_hit, dx).is_some()
+                    },
+                    false,
+                );
+                let is_horiz_swipe: bool = !h_scroll_claims
                     && dx.abs() >= SWIPE_MIN_DISTANCE_DP
                     && dx.abs() >= dy.abs() * SWIPE_DIRECTION_RATIO
                     && dy.abs() <= SWIPE_MAX_CROSS_AXIS_DP;
-                let is_vert_swipe: bool = locked_axis != 2
-                    && dy.abs() >= SWIPE_MIN_DISTANCE_DP
-                    && dy.abs() >= dx.abs() * SWIPE_DIRECTION_RATIO
-                    && dx.abs() <= SWIPE_MAX_CROSS_AXIS_DP;
                 if is_horiz_swipe {
                     let swipe_kind: GestureEventKind = if dx > 0.0 {
                         GestureEventKind::SwipeRight
@@ -4035,21 +4644,11 @@ impl App {
                         GestureEventKind::SwipeLeft
                     };
                     self.emit_gesture(swipe_kind, origin, pos, 1.0, 1, ptr.get_device());
-                } else if is_vert_swipe {
-                    let swipe_kind: GestureEventKind = if dy > 0.0 {
-                        GestureEventKind::SwipeDown
-                    } else {
-                        GestureEventKind::SwipeUp
-                    };
-                    self.emit_gesture(swipe_kind, origin, pos, 1.0, 1, ptr.get_device());
-                } else {
-                    self.emit_gesture(GestureEventKind::Pan, origin, pos, 1.0, 1, ptr.get_device());
                 }
             }
         }
-        let was_touch_dragging: bool = self.get_touch_dragging();
         let drag_travel: f32 = self.get_touch_drag_travel();
-        if was_touch_dragging && drag_travel >= TOUCH_MIN_FLING_DRAG_DP {
+        if is_scroll_winner && drag_travel >= TOUCH_MIN_FLING_DRAG_DP {
             let pending_accum: Point = self.get_touch_vel_accum_delta();
             let release_vel: Point = self.compute_touch_release_velocity(pending_accum);
             self.set_scroll_velocity(release_vel);
@@ -4069,7 +4668,14 @@ impl App {
         };
         let selected_non_empty: bool = self.get_scene().get_selected_text().is_some();
         let text_sel_active: bool = was_text_selecting || self.get_text_click_count() >= 2;
-        let suppress_click: bool = was_touch_dragging
+        let touch_moved_past_slop: bool =
+            ptr.get_device() != PointerDevice::Mouse && dist > GESTURE_TOUCH_SLOP_DP;
+        let suppress_click: bool = is_non_click_winner
+            || arena_suppress_click
+            || arrested_fling
+            || long_fired
+            || touch_moved_past_slop
+            || self.get_touch_dragging()
             || self.get_scrollbar_dragging()
             || (text_sel_active && selected_non_empty);
         self.set_touch_drag_pointer_id(None);
@@ -4095,9 +4701,10 @@ impl App {
                     if let Some(prev_id) = pressed {
                         if let Some(node) = tree.get_node_mut(prev_id) {
                             node.get_mut_interaction().set_pressed(false);
-                            if let Some(h) = node
-                                .get_handlers()
-                                .handler_for(&UiEventKind::PointerUp(pos))
+                            if !is_non_click_winner
+                                && let Some(h) = node
+                                    .get_handlers()
+                                    .handler_for(&UiEventKind::PointerUp(pos))
                             {
                                 out.push((h, UiEvent::new(prev_id, UiEventKind::PointerUp(pos))));
                             }
@@ -4106,7 +4713,8 @@ impl App {
                     }
                     let mut retapped_input: bool = false;
                     if let Some(target_id) = hit {
-                        if pressed != Some(target_id)
+                        if !is_non_click_winner
+                            && pressed != Some(target_id)
                             && let Some(node) = tree.get_node(target_id)
                             && let Some(h) = node
                                 .get_handlers()
@@ -4126,16 +4734,26 @@ impl App {
                             let mut bubble: Option<NodeId> = Some(target_id);
                             while let Some(id) = bubble {
                                 if let Some(node) = tree.get_node(id) {
+                                    let is_barrier: bool = matches!(node.get_kind(), NodeKind::Portal)
+                                        || node.style_ref().layout_ref().get_position()
+                                            == Position::Fixed;
                                     if let Some(h) =
                                         node.get_handlers().handler_for(&UiEventKind::Click(pos))
                                     {
-                                        out.push((
-                                            h,
-                                            UiEvent::new(target_id, UiEventKind::Click(pos)),
-                                        ));
+                                        let matches_origin: bool = origin_hit.is_none()
+                                            || Self::has_ancestor(tree, origin_hit, id)
+                                            || Self::has_ancestor(tree, pressed, id);
+                                        if matches_origin {
+                                            out.push((
+                                                h,
+                                                UiEvent::new(target_id, UiEventKind::Click(pos)),
+                                            ));
+                                        }
                                         break;
                                     }
-                                    if node.get_style().get_paint().get_stop_event_propagation() {
+                                    if is_barrier
+                                        || node.get_style().get_paint().get_stop_event_propagation()
+                                    {
                                         break;
                                     }
                                     bubble = node.parent_id();
@@ -4160,14 +4778,14 @@ impl App {
         Self::invoke_callbacks(callbacks);
     }
 
-    /// Handles wheel/pan scroll deltas with smooth exponential interpolation for discrete mouse wheels and 1:1 immediate response for precise trackpads and headless runs.
+    /// Handles wheel/pan scroll deltas with strict scroll isolation (cancelling pending clicks/swipes and suppressing hover churn).
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable app.
     /// - `Point` - Logical scroll delta `(dx, dy)`.
     fn handle_scroll(&mut self, raw_delta: Point) {
-        let delta: Point = if self.get_input_state().get_modifiers().get_shift()
+        let shifted: Point = if self.get_input_state().get_modifiers().get_shift()
             && raw_delta.get_x().abs() <= 0.01
             && raw_delta.get_y().abs() > 0.01
         {
@@ -4175,7 +4793,42 @@ impl App {
         } else {
             raw_delta
         };
+        let sx: f32 = shifted.get_x();
+        let sy: f32 = shifted.get_y();
+        let delta: Point = if sx.abs() > 0.01 && sy.abs() > 0.01 {
+            if sx.abs() >= sy.abs() * GESTURE_AXIS_HYSTERESIS_RATIO {
+                Point::new(sx, 0.0)
+            } else if sy.abs() >= sx.abs() * GESTURE_AXIS_HYSTERESIS_RATIO {
+                Point::new(0.0, sy)
+            } else if sx.abs() > sy.abs() {
+                Point::new(sx, 0.0)
+            } else {
+                Point::new(0.0, sy)
+            }
+        } else {
+            shifted
+        };
         let mag: f32 = delta.get_x().hypot(delta.get_y());
+        if mag <= 0.0001 {
+            return;
+        }
+        self.get_mut_gesture_arena().mark_wheel_scroll_burst();
+        if self.get_gesture_arena().get_active() == ActiveGesture::Pending {
+            self.get_mut_gesture_arena().set_suppress_click(true);
+            self.set_gesture_hold_secs(0.0);
+            self.set_long_press_fired(false);
+        }
+        let has_pressed: bool = self.get_scene().with_read(
+            |tree: &SceneTree| tree.get_focus().pressed_node().is_some(),
+            false,
+        );
+        if has_pressed && !self.get_scrollbar_dragging() {
+            self.cancel_pressed_node_with_event();
+        }
+        let _: bool = self
+            .get_context()
+            .get_swipe_drag_offset()
+            .set_if_changed(0.0);
         if self.platform_kind() == PlatformKind::Headless {
             self.set_smooth_scroll_pending(Point::default());
             self.set_smooth_scroll_target(None);
@@ -4211,7 +4864,7 @@ impl App {
         self.set_smooth_scroll_target(locked);
     }
 
-    /// Routes scroll delta to an optional locked touch target or hovered node with strict scroll-isolation support.
+    /// Routes scroll delta to an optional locked touch target or hit-tested pointer node with strict Tier 0 overlay and scroll-isolation support.
     ///
     /// # Arguments
     ///
@@ -4229,19 +4882,17 @@ impl App {
             |tree: &mut SceneTree| {
                 let mut cursor: Option<NodeId> = locked_target
                     .filter(|id: &NodeId| tree.get_node(*id).is_some() && tree.is_node_visible(*id))
+                    .or_else(|| hit_test(tree, pointer_pos))
                     .or_else(|| {
                         tree.get_focus().hovered_node().filter(|id: &NodeId| {
                             tree.get_node(*id).is_some() && tree.is_node_visible(*id)
                         })
                     });
-                if cursor.is_none() {
-                    let fresh: Option<NodeId> = hit_test(tree, pointer_pos);
-                    if fresh.is_some() {
-                        tree.get_mut_focus().set_hovered(fresh);
-                        cursor = fresh;
-                    }
-                }
-                if cursor.is_none() {
+                let hit_overlay_barrier: bool =
+                    GestureArena::find_overlay_barrier(tree, cursor).is_some();
+                let is_pure_horizontal: bool =
+                    delta.get_x().abs() > 0.01 && delta.get_y().abs() <= 0.01;
+                if cursor.is_none() && locked_target.is_none() && !is_pure_horizontal {
                     for (idx, node) in tree.get_nodes().iter().enumerate() {
                         if node.get_alive()
                             && node.get_style().get_layout().get_overflow() == Overflow::Scroll
@@ -4253,9 +4904,7 @@ impl App {
                             let lbox: LayoutBox = node.get_layout_box();
                             let scrollable: bool = node.virtual_scroll_metrics().is_some()
                                 || lbox.get_content_size().get_height()
-                                    > lbox.get_content_bounds().get_height() + 1.0
-                                || lbox.get_content_size().get_width()
-                                    > lbox.get_content_bounds().get_width() + 1.0;
+                                    > lbox.get_content_bounds().get_height() + 1.0;
                             if scrollable {
                                 cursor = Some(cand_id);
                                 break;
@@ -4267,7 +4916,10 @@ impl App {
                 let mut rem_dx: f32 = delta.get_x();
                 let mut rem_dy: f32 = delta.get_y();
                 let mut any_moved: bool = false;
+                let mut saw_scroll_box: bool = false;
+                let locked_single_horizontal: bool = locked_target.is_some() && is_pure_horizontal;
                 while let Some(id) = cursor {
+                    let mut owned_horizontal_box: bool = false;
                     let (scroll_update, next_parent, blocks_scroll, virtual_stop): ScrollStepOutcome =
                         match tree.get_node(id) {
                         Some(node) => {
@@ -4280,6 +4932,7 @@ impl App {
                             let is_scroll_box: bool =
                                 node.get_style().get_layout().get_overflow() == Overflow::Scroll;
                             if is_scroll_box {
+                                saw_scroll_box = true;
                                 let lbox: LayoutBox = node.get_layout_box();
                                 let cur: Point = lbox.get_scroll_offset();
                                 let max_x: f32 = (lbox.get_content_size().get_width()
@@ -4291,6 +4944,9 @@ impl App {
                                 let allow_x: bool = max_x > 1.0
                                     && rem_dx.abs() > 0.01
                                     && (max_y <= 1.0 || rem_dx.abs() >= rem_dy.abs() * 0.25);
+                                if allow_x {
+                                    owned_horizontal_box = true;
+                                }
                                 let next_x: f32 = if allow_x {
                                     (cur.get_x() + rem_dx).clamp(0.0, max_x)
                                 } else {
@@ -4348,16 +5004,24 @@ impl App {
                         rem_dy -= consumed_y;
                         any_moved = true;
                     }
-                    if rem_dx.abs() <= 0.01 && rem_dy.abs() <= 0.01 {
-                        return (out, true);
+                    if owned_horizontal_box {
+                        rem_dx = 0.0;
+                    }
+                    if locked_single_horizontal || (rem_dx.abs() <= 0.01 && rem_dy.abs() <= 0.01) {
+                        return (out, any_moved);
                     }
                     if blocks_scroll {
                         return (out, any_moved);
                     }
                     cursor = next_parent;
                 }
-                if any_moved {
-                    return (out, true);
+                if any_moved
+                    || locked_target.is_some()
+                    || saw_scroll_box
+                    || hit_overlay_barrier
+                    || is_pure_horizontal
+                {
+                    return (out, any_moved);
                 }
                 for (idx, node) in tree.get_nodes().iter().enumerate() {
                     if !node.get_alive()
@@ -4371,24 +5035,16 @@ impl App {
                     }
                     let lbox: LayoutBox = node.get_layout_box();
                     let cur: Point = lbox.get_scroll_offset();
-                    let max_x: f32 = (lbox.get_content_size().get_width()
-                        - lbox.get_content_bounds().get_width())
-                    .max(0.0);
                     let max_y: f32 = (lbox.get_content_size().get_height()
                         - lbox.get_content_bounds().get_height())
                     .max(0.0);
-                    let next_x: f32 = if max_x > 1.0 && rem_dx.abs() > 0.01 {
-                        (cur.get_x() + rem_dx).clamp(0.0, max_x)
-                    } else {
-                        cur.get_x()
-                    };
                     let next_y: f32 = if max_y > 1.0 && rem_dy.abs() > 0.01 {
                         (cur.get_y() + rem_dy).clamp(0.0, max_y)
                     } else {
                         cur.get_y()
                     };
-                    if (next_x - cur.get_x()).abs() > 0.01 || (next_y - cur.get_y()).abs() > 0.01 {
-                        tree.set_scroll_offset(id, Point::new(next_x, next_y));
+                    if (next_y - cur.get_y()).abs() > 0.01 {
+                        tree.set_scroll_offset(id, Point::new(cur.get_x(), next_y));
                         return (out, true);
                     }
                 }

@@ -1868,7 +1868,7 @@ fn code_block_supports_hv_scroll_fullscreen_modal_clipboard_and_selectable() {
                 if matches!(n.get_kind(), NodeKind::Portal) {
                     portal_hidden = lay.get_display() == Display::None
                         && lay.get_position() == Position::Fixed
-                        && lay.get_z_index() == Z_INDEX_MODAL;
+                        && lay.get_z_index() == Z_INDEX_FULLSCREEN;
                 }
                 if matches!(n.get_kind(), NodeKind::ScrollView) {
                     let lb: LayoutBox = n.get_layout_box();
@@ -1887,11 +1887,14 @@ fn code_block_supports_hv_scroll_fullscreen_modal_clipboard_and_selectable() {
                             root_card_h.max(pnode.get_layout_box().get_bounds().get_height());
                     }
                 }
-                if let NodeKind::Text(t) = n.get_kind() {
-                    if t.contains("very_long_function_signature") && tree.is_node_selectable(nid) {
-                        sel_ok = true;
-                    }
-                    if t == "Fullscreen"
+                if let NodeKind::Text(t) = n.get_kind()
+                    && t.contains("very_long_function_signature")
+                    && tree.is_node_selectable(nid)
+                {
+                    sel_ok = true;
+                }
+                if let Some(a11y) = n.a11y_props_ref() {
+                    if a11y.get_label() == "Fullscreen"
                         && let Some(b) = tree.node_screen_bounds(nid)
                     {
                         fs_pt = Some(Point::new(
@@ -1899,7 +1902,7 @@ fn code_block_supports_hv_scroll_fullscreen_modal_clipboard_and_selectable() {
                             b.get_y() + b.get_height() * 0.5,
                         ));
                     }
-                    if t == "Copy"
+                    if a11y.get_label() == "Copy"
                         && let Some(b) = tree.node_screen_bounds(nid)
                     {
                         cp_pt = Some(Point::new(
@@ -1943,14 +1946,16 @@ fn code_block_supports_hv_scroll_fullscreen_modal_clipboard_and_selectable() {
     let (has_close_btn, open_portal_ok): (bool, bool) = app.get_scene().with_read(
         |tree: &SceneTree| {
             let close_ok: bool = tree.get_nodes().iter().any(|n: &SceneNode| {
-                n.get_alive() && matches!(n.get_kind(), NodeKind::Text(t) if t == "Close")
+                n.get_alive()
+                    && n.a11y_props_ref()
+                        .is_some_and(|a: &A11yProps| a.get_label() == "Close")
             });
             let portal_vis: bool = tree.get_nodes().iter().any(|n: &SceneNode| {
                 n.get_alive()
                     && matches!(n.get_kind(), NodeKind::Portal)
                     && n.get_style().get_layout().get_display() == Display::Flex
                     && n.get_style().get_layout().get_position() == Position::Fixed
-                    && n.get_style().get_layout().get_z_index() == Z_INDEX_MODAL
+                    && n.get_style().get_layout().get_z_index() == Z_INDEX_FULLSCREEN
             });
             (close_ok, portal_vis)
         },
@@ -1959,10 +1964,9 @@ fn code_block_supports_hv_scroll_fullscreen_modal_clipboard_and_selectable() {
     assert!(has_close_btn);
     assert!(open_portal_ok);
     assert!(EuvOverlayStack::dismiss_top());
-    for _ in 0..16 {
-        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
-    }
+    let _: FrameStats = app.step_frame().unwrap();
     assert_eq!(EuvOverlayStack::active_count(), 0);
+    assert!(!is_fullscreen_active());
     let portal_rehidden: bool = app.get_scene().with_read(
         |tree: &SceneTree| {
             tree.get_nodes().iter().any(|n: &SceneNode| {
@@ -2700,4 +2704,1001 @@ fn router_outlet_emits_subtree_appear_and_disappear_hooks_on_route_transitions()
     }
     assert_eq!(c_disappear.get(), 1);
     assert_eq!(a_appear.get(), 3);
+}
+
+fn find_a11y_button_center(app: &App, label: &str, nth: usize) -> Option<Point> {
+    app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let mut matched: usize = 0;
+            for (idx, n) in tree.get_nodes().iter().enumerate() {
+                if !n.get_alive() || n.get_style().get_layout().get_display() == Display::None {
+                    continue;
+                }
+                if n.a11y_props_ref()
+                    .is_some_and(|a: &A11yProps| a.get_label() == label)
+                {
+                    let nid: NodeId = NodeId::new(idx as u32, n.get_generation());
+                    if let Some(b) = tree.node_screen_bounds(nid)
+                        && b.get_width() > 0.0
+                        && b.get_height() > 0.0
+                    {
+                        if matched == nth {
+                            return Some(Point::new(
+                                b.get_x() + b.get_width() * 0.5,
+                                b.get_y() + b.get_height() * 0.5,
+                            ));
+                        }
+                        matched += 1;
+                    }
+                }
+            }
+            None
+        },
+        None,
+    )
+}
+
+fn click_point_in_ui(app: &mut App, pt: Point) {
+    let wid: WindowId = app.get_window_state().get_id();
+    let ev: PointerEvent = PointerEvent::mouse(pt.get_x(), pt.get_y());
+    app.dispatch_window_event(WindowEvent::PointerMove(wid, ev));
+    app.dispatch_window_event(WindowEvent::PointerDown(wid, ev));
+    app.dispatch_window_event(WindowEvent::PointerUp(wid, ev));
+    let _: FrameStats = app.step_frame().unwrap();
+}
+
+#[test]
+fn fullscreen_code_and_mermaid_edge_to_edge_hides_app_shell_chrome_and_restores_on_exit_and_dispose()
+ {
+    reset_reactive_runtime();
+    EuvOverlayStack::clear();
+    reset_fullscreen_state();
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
+    let route_sig: Signal<String> = Signal::new("/".to_string());
+    let clicks: Signal<u32> = Signal::new(0);
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(390, 844).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let clicks_cb: Signal<u32> = clicks;
+    let _: NodeId = app.mount(move || {
+        let on_ping = move |_: &UiEvent| {
+            let _: bool = clicks_cb.update(|c: &mut u32| *c += 1);
+        };
+        let sidebar: NodeId = view! {
+            EuvSidebarNav {
+                items: vec![EuvNavItem::new("/".to_string(), "Home".to_string())]
+                active_route: route_sig
+                tokens: tokens
+            }
+        };
+        let bottom_nav: NodeId = view! {
+            EuvBottomNav {
+                items: vec![
+                    EuvNavItem::new("/".to_string(), "Home".to_string()).section("H"),
+                    EuvNavItem::new("/docs".to_string(), "Docs".to_string()).section("D"),
+                ]
+                active_route: route_sig
+                tokens: tokens
+            }
+        };
+        let main_col: NodeId = view! {
+            column {
+                width: Length::Percent(100.0)
+                gap: SPACE_MD
+                EuvButton {
+                    label: "UnderlyingPing".to_string()
+                    tokens: tokens
+                    on_click: on_ping
+                }
+                EuvCodeBlock {
+                    code: "fn main() {\n    println!(\"true edge-to-edge fullscreen\");\n}".to_string()
+                    tokens: tokens
+                    language: "rust"
+                    line_numbers: true
+                }
+                EuvMermaid {
+                    source: "flowchart LR\n    A[Start] --> B[End]".to_string()
+                    tokens: tokens
+                }
+            }
+        };
+        view! {
+            EuvAppShell {
+                brand: "Euv Studio".to_string()
+                sidebar: sidebar
+                main_content: main_col
+                tokens: tokens
+                bottom_nav: bottom_nav
+                show_fps: true
+            }
+        }
+    });
+    let _: FrameStats = app.step_frame().unwrap();
+    let badge_radii: Vec<(f32, f32, f32)> = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let mut out: Vec<(f32, f32, f32)> = Vec::new();
+            for node in tree.get_nodes().iter() {
+                if !node.get_alive() {
+                    continue;
+                }
+                if matches!(node.get_kind(), NodeKind::Canvas)
+                    && let Some(pid) = node.parent_id()
+                    && let Some(pnode) = tree.get_node(pid)
+                    && matches!(
+                        pnode.a11y_props_ref().map(|a: &A11yProps| a.get_label().as_str()),
+                        Some("Menu" | "Euv Studio")
+                    )
+                    && matches!(pnode.style_ref().get_layout().get_width(), Length::Px(w) if (w - 26.0).abs() < 0.5)
+                {
+                    let lay: LayoutStyle = pnode.style_ref().get_layout();
+                    let rad: f32 = pnode.style_ref().get_paint().get_radius().get_top_left();
+                    let w: f32 = match lay.get_width() {
+                        Length::Px(px) => px,
+                        _ => 0.0,
+                    };
+                    let h: f32 = match lay.get_height() {
+                        Length::Px(px) => px,
+                        _ => 0.0,
+                    };
+                    out.push((w, h, rad));
+                }
+            }
+            out
+        },
+        Vec::new(),
+    );
+    assert!(badge_radii.len() >= 3);
+    let first_badge: (f32, f32, f32) = badge_radii[0];
+    assert!(first_badge.2 < 12.0);
+    for entry in badge_radii.iter() {
+        assert_eq!(*entry, first_badge);
+    }
+    let code_fs_pt: Point =
+        find_a11y_button_center(&app, "Fullscreen", 0).expect("code fullscreen icon button");
+    click_point_in_ui(&mut app, code_fs_pt);
+    assert!(is_fullscreen_active());
+    assert!(app.is_immersive_fullscreen());
+    let (portal_bounds, chrome_hidden): (Option<Rect>, bool) = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let mut fs_rect: Option<Rect> = None;
+            let mut any_visible_chrome: bool = false;
+            for (idx, n) in tree.get_nodes().iter().enumerate() {
+                if !n.get_alive() {
+                    continue;
+                }
+                let lay: LayoutStyle = n.style_ref().get_layout();
+                let paint: PaintStyle = n.style_ref().get_paint();
+                if lay.get_z_index() == Z_INDEX_CHROME && lay.get_display() != Display::None {
+                    any_visible_chrome = true;
+                }
+                if matches!(n.get_kind(), NodeKind::Portal)
+                    && lay.get_z_index() == Z_INDEX_FULLSCREEN
+                    && lay.get_display() == Display::Flex
+                {
+                    assert_eq!(lay.get_position(), Position::Fixed);
+                    assert_eq!(lay.get_padding(), Edges::all(0.0));
+                    assert_eq!(lay.get_margin(), Edges::all(0.0));
+                    assert_eq!(paint.get_radius(), CornerRadius::all(0.0));
+                    assert_eq!(paint.get_border().get_width(), 0.0);
+                    let nid: NodeId = NodeId::new(idx as u32, n.get_generation());
+                    fs_rect = tree.node_screen_bounds(nid);
+                }
+            }
+            (fs_rect, !any_visible_chrome)
+        },
+        (None, false),
+    );
+    let fs_rect: Rect = portal_bounds.expect("edge-to-edge code fullscreen portal");
+    assert!((fs_rect.get_x() - 0.0).abs() < 0.5);
+    assert!((fs_rect.get_y() - 0.0).abs() < 0.5);
+    assert!((fs_rect.get_width() - 390.0).abs() < 0.5);
+    assert!((fs_rect.get_height() - 844.0).abs() < 0.5);
+    assert!(chrome_hidden);
+    let close_pt: Point =
+        find_a11y_button_center(&app, "Close", 0).expect("code fullscreen close icon button");
+    click_point_in_ui(&mut app, close_pt);
+    assert!(!is_fullscreen_active());
+    assert!(!app.is_immersive_fullscreen());
+    assert_eq!(EuvOverlayStack::active_count(), 0);
+    let (chrome_restored, any_open_fs_portal): (bool, bool) = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let mut visible_chrome: usize = 0;
+            let mut open_fs: bool = false;
+            for n in tree.get_nodes().iter() {
+                if !n.get_alive() {
+                    continue;
+                }
+                let lay: LayoutStyle = n.style_ref().get_layout();
+                if lay.get_z_index() == Z_INDEX_CHROME && lay.get_display() == Display::Flex {
+                    visible_chrome += 1;
+                }
+                if matches!(n.get_kind(), NodeKind::Portal)
+                    && lay.get_z_index() == Z_INDEX_FULLSCREEN
+                    && lay.get_display() != Display::None
+                {
+                    open_fs = true;
+                }
+            }
+            (visible_chrome >= 2, open_fs)
+        },
+        (false, true),
+    );
+    assert!(chrome_restored);
+    assert!(!any_open_fs_portal);
+    let ping_pt: Point = app
+        .get_scene()
+        .with_read(
+            |tree: &SceneTree| {
+                for (idx, n) in tree.get_nodes().iter().enumerate() {
+                    if n.get_alive()
+                        && matches!(n.get_kind(), NodeKind::Text(t) if t == "UnderlyingPing")
+                    {
+                        let nid: NodeId = NodeId::new(idx as u32, n.get_generation());
+                        if let Some(b) = tree.node_screen_bounds(nid) {
+                            return Some(Point::new(
+                                b.get_x() + b.get_width() * 0.5,
+                                b.get_y() + b.get_height() * 0.5,
+                            ));
+                        }
+                    }
+                }
+                None
+            },
+            None,
+        )
+        .expect("underlying button must be hittable");
+    click_point_in_ui(&mut app, ping_pt);
+    assert_eq!(clicks.get_untracked(), 1);
+    let mermaid_fs_pt: Point =
+        find_a11y_button_center(&app, "Fullscreen", 1).expect("mermaid fullscreen icon button");
+    click_point_in_ui(&mut app, mermaid_fs_pt);
+    assert!(is_fullscreen_active());
+    let mermaid_rect: Rect = app
+        .get_scene()
+        .with_read(
+            |tree: &SceneTree| {
+                for (idx, n) in tree.get_nodes().iter().enumerate() {
+                    if n.get_alive()
+                        && matches!(n.get_kind(), NodeKind::Portal)
+                        && n.style_ref().get_layout().get_z_index() == Z_INDEX_FULLSCREEN
+                        && n.style_ref().get_layout().get_display() == Display::Flex
+                    {
+                        let nid: NodeId = NodeId::new(idx as u32, n.get_generation());
+                        return tree.node_screen_bounds(nid);
+                    }
+                }
+                None
+            },
+            None,
+        )
+        .expect("edge-to-edge mermaid fullscreen portal");
+    assert!((mermaid_rect.get_x() - 0.0).abs() < 0.5);
+    assert!((mermaid_rect.get_y() - 0.0).abs() < 0.5);
+    assert!((mermaid_rect.get_width() - 390.0).abs() < 0.5);
+    assert!((mermaid_rect.get_height() - 844.0).abs() < 0.5);
+    assert!(EuvOverlayStack::dismiss_top());
+    let _: FrameStats = app.step_frame().unwrap();
+    assert!(!is_fullscreen_active());
+    assert_eq!(EuvOverlayStack::active_count(), 0);
+    click_point_in_ui(&mut app, ping_pt);
+    assert_eq!(clicks.get_untracked(), 2);
+    let (disposable_scope, ()): (Scope, ()) = Scope::run(|_: Scope| {
+        let sig: Signal<bool> = Signal::new(true);
+        let _: Effect = EuvOverlayStack::bind_signal(sig, "DisposableFs", Z_INDEX_FULLSCREEN);
+        enter_fullscreen();
+        on_cleanup(move || {
+            exit_fullscreen();
+        });
+    });
+    assert!(is_fullscreen_active());
+    assert_eq!(EuvOverlayStack::active_count(), 1);
+    disposable_scope.dispose();
+    assert!(!is_fullscreen_active());
+    assert_eq!(EuvOverlayStack::active_count(), 0);
+}
+
+#[test]
+fn reactive_safe_area_updates_app_shell_header_and_content_on_atomic_island_change() {
+    reset_reactive_runtime();
+    EuvOverlayStack::clear();
+    reset_fullscreen_state();
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
+    let route_sig: Signal<String> = Signal::new("/".to_string());
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(390, 844).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let wid: WindowId = app.get_window_state().get_id();
+    let _: NodeId = app.mount(move || {
+        let sidebar: NodeId = view! {
+            EuvSidebarNav {
+                items: vec![EuvNavItem::new("/".to_string(), "Home".to_string())]
+                active_route: route_sig
+                tokens: tokens
+            }
+        };
+        let content: NodeId = view! {
+            column {
+                width: Length::Percent(100.0)
+                text {
+                    "SafeAreaMarker"
+                }
+            }
+        };
+        view! {
+            EuvAppShell {
+                brand: "SafeApp".to_string()
+                sidebar: sidebar
+                main_content: content
+                tokens: tokens
+                show_fps: true
+            }
+        }
+    });
+    let _: FrameStats = app.step_frame().unwrap();
+    fn find_y(tree: &SceneTree, needle: &str) -> f32 {
+        for (idx, n) in tree.get_nodes().iter().enumerate() {
+            if n.get_alive()
+                && n.style_ref().get_layout().get_display() != Display::None
+                && matches!(n.get_kind(), NodeKind::Text(t) if t == needle)
+            {
+                let nid: NodeId = NodeId::new(idx as u32, n.get_generation());
+                if let Some(b) = tree.node_screen_bounds(nid) {
+                    return b.get_y();
+                }
+            }
+        }
+        -1.0
+    }
+    let cold_content_y: f32 = app
+        .get_scene()
+        .with_read(|t: &SceneTree| find_y(t, "SafeAreaMarker"), -1.0);
+    assert!(cold_content_y >= MOBILE_HEADER_HEIGHT);
+    app.dispatch_window_event(WindowEvent::SafeAreaChanged(
+        wid,
+        SafeAreaInsets::new(56.0, 0.0, 34.0, 0.0),
+    ));
+    let _: FrameStats = app.step_frame().unwrap();
+    let (title_y_island, content_y_island): (f32, f32) = app.get_scene().with_read(
+        |t: &SceneTree| (find_y(t, "SafeApp"), find_y(t, "SafeAreaMarker")),
+        (-1.0, -1.0),
+    );
+    assert!(title_y_island >= 56.0);
+    assert!(content_y_island >= MOBILE_HEADER_HEIGHT + 56.0);
+    app.dispatch_window_event(WindowEvent::SafeAreaChanged(wid, SafeAreaInsets::default()));
+    let _: FrameStats = app.step_frame().unwrap();
+    let restored_content_y: f32 = app
+        .get_scene()
+        .with_read(|t: &SceneTree| find_y(t, "SafeAreaMarker"), -1.0);
+    assert!((restored_content_y - cold_content_y).abs() < 1.0);
+}
+
+#[test]
+fn rapid_overlays_and_interrupted_route_swipe_never_leave_ui_unclickable() {
+    reset_reactive_runtime();
+    EuvOverlayStack::clear();
+    reset_fullscreen_state();
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
+    let modal_open: Signal<bool> = Signal::new(false);
+    let drawer_open: Signal<bool> = Signal::new(false);
+    let sheet_open: Signal<bool> = Signal::new(false);
+    let alert_open: Signal<bool> = Signal::new(false);
+    let alert_confirmed: Signal<bool> = Signal::new(false);
+    let select_open: Signal<bool> = Signal::new(false);
+    let select_idx: Signal<usize> = Signal::new(0);
+    let dropdown_open: Signal<bool> = Signal::new(false);
+    let clicks: Signal<u32> = Signal::new(0);
+    let router: EuvRouter = EuvRouter::new("/a")
+        .route("/a", "A", move |_: &EuvRouteMatch| {
+            let on_click = move |_: &UiEvent| {
+                let _: bool = clicks.update(|c: &mut u32| *c += 1);
+            };
+            view! {
+                column {
+                    width: Length::Percent(100.0)
+                    gap: SPACE_SM
+                    EuvButton {
+                        label: "ResponsiveTarget".to_string()
+                        tokens: tokens
+                        on_click: on_click
+                    }
+                    EuvDropdown {
+                        label: "QuickMenu".to_string()
+                        items: vec!["One".to_string(), "Two".to_string()]
+                        tokens: tokens
+                        open: dropdown_open
+                    }
+                    EuvSelect {
+                        options: vec!["Alpha".to_string(), "Beta".to_string()]
+                        selected: select_idx
+                        open: select_open
+                        tokens: tokens
+                    }
+                }
+            }
+        })
+        .route("/b", "B", move |_: &EuvRouteMatch| {
+            view! {
+                column {
+                    text { "RouteB" }
+                }
+            }
+        });
+    let router_m: EuvRouter = router.clone();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(420, 800).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(move || {
+        let outlet: NodeId = router_m
+            .outlet(move |_: &EuvRouteMatch| view! { column {} })
+            .with_route_order(vec!["/a".to_string(), "/b".to_string()])
+            .mount();
+        let modal_body: NodeId = view! { text { "ModalBody" } };
+        let drawer_body: NodeId = view! { text { "DrawerBody" } };
+        let sheet_body: NodeId = view! { text { "SheetBody" } };
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                height: Length::Percent(100.0)
+                { outlet }
+                EuvModal {
+                    open: modal_open
+                    title: "M".to_string()
+                    body: modal_body
+                    tokens: tokens
+                }
+                EuvDrawer {
+                    open: drawer_open
+                    title: "D".to_string()
+                    body: drawer_body
+                    tokens: tokens
+                }
+                EuvSheet {
+                    open: sheet_open
+                    title: "S".to_string()
+                    body: sheet_body
+                    tokens: tokens
+                }
+                EuvAlertDialog {
+                    open: alert_open
+                    confirmed: alert_confirmed
+                    title: "A".to_string()
+                    description: "Desc".to_string()
+                    tokens: tokens
+                }
+            }
+        }
+    });
+    let _: FrameStats = app.step_frame().unwrap();
+    for _ in 0..8 {
+        let _: bool = modal_open.set(true);
+        let _: bool = drawer_open.set(true);
+        let _: bool = sheet_open.set(true);
+        let _: bool = alert_open.set(true);
+        let _: bool = dropdown_open.set(true);
+        let _: bool = select_open.set(true);
+        let _: FrameStats = app.step_frame().unwrap();
+        let _: bool = modal_open.set(false);
+        let _: bool = drawer_open.set(false);
+        let _: bool = sheet_open.set(false);
+        let _: bool = alert_open.set(false);
+        let _: bool = dropdown_open.set(false);
+        let _: bool = select_open.set(false);
+        let _: FrameStats = app.step_frame().unwrap();
+    }
+    assert_eq!(EuvOverlayStack::active_count(), 0);
+    let any_visible_portal: bool = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes().iter().any(|n: &SceneNode| {
+                n.get_alive()
+                    && matches!(n.get_kind(), NodeKind::Portal)
+                    && n.style_ref().get_layout().get_display() != Display::None
+            })
+        },
+        true,
+    );
+    assert!(!any_visible_portal);
+    let _: bool = app.get_context().get_swipe_drag_offset().set(-140.0);
+    let _: FrameStats = app.step_frame().unwrap();
+    app.dispatch_window_event(WindowEvent::System(SystemEvent::Inactive));
+    app.dispatch_window_event(WindowEvent::System(SystemEvent::Background));
+    let _: bool = app.get_context().get_swipe_drag_offset().set(0.0);
+    app.dispatch_window_event(WindowEvent::System(SystemEvent::Foreground));
+    app.dispatch_window_event(WindowEvent::System(SystemEvent::Foreground));
+    let _: FrameStats = app.step_frame().unwrap();
+    let target_pt: Point = app
+        .get_scene()
+        .with_read(
+            |tree: &SceneTree| {
+                for (idx, n) in tree.get_nodes().iter().enumerate() {
+                    if n.get_alive()
+                        && matches!(n.get_kind(), NodeKind::Text(t) if t == "ResponsiveTarget")
+                    {
+                        let nid: NodeId = NodeId::new(idx as u32, n.get_generation());
+                        if let Some(b) = tree.node_screen_bounds(nid) {
+                            return Some(Point::new(
+                                b.get_x() + b.get_width() * 0.5,
+                                b.get_y() + b.get_height() * 0.5,
+                            ));
+                        }
+                    }
+                }
+                None
+            },
+            None,
+        )
+        .expect("target button must be visible after interrupted swipe");
+    click_point_in_ui(&mut app, target_pt);
+    assert_eq!(clicks.get_untracked(), 1);
+}
+
+#[test]
+fn horizontal_scroll_and_route_swipe_isolation_for_code_block_table_and_scroll_area() {
+    reset_reactive_runtime();
+    reset_fullscreen_state();
+    EuvOverlayStack::clear();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(390, 844).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Dark);
+    let code_a_scroll_ref: Rc<Cell<NodeId>> = Rc::new(Cell::new(NodeId::default()));
+    let code_b_scroll_ref: Rc<Cell<NodeId>> = Rc::new(Cell::new(NodeId::default()));
+    let table_scroll_ref: Rc<Cell<NodeId>> = Rc::new(Cell::new(NodeId::default()));
+    let vscroll_ref: Rc<Cell<NodeId>> = Rc::new(Cell::new(NodeId::default()));
+    let code_a_c: Rc<Cell<NodeId>> = Rc::clone(&code_a_scroll_ref);
+    let code_b_c: Rc<Cell<NodeId>> = Rc::clone(&code_b_scroll_ref);
+    let table_c: Rc<Cell<NodeId>> = Rc::clone(&table_scroll_ref);
+    let vscroll_c: Rc<Cell<NodeId>> = Rc::clone(&vscroll_ref);
+    let router: EuvRouter = EuvRouter::new("/page-a")
+        .route("/page-a", "PageA", move |_: &EuvRouteMatch| {
+            let wide_line: String =
+                "let horizontal_isolation_probe_value: usize = compute_wide_expression_alpha(100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200);"
+                    .to_string();
+            let code_a: NodeId = EuvCodeBlock::new(wide_line.clone(), tokens)
+                .language("rs")
+                .mount();
+            let code_b: NodeId = EuvCodeBlock::new(wide_line, tokens)
+                .language("rs")
+                .mount();
+            let md_table: NodeId = EuvMarkdownTable::new(
+                vec![
+                    "ColumnOne".to_string(),
+                    "ColumnTwo".to_string(),
+                    "ColumnThree".to_string(),
+                    "ColumnFour".to_string(),
+                    "ColumnFive".to_string(),
+                    "ColumnSix".to_string(),
+                ],
+                vec![EuvMarkdownAlign::Left; 6],
+                vec![vec![
+                    "Val1".to_string(),
+                    "Val2".to_string(),
+                    "Val3".to_string(),
+                    "Val4".to_string(),
+                    "Val5".to_string(),
+                    "Val6".to_string(),
+                ]],
+                tokens,
+            )
+            .mount();
+            let data_tbl: NodeId = EuvDataTable::new(
+                vec![
+                    "Name".to_string(),
+                    "Role".to_string(),
+                    "Status".to_string(),
+                    "Score".to_string(),
+                ],
+                vec![vec![
+                    "Engine".to_string(),
+                    "Core".to_string(),
+                    "Active".to_string(),
+                    "120".to_string(),
+                ]],
+                tokens,
+            )
+            .mount();
+            let mut area: EuvScrollArea = EuvScrollArea::new(110.0, tokens);
+            for i in 0..8usize {
+                let item: NodeId = view! {
+                    text {
+                        font_size: 13.0
+                        color: tokens.get_palette().get_foreground()
+                        { format!("ScrollItem-{i}-wide-content-line-for-horizontal-clamp-check") }
+                    }
+                };
+                area = area.child(item);
+            }
+            let scroll_area: NodeId = area.mount();
+            let ctx: Context = current_context();
+            ctx.get_scene().with_read(
+                |tree: &SceneTree| {
+                    fn find_first_scroll(tree: &SceneTree, root_id: NodeId) -> NodeId {
+                        let mut stack: Vec<NodeId> = vec![root_id];
+                        while let Some(cur) = stack.pop() {
+                            if let Some(n) = tree.get_node(cur) {
+                                if n.style_ref().get_layout().get_overflow() == Overflow::Scroll {
+                                    return cur;
+                                }
+                                for &ch in n.get_children().iter().rev() {
+                                    stack.push(ch);
+                                }
+                            }
+                        }
+                        NodeId::default()
+                    }
+                    code_a_c.set(find_first_scroll(tree, code_a));
+                    code_b_c.set(find_first_scroll(tree, code_b));
+                    table_c.set(find_first_scroll(tree, md_table));
+                    vscroll_c.set(find_first_scroll(tree, scroll_area));
+                },
+                (),
+            );
+            view! {
+                column {
+                    width: Length::Percent(100.0)
+                    gap: SPACE_SM
+                    { code_a }
+                    { code_b }
+                    { md_table }
+                    { data_tbl }
+                    { scroll_area }
+                }
+            }
+        })
+        .route("/page-b", "PageB", move |_: &EuvRouteMatch| {
+            view! {
+                column {
+                    width: Length::Percent(100.0)
+                    text {
+                        font_size: 14.0
+                        color: tokens.get_palette().get_foreground()
+                        { "Page B" }
+                    }
+                }
+            }
+        });
+    let r_mount: EuvRouter = router.clone();
+    let _: NodeId = app.mount(move || {
+        r_mount
+            .outlet(move |_: &EuvRouteMatch| view! { column {} })
+            .with_route_order(vec!["/page-a".to_string(), "/page-b".to_string()])
+            .mount()
+    });
+    let _: FrameStats = app.step_frame().unwrap();
+    let code_a_scroll: NodeId = code_a_scroll_ref.get();
+    let code_b_scroll: NodeId = code_b_scroll_ref.get();
+    let table_scroll: NodeId = table_scroll_ref.get();
+    let vscroll_node: NodeId = vscroll_ref.get();
+    assert_ne!(code_a_scroll, NodeId::default());
+    assert_ne!(code_b_scroll, NodeId::default());
+    assert_ne!(table_scroll, NodeId::default());
+    assert_ne!(vscroll_node, NodeId::default());
+    let (stops_ok, code_a_pt, vscroll_pt): (bool, Point, Point) = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let stop_a: bool = tree
+                .get_node(code_a_scroll)
+                .map(|n: &SceneNode| n.style_ref().get_paint().get_stop_scroll_propagation())
+                .unwrap_or(false);
+            let stop_b: bool = tree
+                .get_node(code_b_scroll)
+                .map(|n: &SceneNode| n.style_ref().get_paint().get_stop_scroll_propagation())
+                .unwrap_or(false);
+            let stop_t: bool = tree
+                .get_node(table_scroll)
+                .map(|n: &SceneNode| n.style_ref().get_paint().get_stop_scroll_propagation())
+                .unwrap_or(false);
+            let stop_v: bool = tree
+                .get_node(vscroll_node)
+                .map(|n: &SceneNode| n.style_ref().get_paint().get_stop_scroll_propagation())
+                .unwrap_or(false);
+            let ca_b: Rect = tree.node_screen_bounds(code_a_scroll).unwrap_or_default();
+            let vs_b: Rect = tree.node_screen_bounds(vscroll_node).unwrap_or_default();
+            (
+                stop_a && stop_b && stop_t && stop_v,
+                Point::new(
+                    ca_b.get_x() + ca_b.get_width() * 0.5,
+                    ca_b.get_y() + ca_b.get_height() * 0.5,
+                ),
+                Point::new(
+                    vs_b.get_x() + vs_b.get_width() * 0.5,
+                    vs_b.get_y() + vs_b.get_height() * 0.5,
+                ),
+            )
+        },
+        (false, Point::default(), Point::default()),
+    );
+    assert!(stops_ok);
+    let wid: WindowId = app.get_window_state().get_id();
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::mouse(code_a_pt.get_x(), code_a_pt.get_y()),
+    ));
+    app.dispatch_window_event(WindowEvent::Scroll(wid, Point::new(80.0, 0.0)));
+    let _: FrameStats = app.step_frame().unwrap();
+    let (ax1, bx1, tx1): (f32, f32, f32) = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let ax: f32 = tree
+                .get_node(code_a_scroll)
+                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset().get_x())
+                .unwrap_or(-1.0);
+            let bx: f32 = tree
+                .get_node(code_b_scroll)
+                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset().get_x())
+                .unwrap_or(-1.0);
+            let tx: f32 = tree
+                .get_node(table_scroll)
+                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset().get_x())
+                .unwrap_or(-1.0);
+            (ax, bx, tx)
+        },
+        (-1.0, -1.0, -1.0),
+    );
+    assert!(ax1 > 10.0);
+    assert!(bx1.abs() < 0.01);
+    assert!(tx1.abs() < 0.01);
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(9, code_a_pt.get_x(), code_a_pt.get_y()),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::touch(9, code_a_pt.get_x() - 60.0, code_a_pt.get_y()),
+    ));
+    let swipe_during_code_drag: f32 = app.get_context().get_swipe_drag_offset().get_untracked();
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::touch(9, code_a_pt.get_x() - 60.0, code_a_pt.get_y()),
+    ));
+    let _: FrameStats = app.step_frame().unwrap();
+    assert!(swipe_during_code_drag.abs() < 0.01);
+    let (ax_touch, bx_touch): (f32, f32) = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let ax: f32 = tree
+                .get_node(code_a_scroll)
+                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset().get_x())
+                .unwrap_or(-1.0);
+            let bx: f32 = tree
+                .get_node(code_b_scroll)
+                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset().get_x())
+                .unwrap_or(-1.0);
+            (ax, bx)
+        },
+        (-1.0, -1.0),
+    );
+    assert!(ax_touch > ax1);
+    assert!(bx_touch.abs() < 0.01);
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::mouse(vscroll_pt.get_x(), vscroll_pt.get_y()),
+    ));
+    app.dispatch_window_event(WindowEvent::Scroll(wid, Point::new(60.0, 20.0)));
+    let _: FrameStats = app.step_frame().unwrap();
+    let vx: f32 = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_node(vscroll_node)
+                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset().get_x())
+                .unwrap_or(-1.0)
+        },
+        -1.0,
+    );
+    assert!(vx.abs() < 0.01);
+    for _ in 0..45 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let ax_before_swipe: f32 = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_node(code_a_scroll)
+                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset().get_x())
+                .unwrap_or(-1.0)
+        },
+        -1.0,
+    );
+    let _: bool = app.get_context().get_swipe_drag_offset().set(-120.0);
+    let _: FrameStats = app.step_frame().unwrap();
+    let _: bool = app.get_context().get_swipe_drag_offset().set(0.0);
+    let _: FrameStats = app.step_frame().unwrap();
+    let (ax2, bx2): (f32, f32) = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let ax: f32 = tree
+                .get_node(code_a_scroll)
+                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset().get_x())
+                .unwrap_or(-1.0);
+            let bx: f32 = tree
+                .get_node(code_b_scroll)
+                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset().get_x())
+                .unwrap_or(-1.0);
+            (ax, bx)
+        },
+        (-1.0, -1.0),
+    );
+    assert!((ax2 - ax_before_swipe).abs() < 0.01);
+    assert!(bx2.abs() < 0.01);
+}
+
+#[test]
+fn auto_fill_wrapped_button_row_packs_and_fills_every_row_without_trailing_gap() {
+    reset_reactive_runtime();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(720, 640).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
+    let narrow_row_ref: Rc<Cell<NodeId>> = Rc::new(Cell::new(NodeId::default()));
+    let narrow_btns_ref: Rc<RefCell<Vec<NodeId>>> = Rc::new(RefCell::new(Vec::new()));
+    let wide_btns_ref: Rc<RefCell<Vec<NodeId>>> = Rc::new(RefCell::new(Vec::new()));
+    let group_btns_ref: Rc<RefCell<Vec<NodeId>>> = Rc::new(RefCell::new(Vec::new()));
+    let probe_b_ref: Rc<Cell<NodeId>> = Rc::new(Cell::new(NodeId::default()));
+    let nr_c: Rc<Cell<NodeId>> = Rc::clone(&narrow_row_ref);
+    let nb_c: Rc<RefCell<Vec<NodeId>>> = Rc::clone(&narrow_btns_ref);
+    let wb_c: Rc<RefCell<Vec<NodeId>>> = Rc::clone(&wide_btns_ref);
+    let gb_c: Rc<RefCell<Vec<NodeId>>> = Rc::clone(&group_btns_ref);
+    let pb_c: Rc<Cell<NodeId>> = Rc::clone(&probe_b_ref);
+    let _: NodeId = app.mount(move || {
+        let labels: [&str; 5] = ["Alpha", "Beta", "Gamma", "Delta", "Epsilon"];
+        let mut narrow_btns: Vec<NodeId> = Vec::with_capacity(5);
+        for lbl in labels.iter() {
+            narrow_btns.push(
+                EuvButton::new((*lbl).to_string(), tokens)
+                    .min_width(110.0)
+                    .mount(),
+            );
+        }
+        *nb_c.borrow_mut() = narrow_btns.clone();
+        let mut action_narrow: EuvActionRow = EuvActionRow::default();
+        for &cid in narrow_btns.iter() {
+            action_narrow = action_narrow.child(cid);
+        }
+        let narrow_row_id: NodeId = action_narrow.mount();
+        nr_c.set(narrow_row_id);
+        let mut group_btns: Vec<NodeId> = Vec::with_capacity(5);
+        for lbl in labels.iter() {
+            group_btns.push(
+                EuvButton::new((*lbl).to_string(), tokens)
+                    .min_width(110.0)
+                    .mount(),
+            );
+        }
+        *gb_c.borrow_mut() = group_btns.clone();
+        let group_id: NodeId = EuvButtonGroup::new(group_btns, tokens)
+            .wrap_fill(true)
+            .mount();
+        let mut wide_btns: Vec<NodeId> = Vec::with_capacity(5);
+        for lbl in labels.iter() {
+            wide_btns.push(
+                EuvButton::new((*lbl).to_string(), tokens)
+                    .min_width(110.0)
+                    .mount(),
+            );
+        }
+        *wb_c.borrow_mut() = wide_btns.clone();
+        let mut action_wide: EuvActionRow = EuvActionRow::default();
+        for &cid in wide_btns.iter() {
+            action_wide = action_wide.child(cid);
+        }
+        let wide_row_id: NodeId = action_wide.mount();
+        let mut probe_b: NodeId = NodeId::default();
+        let root: NodeId = view! {
+            column {
+                width: Length::Percent(100.0)
+                gap: SPACE_MD
+                column {
+                    width: Length::Px(360.0)
+                    { narrow_row_id }
+                }
+                column {
+                    width: Length::Px(360.0)
+                    { group_id }
+                }
+                column {
+                    width: Length::Px(720.0)
+                    { wide_row_id }
+                }
+                row {
+                    width: Length::Px(360.0)
+                    flex_wrap: FlexWrap::Wrap
+                    gap: 8.0
+                    view {
+                        min_width: Length::Px(100.0)
+                        height: Length::Px(24.0)
+                        flex_grow: 1.0
+                    }
+                    view {
+                        node_ref: probe_b
+                        min_width: Length::Px(100.0)
+                        height: Length::Px(24.0)
+                        flex_grow: 1.0
+                    }
+                }
+            }
+        };
+        pb_c.set(probe_b);
+        root
+    });
+    let _: FrameStats = app.step_frame().unwrap();
+    let narrow_row_id: NodeId = narrow_row_ref.get();
+    let narrow_ids: Vec<NodeId> = narrow_btns_ref.borrow().clone();
+    let wide_ids: Vec<NodeId> = wide_btns_ref.borrow().clone();
+    let group_ids: Vec<NodeId> = group_btns_ref.borrow().clone();
+    let probe_b_id: NodeId = probe_b_ref.get();
+    let (row_style_ok, narrow_rects, wide_rects, group_rects, core_wrap_grows): (
+        bool,
+        Vec<Rect>,
+        Vec<Rect>,
+        Vec<Rect>,
+        bool,
+    ) = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let row_ok: bool = tree
+                .get_node(narrow_row_id)
+                .map(|n: &SceneNode| {
+                    let lay: LayoutStyle = n.style_ref().get_layout();
+                    lay.get_flex_direction() == FlexDirection::Row
+                        && lay.get_flex_wrap() == FlexWrap::Wrap
+                        && lay.get_width() == Length::Percent(100.0)
+                })
+                .unwrap_or(false);
+            let all_grow: bool = narrow_ids
+                .iter()
+                .chain(group_ids.iter())
+                .all(|id: &NodeId| {
+                    tree.get_node(*id)
+                        .map(|n: &SceneNode| {
+                            let lay: LayoutStyle = n.style_ref().get_layout();
+                            (lay.get_flex_grow() - 1.0).abs() < 0.01
+                                && lay.get_min_width() == Length::Px(110.0)
+                        })
+                        .unwrap_or(false)
+                });
+            let n_r: Vec<Rect> = narrow_ids
+                .iter()
+                .map(|id: &NodeId| tree.node_screen_bounds(*id).unwrap_or_default())
+                .collect();
+            let w_r: Vec<Rect> = wide_ids
+                .iter()
+                .map(|id: &NodeId| tree.node_screen_bounds(*id).unwrap_or_default())
+                .collect();
+            let g_r: Vec<Rect> = group_ids
+                .iter()
+                .map(|id: &NodeId| tree.node_screen_bounds(*id).unwrap_or_default())
+                .collect();
+            let probe_r: Rect = tree.node_screen_bounds(probe_b_id).unwrap_or_default();
+            let wrap_grow_active: bool =
+                (probe_r.get_x() + probe_r.get_width() - 360.0).abs() <= 1.0;
+            (row_ok && all_grow, n_r, w_r, g_r, wrap_grow_active)
+        },
+        (false, Vec::new(), Vec::new(), Vec::new(), false),
+    );
+    assert!(row_style_ok);
+    assert_eq!(narrow_rects.len(), 5);
+    assert_eq!(wide_rects.len(), 5);
+    assert_eq!(group_rects.len(), 5);
+    let y0: f32 = narrow_rects[0].get_y();
+    assert!((narrow_rects[1].get_y() - y0).abs() < 1.0);
+    assert!((narrow_rects[2].get_y() - y0).abs() < 1.0);
+    let y1: f32 = narrow_rects[3].get_y();
+    assert!(y1 > y0 + 20.0);
+    assert!((narrow_rects[4].get_y() - y1).abs() < 1.0);
+    let row1_right: f32 = narrow_rects[2].get_x() + narrow_rects[2].get_width();
+    let row2_right: f32 = narrow_rects[4].get_x() + narrow_rects[4].get_width();
+    assert!(row1_right <= 360.5);
+    assert!(row2_right <= 360.5);
+    let wy0: f32 = wide_rects[0].get_y();
+    for wr in wide_rects.iter() {
+        assert!((wr.get_y() - wy0).abs() < 1.0);
+    }
+    assert!(core_wrap_grows);
+    assert!((row1_right - 360.0).abs() <= 1.0);
+    assert!((row2_right - 360.0).abs() <= 1.0);
+    let g_r1_right: f32 = group_rects[2].get_x() + group_rects[2].get_width();
+    let g_r2_right: f32 = group_rects[4].get_x() + group_rects[4].get_width();
+    assert!((g_r1_right - 356.0).abs() <= 2.0);
+    assert!((g_r2_right - 356.0).abs() <= 2.0);
 }

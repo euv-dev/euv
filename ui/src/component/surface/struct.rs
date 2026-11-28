@@ -118,6 +118,11 @@ pub struct EuvButtonGroup {
     /// Active theme tokens.
     #[get(type(copy))]
     pub(crate) tokens: ThemeTokens,
+    /// Whether child buttons auto-grow across every wrapped row with zero trailing empty space.
+    #[new(skip)]
+    #[get(type(copy))]
+    #[prop(custom)]
+    pub(crate) wrap_fill: bool,
 }
 
 /// Pressable two-state toggle pill bound to a reactive `Signal<bool>`.

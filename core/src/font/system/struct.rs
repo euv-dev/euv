@@ -68,7 +68,7 @@ pub(crate) struct CtSize {
     pub(crate) height: f64,
 }
 
-/// Cached Apple CoreText `CTFontRef` handle paired with pre-queried vertical metrics.
+/// Cached Apple CoreText `CTFontRef` handle paired with pre-queried vertical metrics and lazy cascaded fallbacks.
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 #[derive(Clone, Copy)]
 pub(crate) struct CoreTextFontCacheEntry {
@@ -80,14 +80,24 @@ pub(crate) struct CoreTextFontCacheEntry {
     pub(crate) ascent: f64,
     /// Pre-queried clamped typographic descent in points.
     pub(crate) descent: f64,
+    /// Lazily populated cascaded fallback `CTFontRef` slots (e.g. CJK / symbol fonts), null until a glyph misses `font`.
+    pub(crate) fallback_fonts: [*mut c_void; CORETEXT_FALLBACK_SLOTS],
 }
 
-/// Thread-local cache of Apple CoreText `CTFontRef` handles and singleton grayscale `CGColorSpaceRef`.
+/// Thread-local cache of Apple CoreText `CTFontRef` handles, singleton grayscale `CGColorSpaceRef`, and reusable bitmap context.
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub(crate) struct CoreTextFontCache {
     /// Singleton device-gray `CGColorSpaceRef` reused across all glyph rasterizations on this thread.
     pub(crate) gray_space: *mut c_void,
-    /// Bounded MRU-ordered table of cached base `CTFontRef` handles (`<= CORETEXT_FONT_CACHE_MAX`).
+    /// Persistent scratch `CGBitmapContextRef` backed by `scratch_buf`, eliminating per-glyph context creation FFI calls.
+    pub(crate) scratch_ctx: *mut c_void,
+    /// Backing alpha8 pixel storage for `scratch_ctx`.
+    pub(crate) scratch_buf: Vec<u8>,
+    /// Current pixel width of `scratch_ctx`.
+    pub(crate) scratch_w: usize,
+    /// Current pixel height of `scratch_ctx`.
+    pub(crate) scratch_h: usize,
+    /// Bounded table of cached base `CTFontRef` handles (`<= CORETEXT_FONT_CACHE_MAX`).
     pub(crate) fonts: Vec<CoreTextFontCacheEntry>,
 }
 
@@ -298,14 +308,54 @@ pub(crate) struct FtFaceRec {
     pub(crate) size: *const FtSizeRec,
 }
 
+/// Lazily loaded FreeType face slot tracking probe state and most recently applied pixel size.
+#[cfg(any(target_os = "linux", target_os = "android"))]
+#[derive(Clone, Copy)]
+pub(crate) struct FtLazyFace {
+    /// Whether candidate font path probing has already been attempted for this slot.
+    pub(crate) probed: bool,
+    /// Opened FreeType face pointer, or null when unprobed or unavailable.
+    pub(crate) face: *mut FtFaceRec,
+    /// Most recently applied pixel size on `face` to skip redundant `FT_Set_Pixel_Sizes` calls.
+    pub(crate) last_size_px: u32,
+}
+
+/// Dynamically loaded FreeType 2 runtime holding the primary face and lazily resolved style/CJK fallback faces.
 #[cfg(any(target_os = "linux", target_os = "android"))]
 pub(crate) struct FreeTypeRuntime {
-    pub(crate) regular_face: *mut FtFaceRec,
-    pub(crate) bold_face: *mut FtFaceRec,
-    pub(crate) mono_face: *mut FtFaceRec,
-    pub(crate) mono_bold_face: *mut FtFaceRec,
-    pub(crate) cjk_face: *mut FtFaceRec,
+    /// Initialized `FT_Library` handle retained for on-demand `FT_New_Face` calls.
+    pub(crate) library: *mut c_void,
+    /// Resolved `FT_New_Face` function pointer for lazy style and CJK fallback face opening.
+    pub(crate) new_face: FtNewFaceFn,
+    /// Primary regular Latin face opened on cold initialization.
+    pub(crate) regular: FtLazyFace,
+    /// Lazily opened bold sans face (opened only on first bold glyph).
+    pub(crate) bold: FtLazyFace,
+    /// Lazily opened monospace face (opened only on first monospace glyph).
+    pub(crate) mono: FtLazyFace,
+    /// Lazily opened bold monospace face (opened only on first bold monospace glyph).
+    pub(crate) mono_bold: FtLazyFace,
+    /// Lazily opened CJK / Unicode fallback face (opened only when primary face misses a codepoint).
+    pub(crate) cjk: FtLazyFace,
+    /// Resolved `FT_Set_Pixel_Sizes` function pointer.
     pub(crate) set_pixel_sizes: FtSetPixelSizesFn,
+    /// Resolved `FT_Get_Char_Index` function pointer.
     pub(crate) get_char_index: FtGetCharIndexFn,
+    /// Resolved `FT_Load_Glyph` function pointer.
     pub(crate) load_glyph: FtLoadGlyphFn,
+}
+
+/// Thread-local reusable offscreen `<canvas>` and 2D context for Web glyph rasterization.
+#[cfg(target_arch = "wasm32")]
+pub(crate) struct WebFontScratch {
+    /// Lazily created offscreen canvas element.
+    pub(crate) canvas: Option<HtmlCanvasElement>,
+    /// Cached 2D rendering context bound to `canvas`.
+    pub(crate) ctx2d: Option<CanvasRenderingContext2d>,
+    /// Current allocated canvas pixel width.
+    pub(crate) width: u32,
+    /// Current allocated canvas pixel height.
+    pub(crate) height: u32,
+    /// Last CSS `font` string applied to `ctx2d`.
+    pub(crate) last_font: String,
 }

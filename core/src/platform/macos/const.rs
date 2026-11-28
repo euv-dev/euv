@@ -25,6 +25,15 @@ pub(crate) const OBJC_CLS_NS_PROCESS_INFO: &str = "NSProcessInfo\0";
 /// Objective-C class name for `NSDate`.
 pub(crate) const OBJC_CLS_NS_DATE: &str = "NSDate\0";
 
+/// Objective-C class name for `NSColor`.
+pub(crate) const OBJC_CLS_NS_COLOR: &str = "NSColor\0";
+
+/// Objective-C selector for `colorWithSRGBRed:green:blue:alpha:` on `NSColor`.
+pub(crate) const OBJC_SEL_COLOR_WITH_SRGB: &str = "colorWithSRGBRed:green:blue:alpha:\0";
+
+/// Objective-C selector for `setBackgroundColor:` on `NSWindow`.
+pub(crate) const OBJC_SEL_SET_BACKGROUND_COLOR: &str = "setBackgroundColor:\0";
+
 /// Objective-C selector for `distantFuture` on `NSDate`.
 pub(crate) const OBJC_SEL_DISTANT_FUTURE: &str = "distantFuture\0";
 

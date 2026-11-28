@@ -99,12 +99,12 @@ impl PhysicsWorld2D {
     pub fn with_config(config: PhysicsConfig) -> Self {
         Self {
             config,
-            body_bounds: Vec::with_capacity(256),
-            cell_counts: Vec::with_capacity(256),
-            cell_offsets: Vec::with_capacity(256),
-            cell_cursors: Vec::with_capacity(256),
-            cell_items: Vec::with_capacity(512),
-            active_cells: Vec::with_capacity(128),
+            body_bounds: Vec::new(),
+            cell_counts: Vec::new(),
+            cell_offsets: Vec::new(),
+            cell_cursors: Vec::new(),
+            cell_items: Vec::new(),
+            active_cells: Vec::new(),
             sparse_table: Vec::new(),
             sparse_nodes: Vec::new(),
             sparse_active: Vec::new(),

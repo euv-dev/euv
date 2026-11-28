@@ -1,5 +1,17 @@
 use super::*;
 
+/// QuartzCore `CAFrameRateRange` ABI struct for iOS 15+ ProMotion `CADisplayLink` pacing.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct CaFrameRateRange {
+    /// Minimum adaptive refresh rate in Hertz.
+    pub(crate) minimum: f32,
+    /// Maximum adaptive refresh rate in Hertz.
+    pub(crate) maximum: f32,
+    /// Preferred target refresh rate in Hertz.
+    pub(crate) preferred: f32,
+}
+
 /// Native iOS / iPadOS UIKit window record supporting iPhone safe areas and iPadOS Stage Manager multi-window.
 #[derive(Clone, Data, Debug)]
 pub struct IosWindowRecord {
@@ -44,6 +56,11 @@ pub struct IosPlatform {
     #[get(pub(crate), type(copy))]
     #[set(pub(crate))]
     pub(crate) display_link: usize,
+    /// Detected `UIScreen.mainScreen.maximumFramesPerSecond` refresh rate in Hertz (`120.0` on ProMotion).
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) refresh_rate_hz: f32,
     /// Whether the UIKit `CADisplayLink` frame pump is currently paused for background freeze.
     #[get(pub(crate), type(copy))]
     #[set(pub(crate))]

@@ -5,7 +5,7 @@ order: -1
 
 # 介绍
 
-**euv-docs** 把一个 markdown 目录变成完整的文档站 —— 就像 VuePress，
+**Euv-docs** 把一个 markdown 目录变成完整的文档站 —— 就像 VuePress，
 但由 Rust/WASM 的 [euv](https://github.com/euv-dev/euv) 应用渲染。
 
 ## 工作原理

@@ -14,6 +14,7 @@ impl EventHandlers {
             on_pointer_down: None,
             on_pointer_move: None,
             on_pointer_up: None,
+            on_pointer_cancel: None,
             on_pointer_enter: None,
             on_pointer_leave: None,
             on_scroll: None,
@@ -41,6 +42,7 @@ impl EventHandlers {
             on_pointer_down,
             on_pointer_move,
             on_pointer_up,
+            on_pointer_cancel,
             on_pointer_enter,
             on_pointer_leave,
             on_scroll,
@@ -53,6 +55,7 @@ impl EventHandlers {
             && on_pointer_down.is_none()
             && on_pointer_move.is_none()
             && on_pointer_up.is_none()
+            && on_pointer_cancel.is_none()
             && on_pointer_enter.is_none()
             && on_pointer_leave.is_none()
             && on_scroll.is_none()
@@ -79,6 +82,7 @@ impl EventHandlers {
             on_pointer_down,
             on_pointer_move,
             on_pointer_up,
+            on_pointer_cancel,
             on_pointer_enter,
             on_pointer_leave,
             on_scroll,
@@ -92,6 +96,7 @@ impl EventHandlers {
             UiEventKind::PointerDown(_) => on_pointer_down.clone(),
             UiEventKind::PointerMove(_) => on_pointer_move.clone(),
             UiEventKind::PointerUp(_) => on_pointer_up.clone(),
+            UiEventKind::PointerCancel => on_pointer_cancel.clone(),
             UiEventKind::PointerEnter => on_pointer_enter.clone(),
             UiEventKind::PointerLeave => on_pointer_leave.clone(),
             UiEventKind::Scroll(_) => on_scroll.clone(),

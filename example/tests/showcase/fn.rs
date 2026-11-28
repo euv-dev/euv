@@ -100,7 +100,8 @@ fn scroll_and_click_label(app: &mut App, label: &str) -> FrameStats {
 }
 
 fn open_nav_and_click(app: &mut App, label: &str) -> FrameStats {
-    let _: FrameStats = click_label(app, "E");
+    let menu_pt: Point = find_a11y_center(app, "Menu");
+    let _: FrameStats = click_at(app, menu_pt);
     for _ in 0..20 {
         let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
     }
@@ -383,15 +384,17 @@ fn instant_responsive_resize_adapts_shell_and_all_ten_pages_without_horizontal_o
         Breakpoint::Compact
     );
     assert_ne!(f_mob.get_frame_hash(), f_tab.get_frame_hash());
-    let f_menu_open: FrameStats = click_label(&mut app, "E");
+    let menu_pt: Point = find_a11y_center(&app, "Menu");
+    let f_menu_open: FrameStats = click_at(&mut app, menu_pt);
     assert_ne!(f_menu_open.get_frame_hash(), f_mob.get_frame_hash());
     for _ in 0..20 {
         let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
     }
     let _: FrameStats = click_label(&mut app, "Reactivity");
     assert_eq!(state.get_route().get_untracked(), ROUTE_REACTIVE);
-    let routes: [&str; 15] = [
+    let routes: [&str; 16] = [
         ROUTE_OVERVIEW,
+        ROUTE_CHARTS,
         ROUTE_MARKDOWN,
         ROUTE_REACTIVE,
         ROUTE_RENDER,
@@ -613,10 +616,6 @@ fn fast_wheel_scroll_scrollbar_slider_drag_animations_touch_scroll_and_game_keys
     assert!(!app.has_active_animations());
     let _: FrameStats = click_at(&mut app, Point::new(12.0, 12.0));
     assert!(!state.get_modal_open().get_untracked());
-    assert!(app.has_active_animations());
-    for _ in 0..18 {
-        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
-    }
     assert!(!app.has_active_animations());
     let _: FrameStats = click_label(&mut app, "Alert Dialog");
     for _ in 0..18 {
@@ -928,8 +927,9 @@ fn responsive_five_widths_virtual_list_alignment_and_ai_schema_hooks_pass_zero_o
         (1280, 800),
         (1440, 900),
     ];
-    let routes: [&str; 15] = [
+    let routes: [&str; 16] = [
         ROUTE_OVERVIEW,
+        ROUTE_CHARTS,
         ROUTE_MARKDOWN,
         ROUTE_LAB,
         ROUTE_REACTIVE,
@@ -1267,7 +1267,9 @@ fn twitter_bottom_nav_swipe_routing_live_fps_drawer_drag_and_dropdown_width_work
     let has_fps_badge: bool = app.get_scene().with_read(
         |tree: &SceneTree| {
             tree.get_nodes().iter().any(|n: &SceneNode| {
-                n.get_alive() && matches!(n.get_kind(), NodeKind::Text(t) if t.contains("FPS"))
+                n.get_alive()
+                    && n.a11y_props_ref()
+                        .is_some_and(|a: &A11yProps| a.get_label() == "Live FPS")
             })
         },
         false,
@@ -1825,4 +1827,364 @@ fn showcase_background_freeze_suspends_all_stateful_pages_and_restores_losslessl
         false,
     );
     assert!(has_freeze_telemetry);
+}
+
+fn find_a11y_center(app: &App, label: &str) -> Point {
+    app.get_scene().with_read(
+        |tree: &SceneTree| {
+            for (idx, node) in tree.get_nodes().iter().enumerate() {
+                if !node.get_alive() || node.style_ref().get_layout().get_display() == Display::None
+                {
+                    continue;
+                }
+                if node
+                    .a11y_props_ref()
+                    .is_some_and(|a: &A11yProps| a.get_label() == label)
+                {
+                    let nid: NodeId = NodeId::new(idx as u32, node.get_generation());
+                    if let Some(bounds) = tree.node_screen_bounds(nid)
+                        && bounds.get_width() > 0.0
+                        && bounds.get_height() > 0.0
+                    {
+                        return Point::new(
+                            bounds.get_x() + bounds.get_width() * 0.5,
+                            bounds.get_y() + bounds.get_height() * 0.5,
+                        );
+                    }
+                }
+            }
+            Point::new(-1.0, -1.0)
+        },
+        Point::new(-1.0, -1.0),
+    )
+}
+
+#[test]
+fn showcase_lazy_cold_start_icon_chrome_and_50_cycle_exit_reenter_stay_responsive() {
+    reset_reactive_runtime();
+    let (mut app, state): (App, ShowcaseState) =
+        create_showcase_app(true, RenderMode::Software).unwrap();
+    let _: FrameStats = app.step_frame().unwrap();
+    assert!(!state.get_media_loaded().get());
+    assert!(!state.get_wasm_registry_loaded().get());
+    assert!(!state.get_stress_loaded().get());
+    assert!(!state.get_charts_loaded().get());
+    let mode_btn: Point = find_a11y_center(&app, BTN_MODE_A11Y);
+    assert!(mode_btn.get_x() >= 0.0);
+    let _: FrameStats = click_at(&mut app, mode_btn);
+    assert_eq!(
+        state.get_theme().get_mode().get_untracked(),
+        ThemeMode::Dark
+    );
+    let scheme_before: DesignScheme = state.get_theme().get_scheme().get_untracked();
+    let scheme_btn: Point = find_a11y_center(&app, BTN_SCHEME_A11Y);
+    assert!(scheme_btn.get_x() >= 0.0);
+    let _: FrameStats = click_at(&mut app, scheme_btn);
+    assert_ne!(
+        state.get_theme().get_scheme().get_untracked(),
+        scheme_before
+    );
+    let search_btn: Point = find_a11y_center(&app, BTN_SEARCH_A11Y);
+    assert!(search_btn.get_x() >= 0.0);
+    let _: FrameStats = click_at(&mut app, search_btn);
+    assert!(state.get_cmd_palette_open().get_untracked());
+    assert!(EuvOverlayStack::dismiss_top());
+    let _: FrameStats = app.step_frame().unwrap();
+    assert!(!state.get_cmd_palette_open().get_untracked());
+    for cycle in 0..25u32 {
+        if cycle % 5 == 0 {
+            let _: bool = state.get_cmd_palette_open().set_if_changed(true);
+            enter_fullscreen();
+            let _: FrameStats = app.step_frame().unwrap();
+        }
+        app.dispatch_window_event(WindowEvent::System(SystemEvent::Inactive));
+        app.dispatch_window_event(WindowEvent::System(SystemEvent::Background));
+        app.dispatch_window_event(WindowEvent::System(SystemEvent::Foreground));
+        if is_fullscreen_active() {
+            reset_fullscreen_state();
+        }
+        if EuvOverlayStack::active_count() > 0 {
+            let _: usize = EuvOverlayStack::dismiss_all();
+        }
+        let _: FrameStats = app.step_frame().unwrap();
+    }
+    assert_eq!(EuvOverlayStack::active_count(), 0);
+    assert!(!is_fullscreen_active());
+    assert!(!state.get_bg_frozen().get_untracked());
+    let mode_before_click: ThemeMode = state.get_theme().get_mode().get_untracked();
+    let mode_btn_after: Point = find_a11y_center(&app, BTN_MODE_A11Y);
+    assert!(mode_btn_after.get_x() >= 0.0);
+    let _: FrameStats = click_at(&mut app, mode_btn_after);
+    assert_ne!(
+        state.get_theme().get_mode().get_untracked(),
+        mode_before_click
+    );
+    let _: FrameStats = click_label(&mut app, BNAV_DOCS_LABEL);
+    assert_eq!(state.get_route().get_untracked(), ROUTE_MARKDOWN);
+    for cycle in 0..50u32 {
+        if cycle % 5 == 0 {
+            enter_fullscreen();
+        }
+        reset_reactive_runtime();
+        let (mut re_app, re_state): (App, ShowcaseState) =
+            create_showcase_app(true, RenderMode::Software).unwrap();
+        let _: FrameStats = re_app.step_frame().unwrap();
+        assert_eq!(EuvOverlayStack::active_count(), 0);
+        assert!(!is_fullscreen_active());
+        if cycle % 10 == 0 || cycle == 49 {
+            let _: FrameStats = click_label(&mut re_app, BNAV_DOCS_LABEL);
+            assert_eq!(re_state.get_route().get_untracked(), ROUTE_MARKDOWN);
+        }
+        re_app.dispatch_window_event(WindowEvent::System(SystemEvent::Terminate));
+    }
+}
+
+#[test]
+fn echarts_studio_lazy_loads_all_twenty_series_fullscreen_and_isolates_data_zoom_drag() {
+    reset_reactive_runtime();
+    let (mut app, state): (App, ShowcaseState) =
+        create_showcase_app(true, RenderMode::Software).unwrap();
+    let wid: WindowId = app.get_window_state().get_id();
+    let _: FrameStats = app.step_frame().unwrap();
+    assert!(!state.get_charts_loaded().get());
+    assert_eq!(ShowcaseState::breadcrumb_for_route(ROUTE_CHARTS), "Charts");
+    assert!(find_text_center(&app, BTN_OPEN_CHARTS).get_x() >= 0.0);
+    let _: FrameStats = click_label(&mut app, NAV_LABEL_CHARTS);
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert_eq!(state.get_route().get_untracked(), ROUTE_CHARTS);
+    assert!(state.get_charts_loaded().get());
+    let _: FrameStats = click_label(&mut app, BNAV_DOCS_LABEL);
+    for _ in 0..20 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert_eq!(state.get_route().get_untracked(), ROUTE_MARKDOWN);
+    let _: FrameStats = open_nav_and_click(&mut app, NAV_LABEL_CHARTS);
+    assert_eq!(state.get_route().get_untracked(), ROUTE_CHARTS);
+    let all_chart_canvases: usize = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes()
+                .iter()
+                .filter(|n: &&SceneNode| {
+                    n.get_alive()
+                        && matches!(n.get_kind(), NodeKind::Canvas)
+                        && n.get_layout_box().get_bounds().get_height() >= 240.0
+                })
+                .count()
+        },
+        0,
+    );
+    assert!(
+        all_chart_canvases >= 21,
+        "expected all 21 chart cards covering all 20 ECharts series, found {all_chart_canvases}"
+    );
+    let cat_labels: [(&str, usize); 6] = [
+        (CHARTS_CAT_CARTESIAN, 4),
+        (CHARTS_CAT_FINANCIAL, 4),
+        (CHARTS_CAT_RADIAL, 3),
+        (CHARTS_CAT_HIERARCHY, 6),
+        (CHARTS_CAT_GEO_FLOW, 4),
+        (CHARTS_CAT_ALL, 21),
+    ];
+    for (cat_lbl, expected_min) in cat_labels.into_iter() {
+        let stats: FrameStats = click_label(&mut app, cat_lbl);
+        assert_ne!(stats.get_frame_hash(), 0);
+        assert!(stats.get_draw_commands() >= 40);
+        let cnt: usize = app.get_scene().with_read(
+            |tree: &SceneTree| {
+                tree.get_nodes()
+                    .iter()
+                    .filter(|n: &&SceneNode| {
+                        n.get_alive()
+                            && matches!(n.get_kind(), NodeKind::Canvas)
+                            && n.get_layout_box().get_bounds().get_height() >= 240.0
+                    })
+                    .count()
+            },
+            0,
+        );
+        assert_eq!(cnt, expected_min);
+    }
+    state.toggle_theme_mode();
+    let f_dark: FrameStats = app.step_frame().unwrap();
+    assert_ne!(f_dark.get_frame_hash(), 0);
+    state.toggle_theme_mode();
+    let _: FrameStats = app.step_frame().unwrap();
+    app.queue_window_command(WindowCommand::SetSize(wid, 390, 844));
+    app.dispatch_window_event(WindowEvent::Resized(wid, 390, 844, 1.0));
+    let _: FrameStats = app.step_frame().unwrap();
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::mouse(195.0, 220.0),
+    ));
+    app.dispatch_window_event(WindowEvent::Scroll(wid, Point::new(0.0, 280.0)));
+    let _: FrameStats = app.step_frame().unwrap();
+    for _ in 0..45 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let dz_canvas_rect: Rect = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            for (idx, n) in tree.get_nodes().iter().enumerate() {
+                if n.get_alive()
+                    && matches!(n.get_kind(), NodeKind::Canvas)
+                    && n.style_ref().get_paint().get_stop_scroll_propagation()
+                    && n.get_layout_box().get_bounds().get_height() >= 240.0
+                {
+                    let nid: NodeId = NodeId::new(idx as u32, n.get_generation());
+                    if let Some(b) = tree.node_screen_bounds(nid)
+                        && b.get_width() > 100.0
+                        && b.get_y() >= 52.0
+                        && b.bottom() <= 760.0
+                    {
+                        return b;
+                    }
+                }
+            }
+            Rect::default()
+        },
+        Rect::default(),
+    );
+    assert!(
+        dz_canvas_rect.get_width() > 200.0,
+        "expected visible DataZoom chart canvas inside mobile viewport, got {dz_canvas_rect:?}"
+    );
+    let drag_x0: f32 = dz_canvas_rect.right() - 22.0;
+    let drag_y: f32 = dz_canvas_rect.bottom() - 22.0;
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(41, drag_x0, drag_y),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::touch(41, drag_x0 - 80.0, drag_y),
+    ));
+    let swipe_during_dz: f32 = app.get_context().get_swipe_drag_offset().get_untracked();
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::touch(41, drag_x0 - 80.0, drag_y),
+    ));
+    let _: FrameStats = app.step_frame().unwrap();
+    assert!(
+        swipe_during_dz.abs() < 0.01,
+        "dragging EuvEChart DataZoom must keep swipe_drag_offset == 0.0, got {swipe_during_dz}"
+    );
+    let ev_log: String = state.get_charts_event_log().get_untracked();
+    assert!(
+        ev_log.contains("DataZoom range:"),
+        "expected DataZoom range update, got ev_log={ev_log:?} dz_canvas_rect={dz_canvas_rect:?}"
+    );
+    assert_eq!(state.get_route().get_untracked(), ROUTE_CHARTS);
+    let fs_pt: Point = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            for (idx, n) in tree.get_nodes().iter().enumerate() {
+                if !n.get_alive() {
+                    continue;
+                }
+                let nid: NodeId = NodeId::new(idx as u32, n.get_generation());
+                if !tree.is_node_visible(nid) {
+                    continue;
+                }
+                if n.a11y_props_ref()
+                    .is_some_and(|a: &A11yProps| a.get_label() == "Fullscreen")
+                    && let Some(b) = tree.node_screen_bounds(nid)
+                    && b.get_width() > 0.0
+                    && b.get_y() >= 52.0
+                    && b.bottom() <= 760.0
+                {
+                    return Point::new(
+                        b.get_x() + b.get_width() * 0.5,
+                        b.get_y() + b.get_height() * 0.5,
+                    );
+                }
+            }
+            Point::new(-1.0, -1.0)
+        },
+        Point::new(-1.0, -1.0),
+    );
+    assert!(fs_pt.get_x() >= 0.0);
+    let _: FrameStats = click_at(&mut app, fs_pt);
+    assert!(is_fullscreen_active());
+    assert!(app.is_immersive_fullscreen());
+    let (fs_bounds, chrome_hidden): (Option<Rect>, bool) = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let mut portal_rect: Option<Rect> = None;
+            let mut visible_chrome: bool = false;
+            for (idx, n) in tree.get_nodes().iter().enumerate() {
+                if !n.get_alive() {
+                    continue;
+                }
+                let lay: LayoutStyle = n.style_ref().get_layout();
+                let paint: PaintStyle = n.style_ref().get_paint();
+                if lay.get_z_index() == Z_INDEX_CHROME && lay.get_display() != Display::None {
+                    visible_chrome = true;
+                }
+                if matches!(n.get_kind(), NodeKind::Portal)
+                    && lay.get_z_index() == Z_INDEX_FULLSCREEN
+                    && lay.get_display() == Display::Flex
+                {
+                    assert_eq!(lay.get_padding(), Edges::all(0.0));
+                    assert_eq!(lay.get_margin(), Edges::all(0.0));
+                    assert_eq!(paint.get_radius(), CornerRadius::all(0.0));
+                    assert_eq!(paint.get_border().get_width(), 0.0);
+                    let nid: NodeId = NodeId::new(idx as u32, n.get_generation());
+                    portal_rect = tree.node_screen_bounds(nid);
+                }
+            }
+            (portal_rect, !visible_chrome)
+        },
+        (None, false),
+    );
+    let fs_rect: Rect = fs_bounds.expect("chart fullscreen portal must fill viewport");
+    assert!((fs_rect.get_x() - 0.0).abs() < 0.5);
+    assert!((fs_rect.get_y() - 0.0).abs() < 0.5);
+    assert!((fs_rect.get_width() - 390.0).abs() < 0.5);
+    assert!((fs_rect.get_height() - 844.0).abs() < 0.5);
+    assert!(chrome_hidden);
+    let close_pt: Point = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            for (idx, n) in tree.get_nodes().iter().enumerate() {
+                if !n.get_alive() {
+                    continue;
+                }
+                let nid: NodeId = NodeId::new(idx as u32, n.get_generation());
+                if !tree.is_node_visible(nid) {
+                    continue;
+                }
+                if n.a11y_props_ref()
+                    .is_some_and(|a: &A11yProps| a.get_label() == "Close")
+                    && let Some(b) = tree.node_screen_bounds(nid)
+                    && b.get_width() > 0.0
+                    && b.get_height() > 0.0
+                {
+                    return Point::new(
+                        b.get_x() + b.get_width() * 0.5,
+                        b.get_y() + b.get_height() * 0.5,
+                    );
+                }
+            }
+            Point::new(-1.0, -1.0)
+        },
+        Point::new(-1.0, -1.0),
+    );
+    assert!(close_pt.get_x() >= 0.0);
+    let _: FrameStats = click_at(&mut app, close_pt);
+    assert!(!is_fullscreen_active());
+    assert!(!app.is_immersive_fullscreen());
+    assert_eq!(EuvOverlayStack::active_count(), 0);
+    let chrome_restored: bool = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes()
+                .iter()
+                .filter(|n: &&SceneNode| {
+                    n.get_alive()
+                        && n.style_ref().get_layout().get_z_index() == Z_INDEX_CHROME
+                        && n.style_ref().get_layout().get_display() == Display::Flex
+                })
+                .count()
+                >= 2
+        },
+        false,
+    );
+    assert!(chrome_restored);
 }

@@ -154,6 +154,9 @@ pub const fn on_pointer_move() {}
 /// Registers a pointer-up handler (`FnMut(&UiEvent) + 'static`).
 pub const fn on_pointer_up() {}
 
+/// Registers a pointer-cancel handler (`FnMut(&UiEvent) + 'static`).
+pub const fn on_pointer_cancel() {}
+
 /// Registers a pointer-enter handler (`FnMut(&UiEvent) + 'static`).
 pub const fn on_pointer_enter() {}
 

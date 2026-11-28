@@ -2,6 +2,57 @@ use super::*;
 
 /// Unified overlay stack management operations for `EuvOverlayStack`.
 impl EuvOverlayStack {
+    /// Publishes the current active overlay depth into the reactive count signal if alive.
+    fn sync_active_count_signal() {
+        let count: usize = Self::active_count();
+        OVERLAY_STACK_COUNT_SIG.with(|slot: &RefCell<Option<Signal<usize>>>| {
+            if let Ok(guard) = slot.try_borrow()
+                && let Some(sig) = *guard
+                && untracked(|| sig.try_get().is_some())
+            {
+                let _: bool = sig.set_if_changed(count);
+            }
+        });
+    }
+
+    /// Returns a reactive signal tracking the number of currently open overlays.
+    ///
+    /// # Returns
+    ///
+    /// - `Signal<usize>` - Live reactive active overlay depth signal.
+    #[must_use]
+    pub fn active_count_signal() -> Signal<usize> {
+        let reset_detected: bool =
+            OVERLAY_STACK_COUNT_SIG.with(|slot: &RefCell<Option<Signal<usize>>>| {
+                slot.try_borrow()
+                    .ok()
+                    .and_then(|guard: Ref<'_, Option<Signal<usize>>>| *guard)
+                    .is_some_and(|sig: Signal<usize>| untracked(|| sig.try_get().is_none()))
+            });
+        if reset_detected {
+            OVERLAY_STACK_ENTRIES.with(|stack: &RefCell<Vec<OverlayStackEntry>>| {
+                if let Ok(mut list) = stack.try_borrow_mut() {
+                    list.clear();
+                }
+            });
+        }
+        let count: usize = Self::active_count();
+        OVERLAY_STACK_COUNT_SIG.with(|slot: &RefCell<Option<Signal<usize>>>| {
+            if let Ok(guard) = slot.try_borrow()
+                && let Some(sig) = *guard
+                && untracked(|| sig.try_get().is_some())
+            {
+                let _: bool = sig.set_if_changed(count);
+                return sig;
+            }
+            let fresh: Signal<usize> = Signal::new(count);
+            if let Ok(mut guard) = slot.try_borrow_mut() {
+                *guard = Some(fresh);
+            }
+            fresh
+        })
+    }
+
     /// Registers an open overlay onto the unified dismissal stack and returns its unique entry ID.
     ///
     /// # Arguments
@@ -33,6 +84,7 @@ impl EuvOverlayStack {
                 list.push(entry);
             }
         });
+        Self::sync_active_count_signal();
         id
     }
 
@@ -50,6 +102,7 @@ impl EuvOverlayStack {
                 list.retain(|entry: &OverlayStackEntry| entry.get_id() != id);
             }
         });
+        Self::sync_active_count_signal();
     }
 
     /// Dismisses ONLY the highest-priority (`z_index`, then most recent `id`) active overlay in LIFO order.
@@ -81,6 +134,7 @@ impl EuvOverlayStack {
                 Some(on_dismiss)
             });
         if let Some(cb) = top_cb {
+            Self::sync_active_count_signal();
             if let Ok(mut func) = cb.try_borrow_mut() {
                 func();
             }
@@ -143,6 +197,7 @@ impl EuvOverlayStack {
                 list.clear();
             }
         });
+        Self::sync_active_count_signal();
     }
 
     /// Binds a boolean open signal (`EuvModal`, `EuvDrawer`, `EuvSheet`, `EuvAlertDialog`, etc.) to the unified overlay stack.
@@ -158,6 +213,13 @@ impl EuvOverlayStack {
     /// - `Effect` - Reactive effect keeping the stack synchronized with `open`.
     pub fn bind_signal(open: Signal<bool>, label: &str, z_index: i32) -> Effect {
         let entry_id: Rc<Cell<u64>> = Rc::new(Cell::new(0));
+        let cleanup_id: Rc<Cell<u64>> = Rc::clone(&entry_id);
+        on_cleanup(move || {
+            let stale_id: u64 = cleanup_id.replace(0);
+            if stale_id != 0 {
+                Self::remove(stale_id);
+            }
+        });
         let label_owned: String = label.to_string();
         Effect::new(move || {
             let is_open: bool = open.get();

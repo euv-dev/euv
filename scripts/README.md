@@ -1,4 +1,4 @@
-# euv Scripts
+# Euv Scripts
 
 Unified environment provisioning, cross-platform build, theme packaging, benchmarking, and end-to-end verification scripts organized by responsibility.
 

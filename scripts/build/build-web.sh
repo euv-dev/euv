@@ -11,12 +11,30 @@ log_info "Building Release WebAssembly bundle..."
 wasm-pack build --target web --release --out-dir ../dist/web
 
 cd "${REPO_ROOT}"
+python3 "${REPO_ROOT}/scripts/env/generate-icon.py" "${REPO_ROOT}/dist/web/euv-studio-logo-64.png" 64 "${EUV_APP_ICON:-}"
 python3 - <<'PY'
 from pathlib import Path
 
 out_dir = Path("dist/web")
 wasm_file = "euv_example_bg.wasm"
 js_file = out_dir / "euv_example.js"
+favicon_tag = (
+    '<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,'
+    '%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 64 64\'%3E'
+    '%3Cdefs%3E%3ClinearGradient id=\'g\' x1=\'8\' y1=\'8\' x2=\'56\' y2=\'56\' gradientUnits=\'userSpaceOnUse\'%3E'
+    '%3Cstop offset=\'0%25\' stop-color=\'%23fff2a6\'/%3E'
+    '%3Cstop offset=\'48%25\' stop-color=\'%23ffd24d\'/%3E'
+    '%3Cstop offset=\'100%25\' stop-color=\'%23d97706\'/%3E%3C/linearGradient%3E%3C/defs%3E'
+    '%3Cpath d=\'M25 28 L5 8 L10 26 L22 33 Z M34 32 L59 7 L54 27 L39 36 Z\' fill=\'url(%23g)\'/%3E'
+    '%3Cpath d=\'M7 7 L14 14 M57 7 L49 15\' stroke=\'%23e6192e\' stroke-width=\'3.2\' stroke-linecap=\'round\'/%3E'
+    '%3Cpath d=\'M22 22 L32 14 L44 6 L34 22 L40 38 L30 48 L20 42 L20 28 Z\' fill=\'%2314171f\' stroke=\'url(%23g)\' stroke-width=\'2.5\' stroke-linejoin=\'round\'/%3E'
+    '%3Cpolygon points=\'25,33 29,36 27,43 22,40\' fill=\'%23e6192e\'/%3E'
+    '%3Ccircle cx=\'26\' cy=\'16\' r=\'2.2\' fill=\'%23e6192e\'/%3E'
+    '%3C/svg%3E"/>'
+)
+web_png = out_dir / "euv-studio-logo-64.png"
+if web_png.is_file():
+    favicon_tag = '<link rel="icon" type="image/png" sizes="64x64" href="./euv-studio-logo-64.png"/>'
 inline_runtime = js_file.read_text(encoding="utf-8")
 inline_runtime = inline_runtime.replace(f"new URL('{wasm_file}', import.meta.url)", f"'./{wasm_file}'").replace(f'new URL("{wasm_file}", import.meta.url)', f"'./{wasm_file}'")
 cleaned = []
@@ -31,9 +49,9 @@ cleaned_loader = "\n".join(cleaned)
 html = (
     '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8"/>\n'
     '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>\n'
-    '<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 32 32\'%3E%3Crect width=\'32\' height=\'32\' rx=\'8\' fill=\'%2318181b\'/%3E%3Ctext x=\'16\' y=\'22\' text-anchor=\'middle\' font-family=\'sans-serif\' font-weight=\'800\' font-size=\'18\' fill=\'%23fafafa\'%3EE%3C/text%3E%3C/svg%3E"/>\n'
-    '<title>euv 0.44 — Cross-Platform Native Showcase</title>\n'
-    '<style>html,body{margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;background:#09090b;touch-action:none;}</style>\n'
+    f'{favicon_tag}\n'
+    '<title>Euv Studio</title>\n'
+    '<style>:root{--euv-safe-top:env(safe-area-inset-top,0px);--euv-safe-right:env(safe-area-inset-right,0px);--euv-safe-bottom:env(safe-area-inset-bottom,0px);--euv-safe-left:env(safe-area-inset-left,0px);}html,body{margin:0;padding:0;width:100vw;height:100vh;height:100dvh;overflow:hidden;background:#09090b;touch-action:none;}</style>\n'
     '</head>\n<body>\n<script type="module">\n'
     f'{cleaned_loader}\n__wbg_init({{ module_or_path: \'./{wasm_file}\' }});\n'
     '</script>\n</body>\n</html>\n'

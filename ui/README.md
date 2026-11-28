@@ -1,8 +1,8 @@
 <div align="center">
 
-# euv-ui
+# Euv-ui
 
-<img src="https://ltpp.vip/github/pages/docs-pages/pages/img/euv.png" alt="euv-ui logo" height="160">
+<img src="https://ltpp.vip/github/pages/docs-pages/pages/img/euv.png" alt="Euv-ui logo" height="160">
 
 **60+ Adaptive Native Components, 17 Compiled Themes & Eva Bold Markdown Studio**
 

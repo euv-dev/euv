@@ -1,5 +1,136 @@
 use super::*;
 
+/// Returns the thread-local reactive fullscreen signal, resetting refcount cleanly if the reactive runtime was recreated.
+///
+/// # Returns
+///
+/// - `Signal<bool>` - Live reactive signal reporting whether any fullscreen portal is active.
+fn fullscreen_signal() -> Signal<bool> {
+    FULLSCREEN_ACTIVE_SIG.with(|slot: &RefCell<Option<Signal<bool>>>| {
+        if let Ok(guard) = slot.try_borrow()
+            && let Some(sig) = *guard
+            && untracked(|| sig.try_get().is_some())
+        {
+            return sig;
+        }
+        FULLSCREEN_DEPTH.with(|depth: &Cell<usize>| depth.set(0));
+        let fresh: Signal<bool> = Signal::new(false);
+        if let Ok(mut guard) = slot.try_borrow_mut() {
+            *guard = Some(fresh);
+        }
+        fresh
+    })
+}
+
+/// Returns the shared reactive fullscreen signal observed by `EuvAppShell` and fullscreen-aware components.
+///
+/// # Returns
+///
+/// - `Signal<bool>` - Reactive fullscreen active flag (`true` while one or more fullscreen portals are open).
+#[must_use]
+pub fn use_fullscreen_active() -> Signal<bool> {
+    fullscreen_signal()
+}
+
+/// Returns whether any fullscreen portal is currently active without creating a reactive dependency.
+///
+/// # Returns
+///
+/// - `bool` - `true` while fullscreen depth is greater than zero.
+#[must_use]
+pub fn is_fullscreen_active() -> bool {
+    let sig: Signal<bool> = fullscreen_signal();
+    untracked(|| sig.try_get()).unwrap_or(false)
+}
+
+/// Registers the live application `Context` so UI fullscreen transitions stay synchronized with `Context::immersive_fullscreen`.
+///
+/// # Arguments
+///
+/// - `&Context` - Live application context handle.
+pub fn bind_fullscreen_context(ctx: &Context) {
+    FULLSCREEN_CTX_HANDLE.with(|slot: &RefCell<Option<Context>>| {
+        if let Ok(mut guard) = slot.try_borrow_mut() {
+            *guard = Some(ctx.clone());
+        }
+    });
+}
+
+/// Returns the currently bound live `Context` if its reactive runtime is still active.
+///
+/// # Returns
+///
+/// - `Option<Context>` - Bound live context, or `None` if unbound or disposed.
+fn live_fullscreen_context() -> Option<Context> {
+    FULLSCREEN_CTX_HANDLE.with(|slot: &RefCell<Option<Context>>| {
+        let candidate: Option<Context> = slot
+            .try_borrow()
+            .ok()
+            .and_then(|guard: Ref<'_, Option<Context>>| guard.clone());
+        candidate.filter(|ctx: &Context| {
+            untracked(|| ctx.immersive_fullscreen_signal().try_get().is_some())
+        })
+    })
+}
+
+/// Increments the global fullscreen depth counter, hiding shell navigation chrome and requesting OS immersive fullscreen on `0 -> 1`.
+pub fn enter_fullscreen() {
+    let sig: Signal<bool> = fullscreen_signal();
+    let prev: usize = FULLSCREEN_DEPTH.with(|depth: &Cell<usize>| {
+        let cur: usize = depth.get();
+        depth.set(cur.saturating_add(1));
+        cur
+    });
+    if let Some(ctx) = live_fullscreen_context() {
+        ctx.enter_immersive_fullscreen();
+    }
+    if prev == 0 {
+        let _: bool = sig.set_if_changed(true);
+        let _: bool = dispatch_native_action(NATIVE_ACTION_FULLSCREEN, FULLSCREEN_ACTION_ON, "");
+    }
+}
+
+/// Decrements the global fullscreen depth counter, restoring shell navigation chrome and exiting OS immersive fullscreen on `1 -> 0`.
+pub fn exit_fullscreen() {
+    let sig: Signal<bool> = fullscreen_signal();
+    let prev: usize = FULLSCREEN_DEPTH.with(|depth: &Cell<usize>| {
+        let cur: usize = depth.get();
+        depth.set(cur.saturating_sub(1));
+        cur
+    });
+    if let Some(ctx) = live_fullscreen_context() {
+        ctx.exit_immersive_fullscreen();
+    }
+    if prev == 1 {
+        let _: bool = sig.set_if_changed(false);
+        let _: bool = dispatch_native_action(NATIVE_ACTION_FULLSCREEN, FULLSCREEN_ACTION_OFF, "");
+    }
+}
+
+/// Resets the global fullscreen depth counter to zero and restores chrome visibility (useful for test cleanup).
+pub fn reset_fullscreen_state() {
+    let was_active: bool = FULLSCREEN_DEPTH.with(|depth: &Cell<usize>| depth.replace(0) > 0);
+    if let Some(ctx) = live_fullscreen_context() {
+        ctx.set_immersive_fullscreen(false);
+    }
+    FULLSCREEN_CTX_HANDLE.with(|slot: &RefCell<Option<Context>>| {
+        if let Ok(mut guard) = slot.try_borrow_mut() {
+            *guard = None;
+        }
+    });
+    FULLSCREEN_ACTIVE_SIG.with(|slot: &RefCell<Option<Signal<bool>>>| {
+        if let Ok(guard) = slot.try_borrow()
+            && let Some(sig) = *guard
+            && untracked(|| sig.try_get().is_some())
+        {
+            let _: bool = sig.set_if_changed(false);
+        }
+    });
+    if was_active {
+        let _: bool = dispatch_native_action(NATIVE_ACTION_FULLSCREEN, FULLSCREEN_ACTION_OFF, "");
+    }
+}
+
 /// Returns the thread-local reactive generation signal notified whenever the ambient theme provider changes.
 ///
 /// # Returns

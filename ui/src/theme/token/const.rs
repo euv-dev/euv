@@ -51,6 +51,9 @@ pub const Z_INDEX_MODAL: i32 = 1000;
 /// Z-index layer for toast notifications.
 pub const Z_INDEX_TOAST: i32 = 1100;
 
+/// Z-index layer for true edge-to-edge fullscreen portals above shell chrome, modals, and toasts.
+pub const Z_INDEX_FULLSCREEN: i32 = 1200;
+
 /// Compile-time lookup table of all 17 schemes x 2 modes (`(scheme_idx << 1) | dark_idx`) semantic palettes.
 pub(crate) const THEME_PALETTE_LUT: [ThemePalette; 34] = ThemeTokens::build_palette_lut();
 

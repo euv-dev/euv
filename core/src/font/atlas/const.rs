@@ -8,10 +8,10 @@ pub(crate) const GLYPH_INDEX_KEY_MASK: u64 = (1_u64 << 40) - 1;
 pub(crate) const GLYPH_INDEX_SLOT_SHIFT: u32 = 40;
 
 /// Initial power-of-two capacity of the open-addressed `GlyphAtlas::glyph_index` table.
-pub(crate) const GLYPH_INDEX_INIT_CAP: usize = 32;
+pub(crate) const GLYPH_INDEX_INIT_CAP: usize = 256;
 
 /// Initial reservation capacity of `GlyphAtlas::entries` on first insertion.
-pub(crate) const GLYPH_ENTRIES_INIT_CAP: usize = 16;
+pub(crate) const GLYPH_ENTRIES_INIT_CAP: usize = 128;
 
 /// Multiplicative avalanche constant for single-probe `GlyphKey` hashing.
 pub(crate) const GLYPH_INDEX_HASH_MULT: u64 = 0x517C_C1B7_2722_0A95;

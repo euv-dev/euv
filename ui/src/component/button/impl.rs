@@ -181,6 +181,38 @@ impl EuvButton {
         self
     }
 
+    /// Enables or disables automatic flex stretching (`flex_grow: 1.0`) inside horizontal rows.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source button.
+    /// - `bool` - Whether the button stretches to fill remaining row width.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated button.
+    #[must_use]
+    pub fn fill(mut self, enabled: bool) -> Self {
+        self.set_fill(enabled);
+        self
+    }
+
+    /// Sets an explicit minimum width in logical pixels for responsive wrapping rows.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source button.
+    /// - `f32` - Minimum button width in logical pixels.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated button.
+    #[must_use]
+    pub fn min_width(mut self, width: f32) -> Self {
+        self.set_min_width(Some(width.max(0.0)));
+        self
+    }
+
     /// Resolves the deterministic compiled `Style` for this button.
     ///
     /// # Arguments
@@ -215,6 +247,13 @@ impl EuvButton {
             .set_overflow(Overflow::Hidden);
         if size == EuvButtonSize::Icon {
             layout.set_width(Length::Px(height));
+        } else if self.get_fill() {
+            layout.set_flex_grow(1.0).set_flex_shrink(1.0);
+        }
+        if let Some(mw) = self.get_min_width()
+            && mw > 0.0
+        {
+            layout.set_min_width(Length::Px(mw));
         }
         let paint: &mut PaintStyle = style.get_mut_paint();
         paint

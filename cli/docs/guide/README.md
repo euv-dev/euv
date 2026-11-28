@@ -5,7 +5,7 @@ order: -1
 
 # Introduction
 
-**euv-docs** turns a directory of markdown files into a complete
+**Euv-docs** turns a directory of markdown files into a complete
 documentation site — just like VuePress, but rendered by a Rust/WASM
 [euv](https://github.com/euv-dev/euv) application.
 

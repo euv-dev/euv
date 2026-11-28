@@ -92,6 +92,98 @@ pub(crate) fn web_navigator_locale() -> String {
         .unwrap_or_else(|| DEFAULT_SYSTEM_LOCALE.to_string())
 }
 
+/// Measures a `(width, height)` CSS `env(safe-area-inset-*)` pair using a transient hidden DOM probe attached to `parent`.
+///
+/// # Arguments
+///
+/// - `&Document` - Active browser DOM document.
+/// - `&Element` - Root element receiving the transient measurement probe.
+/// - `&str` - Inline CSS style binding `width` and `height` to `env(safe-area-inset-*)`.
+///
+/// # Returns
+///
+/// - `(f32, f32)` - Sanitized non-negative `(width, height)` measurements in logical CSS pixels.
+#[must_use]
+fn web_measure_safe_area_pair(doc: &Document, parent: &Element, style: &str) -> (f32, f32) {
+    let Ok(el) = doc.create_element(WEB_DIV_TAG) else {
+        return (0.0, 0.0);
+    };
+    drop(el.set_attribute(WEB_ATTR_STYLE, style));
+    if parent.append_child(&el).is_err() {
+        return (0.0, 0.0);
+    }
+    let rect: DomRect = el.get_bounding_client_rect();
+    el.remove();
+    let w: f32 = rect.width() as f32;
+    let h: f32 = rect.height() as f32;
+    (
+        if w.is_finite() && w > 0.0 { w } else { 0.0 },
+        if h.is_finite() && h > 0.0 { h } else { 0.0 },
+    )
+}
+
+/// Measures browser CSS `env(safe-area-inset-*)` values in logical CSS pixels via transient hidden DOM probes.
+///
+/// # Returns
+///
+/// - `SafeAreaInsets` - Sanitized browser safe-area insets (`0.0` when unsupported or non-notched).
+#[must_use]
+pub fn web_query_safe_area_insets() -> SafeAreaInsets {
+    let Some(doc) = window().and_then(|w: Window| w.document()) else {
+        return SafeAreaInsets::default();
+    };
+    let Some(parent): Option<Element> = doc.document_element() else {
+        return SafeAreaInsets::default();
+    };
+    let (left, top): (f32, f32) =
+        web_measure_safe_area_pair(&doc, &parent, WEB_SAFE_AREA_TOP_LEFT_STYLE);
+    let (right, bottom): (f32, f32) =
+        web_measure_safe_area_pair(&doc, &parent, WEB_SAFE_AREA_BOTTOM_RIGHT_STYLE);
+    SafeAreaInsets::new(top, right, bottom, left)
+}
+
+/// Invokes a zero-argument DOM method that may return a JS `Promise`, swallowing rejections so browser consoles stay clean.
+///
+/// # Arguments
+///
+/// - `&JsValue` - Target DOM receiver (`Element` or `Document`).
+/// - `&str` - Method property name to invoke.
+fn web_invoke_promise_method(target: &JsValue, method: &str) {
+    let Ok(func_val) = Reflect::get(target, &JsValue::from_str(method)) else {
+        return;
+    };
+    let Ok(func) = func_val.dyn_into::<Function>() else {
+        return;
+    };
+    if let Ok(ret) = func.call0(target)
+        && let Ok(promise) = ret.dyn_into::<Promise>()
+    {
+        WEB_PROMISE_NOOP_REJECT.with(|cb: &Closure<dyn FnMut(JsValue)>| {
+            let _: Promise = promise.catch(cb);
+        });
+    }
+}
+
+/// Requests or exits browser Fullscreen API cleanly on `document.documentElement`.
+///
+/// # Arguments
+///
+/// - `bool` - `true` to enter fullscreen; `false` to exit fullscreen.
+pub fn web_set_fullscreen(enabled: bool) {
+    let Some(doc) = window().and_then(|w: Window| w.document()) else {
+        return;
+    };
+    if enabled {
+        if doc.fullscreen_element().is_none()
+            && let Some(root) = doc.document_element()
+        {
+            web_invoke_promise_method(root.as_ref(), WEB_METHOD_REQUEST_FULLSCREEN);
+        }
+    } else if doc.fullscreen_element().is_some() {
+        web_invoke_promise_method(doc.as_ref(), WEB_METHOD_EXIT_FULLSCREEN);
+    }
+}
+
 /// Creates and attaches an `HTMLCanvasElement` and its 2D context directly via `web-sys`.
 ///
 /// # Arguments

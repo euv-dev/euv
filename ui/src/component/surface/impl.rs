@@ -299,6 +299,7 @@ impl EuvScrollArea {
         scroll_st
             .get_mut_layout()
             .set_flex_direction(FlexDirection::Column);
+        scroll_st.get_mut_paint().set_stop_scroll_propagation(true);
         let root: NodeId = view! {
             scroll {
                 style: scroll_st
@@ -311,8 +312,23 @@ impl EuvScrollArea {
                 radius: g.get_radius_md()
             }
         };
+        let mut ctx: Context = current_context();
+        let scene_clamp: SceneHandle = ctx.get_scene().clone();
+        ctx.on_scroll(root, move |_: &UiEvent| {
+            scene_clamp.with_write(
+                |tree: &mut SceneTree| {
+                    if let Some(cur) = tree
+                        .get_node(root)
+                        .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset())
+                        && cur.get_x().abs() > 0.01
+                    {
+                        tree.set_scroll_offset(root, Point::new(0.0, cur.get_y()));
+                    }
+                },
+                (),
+            );
+        });
         if !children.is_empty() {
-            let mut ctx: Context = current_context();
             ctx.append_many(root, children);
         }
         root
@@ -462,6 +478,25 @@ impl EuvFooter {
     }
 }
 
+/// Builder modifiers for `EuvButtonGroup`.
+impl EuvButtonGroup {
+    /// Enables automatic per-row width distribution (`flex_grow: 1.0` + content-safe `min_width`) with zero trailing empty space.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source button group.
+    /// - `bool` - Whether wrapped rows auto-fill 100% of container width.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated button group.
+    #[must_use]
+    pub fn wrap_fill(mut self, enabled: bool) -> Self {
+        self.set_wrap_fill(enabled);
+        self
+    }
+}
+
 /// Declarative `#[component]` implementation for `EuvButtonGroup`.
 #[component]
 /// Inherent implementation of [`EuvButtonGroup`].
@@ -479,12 +514,15 @@ impl EuvButtonGroup {
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
+        let wrap_fill: bool = self.get_wrap_fill();
         let Self { children, .. } = self;
+        let row_gap: f32 = if wrap_fill { SPACE_SM } else { SPACE_XS };
         let root: NodeId = view! {
             row {
+                width: if wrap_fill { Length::Percent(100.0) } else { Length::Auto }
                 flex_wrap: FlexWrap::Wrap
                 align: AlignItems::Center
-                gap: SPACE_XS
+                gap: row_gap
                 padding: Edges::all(SPACE_XS)
                 border: (g.get_border_width(), p.get_border())
                 radius: g.get_radius_md()
@@ -492,6 +530,47 @@ impl EuvButtonGroup {
         };
         if !children.is_empty() {
             let mut ctx: Context = current_context();
+            if wrap_fill {
+                ctx.get_scene().with_write(
+                    |tree: &mut SceneTree| {
+                        for cid in children.iter().copied() {
+                            let label_len: usize = tree
+                                .get_node(cid)
+                                .map(|n: &SceneNode| {
+                                    let direct: usize = match n.get_kind() {
+                                        NodeKind::Text(t) => t.chars().count(),
+                                        _ => 0,
+                                    };
+                                    let child_max: usize = n
+                                        .get_children()
+                                        .iter()
+                                        .filter_map(|sub: &NodeId| tree.get_node(*sub))
+                                        .map(|sub_n: &SceneNode| match sub_n.get_kind() {
+                                            NodeKind::Text(t) => t.chars().count(),
+                                            _ => 0,
+                                        })
+                                        .max()
+                                        .unwrap_or(0);
+                                    direct.max(child_max)
+                                })
+                                .unwrap_or(0);
+                            if let Some(n) = tree.get_node_mut(cid) {
+                                let lay: &mut LayoutStyle = n.get_mut_style().get_mut_layout();
+                                let fixed_w: bool = !matches!(lay.get_width(), Length::Auto);
+                                if !fixed_w {
+                                    lay.set_flex_grow(1.0).set_flex_shrink(1.0);
+                                    if matches!(lay.get_min_width(), Length::Auto) {
+                                        let min_w: f32 =
+                                            ((label_len as f32) * 7.2 + 24.0).clamp(76.0, 210.0);
+                                        lay.set_min_width(Length::Px(min_w));
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    (),
+                );
+            }
             ctx.append_many(root, children);
         }
         root

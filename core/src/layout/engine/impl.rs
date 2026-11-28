@@ -431,28 +431,48 @@ impl LayoutEngine {
         let origin_y: f32 = space.get_origin_y();
         let content_origin_x: f32 = origin_x + padding.get_left() + border_w;
         let content_origin_y: f32 = origin_y + padding.get_top() + border_w;
+        let node_overflow: Overflow = layout_ref.get_overflow();
+        let node_flex_grow: f32 = layout_ref.get_flex_grow();
+        let width_independent: bool = explicit_w.is_some()
+            || (stretched_w
+                && resolved_w.is_some()
+                && (node_overflow != Overflow::Visible || node_flex_grow > 0.0));
+        let height_independent: bool =
+            resolved_h.is_some() && layout_ref.get_height() != Length::Auto;
+        let skip_leaf_measure: bool =
+            node_overflow != Overflow::Scroll && width_independent && height_independent;
         let mut child_range: Option<(usize, usize)> = None;
         let leaf_content_size: Option<Size> = match node.get_kind() {
-            NodeKind::Text(text) => Some(self.measure_text_cached(
-                text.as_str(),
-                *text_ref,
-                Some(inner_avail_w.max(1.0)),
-            )),
+            NodeKind::Text(text) => {
+                if skip_leaf_measure {
+                    Some(Size::new(inner_avail_w, inner_avail_h))
+                } else {
+                    Some(self.measure_text_cached(
+                        text.as_str(),
+                        *text_ref,
+                        Some(inner_avail_w.max(1.0)),
+                    ))
+                }
+            }
             NodeKind::Image(img) => {
                 Some(Size::new(img.get_width() as f32, img.get_height() as f32))
             }
             NodeKind::Input(input_state) => {
-                let sample: &str = if input_state.get_value().is_empty() {
-                    input_state.get_placeholder().as_str()
+                if skip_leaf_measure {
+                    Some(Size::new(inner_avail_w, inner_avail_h))
                 } else {
-                    input_state.get_value().as_str()
-                };
-                let measured_size: Size =
-                    self.measure_text_cached(sample, *text_ref, Some(inner_avail_w.max(1.0)));
-                Some(Size::new(
-                    measured_size.get_width().max(120.0),
-                    measured_size.get_height().max(20.0),
-                ))
+                    let sample: &str = if input_state.get_value().is_empty() {
+                        input_state.get_placeholder().as_str()
+                    } else {
+                        input_state.get_value().as_str()
+                    };
+                    let measured_size: Size =
+                        self.measure_text_cached(sample, *text_ref, Some(inner_avail_w.max(1.0)));
+                    Some(Size::new(
+                        measured_size.get_width().max(120.0),
+                        measured_size.get_height().max(20.0),
+                    ))
+                }
             }
             NodeKind::View
             | NodeKind::ScrollView
@@ -472,8 +492,6 @@ impl LayoutEngine {
                 }
             }
         };
-        let node_overflow: Overflow = layout_ref.get_overflow();
-        let node_flex_grow: f32 = layout_ref.get_flex_grow();
         let content_size: Size = if let Some(size) = leaf_content_size {
             size
         } else if let Some((child_start, child_end)) = child_range {
@@ -1126,19 +1144,23 @@ impl LayoutEngine {
         let mut cross_cursor: f32 = 0.0;
         let mut max_main_extent: f32 = 0.0;
         let line_count: usize = lines_end.saturating_sub(lines_start);
-        let line_ctx: FlexLineContext = FlexLineContext {
-            frame,
-            is_row,
-            wrap_enabled: true,
-            main_gap,
-            main_avail,
-            cross_avail,
-            total_grow,
-            line_count,
-        };
         for line_offset in 0..line_count {
             let line_range: (usize, usize) =
                 self.get_flex_lines_scratch()[lines_start + line_offset];
+            let mut line_grow: f32 = 0.0;
+            for item_idx in line_range.0..line_range.1 {
+                line_grow += self.get_flex_items_scratch()[item_idx].flex_grow;
+            }
+            let line_ctx: FlexLineContext = FlexLineContext {
+                frame,
+                is_row,
+                wrap_enabled: true,
+                main_gap,
+                main_avail,
+                cross_avail,
+                total_grow: line_grow,
+                line_count,
+            };
             let line_size: Size =
                 self.layout_flex_line(tree, line_range, cross_cursor, None, line_ctx, stats);
             if is_row {
@@ -1247,7 +1269,7 @@ impl LayoutEngine {
                 acc
             };
             let free_main: f32 = (effective_main_avail - used_main).max(0.0);
-            if total_grow > 0.0 && free_main > 0.0 && !wrap_enabled {
+            if total_grow > 0.0 && free_main > 0.0 {
                 for item_idx in line_start..line_end {
                     let item: &mut FlexItemRecord =
                         &mut self.get_mut_flex_items_scratch()[item_idx];
@@ -1262,7 +1284,7 @@ impl LayoutEngine {
                     }
                 }
             }
-            if !wrap_enabled && total_grow > 0.0 {
+            if total_grow > 0.0 {
                 for item_idx in line_start..line_end {
                     let item: FlexItemRecord = self.get_flex_items_scratch()[item_idx];
                     let auto_cross: bool = item.flex_grow > 0.0
@@ -1376,9 +1398,8 @@ impl LayoutEngine {
                 AlignItems::Center => ((avail_item_cross - item_cross) * 0.5).max(0.0),
                 AlignItems::End => (avail_item_cross - item_cross).max(0.0),
             };
-            let auto_cross_grow: bool = !wrap_enabled
-                && rec.flex_grow > 0.0
-                && if is_row { height_auto } else { width_auto };
+            let auto_cross_grow: bool =
+                rec.flex_grow > 0.0 && if is_row { height_auto } else { width_auto };
             let target_w: f32 = if !is_row && align == AlignItems::Stretch && width_auto {
                 avail_item_cross.max(child_size.get_width())
             } else {

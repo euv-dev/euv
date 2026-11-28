@@ -827,11 +827,15 @@ impl EuvTable {
                     for h in headers.iter() {
                         view {
                             flex_grow: 1.0
+                            flex_shrink: 1.0
+                            min_width: Length::Px(0.0)
                             overflow: Overflow::Hidden
                             text {
+                                width: Length::Percent(100.0)
                                 font_size: 12.0
                                 font_weight: FontWeight::SemiBold
                                 color: p.get_muted_foreground()
+                                text_overflow: TextOverflow::Ellipsis
                                 { h.as_str() }
                             }
                         }
@@ -850,10 +854,14 @@ impl EuvTable {
                         for cell_text in row_cells.iter() {
                             view {
                                 flex_grow: 1.0
+                                flex_shrink: 1.0
+                                min_width: Length::Px(0.0)
                                 overflow: Overflow::Hidden
                                 text {
+                                    width: Length::Percent(100.0)
                                     font_size: 13.0
                                     color: p.get_foreground()
+                                    text_overflow: TextOverflow::Ellipsis
                                     { cell_text.as_str() }
                                 }
                             }

@@ -303,6 +303,15 @@ pub struct App {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) background_frozen_scopes: Vec<ScopeId>,
+    /// Deterministic gesture arbitration arena enforcing priority tiers and touch-slop disambiguation.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) gesture_arena: GestureArena,
+    /// Last immersive fullscreen state synchronized with the platform backend.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) last_immersive_fullscreen: bool,
 }
 
 /// Fused single-borrow pre-tick snapshot collected at the start of `App::step_frame`.

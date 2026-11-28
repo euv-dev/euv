@@ -1,4 +1,4 @@
-# AGENTS.md — euv Workspace Engineering & Documentation Governance
+# AGENTS.md — Euv Workspace Engineering & Documentation Governance
 
 Mandatory architectural, macro authoring, UI/layout, formatting, release, and documentation governance rules for all contributors and AI coding agents working in the `euv` repository.
 
@@ -80,14 +80,46 @@ Mandatory architectural, macro authoring, UI/layout, formatting, release, and do
 
 ## 4. Unified Documentation & Skill Maintenance Policy
 
-All documentation and skills across the ecosystem follow a single maintenance contract:
+All workspace documentation and project skills under `.agents/skills/` are first-class engineering artifacts governed by a single maintenance contract.
 
-| Change Trigger                                                        | Target Document(s)                                                                     | Mandatory Update Procedure                                                                                                                 |
-| :-------------------------------------------------------------------- | :------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------- |
-| Add, rename, or remove a workspace crate or OS backend                | Root `README.md`, `<crate>/README.md`, root `AGENTS.md`, `.agents/skills/euv/SKILL.md` | Update the workspace crate table, architecture diagram, and cross-platform matrix in the same commit.                                      |
-| Add or change macros, `view!`/`style!` syntax, or `euv-ui` invariants | `macros/README.md`, `ui/README.md`, root `AGENTS.md`, `docs/docs/en/guide/`            | Document exact syntax/invariants and add minimal runnable examples matching `AGENTS.md` §2.                                                |
-| Add or change CLI subcommands, build scripts, or CI workflows         | `cli/README.md`, `scripts/README.md`, root `AGENTS.md`, `.agents/skills/euv/SKILL.md`  | Synchronize verification commands and build script paths (preserve `docs/README.md` and `cli/README.md` YAML frontmatter).                 |
-| Upgrade upstream `ctares` dependencies or cut a minor release         | Root `Cargo.toml`, `scripts/build/build-{android-apk,ios-sim,web}.sh`                  | Wait until `ctares` is live on `crates.io`, bump version, run `euv fmt` (2x) + all local gates, and verify green CI + `crates.io` publish. |
+### 4.1 Project Skill Registry
 
-- Run `cargo run -p euv-cli -- fmt --check` after any Markdown, YAML, TOML, or Rust edit.
-- Keep `.agents/skills/euv/SKILL.md` synchronized with `~/.agents/skills/euv/SKILL.md` (standards, requirements, and workflows only; `<= 160` lines; verified with `audit_skills.py`).
+| Skill Name               | Path                                             | Authoritative Domain                                                                                                                                                   |
+| :----------------------- | :----------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `euv`                    | `.agents/skills/euv/SKILL.md`                    | Workspace architecture, declarative macro discipline (§2), 7-platform `SystemEvent`/bg-freeze, fullscreen/SafeArea, GestureArena, verification & releases              |
+| `euv-ai-automation`      | `.agents/skills/euv-ai-automation/SKILL.md`      | AI Schema v1/v2 (`euv.ai.schema.v2`), non-blocking `DevAutomationBridge`, `UiAutomator`, secret redaction, direct `SceneTree` queries, anomaly verification            |
+| `euv-design-restoration` | `.agents/skills/euv-design-restoration/SKILL.md` | Static mockup/image restoration, video/motion keyframe restoration, pixel/motion/latency QA (delegates token/component architecture to `euv-ui-design-system`)         |
+| `euv-e2e-replay`         | `.agents/skills/euv-e2e-replay/SKILL.md`         | `UiE2eRecorder`, `euv.ui-e2e.v1` flows, `UiE2eReplayer` 6-verdict engine (`euv.ui-e2e.result.v1`), `UiE2eMigrationProposal`, 50-cycle stress, `e2e-all.sh`             |
+| `euv-ui-design-system`   | `.agents/skills/euv-ui-design-system/SKILL.md`   | `euv-ui` design tokens (`ThemePalette`/`ThemeGeometry`), 17 Light/Dark schemes, layout grid, `EuvAppShell`/SafeArea/fullscreen, auto-fill rows, overlays, rich widgets |
+
+### 4.2 When to Update Skills & Docs (Mandatory Trigger Matrix)
+
+Update the listed skills and documentation **in the exact same commit or PR** whenever any trigger below occurs:
+
+| Change Trigger                                                                       | Target Skill(s) & Document(s)                                                                                                                                                                           | Mandatory Update Action                                                                                                              |
+| :----------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------- |
+| Add, rename, or remove a workspace crate, 7-platform backend, or `SystemEvent` hook  | `.agents/skills/euv/SKILL.md`, root `README.md`, `<crate>/README.md`, `AGENTS.md`                                                                                                                       | Update crate matrix, lifecycle/freeze contracts, and cross-platform verification commands.                                           |
+| Add or change macros (`view!`/`style!`/`tokens!`), `euv-ui` components, or UI rules  | `.agents/skills/euv/SKILL.md`, `.agents/skills/euv-ui-design-system/SKILL.md`, `.agents/skills/euv-design-restoration/SKILL.md`, `macros/README.md`, `ui/README.md`, `docs/docs/en/guide/`, `AGENTS.md` | Document exact syntax, design tokens/themes, component & fullscreen/SafeArea/auto-fill contracts, and minimal §2-compliant examples. |
+| Add or change AI Schema v1/v2 fields, `DevAutomationBridge` endpoints, or redaction  | `.agents/skills/euv-ai-automation/SKILL.md`, `automation/README.md`, `AGENTS.md`                                                                                                                        | Sync protocol version constants, HTTP routes, queue/latency budgets, `UiSelector`/`AiAction` variants, and release-strip checks.     |
+| Add or change `euv.ui-e2e.v1` / `result.v1` / `migration.v1` schemas or `e2e-all.sh` | `.agents/skills/euv-e2e-replay/SKILL.md`, `automation/README.md`, `AGENTS.md`                                                                                                                           | Sync recorder/replayer rules, verdict codes, `assertions_changed: false` guard, and full E2E verification commands.                  |
+| Add or change CLI subcommands (`euv fmt`), build scripts, benchmarks, or motion QA   | `.agents/skills/euv/SKILL.md`, `.agents/skills/euv-design-restoration/SKILL.md`, `cli/README.md`, `scripts/README.md`, `AGENTS.md`                                                                      | Sync CLI commands, `scripts/bench/run-stress-report.py` / `performance/BENCHMARK_REPORT.md` workflow, and visual/latency budgets.    |
+| Fix a recurring bug class, review rejection, or CI/hook failure mode                 | Relevant `.agents/skills/<skill>/SKILL.md`, `AGENTS.md`                                                                                                                                                 | Codify the root-cause invariant and deterministic regression gate so the defect class cannot recur.                                  |
+| Upgrade upstream `ctares` dependencies or cut a minor release                        | Root `Cargo.toml`, `scripts/build/build-{android-apk,ios-sim,web}.sh`, `.agents/skills/euv/SKILL.md`                                                                                                    | Wait until `ctares` is live on `crates.io`, bump versions, run `euv fmt` (2x) + all local gates, and verify green CI + publish.      |
+
+### 4.3 How to Update Skills (Mandatory 6-Step Procedure)
+
+1. **Read Authoritative Source First**: Inspect the real Rust source, tests, schemas, and scripts before editing any skill. Never invent or guess struct names, method signatures, HTTP routes, CLI flags, or file paths.
+2. **Enforce Concise Structure & Budgets**: Keep every `.agents/skills/<skill>/SKILL.md` strictly to standards, contracts, requirements, and executable workflows in **pure English**, with valid YAML frontmatter (`name` matching folder, concise trigger `description` `<= 240` chars / `<= 60` words) and **`<= 160` lines**. Place bulky lookup tables in `references/` only when genuinely required, and prune obsolete or duplicated prose.
+3. **Keep User-Global Mirrors Synchronized**: When maintaining a matching user-global skill under `~/.agents/skills/<skill>/SKILL.md`, synchronize its standards and workflows while keeping every relative link valid in both trees.
+4. **Verify Every Referenced Symbol & Path**: Confirm every Rust type, schema identifier, HTTP endpoint, CLI command, relative link, and script path cited in the updated skill exists in the repository (preserve YAML frontmatter in `docs/README.md` and `cli/README.md`).
+5. **Run Formatting, English & Structural Audit Gates**:
+
+  ```sh
+  wc -l .agents/skills/*/SKILL.md
+  cargo run -p euv-cli -- fmt
+  cargo run -p euv-cli -- fmt
+  cargo run -p euv-cli -- fmt --check
+  python3 ~/.agents/skills/git-standards/scripts/verify_english_only.py text AGENTS.md .agents/skills/*/SKILL.md
+  python3 ~/.agents/scripts/audit_skills.py --repo .agents
+  ```
+6. **Land Atomically in the Same Commit / PR**: Always commit `.agents/skills/**` and `AGENTS.md` changes in the **same commit or PR** as the triggering engineering change — never defer skill updates to a follow-up PR.

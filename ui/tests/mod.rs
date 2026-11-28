@@ -1,3 +1,4 @@
+mod chart;
 mod components;
 mod theme;
 

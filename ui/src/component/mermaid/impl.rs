@@ -53,6 +53,7 @@ impl EuvMermaid {
     /// - `NodeId` - Mounted Mermaid diagram card handle.
     fn render(&self) -> NodeId {
         let ctx: Context = current_context();
+        bind_fullscreen_context(&ctx);
         let tokens: ThemeTokens = self.get_tokens();
         let g: ThemeGeometry = tokens.get_geometry();
         let eva: CodeThemePalette = CodeThemePalette::resolve(tokens.get_mode());
@@ -90,11 +91,18 @@ impl EuvMermaid {
                 cb(&copy_src);
             }
         };
-        let copy_label_text = move || -> String {
-            if copied_sig.get() {
-                MERMAID_BTN_COPIED.to_string()
+        let paint_inline_copy_icon = move |bounds: Rect, dl: &mut DisplayList| {
+            let cur_tok: ThemeTokens = live_tokens_untracked(tokens);
+            let cur_eva: CodeThemePalette = CodeThemePalette::resolve(cur_tok.get_mode());
+            if copied_sig.get_untracked() {
+                draw_euv_icon(
+                    EuvIconName::Check,
+                    bounds,
+                    dl,
+                    cur_tok.get_palette().get_success(),
+                );
             } else {
-                MERMAID_BTN_COPY.to_string()
+                draw_euv_icon(EuvIconName::Copy, bounds, dl, cur_eva.get_function());
             }
         };
         let on_open_fs = move |_: &UiEvent| {
@@ -165,42 +173,95 @@ impl EuvMermaid {
             let modal_src: Rc<str> = Rc::clone(&fs_src_copy);
             let modal_cb: Option<MarkdownStrCallback> = fs_cb_copy.clone();
             let ctx_m: Context = ctx_fs_copy.clone();
+            let modal_copy_icon_cell: Rc<Cell<NodeId>> = Rc::new(Cell::new(NodeId::default()));
+            let modal_copy_icon_cb: Rc<Cell<NodeId>> = Rc::clone(&modal_copy_icon_cell);
+            let modal_copy_btn_cell: Rc<Cell<NodeId>> = Rc::new(Cell::new(NodeId::default()));
+            let modal_copy_btn_cb: Rc<Cell<NodeId>> = Rc::clone(&modal_copy_btn_cell);
             let on_modal_copy = move |_: &UiEvent| {
                 let _: bool = ctx_m.copy_to_clipboard(&modal_src);
                 let _: bool = copied_sig.set(true);
+                let m_icon: NodeId = modal_copy_icon_cb.get();
+                let m_btn: NodeId = modal_copy_btn_cb.get();
+                ctx_m.get_scene().with_write(
+                    |tree: &mut SceneTree| {
+                        if let Some(n) = tree.get_node_mut(m_btn) {
+                            *n.get_mut_a11y() = Some(A11yProps::new(
+                                A11yRole::Button,
+                                MERMAID_BTN_COPIED.to_string(),
+                            ));
+                        }
+                        tree.mark_dirty(m_icon, DIRTY_PAINT);
+                    },
+                    (),
+                );
                 if let Some(cb) = modal_cb.as_ref() {
                     cb(&modal_src);
                 }
             };
-            let modal_copy_text = move || -> String {
-                if copied_sig.get() {
-                    MERMAID_BTN_COPIED.to_string()
+            let paint_modal_copy_icon = move |bounds: Rect, dl: &mut DisplayList| {
+                let cur_tok: ThemeTokens = live_tokens_untracked(tokens);
+                let cur_eva: CodeThemePalette = CodeThemePalette::resolve(cur_tok.get_mode());
+                if copied_sig.get_untracked() {
+                    draw_euv_icon(
+                        EuvIconName::Check,
+                        bounds,
+                        dl,
+                        cur_tok.get_palette().get_success(),
+                    );
                 } else {
-                    MERMAID_BTN_COPY.to_string()
+                    draw_euv_icon(EuvIconName::Copy, bounds, dl, cur_eva.get_function());
                 }
+            };
+            let paint_close_icon = move |bounds: Rect, dl: &mut DisplayList| {
+                let cur_p: ThemePalette = live_tokens_untracked(tokens).get_palette();
+                draw_euv_icon(
+                    EuvIconName::Minimize,
+                    bounds,
+                    dl,
+                    cur_p.get_primary_foreground(),
+                );
             };
             let on_close_fs = move |_: &UiEvent| {
                 let _: bool = fs_open.set_if_changed(false);
             };
+            let init_copy_a11y: String = if copied_sig.get_untracked() {
+                MERMAID_BTN_COPIED.to_string()
+            } else {
+                MERMAID_BTN_COPY.to_string()
+            };
             let modal_title_str: &str = fs_title_rc.as_deref().unwrap_or(badge);
+            let safe_sig: Signal<SafeAreaInsets> = ctx_fs_copy.get_safe_area();
+            let init_safe: SafeAreaInsets = safe_sig.get_untracked();
             let mut modal_scroll_st: Style = Style::default();
             modal_scroll_st
                 .get_mut_layout()
                 .set_flex_direction(FlexDirection::Column);
+            let mut top_bar_node: NodeId = NodeId::default();
+            let mut body_scroll_node: NodeId = NodeId::default();
+            let mut modal_copy_btn: NodeId = NodeId::default();
+            let mut modal_copy_icon: NodeId = NodeId::default();
             let modal_panel: NodeId = view! {
                 column {
-                    width: Length::Percent(94.0)
-                    max_width: Length::Px(1180.0)
-                    height: Length::Percent(88.0)
+                    width: Length::Percent(100.0)
+                    height: Length::Percent(100.0)
+                    flex_grow: 1.0
+                    padding: Edges::all(0.0)
+                    margin: Edges::all(0.0)
                     background: live_eva.get_background()
-                    border: (1.0, live_eva.get_border())
-                    radius: live_g.get_radius_lg()
-                    shadow: live_g.get_shadow_lg()
+                    border: (0.0, COLOR_TRANSPARENT)
+                    radius: 0.0
                     overflow: Overflow::Hidden
                     stop_event_propagation: true
                     row {
+                        node_ref: top_bar_node
                         width: Length::Percent(100.0)
-                        padding: Edges::symmetric(SPACE_SM, SPACE_MD)
+                        flex_shrink: 0.0
+                        padding: Edges::new(
+                            SPACE_SM + init_safe.get_top(),
+                            SPACE_MD + init_safe.get_right(),
+                            SPACE_SM,
+                            SPACE_MD + init_safe.get_left()
+                        )
                         justify: JustifyContent::SpaceBetween
                         align: AlignItems::Center
                         gap: SPACE_SM
@@ -239,34 +300,42 @@ impl EuvMermaid {
                         row {
                             flex_shrink: 0.0
                             align: AlignItems::Center
-                            gap: SPACE_SM
+                            gap: SPACE_XS
                             row {
-                                padding: Edges::symmetric(4.0, 10.0)
+                                node_ref: modal_copy_btn
+                                width: Length::Px(28.0)
+                                height: Length::Px(28.0)
+                                justify: JustifyContent::Center
+                                align: AlignItems::Center
                                 radius: live_g.get_radius_sm()
                                 cursor: CursorIcon::Pointer
                                 background: live_eva.get_background()
                                 border: (1.0, live_eva.get_border())
+                                role: A11yRole::Button
+                                a11y_label: init_copy_a11y
                                 on_click: on_modal_copy
-                                text {
-                                    font_size: 11.5
-                                    font_weight: FontWeight::SemiBold
-                                    color: live_eva.get_function()
-                                    text_overflow: TextOverflow::Clip
-                                    { modal_copy_text }
+                                canvas {
+                                    node_ref: modal_copy_icon
+                                    width: Length::Px(14.0)
+                                    height: Length::Px(14.0)
+                                    painter: paint_modal_copy_icon
                                 }
                             }
                             row {
-                                padding: Edges::symmetric(4.0, 10.0)
+                                width: Length::Px(28.0)
+                                height: Length::Px(28.0)
+                                justify: JustifyContent::Center
+                                align: AlignItems::Center
                                 radius: live_g.get_radius_sm()
                                 cursor: CursorIcon::Pointer
                                 background: live_p.get_primary()
+                                role: A11yRole::Button
+                                a11y_label: MERMAID_BTN_CLOSE.to_string()
                                 on_click: on_close_fs
-                                text {
-                                    font_size: 11.5
-                                    font_weight: FontWeight::SemiBold
-                                    color: live_p.get_primary_foreground()
-                                    text_overflow: TextOverflow::Clip
-                                    { MERMAID_BTN_CLOSE }
+                                canvas {
+                                    width: Length::Px(14.0)
+                                    height: Length::Px(14.0)
+                                    painter: paint_close_icon
                                 }
                             }
                         }
@@ -277,12 +346,19 @@ impl EuvMermaid {
                         background: live_eva.get_border()
                     }
                     scroll {
+                        node_ref: body_scroll_node
                         style: modal_scroll_st
                         flex_grow: 1.0
+                        flex_shrink: 1.0
+                        min_height: Length::Px(0.0)
                         width: Length::Percent(100.0)
-                        height: Length::Percent(100.0)
                         align: AlignItems::Start
-                        padding: Edges::all(SPACE_MD)
+                        padding: Edges::new(
+                            SPACE_MD,
+                            SPACE_MD + init_safe.get_right(),
+                            SPACE_MD + init_safe.get_bottom(),
+                            SPACE_MD + init_safe.get_left()
+                        )
                         stop_scroll_propagation: true
                         canvas {
                             width: Length::Px(nat_sz.get_width().max(640.0))
@@ -292,14 +368,49 @@ impl EuvMermaid {
                     }
                 }
             };
+            let handle_safe: SceneHandle = ctx_fs_copy.get_scene().clone();
+            let (safe_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+                Effect::new(move || {
+                    let safe: SafeAreaInsets = safe_sig.get();
+                    handle_safe.with_write(
+                        |tree: &mut SceneTree| {
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            if let Some(n) = tree.get_node_mut(top_bar_node) {
+                                n.get_mut_style().get_mut_layout().set_padding(Edges::new(
+                                    SPACE_SM + safe.get_top(),
+                                    SPACE_MD + safe.get_right(),
+                                    SPACE_SM,
+                                    SPACE_MD + safe.get_left(),
+                                ));
+                                tree.mark_dirty(top_bar_node, dirty_l | DIRTY_PAINT);
+                            }
+                            if let Some(n) = tree.get_node_mut(body_scroll_node) {
+                                n.get_mut_style().get_mut_layout().set_padding(Edges::new(
+                                    SPACE_MD,
+                                    SPACE_MD + safe.get_right(),
+                                    SPACE_MD + safe.get_bottom(),
+                                    SPACE_MD + safe.get_left(),
+                                ));
+                                tree.mark_dirty(body_scroll_node, dirty_l | DIRTY_PAINT);
+                            }
+                        },
+                        (),
+                    );
+                })
+            });
+            ctx_fs_copy.get_scene().with_write(
+                |tree: &mut SceneTree| {
+                    tree.attach_scope(modal_panel, safe_scope);
+                },
+                (),
+            );
+            modal_copy_btn_cell.set(modal_copy_btn);
+            modal_copy_icon_cell.set(modal_copy_icon);
             vec![modal_panel]
         };
         let mut fs_portal: NodeId = NodeId::default();
-        let on_scrim_click = move |ev: &UiEvent| {
-            if ev.get_target() == fs_portal {
-                let _: bool = fs_open.set_if_changed(false);
-            }
-        };
+        let mut inline_copy_btn: NodeId = NodeId::default();
+        let mut inline_copy_icon: NodeId = NodeId::default();
         let mut inline_scroll_st: Style = Style::default();
         inline_scroll_st
             .get_mut_layout()
@@ -356,43 +467,41 @@ impl EuvMermaid {
                         align: AlignItems::Center
                         gap: SPACE_XS
                         row {
-                            padding: Edges::symmetric(3.0, 9.0)
+                            width: Length::Px(26.0)
+                            height: Length::Px(26.0)
                             radius: g.get_radius_sm()
                             justify: JustifyContent::Center
                             align: AlignItems::Center
-                            gap: 5.0
                             cursor: CursorIcon::Pointer
                             background: eva.get_background()
                             border: (1.0, eva.get_border())
+                            role: A11yRole::Button
+                            a11y_label: MERMAID_BTN_FULLSCREEN.to_string()
                             on_click: on_open_fs
                             canvas {
-                                width: Length::Px(12.0)
-                                height: Length::Px(12.0)
+                                width: Length::Px(13.0)
+                                height: Length::Px(13.0)
                                 painter: paint_fs_icon
-                            }
-                            text {
-                                font_size: 11.0
-                                font_weight: FontWeight::SemiBold
-                                color: eva.get_function()
-                                text_overflow: TextOverflow::Clip
-                                { MERMAID_BTN_FULLSCREEN }
                             }
                         }
                         row {
-                            padding: Edges::symmetric(3.0, 10.0)
+                            node_ref: inline_copy_btn
+                            width: Length::Px(26.0)
+                            height: Length::Px(26.0)
                             radius: g.get_radius_sm()
                             justify: JustifyContent::Center
                             align: AlignItems::Center
                             cursor: CursorIcon::Pointer
                             background: eva.get_background()
                             border: (1.0, eva.get_border())
+                            role: A11yRole::Button
+                            a11y_label: MERMAID_BTN_COPY.to_string()
                             on_click: on_copy_click
-                            text {
-                                font_size: 11.0
-                                font_weight: FontWeight::SemiBold
-                                color: eva.get_function()
-                                text_overflow: TextOverflow::Clip
-                                { copy_label_text }
+                            canvas {
+                                node_ref: inline_copy_icon
+                                width: Length::Px(13.0)
+                                height: Length::Px(13.0)
+                                painter: paint_inline_copy_icon
                             }
                         }
                     }
@@ -407,6 +516,7 @@ impl EuvMermaid {
                     width: Length::Percent(100.0)
                     max_height: Length::Px(inline_max_h)
                     align: AlignItems::Start
+                    stop_scroll_propagation: true
                     canvas {
                         width: Length::Px(nat_sz.get_width())
                         height: Length::Px(nat_sz.get_height())
@@ -415,28 +525,61 @@ impl EuvMermaid {
                 }
                 portal {
                     node_ref: fs_portal
+                    style: Style::default().column()
                     display: Display::None
                     position: Position::Fixed
                     inset: (Some(0.0), Some(0.0), Some(0.0), Some(0.0))
                     width: Length::Percent(100.0)
                     height: Length::Percent(100.0)
-                    justify: JustifyContent::Center
-                    align: AlignItems::Center
-                    background: tokens.get_palette().get_overlay()
+                    padding: Edges::all(0.0)
+                    margin: Edges::all(0.0)
+                    justify: JustifyContent::Start
+                    align: AlignItems::Stretch
+                    background: eva.get_background()
+                    border: (0.0, COLOR_TRANSPARENT)
+                    radius: 0.0
+                    overflow: Overflow::Hidden
+                    pointer_events: PointerEvents::None
                     stop_scroll_propagation: true
-                    z_index: Z_INDEX_MODAL
-                    on_click: on_scrim_click
+                    stop_event_propagation: true
+                    z_index: Z_INDEX_FULLSCREEN
                     bind_children: build_fs_children
                 }
             }
         };
         let handle: SceneHandle = ctx.get_scene().clone();
+        let handle_copy: SceneHandle = handle.clone();
         let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+        let fs_acquired: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+        let fs_cleanup: Rc<Cell<bool>> = Rc::clone(&fs_acquired);
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            on_cleanup(move || {
+                if fs_cleanup.replace(false) {
+                    exit_fullscreen();
+                }
+            });
+            let _: Effect = Effect::new(move || {
+                let is_copied: bool = copied_sig.get();
+                let next_label: &str = if is_copied {
+                    MERMAID_BTN_COPIED
+                } else {
+                    MERMAID_BTN_COPY
+                };
+                handle_copy.with_write(
+                    |tree: &mut SceneTree| {
+                        if let Some(n) = tree.get_node_mut(inline_copy_btn) {
+                            *n.get_mut_a11y() =
+                                Some(A11yProps::new(A11yRole::Button, next_label.to_string()));
+                        }
+                        tree.mark_dirty(inline_copy_icon, DIRTY_PAINT);
+                    },
+                    (),
+                );
+            });
             let _: Effect = EuvOverlayStack::bind_signal(
                 fs_open,
                 MERMAID_FULLSCREEN_OVERLAY_NAME,
-                Z_INDEX_MODAL,
+                Z_INDEX_FULLSCREEN,
             );
             Effect::new(move || {
                 let is_open: bool = fs_open.get();
@@ -444,14 +587,47 @@ impl EuvMermaid {
                     return;
                 }
                 if is_open {
-                    handle.start_transition(
-                        NodeTransition::fade(fs_portal, 0.0, 1.0, 0.18, false)
-                            .with_easing(Easing::EaseOutCubic),
+                    if !fs_acquired.replace(true) {
+                        enter_fullscreen();
+                    }
+                    let live_eva: CodeThemePalette =
+                        CodeThemePalette::resolve(live_tokens_untracked(tokens).get_mode());
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(fs_portal);
+                            if let Some(n) = tree.get_node_mut(fs_portal) {
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::Flex);
+                                st.get_mut_paint()
+                                    .set_background(Some(live_eva.get_background()))
+                                    .set_pointer_events(PointerEvents::Auto)
+                                    .set_opacity(1.0)
+                                    .set_transform(Transform2D::default());
+                            }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(fs_portal, dirty_l | DIRTY_PAINT);
+                        },
+                        (),
                     );
                 } else {
-                    handle.start_transition(
-                        NodeTransition::fade(fs_portal, 1.0, 0.0, 0.16, true)
-                            .with_easing(Easing::EaseOutCubic),
+                    if fs_acquired.replace(false) {
+                        exit_fullscreen();
+                    }
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            tree.cancel_subtree_transitions(fs_portal);
+                            if let Some(n) = tree.get_node_mut(fs_portal) {
+                                let st: &mut Style = n.get_mut_style();
+                                st.get_mut_layout().set_display(Display::None);
+                                st.get_mut_paint()
+                                    .set_pointer_events(PointerEvents::None)
+                                    .set_opacity(1.0)
+                                    .set_transform(Transform2D::default());
+                            }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(fs_portal, dirty_l | DIRTY_PAINT);
+                        },
+                        (),
                     );
                 }
             })

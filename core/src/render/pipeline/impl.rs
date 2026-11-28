@@ -122,28 +122,44 @@ impl Renderer {
         };
         let mut display_list: DisplayList = DisplayList::default();
         display_list.get_mut_commands().reserve(128);
+        let (sw_w, sw_h): (u32, u32) = if active_mode == RenderMode::Software {
+            (width, height)
+        } else {
+            (1, 1)
+        };
+        let (hw_w, hw_h, hw_backend): (u32, u32, GraphicsBackend) =
+            if matches!(active_mode, RenderMode::Hardware | RenderMode::Auto) {
+                (width, height, active_backend)
+            } else {
+                (1, 1, GraphicsBackend::Headless)
+            };
+        let (hy_w, hy_h): (u32, u32) = if active_mode == RenderMode::Hybrid {
+            (width, height)
+        } else {
+            (1, 1)
+        };
         Self {
             config,
             active_mode,
             active_backend,
             software: SoftwareRenderer::with_font_provider(
-                width,
-                height,
+                sw_w,
+                sw_h,
                 config,
                 font_provider.clone(),
             ),
             hardware: HardwareRenderer::with_backend_and_font(
-                active_backend,
-                width,
-                height,
+                hw_backend,
+                hw_w,
+                hw_h,
                 config,
                 readback_mirror,
                 font_provider.clone(),
             ),
             hybrid: HybridRenderer::with_backend_and_font(
                 active_backend,
-                width,
-                height,
+                hy_w,
+                hy_h,
                 config,
                 font_provider,
             ),

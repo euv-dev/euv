@@ -1,8 +1,8 @@
 <div align="center">
 
-# euv
+# Euv
 
-<img src="https://ltpp.vip/github/pages/docs-pages/pages/img/euv.png" alt="euv logo" height="160">
+<img src="https://ltpp.vip/github/pages/docs-pages/pages/img/euv.png" alt="Euv logo" height="160">
 
 **High-Performance Cross-Platform Native UI Framework, 3D Engine & Markdown Studio for Pure Rust**
 
@@ -23,7 +23,7 @@ _Zero WebView · Zero Virtual DOM · Direct OS APIs · 7 Target Platforms · Bit
 
 ## Overview
 
-**euv** is a full-stack native Rust UI framework designed for production desktop, mobile, tablet, and WebAssembly applications. Rather than wrapping a browser engine or diffing a virtual DOM, `euv` compiles declarative Rust macros directly into a flat retained scene graph powered by fine-grained push-pull reactivity, deterministic Flexbox/Grid layout, native OS typography, and a unified CPU/GPU/Hybrid rendering pipeline.
+**Euv** is a full-stack native Rust UI framework designed for production desktop, mobile, tablet, and WebAssembly applications. Rather than wrapping a browser engine or diffing a virtual DOM, `euv` compiles declarative Rust macros directly into a flat retained scene graph powered by fine-grained push-pull reactivity, deterministic Flexbox/Grid layout, native OS typography, and a unified CPU/GPU/Hybrid rendering pipeline.
 
 ```mermaid
 flowchart LR

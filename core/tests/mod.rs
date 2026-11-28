@@ -3,6 +3,7 @@ mod dynamic;
 mod game;
 mod layout;
 mod media;
+mod platform;
 mod reactive;
 mod render;
 mod system;

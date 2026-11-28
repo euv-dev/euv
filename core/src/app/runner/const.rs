@@ -1,6 +1,3 @@
-/// Minimum touch contact travel in logical pixels before a tap transitions into pan scrolling.
-pub(crate) const TOUCH_SLOP_DP: f32 = 12.0;
-
 /// Minimum directional displacement in logical pixels required to recognize an intentional swipe gesture.
 pub(crate) const SWIPE_MIN_DISTANCE_DP: f32 = 84.0;
 

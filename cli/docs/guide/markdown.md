@@ -4,7 +4,7 @@ title: Markdown Features
 
 # Markdown Features
 
-euv-docs renders a VuePress-flavored markdown subset at build time. This
+Euv-docs renders a VuePress-flavored markdown subset at build time. This
 page is the canonical reference for every block-level and inline
 construct the parser supports, with the exact rendering it produces.
 
@@ -282,7 +282,7 @@ prefixed with the id, and the reference shows the literal `[^name]`.
 
 Images render with the alt text and the source URL preserved:
 
-![euv logo placeholder](https://dummyimage.com/120x40/eee/aaa.png)
+![Euv logo placeholder](https://dummyimage.com/120x40/eee/aaa.png)
 
 Use a base64-encoded `data:` URL when you want the image to render
 fully offline without any external request:
