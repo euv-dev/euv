@@ -3,14 +3,14 @@
 # This frontmatter is the SINGLE source of truth for site-wide
 # settings — replaces the legacy `docs/config.toml`.
 site:
-  title: euv-docs
+  title: Euv-docs
   description: A VuePress-style documentation site powered by euv + euv-ui.
   logo: '📘'
 locales:
   - prefix: /
     lang: en-US
     label: English
-    title: euv-docs
+    title: Euv-docs
     description: A VuePress-style documentation site powered by euv + euv-ui.
     footer: MIT Licensed | Built with euv + euv-ui
     toc_label: On this page
@@ -23,7 +23,7 @@ locales:
   - prefix: /zh/
     lang: zh-CN
     label: 简体中文
-    title: euv-docs
+    title: Euv-docs
     description: 由 euv + euv-ui 驱动的 VuePress 风格文档站。
     footer: MIT 许可 | 基于 euv + euv-ui 构建
     toc_label: 本页目录
@@ -37,9 +37,9 @@ locales:
 
 <div align="center">
 
-# euv-cli
+# Euv-cli
 
-<img src="https://ltpp.vip/github/pages/docs-pages/pages/img/euv.png" alt="euv-cli logo" height="160">
+<img src="https://ltpp.vip/github/pages/docs-pages/pages/img/euv.png" alt="Euv-cli logo" height="160">
 
 **7-Platform Build CLI, Dev Server & Layered Unified Formatter**
 

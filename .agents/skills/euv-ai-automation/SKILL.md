@@ -7,7 +7,7 @@ metadata:
     related_skills: [euv, euv-e2e-replay, euv-design-restoration, rust-standards]
 ---
 
-# euv AI UI automation and DevAutomationBridge
+# Euv AI UI Automation and DevAutomationBridge
 
 ## Mandatory Contracts
 
@@ -76,4 +76,4 @@ Confirm release stripping via `./scripts/test/e2e-all.sh` (asserting `strings ta
 
 ## Related Skills
 
-- [euv Core](../euv/SKILL.md) · [E2E Replay](../euv-e2e-replay/SKILL.md) · [Design Restoration](../euv-design-restoration/SKILL.md) · [Automation README](../../../automation/README.md)
+- [Euv Core](../euv/SKILL.md) · [E2E Replay](../euv-e2e-replay/SKILL.md) · [Design Restoration](../euv-design-restoration/SKILL.md) · [Automation README](../../../automation/README.md)

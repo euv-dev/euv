@@ -1,6 +1,6 @@
 <div align="center">
 
-# euv-performance
+# Euv-performance
 
 **Reproducible CPU, Layout, Reactivity, Virtual List & 3D Benchmark Harness**
 

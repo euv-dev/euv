@@ -162,14 +162,13 @@ impl EuvAppShell {
         self
     }
 
-    /// Draws the minimalist `Euv Studio` geometric 3-bar `E` monogram inside a gradient squircle emblem.
+    /// Draws the official `Euv Studio` Emperor-Armor Winged Golden Dragon vector emblem.
     ///
     /// # Arguments
     ///
     /// - `Rect` - Emblem canvas bounds in logical pixels.
     /// - `&mut DisplayList` - Target display list.
-    /// - `f32` - Corner radius in logical pixels.
-    fn draw_euv_brand_emblem(bounds: Rect, dl: &mut DisplayList, radius: f32) {
+    fn draw_euv_brand_emblem(bounds: Rect, dl: &mut DisplayList) {
         let x: f32 = bounds.get_x();
         let y: f32 = bounds.get_y();
         let w: f32 = bounds.get_width().max(1.0);
@@ -177,70 +176,298 @@ impl EuvAppShell {
         let s: f32 = w.min(h);
         let ox: f32 = x + (w - s) * 0.5;
         let oy: f32 = y + (h - s) * 0.5;
-        let u: f32 = s / SHELL_BRAND_BADGE_SIZE;
-        let sq: Rect = Rect::new(ox, oy, s, s);
-        let rad: CornerRadius = CornerRadius::all(radius.min(s * 0.32));
-        dl.push(DrawCommand::LinearGradientRect {
-            rect: sq,
-            gradient: LinearGradient::new(135.0, SHELL_LOGO_BG_TOP, SHELL_LOGO_BG_BOTTOM),
-            radius: rad,
+        let pt: &dyn Fn(f32, f32) -> Point =
+            &|nx: f32, ny: f32| -> Point { Point::new(ox + nx * s, oy + ny * s) };
+        let spar_w: f32 = (s * 0.058).max(1.3);
+        let fine_w: f32 = (s * 0.036).max(0.85);
+        let beacon_w: f32 = (s * 0.068).max(1.55);
+        // 1. Grand left solar-gold holographic wing (sweeping feathered blades + crimson tip beacon).
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.41, 0.49),
+            p1: pt(0.04, 0.14),
+            p2: pt(0.13, 0.40),
+            color: SHELL_LOGO_WING_AMBER,
         });
-        dl.push(DrawCommand::FillRoundedRect {
-            rect: sq,
-            color: COLOR_TRANSPARENT,
-            radius: rad,
-            border: Border::new(1.0, SHELL_LOGO_RIM),
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.40, 0.54),
+            p1: pt(0.08, 0.34),
+            p2: pt(0.25, 0.54),
+            color: SHELL_LOGO_GOLD_ROYAL,
         });
-        let bar_r: CornerRadius = CornerRadius::all(1.15 * u);
-        let spine_x: f32 = ox + 6.5 * u;
-        let bar_h: f32 = 2.6 * u;
-        let stub_w: f32 = 2.6 * u;
-        let stub_h: f32 = 4.9 * u;
-        dl.push(DrawCommand::FillRoundedRect {
-            rect: Rect::new(spine_x, oy + 5.7 * u, 13.0 * u, bar_h),
-            color: SHELL_LOGO_MONOGRAM,
-            radius: bar_r,
-            border: Border::default(),
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.39, 0.48),
+            p1: pt(0.10, 0.20),
+            p2: pt(0.24, 0.44),
+            color: SHELL_LOGO_SOLAR_HI,
         });
-        dl.push(DrawCommand::FillRoundedRect {
-            rect: Rect::new(spine_x, oy + 5.7 * u, stub_w, stub_h),
-            color: SHELL_LOGO_MONOGRAM,
-            radius: bar_r,
-            border: Border::default(),
+        dl.push(DrawCommand::Line {
+            from: pt(0.40, 0.47),
+            to: pt(0.19, 0.22),
+            color: SHELL_LOGO_OBSIDIAN,
+            width: spar_w,
         });
-        dl.push(DrawCommand::FillRoundedRect {
-            rect: Rect::new(spine_x, oy + 11.7 * u, 8.2 * u, bar_h),
-            color: SHELL_LOGO_MONOGRAM,
-            radius: bar_r,
-            border: Border::default(),
+        dl.push(DrawCommand::Line {
+            from: pt(0.40, 0.47),
+            to: pt(0.20, 0.23),
+            color: SHELL_LOGO_GOLD_BRIGHT,
+            width: fine_w,
         });
-        dl.push(DrawCommand::FillRoundedRect {
-            rect: Rect::new(ox + 15.6 * u, oy + 11.7 * u, 3.9 * u, bar_h),
-            color: SHELL_LOGO_SPARK,
-            radius: bar_r,
-            border: Border::default(),
+        dl.push(DrawCommand::Line {
+            from: pt(0.19, 0.22),
+            to: pt(0.06, 0.08),
+            color: SHELL_LOGO_CRIMSON,
+            width: beacon_w,
         });
-        dl.push(DrawCommand::FillRoundedRect {
-            rect: Rect::new(ox + 15.6 * u, oy + 11.7 * u, 1.8 * u, bar_h),
-            color: SHELL_LOGO_SPARK_HI,
-            radius: bar_r,
-            border: Border::default(),
+        // 2. Grand right solar-gold holographic wing + sweeping tail plume.
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.54, 0.51),
+            p1: pt(0.96, 0.11),
+            p2: pt(0.86, 0.40),
+            color: SHELL_LOGO_WING_AMBER,
         });
-        dl.push(DrawCommand::FillRoundedRect {
-            rect: Rect::new(spine_x, oy + 17.7 * u, 13.0 * u, bar_h),
-            color: SHELL_LOGO_MONOGRAM,
-            radius: bar_r,
-            border: Border::default(),
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.55, 0.55),
+            p1: pt(0.91, 0.32),
+            p2: pt(0.71, 0.55),
+            color: SHELL_LOGO_GOLD_ROYAL,
         });
-        dl.push(DrawCommand::FillRoundedRect {
-            rect: Rect::new(spine_x, oy + 15.4 * u, stub_w, stub_h),
-            color: SHELL_LOGO_MONOGRAM,
-            radius: bar_r,
-            border: Border::default(),
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.56, 0.50),
+            p1: pt(0.89, 0.18),
+            p2: pt(0.73, 0.44),
+            color: SHELL_LOGO_SOLAR_HI,
+        });
+        dl.push(DrawCommand::Line {
+            from: pt(0.54, 0.50),
+            to: pt(0.79, 0.23),
+            color: SHELL_LOGO_OBSIDIAN,
+            width: spar_w,
+        });
+        dl.push(DrawCommand::Line {
+            from: pt(0.54, 0.50),
+            to: pt(0.78, 0.24),
+            color: SHELL_LOGO_GOLD_BRIGHT,
+            width: fine_w,
+        });
+        dl.push(DrawCommand::Line {
+            from: pt(0.80, 0.22),
+            to: pt(0.94, 0.08),
+            color: SHELL_LOGO_CRIMSON,
+            width: beacon_w,
+        });
+        // Sweeping armored golden S-curve tail & solar plume on lower right.
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.58, 0.63),
+            p1: pt(0.88, 0.72),
+            p2: pt(0.68, 0.78),
+            color: SHELL_LOGO_OBSIDIAN,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.62, 0.65),
+            p1: pt(0.86, 0.69),
+            p2: pt(0.72, 0.75),
+            color: SHELL_LOGO_GOLD_ROYAL,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.83, 0.71),
+            p1: pt(0.95, 0.46),
+            p2: pt(0.89, 0.62),
+            color: SHELL_LOGO_WING_AMBER,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.85, 0.67),
+            p1: pt(0.93, 0.50),
+            p2: pt(0.89, 0.60),
+            color: SHELL_LOGO_SOLAR_HI,
+        });
+        // 3. Sculpted obsidian mechanical torso & imperial gold Emperor-Armor breastplate.
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.43, 0.36),
+            p1: pt(0.68, 0.60),
+            p2: pt(0.28, 0.66),
+            color: SHELL_LOGO_OBSIDIAN,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.28, 0.66),
+            p1: pt(0.68, 0.60),
+            p2: pt(0.48, 0.85),
+            color: SHELL_LOGO_OBSIDIAN,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.43, 0.38),
+            p1: pt(0.57, 0.54),
+            p2: pt(0.32, 0.60),
+            color: SHELL_LOGO_GOLD_BRIGHT,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.32, 0.60),
+            p1: pt(0.61, 0.56),
+            p2: pt(0.48, 0.80),
+            color: SHELL_LOGO_GOLD_ROYAL,
+        });
+        dl.push(DrawCommand::Circle {
+            center: pt(0.56, 0.61),
+            radius: s * 0.095,
+            color: SHELL_LOGO_OBSIDIAN,
+        });
+        dl.push(DrawCommand::Circle {
+            center: pt(0.56, 0.61),
+            radius: s * 0.072,
+            color: SHELL_LOGO_GOLD_BRIGHT,
+        });
+        // 4. Sculpted armored wedge talons (left raised claw & lower grounded claw, crisp on Light & Dark).
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.32, 0.63),
+            p1: pt(0.18, 0.68),
+            p2: pt(0.23, 0.58),
+            color: SHELL_LOGO_OBSIDIAN,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.22, 0.60),
+            p1: pt(0.08, 0.55),
+            p2: pt(0.18, 0.65),
+            color: SHELL_LOGO_SILVER,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.20, 0.60),
+            p1: pt(0.10, 0.56),
+            p2: pt(0.18, 0.63),
+            color: SHELL_LOGO_SILVER_HI,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.21, 0.65),
+            p1: pt(0.13, 0.74),
+            p2: pt(0.24, 0.69),
+            color: SHELL_LOGO_SILVER,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.52, 0.72),
+            p1: pt(0.62, 0.82),
+            p2: pt(0.46, 0.84),
+            color: SHELL_LOGO_OBSIDIAN,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.48, 0.81),
+            p1: pt(0.40, 0.94),
+            p2: pt(0.52, 0.86),
+            color: SHELL_LOGO_SILVER,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.53, 0.82),
+            p1: pt(0.53, 0.96),
+            p2: pt(0.59, 0.85),
+            color: SHELL_LOGO_SILVER,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.54, 0.83),
+            p1: pt(0.54, 0.94),
+            p2: pt(0.57, 0.85),
+            color: SHELL_LOGO_SILVER_HI,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.58, 0.80),
+            p1: pt(0.67, 0.91),
+            p2: pt(0.61, 0.78),
+            color: SHELL_LOGO_SILVER,
+        });
+        // 5. Swept-back sinuous multi-branched royal golden antlers (sculpted tapered wedges, not vertical sticks).
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.39, 0.24),
+            p1: pt(0.34, 0.08),
+            p2: pt(0.44, 0.20),
+            color: SHELL_LOGO_OBSIDIAN,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.40, 0.23),
+            p1: pt(0.35, 0.10),
+            p2: pt(0.43, 0.20),
+            color: SHELL_LOGO_GOLD_BRIGHT,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.45, 0.24),
+            p1: pt(0.71, 0.06),
+            p2: pt(0.53, 0.26),
+            color: SHELL_LOGO_OBSIDIAN,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.46, 0.23),
+            p1: pt(0.69, 0.08),
+            p2: pt(0.52, 0.25),
+            color: SHELL_LOGO_GOLD_BRIGHT,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.52, 0.22),
+            p1: pt(0.68, 0.17),
+            p2: pt(0.56, 0.26),
+            color: SHELL_LOGO_CRIMSON,
+        });
+        // Noble heroic armored imperial dragon head facing left.
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.36, 0.20),
+            p1: pt(0.55, 0.25),
+            p2: pt(0.45, 0.42),
+            color: SHELL_LOGO_OBSIDIAN,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.37, 0.21),
+            p1: pt(0.52, 0.27),
+            p2: pt(0.28, 0.35),
+            color: SHELL_LOGO_GOLD_BRIGHT,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.28, 0.35),
+            p1: pt(0.52, 0.27),
+            p2: pt(0.45, 0.40),
+            color: SHELL_LOGO_GOLD_ROYAL,
+        });
+        // Crimson ruby forehead crown jewel & blazing solar-gold eye.
+        dl.push(DrawCommand::Circle {
+            center: pt(0.41, 0.24),
+            radius: (s * 0.042).max(1.0),
+            color: SHELL_LOGO_CRIMSON,
+        });
+        dl.push(DrawCommand::Circle {
+            center: pt(0.425, 0.305),
+            radius: (s * 0.032).max(0.85),
+            color: SHELL_LOGO_OBSIDIAN,
+        });
+        dl.push(DrawCommand::Circle {
+            center: pt(0.425, 0.305),
+            radius: (s * 0.021).max(0.6),
+            color: SHELL_LOGO_SOLAR_HI,
+        });
+        // 6. Iconic Emperor-Armor crimson ruby hexagonal chest crystal & shoulder crystal.
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.39, 0.53),
+            p1: pt(0.45, 0.63),
+            p2: pt(0.33, 0.63),
+            color: SHELL_LOGO_CRIMSON,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.39, 0.72),
+            p1: pt(0.45, 0.63),
+            p2: pt(0.33, 0.63),
+            color: SHELL_LOGO_CRIMSON,
+        });
+        dl.push(DrawCommand::Triangle {
+            p0: pt(0.39, 0.55),
+            p1: pt(0.42, 0.62),
+            p2: pt(0.35, 0.62),
+            color: SHELL_LOGO_CRIMSON_HI,
+        });
+        dl.push(DrawCommand::Circle {
+            center: pt(0.56, 0.61),
+            radius: (s * 0.044).max(1.1),
+            color: SHELL_LOGO_CRIMSON,
+        });
+        dl.push(DrawCommand::Circle {
+            center: pt(0.55, 0.60),
+            radius: (s * 0.019).max(0.5),
+            color: SHELL_LOGO_CRIMSON_HI,
         });
     }
 
-    /// Mounts the unified rounded-square brand logo mark shared identically between the top navbar, desktop sidebar, and mobile drawer.
+    /// Mounts the unified Emperor-Armor Winged Golden Dragon brand emblem shared identically between the top navbar, desktop sidebar, and mobile drawer.
     ///
     /// # Arguments
     ///
@@ -267,14 +494,13 @@ impl EuvAppShell {
             };
             if is_euv_mark {
                 let paint_emblem = move |bounds: Rect, dl: &mut DisplayList| {
-                    Self::draw_euv_brand_emblem(bounds, dl, badge_r);
+                    Self::draw_euv_brand_emblem(bounds, dl);
                 };
                 view! {
                     row {
                         width: Length::Px(SHELL_BRAND_BADGE_SIZE)
                         height: Length::Px(SHELL_BRAND_BADGE_SIZE)
                         flex_shrink: 0.0
-                        radius: badge_r
                         justify: JustifyContent::Center
                         align: AlignItems::Center
                         overflow: Overflow::Hidden
@@ -316,14 +542,13 @@ impl EuvAppShell {
             }
         } else if is_euv_mark {
             let paint_emblem = move |bounds: Rect, dl: &mut DisplayList| {
-                Self::draw_euv_brand_emblem(bounds, dl, badge_r);
+                Self::draw_euv_brand_emblem(bounds, dl);
             };
             view! {
                 row {
                     width: Length::Px(SHELL_BRAND_BADGE_SIZE)
                     height: Length::Px(SHELL_BRAND_BADGE_SIZE)
                     flex_shrink: 0.0
-                    radius: badge_r
                     justify: JustifyContent::Center
                     align: AlignItems::Center
                     overflow: Overflow::Hidden

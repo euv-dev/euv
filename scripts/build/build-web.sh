@@ -11,36 +11,30 @@ log_info "Building Release WebAssembly bundle..."
 wasm-pack build --target web --release --out-dir ../dist/web
 
 cd "${REPO_ROOT}"
+python3 "${REPO_ROOT}/scripts/env/generate-icon.py" "${REPO_ROOT}/dist/web/euv-studio-logo-64.png" 64 "${EUV_APP_ICON:-}"
 python3 - <<'PY'
 from pathlib import Path
-import shutil
 
 out_dir = Path("dist/web")
 wasm_file = "euv_example_bg.wasm"
 js_file = out_dir / "euv_example.js"
-brand_dir = Path("assets/branding")
 favicon_tag = (
     '<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,'
     '%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 64 64\'%3E'
-    '%3Cdefs%3E%3ClinearGradient id=\'g\' x1=\'0\' y1=\'0\' x2=\'1\' y2=\'1\'%3E'
-    '%3Cstop offset=\'0%25\' stop-color=\'%23111322\'/%3E'
-    '%3Cstop offset=\'55%25\' stop-color=\'%23252a5c\'/%3E'
-    '%3Cstop offset=\'100%25\' stop-color=\'%234f46e5\'/%3E%3C/linearGradient%3E%3C/defs%3E'
-    '%3Crect x=\'4\' y=\'4\' width=\'56\' height=\'56\' rx=\'16\' fill=\'url(%23g)\'/%3E'
-    '%3Crect x=\'18\' y=\'17\' width=\'28\' height=\'6\' rx=\'3\' fill=\'%23ffffff\'/%3E'
-    '%3Crect x=\'18\' y=\'29\' width=\'22\' height=\'6\' rx=\'3\' fill=\'%23a5b4fc\'/%3E'
-    '%3Crect x=\'18\' y=\'41\' width=\'28\' height=\'6\' rx=\'3\' fill=\'%23ffffff\'/%3E'
+    '%3Cdefs%3E%3ClinearGradient id=\'g\' x1=\'8\' y1=\'8\' x2=\'56\' y2=\'56\' gradientUnits=\'userSpaceOnUse\'%3E'
+    '%3Cstop offset=\'0%25\' stop-color=\'%23fff2a6\'/%3E'
+    '%3Cstop offset=\'48%25\' stop-color=\'%23ffd24d\'/%3E'
+    '%3Cstop offset=\'100%25\' stop-color=\'%23d97706\'/%3E%3C/linearGradient%3E%3C/defs%3E'
+    '%3Cpath d=\'M25 28 L5 8 L10 26 L22 33 Z M34 32 L59 7 L54 27 L39 36 Z\' fill=\'url(%23g)\'/%3E'
+    '%3Cpath d=\'M7 7 L14 14 M57 7 L49 15\' stroke=\'%23e6192e\' stroke-width=\'3.2\' stroke-linecap=\'round\'/%3E'
+    '%3Cpath d=\'M22 22 L32 14 L44 6 L34 22 L40 38 L30 48 L20 42 L20 28 Z\' fill=\'%2314171f\' stroke=\'url(%23g)\' stroke-width=\'2.5\' stroke-linejoin=\'round\'/%3E'
+    '%3Cpolygon points=\'25,33 29,36 27,43 22,40\' fill=\'%23e6192e\'/%3E'
+    '%3Ccircle cx=\'26\' cy=\'16\' r=\'2.2\' fill=\'%23e6192e\'/%3E'
     '%3C/svg%3E"/>'
 )
-brand_svg = brand_dir / "euv-studio-logo.svg"
-brand_png = brand_dir / "euv-studio-logo-64.png"
-if brand_svg.is_file():
-    shutil.copy2(brand_svg, out_dir / "euv-studio-logo.svg")
-    favicon_tag = '<link rel="icon" type="image/svg+xml" href="./euv-studio-logo.svg"/>'
-if brand_png.is_file():
-    shutil.copy2(brand_png, out_dir / "euv-studio-logo-64.png")
-    if not brand_svg.is_file():
-        favicon_tag = '<link rel="icon" type="image/png" sizes="64x64" href="./euv-studio-logo-64.png"/>'
+web_png = out_dir / "euv-studio-logo-64.png"
+if web_png.is_file():
+    favicon_tag = '<link rel="icon" type="image/png" sizes="64x64" href="./euv-studio-logo-64.png"/>'
 inline_runtime = js_file.read_text(encoding="utf-8")
 inline_runtime = inline_runtime.replace(f"new URL('{wasm_file}', import.meta.url)", f"'./{wasm_file}'").replace(f'new URL("{wasm_file}", import.meta.url)', f"'./{wasm_file}'")
 cleaned = []

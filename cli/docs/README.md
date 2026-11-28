@@ -1,6 +1,6 @@
 ---
 home: true
-heroText: euv-docs
+heroText: Euv-docs
 tagline: A VuePress-style documentation site powered by euv + euv-ui, compiled to WebAssembly.
 actions:
   - text: Get Started →
@@ -22,7 +22,7 @@ features:
 footer: MIT Licensed | Built with euv + euv-ui
 ---
 
-## Hello, euv-docs
+## Hello, Euv-docs
 
 This is the home page body. Everything above the horizontal rule comes from
 the frontmatter of this very file; everything below is regular markdown.

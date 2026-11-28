@@ -7,7 +7,7 @@ metadata:
     related_skills: [rust-standards, euv-ui-standards, euv-ui-design-system, git-standards, euv-ai-automation, euv-design-restoration, euv-e2e-replay]
 ---
 
-# euv workspace standards and workflow
+# Euv Workspace Standards and Workflow
 
 ## Mandatory Standards
 

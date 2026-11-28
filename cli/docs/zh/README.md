@@ -1,6 +1,6 @@
 ---
 home: true
-heroText: euv-docs
+heroText: Euv-docs
 tagline: 由 euv + euv-ui 驱动的 VuePress 风格文档站，编译为 WebAssembly 运行。
 actions:
   - text: 快速上手 →
@@ -22,7 +22,7 @@ features:
 footer: MIT 许可 | 基于 euv + euv-ui 构建
 ---
 
-## 你好，euv-docs
+## 你好，Euv-docs
 
 这是首页正文。分割线以上的内容全部来自本文件的 frontmatter，以下就是普通 markdown。
 

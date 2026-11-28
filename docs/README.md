@@ -3,7 +3,7 @@
 # (consumed by build.rs when EUV_DOCS_SRC_DIR is unset, e.g.
 # during `cargo clippy` / `cargo test` in the euv-docs crate itself).
 site:
-  title: euv-docs
+  title: Euv-docs
   description: A documentation site generator powered by euv + euv-ui.
   logo: '📘'
 locales:
@@ -14,7 +14,7 @@ locales:
     dir: en
     lang: en-US
     label: English
-    title: euv-docs
+    title: Euv-docs
     description: A documentation site generator powered by euv + euv-ui.
     footer: MIT Licensed | Built with euv + euv-ui
     toc_label: On this page
@@ -29,9 +29,9 @@ locales:
 
 <div align="center">
 
-# euv-docs
+# Euv-docs
 
-<img src="https://ltpp.vip/github/pages/docs-pages/pages/img/euv.png" alt="euv-docs logo" height="160">
+<img src="https://ltpp.vip/github/pages/docs-pages/pages/img/euv.png" alt="Euv-docs logo" height="160">
 
 **Zero-JS Static Documentation Site Generator Powered by euv + euv-ui**
 

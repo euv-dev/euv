@@ -18,23 +18,32 @@ pub(crate) const ACTION_ROW_MAX_BTN_WIDTH: f32 = 210.0;
 /// Minimum auto-fill width in logical pixels for compound controls (switches/checkboxes) inside `EuvActionRow`.
 pub(crate) const ACTION_ROW_SWITCH_MIN_WIDTH: f32 = 136.0;
 
-/// Top gradient stop color for the obsidian-indigo `Euv Studio` emblem surface (`#192045`).
-pub(crate) const SHELL_LOGO_BG_TOP: Color = Color::hex(0x192045);
+/// Bright solar-gold energy highlight color for the `Euv Studio` Emperor-Armor Dragon wings and eyes (`#FFF099`).
+pub(crate) const SHELL_LOGO_SOLAR_HI: Color = Color::hex(0xFFF099);
 
-/// Bottom gradient stop color for the deep obsidian `Euv Studio` emblem surface (`#070A16`).
-pub(crate) const SHELL_LOGO_BG_BOTTOM: Color = Color::hex(0x070A16);
+/// Gleaming imperial radiant gold armor color for the `Euv Studio` dragon head, antlers, and chest (`#FFD24D`).
+pub(crate) const SHELL_LOGO_GOLD_BRIGHT: Color = Color::hex(0xFFD24D);
 
-/// Luminous white stroke/fill color for the geometric 3-bar `E` monogram inside the emblem.
-pub(crate) const SHELL_LOGO_MONOGRAM: Color = Color::hex(0xFFFFFF);
+/// Deep royal gold mid-tone color for sculpted armor plates and wing spars (`#EAB308`).
+pub(crate) const SHELL_LOGO_GOLD_ROYAL: Color = Color::hex(0xEAB308);
 
-/// Reactive kinetic cyan chevron accent on the middle bar of the geometric `E` emblem (`#38BDF8`).
-pub(crate) const SHELL_LOGO_SPARK: Color = Color::hex(0x38BDF8);
+/// Warm burnished amber-gold feather color framing the wide holographic wings on both Light and Dark surfaces (`#D97706`).
+pub(crate) const SHELL_LOGO_WING_AMBER: Color = Color::hex(0xD97706);
 
-/// Bright cyan-ice leading tip highlight on the reactive middle chevron (`#67E8F9`).
-pub(crate) const SHELL_LOGO_SPARK_HI: Color = Color::hex(0x67E8F9);
+/// Matte obsidian-black mechanical chassis color grounding the Emperor-Armor Dragon silhouette (`#14171F`).
+pub(crate) const SHELL_LOGO_OBSIDIAN: Color = Color::hex(0x14171F);
 
-/// Subtle anodized glass rim highlight drawn around the `Euv Studio` emblem perimeter.
-pub(crate) const SHELL_LOGO_RIM: Color = Color::rgba(224, 242, 254, 118);
+/// Vivid crimson ruby color for the chest core crystal, shoulder gem, forehead jewel, and wingtip beacons (`#E6192E`).
+pub(crate) const SHELL_LOGO_CRIMSON: Color = Color::hex(0xE6192E);
+
+/// Luminous rose-crimson specular facet highlight on the dragon's ruby crystals (`#FF6B81`).
+pub(crate) const SHELL_LOGO_CRIMSON_HI: Color = Color::hex(0xFF6B81);
+
+/// Crisp shaded steel-silver metallic color for armored talon outlines and bevels on Light and Dark surfaces (`#94A3B8`).
+pub(crate) const SHELL_LOGO_SILVER: Color = Color::hex(0x94A3B8);
+
+/// Bright mirror-silver specular edge highlight on the dragon's splayed talons (`#F1F5F9`).
+pub(crate) const SHELL_LOGO_SILVER_HI: Color = Color::hex(0xF1F5F9);
 
 /// Compact mobile header drawer toggle button label.
 pub(crate) const SHELL_MENU_LABEL: &str = "Menu";

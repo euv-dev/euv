@@ -7,7 +7,7 @@ metadata:
     related_skills: [euv, euv-ui-design-system, euv-ui-standards, euv-ai-automation, euv-e2e-replay, rust-standards]
 ---
 
-# euv UI design, image, and video restoration
+# Euv UI Design, Image, and Video Restoration
 
 ## Part 1: Static Design & Image Restoration (Figma, Sketch, Wireframes, Screenshots)
 
@@ -68,4 +68,4 @@ cargo run -p euv-example -- --headless --software
 
 ## Related Skills
 
-- [euv Core](../euv/SKILL.md) · [UI Design System](../euv-ui-design-system/SKILL.md) · [AI Automation](../euv-ai-automation/SKILL.md) · [E2E Replay](../euv-e2e-replay/SKILL.md) · [AGENTS Governance](../../../AGENTS.md)
+- [Euv Core](../euv/SKILL.md) · [UI Design System](../euv-ui-design-system/SKILL.md) · [AI Automation](../euv-ai-automation/SKILL.md) · [E2E Replay](../euv-e2e-replay/SKILL.md) · [AGENTS Governance](../../../AGENTS.md)

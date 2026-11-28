@@ -7,7 +7,7 @@ metadata:
     related_skills: [euv, euv-design-restoration, euv-ui-standards, rust-standards]
 ---
 
-# euv-ui Design System & Component Specification
+# Euv-ui Design System & Component Specification
 
 Authoritative token, theme, geometry, layout, chrome, fullscreen, and component architecture standard for `euv-ui` across Web, Android, iOS, iPadOS, macOS, Windows, and Linux. (For pixel/keyframe restoration from mockups, images, or videos, use [`euv-design-restoration`](../euv-design-restoration/SKILL.md).)
 
@@ -24,7 +24,7 @@ All surfaces snap to the **4px spatial grid** (`ui/src/theme/token/const.rs`):
 | `NAV_SIDEBAR_WIDTH`    | `240px` | Expanded sidebar width (`204px` on Medium rail); `CONTENT_MAX_WIDTH: 960` |
 
 - **Breakpoints (`Breakpoint::from_width`)**: `Compact` (`< 768px`, top bar + `224..256px` left slide drawer expandable to `380px`, `SPACE_MD` canvas pad, 1-col KPI grid), `Medium` (`768px..1023px`, `204px` rail, `SPACE_LG` pad, 2-col KPI), `Expanded` (`>= 1024px`, `240px` rail, `SPACE_XL` pad, 3-col KPI).
-- **Shell Chrome & Brand Identity**: `EuvAppShell` renders the unified `26x26px` `Euv Studio` geometric 3-bar `E` gradient squircle emblem across navbar, sidebar, and drawer, optional centered floating capsule `EuvBottomNav` (`60px` high, `max-width: 436px`, float `14px` compact / `18px` wide + `safe.bottom`), optional live FPS pill (`show_fps`), and zero-teardown `UiThemeState` in-place restyling (`remap_subtree_theme_in_place`).
+- **Shell Chrome & Brand Identity**: `EuvAppShell` renders the unified `26x26px` `Euv Studio` Emperor-Armor Winged Golden Dragon vector emblem (imperial gold, obsidian chassis, wide solar-gold wings, crimson ruby core & wingtips) across navbar, sidebar, and drawer, optional centered floating capsule `EuvBottomNav` (`60px` high, `max-width: 436px`, float `14px` compact / `18px` wide + `safe.bottom`), optional live FPS pill (`show_fps`), and zero-teardown `UiThemeState` in-place restyling (`remap_subtree_theme_in_place`).
 - **Reactive `SafeAreaInsets`**: Bind `EuvAppShell` (`page_padding`), `EuvRouterOutlet` double-back exit toast, `EuvDrawer`, `EuvSheet`, `EuvToast`, and `EuvNotification` reactively to `Context::get_safe_area()` (`Signal<SafeAreaInsets>`) so notches, Dynamic/Atomic Island pills, and OS bars reflow immediately.
 
 ## 2. Multi-Theme Tokens (`ThemePalette` & `ThemeGeometry`)
@@ -87,4 +87,4 @@ cargo clippy -p euv-ui --all-features --all-targets -- -D warnings
 cargo test -p euv-ui --no-default-features && cargo test -p euv-ui --features theme-shadcn && cargo test -p euv-ui --all-features
 ```
 
-- Companion skills: [euv Core](../euv/SKILL.md) · [Design Restoration](../euv-design-restoration/SKILL.md) · [AI Automation](../euv-ai-automation/SKILL.md) · [E2E Replay](../euv-e2e-replay/SKILL.md) · [AGENTS Governance](../../../AGENTS.md)
+- Companion skills: [Euv Core](../euv/SKILL.md) · [Design Restoration](../euv-design-restoration/SKILL.md) · [AI Automation](../euv-ai-automation/SKILL.md) · [E2E Replay](../euv-e2e-replay/SKILL.md) · [AGENTS Governance](../../../AGENTS.md)

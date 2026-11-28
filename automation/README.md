@@ -1,6 +1,6 @@
 <div align="center">
 
-# euv-automation
+# Euv-automation
 
 **Dev-Only Async AI Schema v2 Bridge, `euv.ui-e2e.v1` & Programmatic UI Automation**
 

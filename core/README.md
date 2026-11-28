@@ -1,8 +1,8 @@
 <div align="center">
 
-# euv-core
+# Euv-core
 
-<img src="https://ltpp.vip/github/pages/docs-pages/pages/img/euv.png" alt="euv-core logo" height="160">
+<img src="https://ltpp.vip/github/pages/docs-pages/pages/img/euv.png" alt="Euv-core logo" height="160">
 
 **Cross-Platform Native Runtime, Layout, Rendering, 3D Engine & 7 OS Backends**
 

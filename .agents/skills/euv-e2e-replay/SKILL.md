@@ -7,7 +7,7 @@ metadata:
     related_skills: [euv, euv-ai-automation, euv-design-restoration, rust-standards]
 ---
 
-# euv UI E2E recording, replay, and verdict gating
+# Euv UI E2E Recording, Replay, and Verdict Gating
 
 ## 1. Recording Contract (`UiE2eRecorder`, `automation/src/e2e/`)
 
@@ -72,4 +72,4 @@ metadata:
 
 ## Related Skills
 
-- [euv Core](../euv/SKILL.md) · [AI Automation](../euv-ai-automation/SKILL.md) · [Design Restoration](../euv-design-restoration/SKILL.md) · [Automation README](../../../automation/README.md)
+- [Euv Core](../euv/SKILL.md) · [AI Automation](../euv-ai-automation/SKILL.md) · [Design Restoration](../euv-design-restoration/SKILL.md) · [Automation README](../../../automation/README.md)

@@ -1,4 +1,4 @@
-# AGENTS.md — euv Workspace Engineering & Documentation Governance
+# AGENTS.md — Euv Workspace Engineering & Documentation Governance
 
 Mandatory architectural, macro authoring, UI/layout, formatting, release, and documentation governance rules for all contributors and AI coding agents working in the `euv` repository.
 

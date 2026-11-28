@@ -1,8 +1,8 @@
 <div align="center">
 
-# euv-macros
+# Euv-macros
 
-<img src="https://ltpp.vip/github/pages/docs-pages/pages/img/euv.png" alt="euv-macros logo" height="160">
+<img src="https://ltpp.vip/github/pages/docs-pages/pages/img/euv.png" alt="Euv-macros logo" height="160">
 
 **Zero-Overhead Declarative UI, Style, Lifecycle & Reactive Proc Macros**
 

@@ -1,8 +1,8 @@
 <div align="center">
 
-# euv-example
+# Euv-example
 
-<img src="https://ltpp.vip/github/pages/docs-pages/pages/img/euv.png" alt="euv-example logo" height="160">
+<img src="https://ltpp.vip/github/pages/docs-pages/pages/img/euv.png" alt="Euv-example logo" height="160">
 
 **15-Route Cross-Platform Reference Showcase & Interactive Stress Lab**
 
